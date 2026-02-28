@@ -42,12 +42,17 @@ export function buildNamingConventionRule(
       maxSeverity = severity;
     }
 
-    const extensions = rule.extensions as
-      | { eslint?: { rule?: string; options?: unknown[] } }
-      | undefined;
+    const eslintExt = rule.extensions?.eslint;
+    const eslintOptions =
+      eslintExt &&
+      typeof eslintExt === "object" &&
+      "options" in eslintExt &&
+      Array.isArray((eslintExt as Record<string, unknown>).options)
+        ? ((eslintExt as Record<string, unknown>).options as unknown[])
+        : undefined;
 
-    if (extensions?.eslint?.options) {
-      selectors.push(...extensions.eslint.options);
+    if (eslintOptions) {
+      selectors.push(...eslintOptions);
     } else if (typeof rule.convention === "string") {
       selectors.push({
         selector: selectorName,
