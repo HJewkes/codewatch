@@ -45,6 +45,31 @@ describe("parseEslintJsonOutput", () => {
     expect(diagnostics[0].category).toBe("naming");
     expect(diagnostics[1].severity).toBe("warn");
   });
+
+  it("skips messages without ruleId", () => {
+    const input = JSON.stringify([
+      {
+        filePath: "/src/index.ts",
+        messages: [
+          {
+            ruleId: null,
+            severity: 1,
+            message: "parse error",
+            line: 1,
+            column: 1,
+          },
+        ],
+      },
+    ]);
+    const result = parseEslintJsonOutput(input);
+    expect(result).toHaveLength(0);
+  });
+
+  it("throws on non-JSON input", () => {
+    expect(() =>
+      parseEslintJsonOutput("Error: something went wrong\n"),
+    ).toThrow(/Failed to parse ESLint JSON output/);
+  });
 });
 
 describe("parseRuffJsonOutput", () => {
@@ -67,6 +92,12 @@ describe("parseRuffJsonOutput", () => {
     expect(diagnostics[0].column).toBe(4);
     expect(diagnostics[0].rule).toBe("N806");
     expect(diagnostics[0].category).toBe("naming");
+  });
+
+  it("throws on non-JSON input", () => {
+    expect(() =>
+      parseRuffJsonOutput("ruff: error: invalid config\n"),
+    ).toThrow(/Failed to parse Ruff JSON output/);
   });
 });
 

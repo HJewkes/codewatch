@@ -1,4 +1,5 @@
-import type { CheckDiagnostic, Severity } from "../orchestrator/types.js";
+import type { Severity } from "@code-style/profile";
+import type { CheckDiagnostic } from "../orchestrator/types.js";
 
 const RUFF_CODE_CATEGORY: Record<string, string> = {
   N: "naming",
@@ -66,7 +67,14 @@ interface RuffJsonEntry {
 }
 
 export function parseEslintJsonOutput(jsonStr: string): CheckDiagnostic[] {
-  const entries: EslintJsonEntry[] = JSON.parse(jsonStr);
+  let entries: EslintJsonEntry[];
+  try {
+    entries = JSON.parse(jsonStr);
+  } catch {
+    throw new Error(
+      `Failed to parse ESLint JSON output. Raw output:\n${jsonStr.slice(0, 500)}`,
+    );
+  }
   const diagnostics: CheckDiagnostic[] = [];
 
   for (const entry of entries) {
@@ -90,7 +98,14 @@ export function parseEslintJsonOutput(jsonStr: string): CheckDiagnostic[] {
 }
 
 export function parseRuffJsonOutput(jsonStr: string): CheckDiagnostic[] {
-  const entries: RuffJsonEntry[] = JSON.parse(jsonStr);
+  let entries: RuffJsonEntry[];
+  try {
+    entries = JSON.parse(jsonStr);
+  } catch {
+    throw new Error(
+      `Failed to parse Ruff JSON output. Raw output:\n${jsonStr.slice(0, 500)}`,
+    );
+  }
   return entries.map((entry) => ({
     file: entry.filename,
     line: entry.location.row,
