@@ -15,5 +15,13 @@
     "typecheck": "tsc --noEmit",
     "lint": "echo 'lint not configured yet'"
   },
-  "files": ["dist"]
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.2"
+  }
 }
