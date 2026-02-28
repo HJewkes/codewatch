@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Builtin imports
 import * as path from "node:path";
 import * as fs from "node:fs";
