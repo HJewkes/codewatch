@@ -8,6 +8,11 @@ You are evaluating code written by another agent for compliance with a coding st
 ## Code Under Review
 {{CODE_CONTENT}}
 
+## Original Task
+{{TASK_DESCRIPTION}}
+
+Use this to verify the agent completed the task, not just followed style rules.
+
 ## Evaluation Criteria
 
 Rate each dimension 1-5 (1=poor, 5=perfect):
