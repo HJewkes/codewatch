@@ -38,6 +38,10 @@ importers:
       web-tree-sitter:
         specifier: ^0.26.6
         version: 0.26.6
+    devDependencies:
+      '@types/node':
+        specifier: ^25.3.2
+        version: 25.3.2
 
   packages/checker:
     dependencies:
