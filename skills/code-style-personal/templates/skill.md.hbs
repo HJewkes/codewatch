@@ -1,0 +1,20 @@
+---
+description: "Personal coding style for {{author}} -- enforces naming, structure, documentation, and pattern preferences detected from real code."
+triggers:
+  - writing new code
+  - reviewing code
+  - refactoring
+---
+
+# {{author}}'s Code Style
+
+{{#each topRules}}
+- **{{name}}**: {{description}}
+{{/each}}
+
+For full details see:
+- [references/naming.md](references/naming.md) -- naming conventions
+- [references/patterns.md](references/patterns.md) -- structural patterns and preferences
+{{#each languages}}
+- [references/per-language/{{this}}.md](references/per-language/{{this}}.md) -- {{this}}-specific rules
+{{/each}}

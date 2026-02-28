@@ -1,0 +1,20 @@
+# Structural Patterns & Preferences
+
+{{#each patterns}}
+## {{name}}
+
+**Strength**: {{strength}} | **Confidence**: {{confidencePercent}}%
+
+{{#if description}}
+{{description}}
+{{/if}}
+
+{{/each}}
+
+{{#if preferredPatterns}}
+## Preferred Code Patterns
+
+{{#each preferredPatterns}}
+- {{this}}
+{{/each}}
+{{/if}}
