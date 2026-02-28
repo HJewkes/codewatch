@@ -41,3 +41,20 @@ export {
   type StabilityWeights,
   type SeverityThresholds,
 } from "./aggregator/index.js";
+
+// Enricher
+export {
+  Enricher,
+  needsAiEnrichment,
+  AI_ENRICHED_FEATURES,
+  createProvider,
+  ClaudeHaikuProvider,
+  OllamaProvider,
+  type LlmProvider,
+  type LlmMessage,
+  type LlmResponse,
+  type EnrichmentEntry,
+  type EnrichmentError,
+  type EnrichmentResult,
+  type EnricherConfig,
+} from "./enricher/index.js";
