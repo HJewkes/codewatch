@@ -1,12 +1,17 @@
 #!/usr/bin/env node
 import { Command } from "commander";
-import { writeProfile } from "@code-style/profile";
+import { readProfile, writeProfile } from "@code-style/profile";
 import type {
   CodeCorpus,
   Extractor,
   Observation,
 } from "@code-style/analyzer";
 import { promptForInitOptions, runInitPipeline } from "./commands/init.js";
+import { formatProfileText, formatProfileJson } from "./commands/show.js";
+import {
+  diffAgainstProfile,
+  getChangedFiles,
+} from "./commands/diff.js";
 import { getDefaultProfilePath } from "./utils/config.js";
 import { formatError } from "./utils/output.js";
 
@@ -90,6 +95,95 @@ program
         },
         profilePath: getDefaultProfilePath(),
       });
+    } catch (err) {
+      console.error(
+        formatError(err instanceof Error ? err.message : String(err)),
+      );
+      process.exitCode = 1;
+    }
+  });
+
+program
+  .command("show")
+  .description("Pretty-print current style profile")
+  .option("--category <name>", "Filter to a single category")
+  .option("--json", "Output raw JSON")
+  .option("--profile <path>", "Path to profile file")
+  .action(async (options) => {
+    try {
+      const profilePath = options.profile ?? getDefaultProfilePath();
+      const profile = await readProfile(profilePath);
+      if (options.json) {
+        console.log(formatProfileJson(profile, options.category));
+      } else {
+        console.log(formatProfileText(profile, options.category));
+      }
+    } catch (err) {
+      console.error(
+        formatError(err instanceof Error ? err.message : String(err)),
+      );
+      process.exitCode = 1;
+    }
+  });
+
+program
+  .command("diff")
+  .description("Check staged/changed files against profile")
+  .option("--profile <path>", "Path to profile file")
+  .action(async (options) => {
+    try {
+      const profilePath = options.profile ?? getDefaultProfilePath();
+      const profile = await readProfile(profilePath);
+      const files = getChangedFiles();
+      if (files.length === 0) {
+        console.log("No changed files to check.");
+        return;
+      }
+      const analyzer = await import("@code-style/analyzer");
+      const extractors: Extractor[] = [
+        new analyzer.NamingExtractor(),
+        new analyzer.StructureExtractor(),
+        new analyzer.ControlFlowExtractor(),
+        new analyzer.DocumentationExtractor(),
+        new analyzer.ErrorHandlingExtractor(),
+      ];
+      const observations: Observation[] = [];
+      for (const filePath of files) {
+        const fs = await import("node:fs/promises");
+        const content = await fs.readFile(filePath, "utf-8");
+        const lang = analyzer.getLanguageFromPath(filePath);
+        if (!lang) continue;
+        const parsed = await analyzer.parseFile(content, filePath, lang);
+        if (!parsed) continue;
+        for (const extractor of extractors) {
+          observations.push(...extractor.extract(parsed));
+        }
+      }
+      const result = diffAgainstProfile(profile, observations);
+
+      if (result.deviations.length === 0) {
+        console.log(
+          `All ${result.summary.total} observations match your profile.`,
+        );
+        process.exitCode = 0;
+        return;
+      }
+
+      for (const d of result.deviations) {
+        const severity = d.severity.toUpperCase().padEnd(5);
+        console.log(
+          `${d.file}:${d.line} ${severity} expected ${d.expected}, found ${d.found} [${d.rule}]`,
+        );
+      }
+
+      console.log(
+        `\n${result.summary.deviating} deviation(s) in ${result.summary.total} observations.`,
+      );
+      process.exitCode = result.deviations.some(
+        (d) => d.severity === "error",
+      )
+        ? 1
+        : 0;
     } catch (err) {
       console.error(
         formatError(err instanceof Error ? err.message : String(err)),
