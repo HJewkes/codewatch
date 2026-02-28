@@ -17,11 +17,16 @@ const execFileAsync = promisify(execFile)
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const PROJECT_DIR = resolve(__dirname, "../..")
 
+function cleanEnv(): NodeJS.ProcessEnv {
+  const env = { ...process.env }
+  delete env.CLAUDECODE
+  return env
+}
+
 interface RunConfig {
   version: string
   profilePath: string
   concurrency: number
-  budget: number
   skipCheck: boolean
   skipJudge: boolean
   dryRun: boolean
@@ -33,7 +38,6 @@ function parseCliArgs(): RunConfig {
     options: {
       profile: { type: "string", default: "scripts/diagnostic/fixtures/test-profile.json" },
       concurrency: { type: "string", default: "3" },
-      budget: { type: "string", default: "0.50" },
       "skip-check": { type: "boolean", default: false },
       "skip-judge": { type: "boolean", default: false },
       "dry-run": { type: "boolean", default: false },
@@ -42,7 +46,7 @@ function parseCliArgs(): RunConfig {
 
   const version = positionals[0]
   if (!version) {
-    console.error("Usage: run.ts <version> [--profile <path>] [--concurrency <n>] [--budget <n>] [--skip-check] [--skip-judge] [--dry-run]")
+    console.error("Usage: run.ts <version> [--profile <path>] [--concurrency <n>] [--skip-check] [--skip-judge] [--dry-run]")
     process.exit(1)
   }
 
@@ -50,7 +54,6 @@ function parseCliArgs(): RunConfig {
     version,
     profilePath: values.profile as string,
     concurrency: Number(values.concurrency),
-    budget: Number(values.budget),
     skipCheck: values["skip-check"] as boolean,
     skipJudge: values["skip-judge"] as boolean,
     dryRun: values["dry-run"] as boolean,
@@ -124,15 +127,18 @@ async function phaseSetup(config: RunConfig): Promise<string> {
   }
 
   log("setup", "Exporting skill from profile...")
-  await execFileAsync("npx", [
-    "code-style", "export",
-    "--format", "skill",
-    "--profile", profileAbs,
-    "--output", skillDir,
-  ], {
-    cwd: PROJECT_DIR,
-    timeout: 60_000,
-  })
+  // Import profile package directly from source to avoid dist path resolution issues
+  const { readProfile, exportProfile } = await import(
+    join(PROJECT_DIR, "packages/profile/src/index.js")
+  )
+  const profile = await readProfile(profileAbs)
+  const files = exportProfile(profile, "skill")
+  for (const file of files) {
+    const outPath = join(skillDir, file.path)
+    await mkdir(dirname(outPath), { recursive: true })
+    await writeFile(outPath, file.content)
+  }
+  log("setup", `Exported ${files.length} skill file(s)`)
 
   try {
     await readFile(join(skillDir, "skill.md"), "utf-8")
@@ -191,7 +197,7 @@ async function phaseTestBench(
     const taskDescription = extractTaskDescription(promptContent)
 
     if (config.dryRun) {
-      log("test-bench", `Would run ${promptId}: claude -p --model sonnet --max-budget-usd ${config.budget}`)
+      log("test-bench", `Would run ${promptId}: claude -p --model sonnet`)
       return { promptId, outputFile, outputDir, taskDescription, success: true }
     }
 
@@ -200,14 +206,14 @@ async function phaseTestBench(
         "-p",
         "--model", "sonnet",
         "--output-format", "json",
-        "--max-budget-usd", String(config.budget),
         "--permission-mode", "bypassPermissions",
         "--no-session-persistence",
         promptContent,
       ], {
         cwd: PROJECT_DIR,
         signal: AbortSignal.timeout(120_000),
-        env: { ...process.env, CLAUDECODE: undefined },
+        maxBuffer: 10 * 1024 * 1024,
+        env: cleanEnv(),
       })
 
       await writeFile(outputFile, stdout, "utf-8")
@@ -301,16 +307,24 @@ async function phaseCheck(
     log("check", `Checking ${result.promptId}: ${absFiles.length} file(s)`)
 
     try {
-      const { stdout } = await execFileAsync("npx", [
-        "code-style", "check",
-        "--format", "json",
-        "--profile", profileAbs,
-        ...absFiles,
-      ], {
-        cwd: PROJECT_DIR,
-        signal: AbortSignal.timeout(120_000),
+      const { readProfile } = await import(
+        join(PROJECT_DIR, "packages/profile/src/index.js")
+      )
+      const { orchestrate } = await import(
+        join(PROJECT_DIR, "packages/checker/src/index.js")
+      )
+      const profile = await readProfile(profileAbs)
+      const checkResult = await orchestrate({
+        profile,
+        files: absFiles,
+        language: "typescript",
       })
-      await writeFile(checkFile, stdout, "utf-8")
+      const output = JSON.stringify(
+        { diagnostics: checkResult.diagnostics, summary: checkResult.summary },
+        null,
+        2,
+      )
+      await writeFile(checkFile, output, "utf-8")
       checked++
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
@@ -400,14 +414,14 @@ async function phaseJudge(
         "-p",
         "--model", "sonnet",
         "--output-format", "json",
-        "--max-budget-usd", "0.25",
         "--permission-mode", "bypassPermissions",
         "--no-session-persistence",
         prompt,
       ], {
         cwd: PROJECT_DIR,
         signal: AbortSignal.timeout(120_000),
-        env: { ...process.env, CLAUDECODE: undefined },
+        maxBuffer: 10 * 1024 * 1024,
+        env: cleanEnv(),
       })
 
       await writeFile(judgeFile, stdout, "utf-8")
@@ -460,7 +474,6 @@ async function main(): Promise<void> {
   console.log(`  Code-Style Diagnostic — ${config.version}`)
   console.log(`  Profile:     ${config.profilePath}`)
   console.log(`  Concurrency: ${config.concurrency}`)
-  console.log(`  Budget:      $${config.budget} per prompt`)
   console.log(`  Skip check:  ${config.skipCheck}`)
   console.log(`  Skip judge:  ${config.skipJudge}`)
   console.log(`  Dry run:     ${config.dryRun}`)
