@@ -1,4 +1,4 @@
-import type { Observation } from "../extractors/types.js";
+import type { Observation, ObservationCategory } from "../extractors/types.js";
 import {
   computeConfidence,
   mapSeverity,
@@ -27,7 +27,7 @@ export type {
 
 export interface AggregatedFeature {
   type: string;
-  category: string;
+  category: ObservationCategory;
   convention: string | number | boolean | string[];
   distribution: FrequencyDistribution;
   confidence: number;
@@ -127,8 +127,8 @@ export class Aggregator {
     };
   }
 
-  private extractCategory(type: string): string {
+  private extractCategory(type: string): ObservationCategory {
     const dotIndex = type.indexOf(".");
-    return dotIndex > 0 ? type.substring(0, dotIndex) : type;
+    return (dotIndex > 0 ? type.substring(0, dotIndex) : type) as ObservationCategory;
   }
 }

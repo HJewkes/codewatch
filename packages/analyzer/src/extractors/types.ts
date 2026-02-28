@@ -1,10 +1,23 @@
 import type { Tree } from "web-tree-sitter";
+import type { ProfileCategory } from "@code-style/profile";
+
+/**
+ * Categories that extractors emit. Includes all ProfileCategory values
+ * plus extractor-specific categories that don't map directly to profile sections.
+ */
+export type ObservationCategory =
+  | ProfileCategory
+  | "control-flow"
+  | "error-handling"
+  | "reviewVoice"
+  | "idioms"
+  | "complexity";
 
 export interface Observation {
   /** Feature type, e.g. "naming.variable", "naming.function" */
   type: string;
   /** Top-level category, e.g. "naming", "structure" */
-  category: string;
+  category: ObservationCategory;
   /** Detected value, e.g. "camelCase", true, 28 */
   value: string | number | boolean;
   /** Source file path */

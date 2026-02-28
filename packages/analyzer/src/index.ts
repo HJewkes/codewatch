@@ -16,6 +16,7 @@ export {
 export {
   type Extractor,
   type Observation,
+  type ObservationCategory,
   type ParsedFile,
   parseFile,
   getSupportedLanguages,

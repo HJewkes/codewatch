@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { Aggregator } from "../aggregator/index.js";
-import type { Observation } from "../extractors/types.js";
+import type { Observation, ObservationCategory } from "../extractors/types.js";
 
 function makeObservation(
   overrides: Partial<Observation> & Pick<Observation, "type" | "value">,
@@ -8,7 +8,7 @@ function makeObservation(
   const type = overrides.type;
   const category =
     overrides.category ??
-    (type.indexOf(".") > 0 ? type.substring(0, type.indexOf(".")) : type);
+    ((type.indexOf(".") > 0 ? type.substring(0, type.indexOf(".")) : type) as ObservationCategory);
 
   return {
     file: "test.ts",

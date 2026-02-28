@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Enricher } from "../enricher/index.js";
 import type { LlmProvider, LlmResponse } from "../enricher/providers.js";
 import type { AggregatedFeature } from "../enricher/index.js";
+import type { ObservationCategory } from "../extractors/types.js";
 
 function createMockProvider(
   response: string = "Generated description.",
@@ -19,7 +20,7 @@ function makeFeature(
   overrides: Partial<AggregatedFeature> & Pick<AggregatedFeature, "type">,
 ): AggregatedFeature {
   return {
-    category: overrides.type.split(".")[0],
+    category: overrides.type.split(".")[0] as ObservationCategory,
     convention: "some-pattern",
     distribution: {
       values: new Map([["some-pattern", 10]]),

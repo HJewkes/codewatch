@@ -3,7 +3,6 @@ import { Command } from "commander";
 import { readProfile, writeProfile } from "@code-style/profile";
 import type {
   CodeCorpus,
-  Extractor,
   Observation,
 } from "@code-style/analyzer";
 import { promptForInitOptions, runInitPipeline } from "./commands/init.js";
@@ -14,6 +13,7 @@ import {
 } from "./commands/diff.js";
 import { getDefaultProfilePath } from "./utils/config.js";
 import { formatError, formatSuccess } from "./utils/output.js";
+import { createExtractors, extractFromFiles } from "./utils/pipeline.js";
 
 const program = new Command();
 
@@ -59,26 +59,16 @@ program
         },
         extract: async (corpus) => {
           const typedCorpus = corpus as CodeCorpus;
-          const extractors: Extractor[] = [
-            new analyzer.NamingExtractor(),
-            new analyzer.StructureExtractor(),
-            new analyzer.ControlFlowExtractor(),
-            new analyzer.DocumentationExtractor(),
-            new analyzer.ErrorHandlingExtractor(),
-          ];
-          const observations: Observation[] = [];
-          for (const file of typedCorpus.files) {
-            const parsed = await analyzer.parseFile(
-              file.content,
-              file.path,
-              file.language,
-            );
-            if (!parsed) continue;
-            for (const extractor of extractors) {
-              observations.push(...extractor.extract(parsed));
-            }
-          }
-          return observations;
+          const extractors = createExtractors(analyzer);
+          return extractFromFiles(
+            typedCorpus.files.map((f) => ({
+              content: f.content,
+              path: f.path,
+              language: f.language,
+            })),
+            extractors,
+            analyzer.parseFile,
+          );
         },
         aggregate: async (observations) => {
           const aggregator = new analyzer.Aggregator();
@@ -166,25 +156,20 @@ program
         return;
       }
       const analyzer = await import("@code-style/analyzer");
-      const extractors: Extractor[] = [
-        new analyzer.NamingExtractor(),
-        new analyzer.StructureExtractor(),
-        new analyzer.ControlFlowExtractor(),
-        new analyzer.DocumentationExtractor(),
-        new analyzer.ErrorHandlingExtractor(),
-      ];
-      const observations: Observation[] = [];
+      const fs = await import("node:fs/promises");
+      const extractors = createExtractors(analyzer);
+      const fileInputs: { content: string; path: string; language: string }[] = [];
       for (const filePath of files) {
-        const fs = await import("node:fs/promises");
-        const content = await fs.readFile(filePath, "utf-8");
         const lang = analyzer.getLanguageFromPath(filePath);
         if (!lang) continue;
-        const parsed = await analyzer.parseFile(content, filePath, lang);
-        if (!parsed) continue;
-        for (const extractor of extractors) {
-          observations.push(...extractor.extract(parsed));
-        }
+        const content = await fs.readFile(filePath, "utf-8");
+        fileInputs.push({ content, path: filePath, language: lang });
       }
+      const observations = await extractFromFiles(
+        fileInputs,
+        extractors,
+        analyzer.parseFile,
+      );
       const result = diffAgainstProfile(profile, observations);
 
       if (result.deviations.length === 0) {
