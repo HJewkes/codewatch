@@ -5,3 +5,7 @@ export { StructureExtractor } from "./structure.js";
 export { ControlFlowExtractor } from "./control-flow.js";
 export { DocumentationExtractor } from "./documentation.js";
 export { ErrorHandlingExtractor } from "./error-handling.js";
+export { FormattingExtractor } from "./formatting.js";
+export { ComplexityExtractor } from "./complexity.js";
+export { IdiomsExtractor } from "./idioms.js";
+export { ReviewVoiceExtractor } from "./review-voice.js";
