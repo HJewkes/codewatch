@@ -1,0 +1,187 @@
+{
+  "$schema": "../../packages/profile/profile-schema.json",
+  "schemaVersion": "1.0.0",
+  "author": "testuser",
+  "generated": "2026-02-28",
+  "sources": ["testuser/sample-repo"],
+  "naming": {
+    "variables": {
+      "convention": "camelCase",
+      "confidence": 0.94,
+      "stability": "high",
+      "description": "Use camelCase for all local variables and parameters.",
+      "examples": [
+        { "good": "const userProfile = await fetchUser(id);" },
+        { "bad": "const user_profile = await fetchUser(id);" }
+      ]
+    },
+    "functions": {
+      "convention": "camelCase",
+      "confidence": 0.97,
+      "stability": "high",
+      "description": "Use camelCase for all function names.",
+      "examples": [
+        { "good": "function getUserById(id: string) {}" },
+        { "bad": "function get_user_by_id(id: string) {}" }
+      ]
+    },
+    "types": {
+      "convention": "PascalCase",
+      "confidence": 0.99,
+      "stability": "high",
+      "description": "Use PascalCase for interfaces, types, classes, and enums."
+    },
+    "constants": {
+      "convention": "UPPER_SNAKE_CASE",
+      "confidence": 0.88,
+      "stability": "high",
+      "description": "Use UPPER_SNAKE_CASE for module-level constants."
+    },
+    "files": {
+      "convention": "kebab-case",
+      "confidence": 0.85,
+      "stability": "medium",
+      "description": "Use kebab-case for file names."
+    }
+  },
+  "structure": {
+    "importOrder": {
+      "convention": ["builtin", "external", "internal", "relative"],
+      "confidence": 0.91,
+      "fixability": "safe",
+      "description": "Group imports: Node builtins, then external packages, then internal aliases, then relative paths. Separate groups with a blank line."
+    },
+    "maxFunctionLength": {
+      "convention": "30 lines",
+      "confidence": 0.78,
+      "stability": "medium",
+      "description": "Functions should be at most ~30 lines. Extract helpers for longer logic."
+    },
+    "preferredPatterns": {
+      "convention": ["guard-clauses", "early-return", "composition"],
+      "confidence": 0.82,
+      "description": "Use guard clauses and early returns. Prefer composition over inheritance."
+    },
+    "exportStyle": {
+      "convention": "named-exports",
+      "confidence": 0.90,
+      "stability": "high",
+      "description": "Use named exports. Avoid default exports."
+    }
+  },
+  "documentation": {
+    "functionDocs": {
+      "convention": "jsdoc-selective",
+      "confidence": 0.80,
+      "description": "Add JSDoc to exported functions only. Rely on TypeScript types instead of @param tags."
+    },
+    "moduleHeader": {
+      "convention": "brief-comment",
+      "confidence": 0.65,
+      "stability": "medium",
+      "description": "Add a brief module-level comment describing purpose. No license headers."
+    },
+    "inlineComments": {
+      "convention": "why-not-what",
+      "confidence": 0.85,
+      "stability": "high",
+      "description": "Comments explain why, not what. Code should be self-documenting."
+    }
+  },
+  "errorHandling": {
+    "catchStyle": {
+      "convention": "typed-catch",
+      "confidence": 0.76,
+      "stability": "medium",
+      "description": "Use typed error handling. Narrow unknown errors before accessing properties. Never use bare catch blocks."
+    },
+    "errorTypes": {
+      "convention": "custom-error-classes",
+      "confidence": 0.70,
+      "stability": "medium",
+      "description": "Define custom error classes for domain errors. Extend Error with meaningful names."
+    },
+    "earlyReturn": {
+      "convention": "guard-clause",
+      "confidence": 0.88,
+      "stability": "high",
+      "description": "Validate inputs at the top of functions and return/throw early."
+    }
+  },
+  "formatting": {
+    "semicolons": {
+      "convention": "always",
+      "confidence": 0.95,
+      "stability": "high"
+    },
+    "quotes": {
+      "convention": "double",
+      "confidence": 0.92,
+      "stability": "high"
+    },
+    "trailingComma": {
+      "convention": "all",
+      "confidence": 0.88,
+      "stability": "high"
+    },
+    "indentation": {
+      "convention": "2 spaces",
+      "confidence": 0.97,
+      "stability": "high"
+    }
+  },
+  "patterns": {
+    "preferPureFunctions": {
+      "convention": "strong",
+      "confidence": 0.82,
+      "stability": "medium",
+      "description": "Prefer pure functions over stateful methods. Isolate side effects at boundaries."
+    },
+    "avoidClassInheritance": {
+      "convention": "moderate",
+      "confidence": 0.68,
+      "stability": "medium",
+      "description": "Prefer composition over class inheritance. Use interfaces and dependency injection."
+    },
+    "asyncPatterns": {
+      "convention": "async-await",
+      "confidence": 0.95,
+      "stability": "high",
+      "description": "Use async/await over raw Promises. Avoid .then() chains."
+    }
+  },
+  "idioms": {
+    "detected": [
+      {
+        "name": "nullish-coalescing",
+        "description": "Use ?? over || for default values",
+        "frequency": 42,
+        "confidence": 0.90
+      },
+      {
+        "name": "optional-chaining",
+        "description": "Use ?. for nested property access",
+        "frequency": 38,
+        "confidence": 0.88
+      }
+    ]
+  },
+  "antiPatterns": {
+    "acknowledged": [
+      {
+        "pattern": "any type",
+        "reason": "Avoid 'any' — use 'unknown' and narrow instead"
+      },
+      {
+        "pattern": "nested callbacks",
+        "reason": "Use async/await instead of nested callbacks"
+      }
+    ]
+  },
+  "overrides": [],
+  "severityThresholds": {
+    "error": 0.85,
+    "warn": 0.60,
+    "info": 0.40
+  }
+}
