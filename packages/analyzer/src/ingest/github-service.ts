@@ -183,8 +183,12 @@ export class GitHubService {
       }
 
       return content;
-    } catch {
-      return null;
+    } catch (error: unknown) {
+      // 404 = file not found (deleted, binary, etc.) — expected, return null
+      if (error instanceof Error && "status" in error && (error as { status: number }).status === 404) {
+        return null;
+      }
+      throw error;
     }
   }
 

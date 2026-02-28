@@ -16,8 +16,11 @@ export async function loadConfig(configPath: string): Promise<CliConfig> {
     const raw = await fs.readFile(configPath, "utf-8");
     const parsed = JSON.parse(raw) as Partial<CliConfig>;
     return { ...DEFAULT_CONFIG, ...parsed };
-  } catch {
-    return { ...DEFAULT_CONFIG };
+  } catch (error: unknown) {
+    if (error instanceof Error && "code" in error && (error as { code: string }).code === "ENOENT") {
+      return { ...DEFAULT_CONFIG };
+    }
+    throw error;
   }
 }
 

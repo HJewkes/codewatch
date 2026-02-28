@@ -10,8 +10,17 @@ export class FileCache {
     try {
       const raw = await fs.readFile(filePath, "utf-8");
       return JSON.parse(raw);
-    } catch {
-      return null;
+    } catch (error: unknown) {
+      // Cache miss (file doesn't exist) — expected
+      if (error instanceof Error && "code" in error && (error as { code: string }).code === "ENOENT") {
+        return null;
+      }
+      // Corrupted cache file — delete and treat as miss
+      if (error instanceof SyntaxError) {
+        await fs.unlink(filePath).catch(() => {});
+        return null;
+      }
+      throw error;
     }
   }
 
@@ -26,8 +35,11 @@ export class FileCache {
     try {
       await fs.access(filePath);
       return true;
-    } catch {
-      return false;
+    } catch (error: unknown) {
+      if (error instanceof Error && "code" in error && (error as { code: string }).code === "ENOENT") {
+        return false;
+      }
+      throw error;
     }
   }
 

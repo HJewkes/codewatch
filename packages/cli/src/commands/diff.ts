@@ -93,8 +93,12 @@ export function getStagedFiles(): string[] {
       { encoding: "utf-8" },
     );
     return output.trim().split("\n").filter(Boolean);
-  } catch {
-    return [];
+  } catch (error: unknown) {
+    // Not a git repository — return empty
+    if (error instanceof Error && "status" in error && (error as { status: number }).status === 128) {
+      return [];
+    }
+    throw error;
   }
 }
 
@@ -113,7 +117,10 @@ export function getChangedFiles(): string[] {
     ]);
     all.delete("");
     return [...all];
-  } catch {
-    return [];
+  } catch (error: unknown) {
+    if (error instanceof Error && "status" in error && (error as { status: number }).status === 128) {
+      return [];
+    }
+    throw error;
   }
 }
