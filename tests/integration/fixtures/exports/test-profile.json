@@ -1,0 +1,148 @@
+{
+  "schemaVersion": "1.0.0",
+  "author": "integration-test",
+  "generated": "2026-02-28T00:00:00.000Z",
+  "sources": [
+    "tests/integration/fixtures/exports/compliant-ts.ts",
+    "tests/integration/fixtures/exports/violation-ts.ts"
+  ],
+  "naming": {
+    "variables": {
+      "convention": "camelCase",
+      "confidence": 0.95,
+      "stability": "high",
+      "fixability": "safe",
+      "description": "Variables use camelCase"
+    },
+    "functions": {
+      "convention": "camelCase",
+      "confidence": 0.92,
+      "stability": "high",
+      "fixability": "safe",
+      "description": "Functions use camelCase"
+    },
+    "types": {
+      "convention": "PascalCase",
+      "confidence": 0.98,
+      "stability": "high",
+      "fixability": "safe",
+      "description": "Types and interfaces use PascalCase"
+    },
+    "files": {
+      "convention": "kebab-case",
+      "confidence": 0.88,
+      "stability": "medium",
+      "fixability": "maybe-incorrect",
+      "description": "Files use kebab-case naming"
+    }
+  },
+  "structure": {
+    "importOrder": {
+      "convention": ["builtin", "external", "internal", "relative"],
+      "confidence": 0.90,
+      "stability": "high",
+      "fixability": "safe",
+      "description": "Imports ordered: builtin, external, internal, relative"
+    }
+  },
+  "documentation": {
+    "functionDocs": {
+      "convention": "jsdoc-selective",
+      "confidence": 0.82,
+      "stability": "medium",
+      "fixability": "requires-input",
+      "description": "JSDoc on exported functions only"
+    }
+  },
+  "errorHandling": {
+    "tryCatch": {
+      "convention": "typed-errors",
+      "confidence": 0.85,
+      "stability": "medium",
+      "fixability": "requires-input",
+      "description": "Catch blocks check error type with instanceof"
+    },
+    "earlyReturn": {
+      "convention": true,
+      "confidence": 0.90,
+      "stability": "high",
+      "fixability": "safe",
+      "description": "Use early returns for validation"
+    }
+  },
+  "formatting": {
+    "semicolons": {
+      "convention": true,
+      "confidence": 0.97,
+      "stability": "high",
+      "fixability": "safe",
+      "description": "Always use semicolons"
+    },
+    "quotes": {
+      "convention": "single",
+      "confidence": 0.95,
+      "stability": "high",
+      "fixability": "safe",
+      "description": "Use single quotes for strings"
+    },
+    "indentation": {
+      "convention": 2,
+      "confidence": 0.99,
+      "stability": "high",
+      "fixability": "safe",
+      "description": "2-space indentation"
+    }
+  },
+  "patterns": {
+    "optionalChaining": {
+      "convention": true,
+      "confidence": 0.88,
+      "stability": "medium",
+      "fixability": "safe",
+      "description": "Prefer optional chaining over manual null checks"
+    },
+    "guardClauses": {
+      "convention": true,
+      "confidence": 0.85,
+      "stability": "medium",
+      "fixability": "maybe-incorrect",
+      "description": "Use guard clauses for early exits"
+    }
+  },
+  "idioms": {
+    "detected": [
+      {
+        "name": "guard-clause",
+        "description": "Early return pattern for input validation",
+        "frequency": 12,
+        "confidence": 0.90,
+        "example": "if (!input) { return null; }"
+      },
+      {
+        "name": "optional-chaining",
+        "description": "Use ?. for safe property access",
+        "frequency": 8,
+        "confidence": 0.85
+      }
+    ]
+  },
+  "antiPatterns": {
+    "acknowledged": [
+      {
+        "pattern": "nested-ternary",
+        "reason": "Nested ternaries reduce readability"
+      },
+      {
+        "pattern": "any-type",
+        "reason": "Using 'any' bypasses type safety",
+        "deprecated": true
+      }
+    ]
+  },
+  "overrides": [],
+  "severityThresholds": {
+    "error": 0.85,
+    "warn": 0.60,
+    "info": 0.40
+  }
+}
