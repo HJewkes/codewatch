@@ -58,19 +58,34 @@ export class ClaudeHaikuProvider implements LlmProvider {
       );
     }
 
-    const data = (await response.json()) as {
+    const data: unknown = await response.json();
+
+    // Validate response shape
+    if (
+      !data ||
+      typeof data !== "object" ||
+      !("content" in data) ||
+      !Array.isArray((data as Record<string, unknown>).content) ||
+      !("usage" in data)
+    ) {
+      throw new Error(
+        `Unexpected Claude API response shape: ${JSON.stringify(data).slice(0, 200)}`,
+      );
+    }
+
+    const typed = data as {
       content: Array<{ type: string; text: string }>;
       usage: { input_tokens: number; output_tokens: number };
     };
 
-    const text = data.content
+    const text = typed.content
       .filter((c) => c.type === "text")
       .map((c) => c.text)
       .join("");
 
     return {
       content: text,
-      tokensUsed: data.usage.input_tokens + data.usage.output_tokens,
+      tokensUsed: (typed.usage?.input_tokens ?? 0) + (typed.usage?.output_tokens ?? 0),
     };
   }
 }
@@ -112,15 +127,29 @@ export class OllamaProvider implements LlmProvider {
       );
     }
 
-    const data = (await response.json()) as {
+    const data: unknown = await response.json();
+
+    if (
+      !data ||
+      typeof data !== "object" ||
+      !("message" in data) ||
+      !(data as Record<string, unknown>).message ||
+      typeof ((data as Record<string, unknown>).message as Record<string, unknown>)?.content !== "string"
+    ) {
+      throw new Error(
+        `Unexpected Ollama API response shape: ${JSON.stringify(data).slice(0, 200)}`,
+      );
+    }
+
+    const typed = data as {
       message: { content: string };
       eval_count?: number;
       prompt_eval_count?: number;
     };
 
     return {
-      content: data.message.content,
-      tokensUsed: (data.eval_count ?? 0) + (data.prompt_eval_count ?? 0),
+      content: typed.message.content,
+      tokensUsed: (typed.eval_count ?? 0) + (typed.prompt_eval_count ?? 0),
     };
   }
 }
