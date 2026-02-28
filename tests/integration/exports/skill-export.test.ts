@@ -63,6 +63,26 @@ describe("Skill file generation", () => {
     expect(hasRuleReference).toBe(true)
   })
 
+  it("renders idioms section when profile has idioms", () => {
+    const skillFile = files.find((f) => f.path === "skill.md")
+    expect(skillFile).toBeDefined()
+    expect(skillFile!.content).toContain("## Common Patterns")
+    expect(skillFile!.content).toContain("guard-clause")
+  })
+
+  it("renders anti-patterns section when profile has anti-patterns", () => {
+    const skillFile = files.find((f) => f.path === "skill.md")
+    expect(skillFile).toBeDefined()
+    expect(skillFile!.content).toContain("## Avoid")
+    expect(skillFile!.content).toContain("nested-ternary")
+  })
+
+  it("renders fixability in naming reference when present", () => {
+    const namingFile = files.find((f) => f.path === "references/naming.md")
+    expect(namingFile).toBeDefined()
+    expect(namingFile!.content).toContain("Fixability")
+  })
+
   it("skill.md is valid markdown", () => {
     const skillFile = files.find((f) => f.path === "skill.md")
     expect(skillFile).toBeDefined()
