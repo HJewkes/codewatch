@@ -1,0 +1,150 @@
+{
+  "planId": "2026-02-28-integration-testing",
+  "createdAt": "2026-02-28T18:00:00Z",
+  "goal": "Add three tiers of integration testing to validate end-to-end profile accuracy and export correctness",
+  "tasks": [
+    {
+      "id": "task-01",
+      "name": "Integration test scaffold",
+      "briefing": "briefings/task-01.md",
+      "wave": 1,
+      "dependsOn": [],
+      "fileOwnership": [
+        "tests/integration/pipeline/.gitkeep",
+        "tests/integration/exports/.gitkeep",
+        "tests/integration/roundtrip/.gitkeep",
+        "tests/integration/fixtures/corpus/typescript/.gitkeep",
+        "tests/integration/fixtures/exports/.gitkeep"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "task-02",
+      "name": "Golden corpus fixtures",
+      "briefing": "briefings/task-02.md",
+      "wave": 2,
+      "dependsOn": ["task-01"],
+      "fileOwnership": [
+        "tests/integration/fixtures/corpus/typescript/service-user.ts",
+        "tests/integration/fixtures/corpus/typescript/utils-string.ts",
+        "tests/integration/fixtures/corpus/typescript/controller-auth.ts",
+        "tests/integration/fixtures/corpus/typescript/model-payment.ts",
+        "tests/integration/fixtures/corpus/typescript/config-app.ts",
+        "tests/integration/fixtures/corpus/typescript/handler-webhook.ts",
+        "tests/integration/fixtures/corpus/typescript/types-api.ts",
+        "tests/integration/fixtures/corpus/typescript/middleware-logging.ts",
+        "tests/integration/fixtures/corpus/typescript/repository-user.ts",
+        "tests/integration/fixtures/corpus/typescript/routes-index.ts"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "task-03",
+      "name": "Export validation fixtures",
+      "briefing": "briefings/task-03.md",
+      "wave": 2,
+      "dependsOn": ["task-01"],
+      "fileOwnership": [
+        "tests/integration/fixtures/exports/test-profile.json",
+        "tests/integration/fixtures/exports/violation-ts.ts",
+        "tests/integration/fixtures/exports/compliant-ts.ts"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "task-04",
+      "name": "Vitest workspace config for integration tests",
+      "briefing": "briefings/task-04.md",
+      "wave": 1,
+      "dependsOn": [],
+      "fileOwnership": [
+        "tests/integration/vitest.config.ts",
+        "tests/integration/tsconfig.json",
+        "vitest.config.ts"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "task-05",
+      "name": "Pipeline integration tests",
+      "briefing": "briefings/task-05.md",
+      "wave": 3,
+      "dependsOn": ["task-02", "task-04"],
+      "fileOwnership": [
+        "tests/integration/pipeline/full-pipeline.test.ts",
+        "tests/integration/pipeline/extractor-corpus.test.ts",
+        "tests/integration/fixtures/corpus/expected-profile.json"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "task-06",
+      "name": "Export validation tests",
+      "briefing": "briefings/task-06.md",
+      "wave": 3,
+      "dependsOn": ["task-03", "task-04"],
+      "fileOwnership": [
+        "tests/integration/exports/eslint-config.test.ts",
+        "tests/integration/exports/skill-export.test.ts",
+        "tests/integration/exports/editorconfig.test.ts"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "task-07",
+      "name": "Roundtrip test",
+      "briefing": "briefings/task-07.md",
+      "wave": 4,
+      "dependsOn": ["task-05", "task-06"],
+      "fileOwnership": [
+        "tests/integration/roundtrip/profile-roundtrip.test.ts"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "task-08",
+      "name": "Diagnostic prompt suite",
+      "briefing": "briefings/task-08.md",
+      "wave": 1,
+      "dependsOn": [],
+      "fileOwnership": [
+        "scripts/diagnostic/prompts/test-bench/D-01.md",
+        "scripts/diagnostic/prompts/test-bench/D-02.md",
+        "scripts/diagnostic/prompts/test-bench/D-03.md",
+        "scripts/diagnostic/prompts/test-bench/D-04.md",
+        "scripts/diagnostic/prompts/test-bench/D-05.md",
+        "scripts/diagnostic/prompts/test-bench/D-06.md",
+        "scripts/diagnostic/prompts/test-bench/D-07.md",
+        "scripts/diagnostic/prompts/test-bench/D-08.md",
+        "scripts/diagnostic/prompts/test-bench/D-09.md",
+        "scripts/diagnostic/prompts/test-bench/D-10.md",
+        "scripts/diagnostic/prompts/test-bench/D-11.md",
+        "scripts/diagnostic/prompts/test-bench/D-12.md",
+        "scripts/diagnostic/prompts/test-bench/D-13.md",
+        "scripts/diagnostic/prompts/test-bench/D-14.md",
+        "scripts/diagnostic/prompts/test-bench/D-15.md",
+        "scripts/diagnostic/prompts/judge.md"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "task-09",
+      "name": "Diagnostic runner + assembler",
+      "briefing": "briefings/task-09.md",
+      "wave": 4,
+      "dependsOn": ["task-08"],
+      "fileOwnership": [
+        "scripts/diagnostic/run.sh",
+        "scripts/diagnostic/assemble.ts",
+        "scripts/diagnostic/fixtures/test-profile.json"
+      ],
+      "status": "pending"
+    }
+  ],
+  "waves": [
+    { "id": 1, "tasks": ["task-01", "task-04", "task-08"], "gate": "directories exist, configs valid, prompts well-formed" },
+    { "id": 2, "tasks": ["task-02", "task-03"], "gate": "all fixture files parseable, profile validates with ProfileSchema" },
+    { "id": 3, "tasks": ["task-05", "task-06"], "gate": "pnpm test passes including new integration tests" },
+    { "id": 4, "tasks": ["task-07", "task-09"], "gate": "full test suite passes, diagnostic runner executes dry-run" }
+  ]
+}
