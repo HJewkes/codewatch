@@ -25,3 +25,19 @@ export {
   DocumentationExtractor,
   ErrorHandlingExtractor,
 } from "./extractors/index.js";
+
+// Aggregator
+export {
+  Aggregator,
+  computeConfidence,
+  mapSeverity,
+  lookupStability,
+  type AggregatedFeature,
+  type AggregatorConfig,
+  type AggregatorResult,
+  type FrequencyDistribution,
+  type Severity,
+  type Stability,
+  type StabilityWeights,
+  type SeverityThresholds,
+} from "./aggregator/index.js";
