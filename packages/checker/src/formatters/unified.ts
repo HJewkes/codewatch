@@ -21,7 +21,7 @@ const ESLINT_RULE_CATEGORY: Record<string, string> = {
   "jsdoc/require-jsdoc": "documentation",
 };
 
-function eslintSeverityToSeverity(eslintSeverity: number): Severity {
+function eslintSeverityToSeverity(eslintSeverity: number): "error" | "warn" {
   return eslintSeverity === 2 ? "error" : "warn";
 }
 
@@ -110,7 +110,7 @@ export function parseRuffJsonOutput(jsonStr: string): CheckDiagnostic[] {
     file: entry.filename,
     line: entry.location.row,
     column: entry.location.column,
-    severity: "warn" as Severity,
+    severity: "warn" as const,
     message: entry.message,
     category: categorizeRuffCode(entry.code),
     rule: entry.code,

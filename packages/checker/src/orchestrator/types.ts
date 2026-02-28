@@ -6,7 +6,7 @@ export interface CheckDiagnostic {
   file: string;
   line: number;
   column: number;
-  severity: Severity;
+  severity: Exclude<Severity, "off">;
   message: string;
   category: string;
   rule: string;
