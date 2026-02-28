@@ -1,0 +1,141 @@
+{
+  "planId": "2026-02-28-v1-findings-fixes",
+  "createdAt": "2026-02-28T20:00:00Z",
+  "goal": "Fix all pre-run diagnostic findings before first diagnostic execution",
+  "tasks": [
+    {
+      "id": "task-01",
+      "name": "Import order observation + stability map fix",
+      "briefing": "briefings/task-01.md",
+      "wave": 1,
+      "dependsOn": [],
+      "fileOwnership": [
+        "packages/analyzer/src/extractors/structure.ts",
+        "packages/analyzer/src/aggregator/stability.ts",
+        "packages/analyzer/src/__tests__/structure.test.ts"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "task-02",
+      "name": "Regenerate expected profile script",
+      "briefing": "briefings/task-02.md",
+      "wave": 2,
+      "dependsOn": ["task-01"],
+      "fileOwnership": [
+        "scripts/regenerate-expected-profile.ts"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "task-03",
+      "name": "Run regeneration + drift test",
+      "briefing": "briefings/task-03.md",
+      "wave": 2,
+      "dependsOn": ["task-01", "task-02"],
+      "fileOwnership": [
+        "tests/integration/fixtures/corpus/expected-profile.json",
+        "packages/analyzer/src/__tests__/stability.test.ts"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "task-04",
+      "name": "Skill export tiering + humanization",
+      "briefing": "briefings/task-04.md",
+      "wave": 1,
+      "dependsOn": [],
+      "fileOwnership": [
+        "packages/profile/src/exporters/template-helpers.ts",
+        "packages/profile/src/exporters/skill.ts",
+        "skills/code-style-personal/templates/skill.md.hbs",
+        "skills/code-style-personal/templates/per-language.md.hbs",
+        "packages/profile/src/__tests__/skill-exporter.test.ts"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "task-05",
+      "name": "Skill export idioms/fixability/examples",
+      "briefing": "briefings/task-05.md",
+      "wave": 1,
+      "dependsOn": [],
+      "fileOwnership": [
+        "skills/code-style-personal/templates/naming.md.hbs",
+        "skills/code-style-personal/templates/patterns.md.hbs",
+        "tests/integration/exports/skill-export.test.ts"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "task-06",
+      "name": "Test hardening",
+      "briefing": "briefings/task-06.md",
+      "wave": 3,
+      "dependsOn": ["task-03"],
+      "fileOwnership": [
+        "tests/integration/pipeline/full-pipeline.test.ts",
+        "tests/integration/roundtrip/profile-roundtrip.test.ts",
+        "tests/integration/exports/eslint-config.test.ts"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "task-07",
+      "name": "Prompt refinement",
+      "briefing": "briefings/task-07.md",
+      "wave": 1,
+      "dependsOn": [],
+      "fileOwnership": [
+        "scripts/diagnostic/prompts/test-bench/D-01.md",
+        "scripts/diagnostic/prompts/test-bench/D-04.md",
+        "scripts/diagnostic/prompts/test-bench/D-05.md",
+        "scripts/diagnostic/prompts/test-bench/D-12.md",
+        "scripts/diagnostic/prompts/test-bench/D-13.md",
+        "scripts/diagnostic/prompts/judge.md"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "task-08",
+      "name": "Runner rewrite in TypeScript",
+      "briefing": "briefings/task-08.md",
+      "wave": 3,
+      "dependsOn": ["task-07"],
+      "fileOwnership": [
+        "scripts/diagnostic/run.ts",
+        "scripts/diagnostic/run.sh",
+        "package.json"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "task-09",
+      "name": "Assembler fixes",
+      "briefing": "briefings/task-09.md",
+      "wave": 3,
+      "dependsOn": [],
+      "fileOwnership": [
+        "scripts/diagnostic/assemble.ts"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "task-10",
+      "name": "Update findings document",
+      "briefing": "briefings/task-10.md",
+      "wave": 4,
+      "dependsOn": ["task-01", "task-02", "task-03", "task-04", "task-05", "task-06", "task-07", "task-08", "task-09"],
+      "fileOwnership": [
+        "docs/diagnostic/v1/findings.md"
+      ],
+      "status": "pending"
+    }
+  ],
+  "waves": [
+    { "id": 1, "tasks": ["task-01", "task-04", "task-05", "task-07"], "gate": "pnpm test passes, stability map normalized, skill templates updated, prompts refined" },
+    { "id": 2, "tasks": ["task-02", "task-03"], "gate": "expected-profile.json regenerated, drift prevention test passes" },
+    { "id": 3, "tasks": ["task-06", "task-08", "task-09"], "gate": "pnpm test passes with tightened thresholds, runner dry-run works, assembler handles edge cases" },
+    { "id": 4, "tasks": ["task-10"], "gate": "findings document updated with resolution status" }
+  ]
+}
