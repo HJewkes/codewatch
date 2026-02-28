@@ -75,6 +75,7 @@ interface PromptRecord {
   judge: JudgeResult | null;
 }
 
+const DEFAULT_MODEL = "claude-sonnet-4-6";
 const DIMENSIONS = ["naming", "structure", "documentation", "error_handling", "overall"] as const;
 type Dimension = (typeof DIMENSIONS)[number];
 
@@ -91,10 +92,18 @@ function extractJson(raw: string): string | null {
     // Not wrapped, use raw text
   }
 
-  // Strip markdown code fences
-  text = text.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, "");
+  // Try markdown code fence stripping FIRST (claude -p output is typically markdown-wrapped)
+  const fenceMatch = text.match(/```(?:json)?\s*\n([\s\S]*?)\n```/);
+  if (fenceMatch) {
+    try {
+      JSON.parse(fenceMatch[1]);
+      return fenceMatch[1];
+    } catch {
+      // Fence content wasn't valid JSON, fall through
+    }
+  }
 
-  // Find JSON object boundaries
+  // Fallback: find JSON object boundaries in raw text
   const jsonStart = text.indexOf("{");
   const jsonEnd = text.lastIndexOf("}");
   if (jsonStart === -1 || jsonEnd === -1) return null;
@@ -107,7 +116,10 @@ function loadTestResult(path: string): TestResult | null {
   try {
     const raw = readFileSync(path, "utf-8");
     const jsonStr = extractJson(raw);
-    if (!jsonStr) return null;
+    if (!jsonStr) {
+      console.error(`  WARN: Failed to extract JSON from ${path}: ${raw.slice(0, 200)}`);
+      return null;
+    }
     return JSON.parse(jsonStr);
   } catch (e) {
     console.error(`  WARN: Failed to parse ${path}: ${(e as Error).message}`);
@@ -130,7 +142,10 @@ function loadJudgeResult(path: string): JudgeResult | null {
   try {
     const raw = readFileSync(path, "utf-8");
     const jsonStr = extractJson(raw);
-    if (!jsonStr) return null;
+    if (!jsonStr) {
+      console.error(`  WARN: Failed to extract JSON from ${path}: ${raw.slice(0, 200)}`);
+      return null;
+    }
     return JSON.parse(jsonStr);
   } catch {
     return null;
@@ -150,6 +165,13 @@ function loadAllResults(benchDir: string): PromptRecord[] {
       check: loadCheckResult(join(benchDir, `${id}-check.json`)),
       judge: loadJudgeResult(join(benchDir, `${id}-judge.json`)),
     });
+  }
+
+  // Filter out records with malformed test results
+  for (const record of records) {
+    if (record.test && !record.test.id) record.test = null;
+    if (record.judge && !record.judge.scores) record.judge = null;
+    if (record.check && !record.check.summary) record.check = null;
   }
 
   return records;
@@ -183,21 +205,21 @@ function buildHeadlineTable(records: PromptRecord[], prevRecords: PromptRecord[]
   const prevAvgSelfOverall = avg(prevTests.map((t) => t.self_assessment.overall));
 
   const avgCheckViolations = checks.length > 0
-    ? avg(checks.map((c) => c.summary.total))
+    ? avg(checks.map((c) => c.summary?.total ?? 0))
     : 0;
   const prevAvgCheckViolations = prevChecks.length > 0
-    ? avg(prevChecks.map((c) => c.summary.total))
+    ? avg(prevChecks.map((c) => c.summary?.total ?? 0))
     : 0;
 
   const avgJudgeOverall = avg(judges.map((j) => j.scores.overall));
   const prevAvgJudgeOverall = avg(prevJudges.map((j) => j.scores.overall));
 
-  const zeroViolations = checks.filter((c) => c.summary.total === 0).length;
-  const prevZeroViolations = prevChecks.filter((c) => c.summary.total === 0).length;
+  const zeroViolations = checks.filter((c) => (c.summary?.total ?? 0) === 0).length;
+  const prevZeroViolations = prevChecks.filter((c) => (c.summary?.total ?? 0) === 0).length;
 
   const delta = (cur: number, prev: number, decimals = 1): string => {
     if (prev === 0 && cur === 0) return "—";
-    if (prev === 0) return "—";
+    if (prev === 0) return `**+${cur.toFixed(decimals)}**`;
     const diff = cur - prev;
     if (Math.abs(diff) < 0.05) return "flat";
     const sign = diff > 0 ? "+" : "";
@@ -233,8 +255,8 @@ function buildJudgeDimensionTable(records: PromptRecord[], prevRecords: PromptRe
   ];
 
   for (const dim of DIMENSIONS) {
-    const curAvg = avg(judges.map((j) => j.scores[dim]));
-    const prevAvg = prevJudges.length > 0 ? avg(prevJudges.map((j) => j.scores[dim])) : 0;
+    const curAvg = avg(judges.map((j) => j.scores?.[dim] ?? 0));
+    const prevAvg = prevJudges.length > 0 ? avg(prevJudges.map((j) => j.scores?.[dim] ?? 0)) : 0;
     const hasPrev = prevJudges.length > 0;
     const diff = curAvg - prevAvg;
     const deltaStr = hasPrev
@@ -264,7 +286,7 @@ function buildPerPromptTable(records: PromptRecord[]): string {
 
     let checkViolations = "—";
     if (r.check) {
-      const total = r.check.summary.total;
+      const total = r.check.summary?.total ?? 0;
       checkViolations = total === 0 ? "**0**" : String(total);
     }
 
@@ -355,7 +377,7 @@ function main() {
   const scorecard = `# Code-Style Diagnostic Scorecard — ${version.toUpperCase()}
 
 **Date:** ${today}
-**Agent model:** claude-sonnet-4-6
+**Agent model:** ${DEFAULT_MODEL}
 **Prompts run:** ${completedCount}/15
 **Previous version:** ${prevRecords ? prevVersion : "none"}
 
