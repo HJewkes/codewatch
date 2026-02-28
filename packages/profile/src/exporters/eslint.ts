@@ -1,22 +1,16 @@
 import { PROFILE_CATEGORIES } from "../schema/index.js";
-import type { Profile, StyleRule } from "../schema/index.js";
+import type { Profile } from "../schema/index.js";
 import type { GeneratedFile } from "./types.js";
+import {
+  toEslintSeverity,
+  buildImportOrderRule,
+} from "./eslint-rules.js";
 
 interface EslintRuleEntry {
   plugin: string;
   rule: string;
   severity: "error" | "warn" | "off";
   options?: unknown[];
-}
-
-function severityForConfidence(
-  confidence: number,
-  thresholds: Profile["severityThresholds"],
-): "error" | "warn" | "off" | null {
-  if (confidence >= thresholds.error) return "error";
-  if (confidence >= thresholds.warn) return "warn";
-  if (confidence >= thresholds.info) return "off";
-  return null;
 }
 
 function collectEslintExtensions(profile: Profile): EslintRuleEntry[] {
@@ -35,7 +29,7 @@ function collectEslintExtensions(profile: Profile): EslintRuleEntry[] {
         options?: unknown[];
       };
 
-      const sev = severityForConfidence(rule.confidence, thresholds);
+      const sev = toEslintSeverity(rule.confidence, thresholds);
       if (sev === null) continue;
 
       const plugin = ext.rule.includes("/")
@@ -45,7 +39,7 @@ function collectEslintExtensions(profile: Profile): EslintRuleEntry[] {
       entries.push({
         plugin,
         rule: ext.rule,
-        severity: sev === "off" ? "warn" : sev,
+        severity: sev === "info" ? "warn" : sev,
         options: ext.options,
       });
     }
@@ -55,20 +49,19 @@ function collectEslintExtensions(profile: Profile): EslintRuleEntry[] {
 }
 
 function addImportOrderRule(profile: Profile, entries: EslintRuleEntry[]): void {
-  const importOrder = profile.structure?.importOrder;
-  if (!importOrder) return;
+  const result = buildImportOrderRule(profile);
+  if (!result) return;
 
-  const sev = severityForConfidence(
-    importOrder.confidence,
-    profile.severityThresholds,
-  );
-  if (!sev || sev === "off") return;
+  const [ruleName, ruleConfig] = result;
+  const configArray = ruleConfig as unknown[];
+  const severity = configArray[0] as string;
+  if (severity === "info") return;
 
   entries.push({
     plugin: "perfectionist",
-    rule: "perfectionist/sort-imports",
-    severity: sev,
-    options: [{ groups: importOrder.convention }],
+    rule: ruleName,
+    severity: severity as "error" | "warn",
+    options: [configArray[1]],
   });
 }
 

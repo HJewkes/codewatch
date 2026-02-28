@@ -39,4 +39,11 @@ export {
   detectLanguages,
   type RuleEntry,
   type ExtractedRule,
+  toEslintSeverity,
+  severityRank,
+  buildNamingConventionRule,
+  buildImportOrderRule,
+  buildFunctionLengthRule,
+  buildFileNamingRule,
+  buildJsdocRules,
 } from "./exporters/index.js";

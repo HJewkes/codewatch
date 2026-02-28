@@ -1,7 +1,9 @@
-import type { Severity } from "@code-style/profile";
+import type { Severity, SeverityThresholds } from "@code-style/profile";
+import { DEFAULT_SEVERITY_THRESHOLDS } from "@code-style/profile";
 import type { Stability } from "./stability.js";
 
-export type { Severity };
+export type { Severity, SeverityThresholds };
+export { DEFAULT_SEVERITY_THRESHOLDS };
 
 export interface StabilityWeights {
   high: number;
@@ -9,22 +11,10 @@ export interface StabilityWeights {
   low: number;
 }
 
-export interface SeverityThresholds {
-  error: number;
-  warn: number;
-  info: number;
-}
-
 export const DEFAULT_STABILITY_WEIGHTS: StabilityWeights = {
   high: 1.0,
   medium: 0.85,
   low: 0.7,
-};
-
-export const DEFAULT_SEVERITY_THRESHOLDS: SeverityThresholds = {
-  error: 0.85,
-  warn: 0.6,
-  info: 0.4,
 };
 
 export function computeConfidence(

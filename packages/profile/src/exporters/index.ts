@@ -3,6 +3,15 @@ export { generateSkillFiles } from "./skill.js";
 export { generateClaudeRules } from "./claude-rules.js";
 export { generateHooksConfig } from "./hooks.js";
 export { generateEslintExport } from "./eslint.js";
+export {
+  toEslintSeverity,
+  severityRank,
+  buildNamingConventionRule,
+  buildImportOrderRule,
+  buildFunctionLengthRule,
+  buildFileNamingRule,
+  buildJsdocRules,
+} from "./eslint-rules.js";
 export { generateRuffExport } from "./ruff.js";
 export { generateMarkdownExport } from "./markdown.js";
 export { generateEditorConfigExport } from "./editorconfig.js";
