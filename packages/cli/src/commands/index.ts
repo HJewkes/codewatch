@@ -8,3 +8,11 @@ export {
   getChangedFiles,
 } from "./diff.js";
 export type { Deviation, DiffResult } from "./diff.js";
+
+export {
+  formatCheckOutput,
+  determineExitCode,
+  resolveFilePaths,
+  runCheck,
+} from "./check.js";
+export type { CheckCommandOptions, OutputFormat } from "./check.js";

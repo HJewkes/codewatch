@@ -127,6 +127,32 @@ program
   });
 
 program
+  .command("check [paths...]")
+  .description("Lint files against your style profile")
+  .option("--fix", "Auto-fix safe violations")
+  .option("--format <format>", "Output format: text, json, reviewdog", "text")
+  .option("--profile <path>", "Path to profile file")
+  .option("--language <lang>", "Language to check: typescript, python")
+  .action(async (paths: string[], options) => {
+    try {
+      const { runCheck } = await import("./commands/check.js");
+      const { output, exitCode } = await runCheck(paths, {
+        fix: options.fix,
+        format: options.format,
+        profile: options.profile,
+        language: options.language,
+      });
+      console.log(output);
+      process.exitCode = exitCode;
+    } catch (err) {
+      console.error(
+        formatError(err instanceof Error ? err.message : String(err)),
+      );
+      process.exitCode = 1;
+    }
+  });
+
+program
   .command("diff")
   .description("Check staged/changed files against profile")
   .option("--profile <path>", "Path to profile file")
