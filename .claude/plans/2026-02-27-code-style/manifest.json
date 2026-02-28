@@ -1,0 +1,308 @@
+{
+  "planId": "2026-02-27-code-style",
+  "createdAt": "2026-02-27T12:00:00Z",
+  "goal": "Build a CLI tool that analyzes GitHub contributions to create a personal coding style profile with programmatic linting and Claude Code skill export",
+  "tasks": [
+    {
+      "id": "task-01",
+      "name": "Project scaffolding",
+      "briefing": "briefings/task-01.md",
+      "wave": 1,
+      "dependsOn": [],
+      "fileOwnership": [
+        "package.json",
+        "pnpm-workspace.yaml",
+        "tsconfig.json",
+        "tsconfig.base.json",
+        ".gitignore",
+        "vitest.config.ts",
+        "packages/profile/package.json",
+        "packages/profile/tsconfig.json",
+        "packages/analyzer/package.json",
+        "packages/analyzer/tsconfig.json",
+        "packages/checker/package.json",
+        "packages/checker/tsconfig.json",
+        "packages/cli/package.json",
+        "packages/cli/tsconfig.json"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "task-02",
+      "name": "Profile schema",
+      "briefing": "briefings/task-02.md",
+      "wave": 1,
+      "dependsOn": [],
+      "fileOwnership": [
+        "packages/profile/src/schema/profile.ts",
+        "packages/profile/src/schema/types.ts",
+        "packages/profile/src/schema/defaults.ts",
+        "packages/profile/src/io.ts",
+        "packages/profile/src/migrations/index.ts",
+        "packages/profile/src/index.ts",
+        "packages/profile/tests/schema.test.ts",
+        "packages/profile/tests/io.test.ts"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "task-03",
+      "name": "GitHub ingest service",
+      "briefing": "briefings/task-03.md",
+      "wave": 2,
+      "dependsOn": ["task-01"],
+      "fileOwnership": [
+        "packages/analyzer/src/ingest/github.ts",
+        "packages/analyzer/src/ingest/types.ts",
+        "packages/analyzer/src/ingest/cache.ts",
+        "packages/analyzer/src/ingest/filters.ts",
+        "packages/analyzer/src/ingest/index.ts",
+        "packages/analyzer/tests/ingest/github.test.ts",
+        "packages/analyzer/tests/ingest/filters.test.ts"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "task-04",
+      "name": "Extractor framework + naming extractor",
+      "briefing": "briefings/task-04.md",
+      "wave": 2,
+      "dependsOn": ["task-01", "task-02"],
+      "fileOwnership": [
+        "packages/analyzer/src/extractors/types.ts",
+        "packages/analyzer/src/extractors/base.ts",
+        "packages/analyzer/src/extractors/naming.ts",
+        "packages/analyzer/src/extractors/index.ts",
+        "packages/analyzer/tests/extractors/naming.test.ts",
+        "tests/fixtures/naming/"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "task-05",
+      "name": "Structure + control-flow extractors",
+      "briefing": "briefings/task-05.md",
+      "wave": 3,
+      "dependsOn": ["task-04"],
+      "fileOwnership": [
+        "packages/analyzer/src/extractors/structure.ts",
+        "packages/analyzer/src/extractors/control-flow.ts",
+        "packages/analyzer/tests/extractors/structure.test.ts",
+        "packages/analyzer/tests/extractors/control-flow.test.ts",
+        "tests/fixtures/structure/",
+        "tests/fixtures/control-flow/"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "task-06",
+      "name": "Documentation + error-handling extractors",
+      "briefing": "briefings/task-06.md",
+      "wave": 3,
+      "dependsOn": ["task-04"],
+      "fileOwnership": [
+        "packages/analyzer/src/extractors/documentation.ts",
+        "packages/analyzer/src/extractors/error-handling.ts",
+        "packages/analyzer/tests/extractors/documentation.test.ts",
+        "packages/analyzer/tests/extractors/error-handling.test.ts",
+        "tests/fixtures/documentation/",
+        "tests/fixtures/error-handling/"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "task-07",
+      "name": "Formatting + complexity extractors",
+      "briefing": "briefings/task-07.md",
+      "wave": 3,
+      "dependsOn": ["task-04"],
+      "fileOwnership": [
+        "packages/analyzer/src/extractors/formatting.ts",
+        "packages/analyzer/src/extractors/complexity.ts",
+        "packages/analyzer/tests/extractors/formatting.test.ts",
+        "packages/analyzer/tests/extractors/complexity.test.ts",
+        "tests/fixtures/formatting/",
+        "tests/fixtures/complexity/"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "task-08",
+      "name": "jscpd idiom + review-voice extractors",
+      "briefing": "briefings/task-08.md",
+      "wave": 3,
+      "dependsOn": ["task-04"],
+      "fileOwnership": [
+        "packages/analyzer/src/extractors/idioms.ts",
+        "packages/analyzer/src/extractors/review-voice.ts",
+        "packages/analyzer/tests/extractors/idioms.test.ts",
+        "packages/analyzer/tests/extractors/review-voice.test.ts",
+        "tests/fixtures/idioms/",
+        "tests/fixtures/review-voice/"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "task-09",
+      "name": "Aggregator",
+      "briefing": "briefings/task-09.md",
+      "wave": 4,
+      "dependsOn": ["task-05", "task-06", "task-07", "task-08"],
+      "fileOwnership": [
+        "packages/analyzer/src/aggregator/index.ts",
+        "packages/analyzer/src/aggregator/frequency.ts",
+        "packages/analyzer/src/aggregator/confidence.ts",
+        "packages/analyzer/src/aggregator/stability.ts",
+        "packages/analyzer/tests/aggregator/index.test.ts",
+        "packages/analyzer/tests/aggregator/confidence.test.ts"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "task-10",
+      "name": "AI enricher",
+      "briefing": "briefings/task-10.md",
+      "wave": 4,
+      "dependsOn": ["task-05", "task-06", "task-07", "task-08"],
+      "fileOwnership": [
+        "packages/analyzer/src/enricher/index.ts",
+        "packages/analyzer/src/enricher/prompts.ts",
+        "packages/analyzer/src/enricher/providers.ts",
+        "packages/analyzer/tests/enricher/index.test.ts"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "task-11",
+      "name": "CLI framework + init command",
+      "briefing": "briefings/task-11.md",
+      "wave": 5,
+      "dependsOn": ["task-09", "task-10"],
+      "fileOwnership": [
+        "packages/cli/src/index.ts",
+        "packages/cli/src/commands/init.ts",
+        "packages/cli/src/utils/config.ts",
+        "packages/cli/src/utils/output.ts",
+        "packages/cli/tests/commands/init.test.ts"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "task-12",
+      "name": "Interactive review session",
+      "briefing": "briefings/task-12.md",
+      "wave": 5,
+      "dependsOn": ["task-11"],
+      "fileOwnership": [
+        "packages/cli/src/interactive/review.ts",
+        "packages/cli/src/interactive/presenters.ts",
+        "packages/cli/src/interactive/types.ts",
+        "packages/cli/tests/interactive/review.test.ts"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "task-13",
+      "name": "show + diff commands",
+      "briefing": "briefings/task-13.md",
+      "wave": 5,
+      "dependsOn": ["task-11"],
+      "fileOwnership": [
+        "packages/cli/src/commands/show.ts",
+        "packages/cli/src/commands/diff.ts",
+        "packages/cli/tests/commands/show.test.ts",
+        "packages/cli/tests/commands/diff.test.ts"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "task-14",
+      "name": "Checker orchestration",
+      "briefing": "briefings/task-14.md",
+      "wave": 6,
+      "dependsOn": ["task-02"],
+      "fileOwnership": [
+        "packages/checker/src/orchestrator/index.ts",
+        "packages/checker/src/orchestrator/runner.ts",
+        "packages/checker/src/generators/eslint.ts",
+        "packages/checker/src/generators/ruff.ts",
+        "packages/checker/src/formatters/unified.ts",
+        "packages/checker/src/index.ts",
+        "packages/checker/tests/generators/eslint.test.ts",
+        "packages/checker/tests/generators/ruff.test.ts"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "task-15",
+      "name": "Skill + Claude rules + hooks export",
+      "briefing": "briefings/task-15.md",
+      "wave": 6,
+      "dependsOn": ["task-02"],
+      "fileOwnership": [
+        "packages/profile/src/exporters/skill.ts",
+        "packages/profile/src/exporters/claude-rules.ts",
+        "packages/profile/src/exporters/hooks.ts",
+        "packages/profile/tests/exporters/skill.test.ts",
+        "skills/code-style-personal/skill.md.hbs",
+        "skills/code-style-personal/references/"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "task-16",
+      "name": "ESLint + Ruff + misc exports",
+      "briefing": "briefings/task-16.md",
+      "wave": 6,
+      "dependsOn": ["task-02"],
+      "fileOwnership": [
+        "packages/profile/src/exporters/eslint.ts",
+        "packages/profile/src/exporters/ruff.ts",
+        "packages/profile/src/exporters/markdown.ts",
+        "packages/profile/src/exporters/editorconfig.ts",
+        "packages/profile/src/exporters/index.ts",
+        "packages/profile/tests/exporters/eslint.test.ts",
+        "packages/profile/tests/exporters/ruff.test.ts",
+        "packages/profile/tests/exporters/markdown.test.ts"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "task-17",
+      "name": "check command",
+      "briefing": "briefings/task-17.md",
+      "wave": 7,
+      "dependsOn": ["task-14"],
+      "fileOwnership": [
+        "packages/cli/src/commands/check.ts",
+        "packages/cli/tests/commands/check.test.ts"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "task-18",
+      "name": "update + compare + hook commands",
+      "briefing": "briefings/task-18.md",
+      "wave": 7,
+      "dependsOn": ["task-11"],
+      "fileOwnership": [
+        "packages/cli/src/commands/update.ts",
+        "packages/cli/src/commands/compare.ts",
+        "packages/cli/src/commands/hook.ts",
+        "packages/cli/src/commands/export.ts",
+        "packages/cli/tests/commands/update.test.ts",
+        "packages/cli/tests/commands/compare.test.ts"
+      ],
+      "status": "pending"
+    }
+  ],
+  "waves": [
+    { "id": 1, "tasks": ["task-01", "task-02"], "gate": "pnpm install succeeds, pnpm test passes, pnpm typecheck passes" },
+    { "id": 2, "tasks": ["task-03", "task-04"], "gate": "tests pass + lint clean" },
+    { "id": 3, "tasks": ["task-05", "task-06", "task-07", "task-08"], "gate": "all extractor tests pass" },
+    { "id": 4, "tasks": ["task-09", "task-10"], "gate": "aggregator + enricher tests pass" },
+    { "id": 5, "tasks": ["task-11", "task-12", "task-13"], "gate": "CLI commands execute, tests pass" },
+    { "id": 6, "tasks": ["task-14", "task-15", "task-16"], "gate": "checker + all exports generate valid output" },
+    { "id": 7, "tasks": ["task-17", "task-18"], "gate": "full CLI test suite passes, pnpm typecheck clean" }
+  ]
+}
