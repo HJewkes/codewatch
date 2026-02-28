@@ -52,6 +52,10 @@ Profile captures `idioms.detected` and `antiPatterns.acknowledged` but neither a
 
 `references/per-language/typescript.md` dumps all rules in a flat list. Low-confidence rules (68%) are mixed with high-confidence (99%). No hierarchy.
 
+### Resolution
+
+RESOLVED -- skill.md now uses confidence-tiered sections (Critical/Strong/Preferred), human-readable conventions for boolean/number values, idioms and anti-patterns sections, and fixability metadata in reference files. Per-language reference is sorted by confidence tier.
+
 ---
 
 ## Finding 2: Possible Aggregation Bug — Import Group Confidence (P0)
@@ -69,6 +73,10 @@ This is either:
 If this is a real aggregation bug, it affects all real-world profiles — import ordering would be systematically underreported.
 
 **Action**: Trace the aggregation for import-related observations through the pipeline to determine root cause.
+
+### Resolution
+
+RESOLVED -- STABILITY_MAP keys normalized to kebab-case to match extractor output. New `structure.import-order` observation added to capture import ordering patterns. Drift prevention test ensures all observation types have stability map entries. Expected profile regenerated with corrected confidence values.
 
 ---
 
@@ -91,6 +99,10 @@ errorHandling, formatting, and patterns are extracted but never directly verifie
 ### 3d. ESLint config test uses substring matching
 
 `eslint-config.test.ts` checks `rule.includes("naming")` instead of exact rule names like `"@typescript-eslint/naming-convention"`. Would pass with any string containing "naming".
+
+### Resolution
+
+RESOLVED -- avgConfidence threshold raised from 0.5 to 0.65. Roundtrip matchRate threshold raised from 0.5 to 0.7. Category assertions added for error-handling and structure features. ESLint config tests use exact rule matching via `expect.stringMatching()` instead of `.includes()`.
 
 ---
 
@@ -119,6 +131,10 @@ Multiple `2>/dev/null || true` patterns hide real errors. Failed checks and judg
 ### 4d. No budget tracking
 
 The design specifies per-prompt budget limits ($0.50) but the runner doesn't track or enforce actual spend.
+
+### Resolution
+
+RESOLVED -- Runner rewritten in TypeScript (`scripts/diagnostic/run.ts`) with proper JSON handling via native `JSON.parse`/`JSON.stringify`, subprocess timeouts via `AbortSignal.timeout(120_000)`, structured error logging per phase, per-prompt budget tracking, and hand-rolled concurrency limiter. Bash string substitution issues eliminated.
 
 ---
 
@@ -151,6 +167,10 @@ Missing test dimensions:
 - Module organization (barrel exports, index files)
 - Testing patterns (mocks, fixtures, test data builders)
 
+### Resolution
+
+RESOLVED -- D-01, D-04, D-05 tightened with specific edge cases, config shapes, and function signatures. D-12 and D-13 have output JSON schemas for consistent judge evaluation. Judge prompt receives `{{TASK_DESCRIPTION}}` from the original prompt's Task section for completeness verification. Coverage gaps (5d) deferred to after first diagnostic run for data-driven prompt design.
+
 ---
 
 ## Finding 6: Assembler Edge Cases (P3)
@@ -173,6 +193,10 @@ Should try stripping markdown code fences first, since `claude -p` output is typ
 
 Assumes `"claude-sonnet-4-6"` instead of reading from test results.
 
+### Resolution
+
+RESOLVED -- `extractJson()` reordered to try markdown code fence stripping first. All nested property access guarded with optional chaining and nullish coalescing. Records with missing required fields filtered before aggregation. Delta calculation fixed to show `+{value}` when previous is zero but current is nonzero. Model name parameterized via `DEFAULT_MODEL` constant.
+
 ---
 
 ## Fix Priority for v1 Cycle
@@ -185,3 +209,18 @@ Assumes `"claude-sonnet-4-6"` instead of reading from test results.
 | **Polish** | F6 (assembler guards) | Assembler handles malformed output gracefully |
 
 After pre-run fixes, run the diagnostic suite → review scorecard → identify which prompts reveal new issues → fix → repeat.
+
+---
+
+## Summary
+
+All six findings have been addressed. The diagnostic suite is ready for the first v1 run:
+
+- **F1** (Skill Export): Tiered, human-readable skill output with idioms and anti-patterns
+- **F2** (Aggregation): Stability map normalized, import order observation added, expected profile regenerated
+- **F3** (Tests): Thresholds tightened, category assertions added, ESLint matching made precise
+- **F4** (Runner): Rewritten in TypeScript with timeouts, error logging, and budget tracking
+- **F5** (Prompts): Specifications tightened, output schemas added, judge receives task context
+- **F6** (Assembler): JSON extraction fixed, validation guards added, delta calculation corrected
+
+Next step: execute `npx tsx scripts/diagnostic/run.ts v1` and review the scorecard.
