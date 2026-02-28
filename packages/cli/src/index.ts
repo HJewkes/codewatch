@@ -13,7 +13,7 @@ import {
   getChangedFiles,
 } from "./commands/diff.js";
 import { getDefaultProfilePath } from "./utils/config.js";
-import { formatError } from "./utils/output.js";
+import { formatError, formatSuccess } from "./utils/output.js";
 
 const program = new Command();
 
@@ -214,6 +214,97 @@ program
       console.error(
         formatError(err instanceof Error ? err.message : String(err)),
       );
+      process.exitCode = 1;
+    }
+  });
+
+program
+  .command("update")
+  .description("Re-run analysis and merge with existing profile")
+  .option("--repos <repos...>", "Repository slugs (owner/repo)")
+  .option("--keep-overrides", "Preserve existing overrides", true)
+  .option("--profile <path>", "Path to profile file")
+  .option("--github-token <token>", "GitHub personal access token")
+  .action(async (options) => {
+    try {
+      const { runUpdate } = await import("./commands/update.js");
+      await runUpdate(options);
+    } catch (err) {
+      console.error(formatError(err instanceof Error ? err.message : String(err)));
+      process.exitCode = 1;
+    }
+  });
+
+program
+  .command("compare <profilePath>")
+  .description("Compare current profile with another profile")
+  .option("--profile <path>", "Path to your profile (default: ~/.code-style/profile.json)")
+  .action(async (otherPath: string, options) => {
+    try {
+      const { compareProfiles, formatComparison } = await import("./commands/compare.js");
+
+      const leftPath = options.profile ?? getDefaultProfilePath();
+      const [left, right] = await Promise.all([
+        readProfile(leftPath),
+        readProfile(otherPath),
+      ]);
+
+      const diffs = compareProfiles(left, right);
+      console.log(formatComparison(diffs));
+    } catch (err) {
+      console.error(formatError(err instanceof Error ? err.message : String(err)));
+      process.exitCode = 1;
+    }
+  });
+
+const hookCmd = program
+  .command("hook")
+  .description("Manage git pre-commit hooks");
+
+hookCmd
+  .command("install")
+  .description("Install code-style pre-commit hook")
+  .action(async () => {
+    try {
+      const { installHook } = await import("./commands/hook.js");
+      await installHook(process.cwd());
+      console.log(formatSuccess("Pre-commit hook installed."));
+    } catch (err) {
+      console.error(formatError(err instanceof Error ? err.message : String(err)));
+      process.exitCode = 1;
+    }
+  });
+
+hookCmd
+  .command("remove")
+  .description("Remove code-style pre-commit hook")
+  .action(async () => {
+    try {
+      const { removeHook } = await import("./commands/hook.js");
+      await removeHook(process.cwd());
+      console.log(formatSuccess("Pre-commit hook removed."));
+    } catch (err) {
+      console.error(formatError(err instanceof Error ? err.message : String(err)));
+      process.exitCode = 1;
+    }
+  });
+
+program
+  .command("export")
+  .description("Export profile in different formats")
+  .requiredOption("--format <format>", "Export format: skill, claude-rules, hooks, eslint, ruff, editorconfig, markdown")
+  .option("--output <dir>", "Output directory (default: current directory)")
+  .option("--profile <path>", "Path to profile file")
+  .action(async (options) => {
+    try {
+      const { runExport } = await import("./commands/export.js");
+      await runExport({
+        format: options.format,
+        outputDir: options.output,
+        profile: options.profile,
+      });
+    } catch (err) {
+      console.error(formatError(err instanceof Error ? err.message : String(err)));
       process.exitCode = 1;
     }
   });
