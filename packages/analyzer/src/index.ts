@@ -20,4 +20,8 @@ export {
   parseFile,
   getSupportedLanguages,
   NamingExtractor,
+  StructureExtractor,
+  ControlFlowExtractor,
+  DocumentationExtractor,
+  ErrorHandlingExtractor,
 } from "./extractors/index.js";
