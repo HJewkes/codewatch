@@ -26,12 +26,17 @@
   },
   "structure.import-group": {
     "convention": "internal",
-    "confidence": 0.36,
+    "confidence": 0.42,
+    "severity": "info"
+  },
+  "structure.import-order": {
+    "convention": "[\"builtin\",\"external\",\"internal\",\"relative\"]",
+    "confidence": 0.29,
     "severity": "off"
   },
   "structure.export-style": {
     "convention": "named",
-    "confidence": 0.85,
+    "confidence": 1,
     "severity": "error"
   },
   "structure.export-proximity": {
