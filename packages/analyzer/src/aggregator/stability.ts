@@ -25,12 +25,13 @@ export const STABILITY_MAP: Record<string, Stability> = {
   "naming.privateMembers": "high",
 
   // Category 2: Code Structure
-  "structure.importGrouping": "high",
+  "structure.import-group": "high",
+  "structure.import-order": "high",
   "structure.importPathStyle": "medium",
   "structure.typeImportSeparation": "medium",
-  "structure.exportStyle": "high",
-  "structure.barrelFiles": "medium",
-  "structure.exportProximity": "medium",
+  "structure.export-style": "high",
+  "structure.barrel-file": "medium",
+  "structure.export-proximity": "medium",
   "structure.functionLength": "high",
   "structure.nestingDepth": "high",
   "structure.fileLength": "medium",

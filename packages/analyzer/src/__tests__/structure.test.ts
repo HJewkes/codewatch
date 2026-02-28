@@ -83,6 +83,20 @@ describe("StructureExtractor", () => {
       expect(inline.length).toBeGreaterThanOrEqual(3);
     });
 
+    it("emits import-order observation with correct sequence", () => {
+      const importOrder = observations.filter(
+        (o) => o.type === "structure.import-order",
+      );
+      expect(importOrder.length).toBe(1);
+      expect(JSON.parse(importOrder[0].value as string)).toEqual([
+        "builtin",
+        "external",
+        "internal",
+        "relative",
+      ]);
+      expect(importOrder[0].metadata?.groupCount).toBe(4);
+    });
+
     it("sets correct category on all observations", () => {
       observations.forEach((o) => {
         expect(o.category).toBe("structure");

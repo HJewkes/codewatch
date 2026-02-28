@@ -67,6 +67,8 @@ export class StructureExtractor implements Extractor {
     file: ParsedFile,
     observations: Observation[],
   ): void {
+    const groupSequence: string[] = [];
+
     for (const child of root.children) {
       let source: string | null = null;
 
@@ -91,6 +93,7 @@ export class StructureExtractor implements Extractor {
 
       if (source) {
         const group = classifyImportSource(source, file.language);
+        groupSequence.push(group);
         observations.push({
           type: "structure.import-group",
           category: "structure",
@@ -100,6 +103,18 @@ export class StructureExtractor implements Extractor {
           metadata: { source },
         });
       }
+    }
+
+    const uniqueOrder = [...new Set(groupSequence)];
+    if (uniqueOrder.length > 0) {
+      observations.push({
+        type: "structure.import-order",
+        category: "structure",
+        value: JSON.stringify(uniqueOrder),
+        file: file.filePath,
+        line: 1,
+        metadata: { groupCount: uniqueOrder.length },
+      });
     }
   }
 
