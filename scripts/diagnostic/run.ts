@@ -211,7 +211,7 @@ async function phaseTestBench(
         promptContent,
       ], {
         cwd: PROJECT_DIR,
-        signal: AbortSignal.timeout(120_000),
+        signal: AbortSignal.timeout(300_000),
         maxBuffer: 10 * 1024 * 1024,
         env: cleanEnv(),
       })
@@ -419,7 +419,7 @@ async function phaseJudge(
         prompt,
       ], {
         cwd: PROJECT_DIR,
-        signal: AbortSignal.timeout(120_000),
+        signal: AbortSignal.timeout(300_000),
         maxBuffer: 10 * 1024 * 1024,
         env: cleanEnv(),
       })
