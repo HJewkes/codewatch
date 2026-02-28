@@ -76,6 +76,52 @@ export function getRulesByCategory(
   return grouped;
 }
 
+export function getRulesByTier(profile: Profile): {
+  critical: RuleEntry[];
+  strong: RuleEntry[];
+  preferred: RuleEntry[];
+} {
+  const allRules = extractAllRules(profile);
+  const errorThreshold = profile.severityThresholds?.error ?? 0.85;
+  const warnThreshold = profile.severityThresholds?.warn ?? 0.60;
+  const infoThreshold = profile.severityThresholds?.info ?? 0.40;
+
+  const critical: RuleEntry[] = [];
+  const strong: RuleEntry[] = [];
+  const preferred: RuleEntry[] = [];
+
+  for (const rule of allRules) {
+    if (rule.confidence >= errorThreshold) {
+      critical.push(rule);
+    } else if (rule.confidence >= warnThreshold) {
+      strong.push(rule);
+    } else if (rule.confidence >= infoThreshold) {
+      preferred.push(rule);
+    }
+  }
+
+  const byConfidence = (a: RuleEntry, b: RuleEntry) =>
+    b.confidence - a.confidence;
+  critical.sort(byConfidence);
+  strong.sort(byConfidence);
+  preferred.sort(byConfidence);
+
+  return { critical, strong, preferred };
+}
+
+export function readableConvention(rule: RuleEntry): string {
+  if (
+    typeof rule.convention === "boolean" ||
+    typeof rule.convention === "number"
+  ) {
+    return rule.description ?? JSON.stringify(rule.convention);
+  }
+  if (Array.isArray(rule.convention)) {
+    return rule.convention.join(" → ");
+  }
+  return String(rule.convention);
+}
+
 export function detectLanguages(profile: Profile): string[] {
   const langs: string[] = [];
   const hasTypescriptSignals =

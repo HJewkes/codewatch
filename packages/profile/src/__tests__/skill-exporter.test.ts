@@ -68,9 +68,10 @@ describe("generateSkillFiles", () => {
     expect(skillMd).toBeDefined();
   });
 
-  it("skill.md contains high-confidence rules", () => {
+  it("skill.md contains tiered rule sections", () => {
     const files = generateSkillFiles(sampleProfile);
     const skillMd = files.find((f) => f.path.endsWith("skill.md"))!;
+    expect(skillMd.content).toContain("## Critical Rules (always follow)");
     expect(skillMd.content).toContain("camelCase");
     expect(skillMd.content).toContain("PascalCase");
   });
@@ -102,9 +103,41 @@ describe("generateSkillFiles", () => {
     expect(namingMd!.content).toContain("userProfile");
   });
 
-  it("skill.md is concise (under 2000 chars)", () => {
+  it("skill.md is concise (under 3000 chars)", () => {
     const files = generateSkillFiles(sampleProfile);
     const skillMd = files.find((f) => f.path.endsWith("skill.md"))!;
-    expect(skillMd.content.length).toBeLessThan(2000);
+    expect(skillMd.content.length).toBeLessThan(3000);
+  });
+
+  it("renders readable descriptions for boolean conventions", () => {
+    const profileWithBool: Profile = {
+      ...sampleProfile,
+      formatting: {
+        semicolons: {
+          convention: true,
+          confidence: 0.97,
+          stability: "high",
+          description: "Always use semicolons",
+        },
+      },
+    };
+    const files = generateSkillFiles(profileWithBool);
+    const skillMd = files.find((f) => f.path.endsWith("skill.md"))!;
+    expect(skillMd.content).toContain("Always use semicolons");
+    expect(skillMd.content).not.toContain(": true (");
+  });
+
+  it("skill.md includes strong conventions tier", () => {
+    const files = generateSkillFiles(sampleProfile);
+    const skillMd = files.find((f) => f.path.endsWith("skill.md"))!;
+    expect(skillMd.content).toContain("## Strong Conventions");
+  });
+
+  it("per-language template groups rules by tier", () => {
+    const files = generateSkillFiles(sampleProfile);
+    const langMd = files.find((f) =>
+      f.path.includes("per-language/typescript.md"),
+    )!;
+    expect(langMd.content).toContain("## Critical Rules");
   });
 });

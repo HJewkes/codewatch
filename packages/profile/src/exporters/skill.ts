@@ -5,11 +5,13 @@ import { fileURLToPath } from "node:url";
 import type { Profile } from "../schema/profile.js";
 import type { GeneratedFile } from "./types.js";
 import {
-  getTopRules,
+  getRulesByTier,
+  readableConvention,
   getRulesForCategory,
   detectLanguages,
   extractAllRules,
 } from "./template-helpers.js";
+import type { RuleEntry } from "./template-helpers.js";
 
 const TEMPLATES_DIR = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -22,36 +24,48 @@ function loadTemplate(name: string): Handlebars.TemplateDelegate {
   return Handlebars.compile(source);
 }
 
-function buildTopRulesContext(profile: Profile) {
-  return getTopRules(profile).map((r) => ({
+function buildTieredRulesContext(profile: Profile) {
+  const tiers = getRulesByTier(profile);
+
+  const mapRule = (r: RuleEntry) => ({
     name: `${r.category}.${r.name}`,
-    description:
-      r.description ??
-      `Use ${typeof r.convention === "string" ? r.convention : JSON.stringify(r.convention)} (${(r.confidence * 100).toFixed(0)}% confidence)`,
-  }));
+    readableConvention: readableConvention(r),
+    confidencePercent: (r.confidence * 100).toFixed(0),
+  });
+
+  return {
+    criticalRules: tiers.critical.map(mapRule),
+    strongRules: tiers.strong.map(mapRule),
+    preferredRules: tiers.preferred.map(mapRule),
+  };
 }
 
 function buildNamingContext(profile: Profile) {
-  return getRulesForCategory(profile, "naming").map((r) => ({
-    label: r.name.charAt(0).toUpperCase() + r.name.slice(1),
+  const section = profile.naming;
+  return Object.entries(section).map(([name, rule]) => ({
+    label: name.charAt(0).toUpperCase() + name.slice(1),
     convention:
-      typeof r.convention === "string"
-        ? r.convention
-        : JSON.stringify(r.convention),
-    confidencePercent: (r.confidence * 100).toFixed(0),
-    stability: r.stability,
-    description: r.description,
-    examples: r.examples,
+      typeof rule.convention === "string"
+        ? rule.convention
+        : JSON.stringify(rule.convention),
+    confidencePercent: (rule.confidence * 100).toFixed(0),
+    stability: rule.stability,
+    fixability: rule.fixability,
+    description: rule.description,
+    examples: rule.examples,
   }));
 }
 
 function buildPatternsContext(profile: Profile) {
-  const patternRules = getRulesForCategory(profile, "patterns").map((r) => ({
-    name: r.name,
+  const section = profile.patterns;
+  const patternRules = Object.entries(section).map(([name, rule]) => ({
+    name,
     strength:
-      typeof r.convention === "string" ? r.convention : "detected",
-    confidencePercent: (r.confidence * 100).toFixed(0),
-    description: r.description,
+      typeof rule.convention === "string" ? rule.convention : "detected",
+    confidencePercent: (rule.confidence * 100).toFixed(0),
+    description: rule.description,
+    fixability: rule.fixability,
+    examples: rule.examples,
   }));
 
   const preferredPatterns = profile.structure?.preferredPatterns;
@@ -63,17 +77,36 @@ function buildPatternsContext(profile: Profile) {
   return { patterns: patternRules, preferredPatterns: preferredList };
 }
 
+function buildIdiomsContext(profile: Profile) {
+  return profile.idioms.detected.map((idiom) => ({
+    name: idiom.name,
+    description: idiom.description,
+    example: idiom.example,
+  }));
+}
+
+function buildAntiPatternsContext(profile: Profile) {
+  return profile.antiPatterns.acknowledged.map((ap) => ({
+    pattern: ap.pattern,
+    reason: ap.reason,
+  }));
+}
+
 export function generateSkillFiles(profile: Profile): GeneratedFile[] {
   const files: GeneratedFile[] = [];
   const languages = detectLanguages(profile);
 
   const skillTemplate = loadTemplate("skill.md.hbs");
+  const idioms = buildIdiomsContext(profile);
+  const antiPatterns = buildAntiPatternsContext(profile);
   files.push({
     path: "skill.md",
     content: skillTemplate({
       author: profile.author,
-      topRules: buildTopRulesContext(profile),
+      ...buildTieredRulesContext(profile),
       languages,
+      idioms: idioms.length > 0 ? idioms : undefined,
+      antiPatterns: antiPatterns.length > 0 ? antiPatterns : undefined,
     }),
   });
 
@@ -91,7 +124,8 @@ export function generateSkillFiles(profile: Profile): GeneratedFile[] {
 
   const langTemplate = loadTemplate("per-language.md.hbs");
   for (const lang of languages) {
-    const allRules = extractAllRules(profile).map((r) => ({
+    const tiers = getRulesByTier(profile);
+    const mapRule = (r: RuleEntry) => ({
       category: r.category,
       name: r.name,
       convention:
@@ -99,14 +133,17 @@ export function generateSkillFiles(profile: Profile): GeneratedFile[] {
           ? r.convention
           : JSON.stringify(r.convention),
       confidencePercent: (r.confidence * 100).toFixed(0),
+      readableConvention: readableConvention(r),
       description: r.description,
-    }));
+    });
 
     files.push({
       path: `references/per-language/${lang}.md`,
       content: langTemplate({
         language: lang.charAt(0).toUpperCase() + lang.slice(1),
-        rules: allRules,
+        criticalRules: tiers.critical.map(mapRule),
+        strongRules: tiers.strong.map(mapRule),
+        preferredRules: tiers.preferred.map(mapRule),
       }),
     });
   }
