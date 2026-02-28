@@ -14,7 +14,7 @@
         "packages/analyzer/src/aggregator/stability.ts",
         "packages/analyzer/src/__tests__/structure.test.ts"
       ],
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "task-02",
@@ -25,7 +25,7 @@
       "fileOwnership": [
         "scripts/regenerate-expected-profile.ts"
       ],
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "task-03",
@@ -37,7 +37,7 @@
         "tests/integration/fixtures/corpus/expected-profile.json",
         "packages/analyzer/src/__tests__/stability.test.ts"
       ],
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "task-04",
@@ -52,7 +52,7 @@
         "skills/code-style-personal/templates/per-language.md.hbs",
         "packages/profile/src/__tests__/skill-exporter.test.ts"
       ],
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "task-05",
@@ -65,7 +65,7 @@
         "skills/code-style-personal/templates/patterns.md.hbs",
         "tests/integration/exports/skill-export.test.ts"
       ],
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "task-06",
@@ -78,7 +78,7 @@
         "tests/integration/roundtrip/profile-roundtrip.test.ts",
         "tests/integration/exports/eslint-config.test.ts"
       ],
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "task-07",
@@ -94,7 +94,7 @@
         "scripts/diagnostic/prompts/test-bench/D-13.md",
         "scripts/diagnostic/prompts/judge.md"
       ],
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "task-08",
@@ -107,7 +107,7 @@
         "scripts/diagnostic/run.sh",
         "package.json"
       ],
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "task-09",
@@ -118,7 +118,7 @@
       "fileOwnership": [
         "scripts/diagnostic/assemble.ts"
       ],
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "task-10",
@@ -129,7 +129,7 @@
       "fileOwnership": [
         "docs/diagnostic/v1/findings.md"
       ],
-      "status": "pending"
+      "status": "completed"
     }
   ],
   "waves": [

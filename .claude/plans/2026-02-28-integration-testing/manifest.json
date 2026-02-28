@@ -16,7 +16,7 @@
         "tests/integration/fixtures/corpus/typescript/.gitkeep",
         "tests/integration/fixtures/exports/.gitkeep"
       ],
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "task-02",
@@ -36,7 +36,7 @@
         "tests/integration/fixtures/corpus/typescript/repository-user.ts",
         "tests/integration/fixtures/corpus/typescript/routes-index.ts"
       ],
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "task-03",
@@ -49,7 +49,7 @@
         "tests/integration/fixtures/exports/violation-ts.ts",
         "tests/integration/fixtures/exports/compliant-ts.ts"
       ],
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "task-04",
@@ -62,7 +62,7 @@
         "tests/integration/tsconfig.json",
         "vitest.config.ts"
       ],
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "task-05",
@@ -75,7 +75,7 @@
         "tests/integration/pipeline/extractor-corpus.test.ts",
         "tests/integration/fixtures/corpus/expected-profile.json"
       ],
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "task-06",
@@ -88,7 +88,7 @@
         "tests/integration/exports/skill-export.test.ts",
         "tests/integration/exports/editorconfig.test.ts"
       ],
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "task-07",
@@ -99,7 +99,7 @@
       "fileOwnership": [
         "tests/integration/roundtrip/profile-roundtrip.test.ts"
       ],
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "task-08",
@@ -125,7 +125,7 @@
         "scripts/diagnostic/prompts/test-bench/D-15.md",
         "scripts/diagnostic/prompts/judge.md"
       ],
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "task-09",
@@ -138,7 +138,7 @@
         "scripts/diagnostic/assemble.ts",
         "scripts/diagnostic/fixtures/test-profile.json"
       ],
-      "status": "pending"
+      "status": "completed"
     }
   ],
   "waves": [
