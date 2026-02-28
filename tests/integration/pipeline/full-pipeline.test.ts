@@ -125,7 +125,19 @@ describe("Full pipeline integration", () => {
   })
 
   it("has high average confidence across features", () => {
-    expect(result.summary.avgConfidence).toBeGreaterThan(0.5)
+    expect(result.summary.avgConfidence).toBeGreaterThan(0.65)
+  })
+
+  it("produces error-handling observations", () => {
+    const errorHandlingFeatures = Array.from(result.features.entries())
+      .filter(([, f]) => f.category === "error-handling")
+    expect(errorHandlingFeatures.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it("produces structure observations", () => {
+    const structureFeatures = Array.from(result.features.entries())
+      .filter(([, f]) => f.category === "structure")
+    expect(structureFeatures.length).toBeGreaterThanOrEqual(1)
   })
 
   it("matches expected profile snapshot", async () => {

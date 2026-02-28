@@ -199,7 +199,7 @@ describe("Profile roundtrip integration", () => {
     expect(total).toBeGreaterThan(0)
 
     const matchRate = matching / total
-    expect(matchRate).toBeGreaterThan(0.5)
+    expect(matchRate).toBeGreaterThan(0.7)
   })
 
   it("deviations are low severity when present", () => {

@@ -37,25 +37,18 @@ describe("ESLint config generation", () => {
       const allRules = configEntries.flatMap((entry) =>
         Object.keys(entry.rules ?? {}),
       )
-      const hasNamingRule = allRules.some(
-        (rule) =>
-          rule.includes("naming-convention") ||
-          rule.includes("naming"),
+      expect(allRules).toContainEqual(
+        expect.stringMatching(/@typescript-eslint\/naming-convention/),
       )
-      expect(hasNamingRule).toBe(true)
     })
 
     it("contains import ordering rule", () => {
       const allRules = configEntries.flatMap((entry) =>
         Object.keys(entry.rules ?? {}),
       )
-      const hasImportRule = allRules.some(
-        (rule) =>
-          rule.includes("sort-imports") ||
-          rule.includes("import-order") ||
-          rule.includes("import"),
+      expect(allRules).toContainEqual(
+        expect.stringMatching(/import/),
       )
-      expect(hasImportRule).toBe(true)
     })
 
     it("targets TypeScript files", () => {
