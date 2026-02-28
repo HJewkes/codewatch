@@ -1,0 +1,14 @@
+[
+  { "body": "This function name is not descriptive enough. Consider renaming to something that explains the intent.", "file": "src/utils.ts" },
+  { "body": "Missing error handling here. What happens if the API call fails?", "file": "src/api.ts" },
+  { "body": "This is getting complex. Can we extract this into smaller functions?", "file": "src/processor.ts" },
+  { "body": "Nit: inconsistent naming. We use camelCase everywhere else.", "file": "src/helpers.ts" },
+  { "body": "This could be more performant. Consider memoizing the result.", "file": "src/compute.ts" },
+  { "body": "Good use of early return here!", "file": "src/auth.ts" },
+  { "body": "Please add error handling for the edge case where input is null.", "file": "src/parser.ts" },
+  { "body": "The naming here is confusing. What does 'x' represent?", "file": "src/math.ts" },
+  { "body": "Style: prefer single quotes for consistency.", "file": "src/config.ts" },
+  { "body": "This function is too long. Split it up.", "file": "src/handler.ts" },
+  { "body": "Performance concern: this will re-render on every state change.", "file": "src/component.tsx" },
+  { "body": "Naming: prefer 'isEnabled' over 'enabled' for boolean vars.", "file": "src/flags.ts" }
+]
