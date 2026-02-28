@@ -1,6 +1,6 @@
-import type { Profile } from "@code-style/profile";
+import type { Profile, Severity } from "@code-style/profile";
 
-export type Severity = "error" | "warn" | "info";
+export type { Severity };
 
 export interface CheckDiagnostic {
   file: string;

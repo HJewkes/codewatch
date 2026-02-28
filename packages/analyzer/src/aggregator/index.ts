@@ -19,8 +19,8 @@ import { lookupStability, type Stability } from "./stability.js";
 export { computeConfidence, mapSeverity } from "./confidence.js";
 export { lookupStability, type Stability } from "./stability.js";
 export type { FrequencyDistribution } from "./frequency.js";
+export type { Severity } from "@code-style/profile";
 export type {
-  Severity,
   StabilityWeights,
   SeverityThresholds,
 } from "./confidence.js";

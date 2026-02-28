@@ -1,5 +1,4 @@
-import type { Profile, StyleRule, SeverityThresholds } from "@code-style/profile";
-import type { Severity } from "../orchestrator/types.js";
+import type { Profile, StyleRule, SeverityThresholds, Severity } from "@code-style/profile";
 
 export interface EslintFlatConfigEntry {
   plugins?: Record<string, unknown>;

@@ -1,3 +1,4 @@
+import { PROFILE_CATEGORIES } from "../schema/index.js";
 import type { Profile, StyleRule } from "../schema/index.js";
 import type { GeneratedFile } from "./types.js";
 
@@ -7,15 +8,6 @@ interface EslintRuleEntry {
   severity: "error" | "warn" | "off";
   options?: unknown[];
 }
-
-const CATEGORY_KEYS = [
-  "naming",
-  "structure",
-  "documentation",
-  "errorHandling",
-  "formatting",
-  "patterns",
-] as const;
 
 function severityForConfidence(
   confidence: number,
@@ -31,11 +23,11 @@ function collectEslintExtensions(profile: Profile): EslintRuleEntry[] {
   const entries: EslintRuleEntry[] = [];
   const thresholds = profile.severityThresholds;
 
-  for (const category of CATEGORY_KEYS) {
+  for (const category of PROFILE_CATEGORIES) {
     const section = profile[category];
     if (!section) continue;
 
-    for (const [, rule] of Object.entries(section as Record<string, StyleRule>)) {
+    for (const [, rule] of Object.entries(section)) {
       if (!rule.extensions?.eslint) continue;
 
       const ext = rule.extensions.eslint as {

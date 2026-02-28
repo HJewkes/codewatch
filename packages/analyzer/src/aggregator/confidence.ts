@@ -1,6 +1,7 @@
+import type { Severity } from "@code-style/profile";
 import type { Stability } from "./stability.js";
 
-export type Severity = "error" | "warn" | "info" | "off";
+export type { Severity };
 
 export interface StabilityWeights {
   high: number;

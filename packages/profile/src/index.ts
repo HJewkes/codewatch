@@ -6,11 +6,14 @@ export {
   ProfileSchema,
   SCHEMA_VERSION,
   DEFAULT_SEVERITY_THRESHOLDS,
+  PROFILE_CATEGORIES,
   type StyleRule,
   type Stability,
   type Fixability,
   type Profile,
+  type ProfileCategory,
   type SeverityThresholds,
+  type Severity,
 } from "./schema/index.js";
 
 export { readProfile, writeProfile, validateProfile } from "./io.js";

@@ -8,10 +8,10 @@ export {
   parseEslintJsonOutput,
   parseRuffJsonOutput,
 } from "./formatters/unified.js";
+export type { Severity } from "@code-style/profile";
 export type {
   CheckDiagnostic,
   CheckResult,
   OrchestratorOptions,
   OrchestratorResult,
-  Severity,
 } from "./orchestrator/types.js";

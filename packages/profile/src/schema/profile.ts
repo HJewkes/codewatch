@@ -70,3 +70,16 @@ export const ProfileSchema = z.object({
 
 export type Profile = z.infer<typeof ProfileSchema>;
 export type SeverityThresholds = z.infer<typeof SeverityThresholdsSchema>;
+
+export const PROFILE_CATEGORIES = [
+  "naming",
+  "structure",
+  "documentation",
+  "errorHandling",
+  "formatting",
+  "patterns",
+] as const;
+
+export type ProfileCategory = (typeof PROFILE_CATEGORIES)[number];
+
+export type Severity = "error" | "warn" | "info" | "off";

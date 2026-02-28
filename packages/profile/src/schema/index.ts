@@ -12,6 +12,9 @@ export {
   ProfileSchema,
   SCHEMA_VERSION,
   DEFAULT_SEVERITY_THRESHOLDS,
+  PROFILE_CATEGORIES,
   type Profile,
+  type ProfileCategory,
   type SeverityThresholds,
+  type Severity,
 } from "./profile.js";

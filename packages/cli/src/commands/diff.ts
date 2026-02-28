@@ -1,5 +1,6 @@
 import { execSync } from "node:child_process";
-import type { Profile } from "@code-style/profile";
+import { PROFILE_CATEGORIES } from "@code-style/profile";
+import type { Profile, ProfileCategory } from "@code-style/profile";
 import type { Observation } from "@code-style/analyzer";
 
 export interface Deviation {
@@ -34,15 +35,15 @@ function resolveProfileRule(
   observationType: string,
 ): { convention: unknown; confidence: number } | undefined {
   const [category, rule] = observationType.split(".");
-  const section = profile[category as keyof Profile];
+  if (!PROFILE_CATEGORIES.includes(category as ProfileCategory)) return undefined;
+  const section = profile[category as ProfileCategory];
   if (!section || typeof section !== "object") return undefined;
-  const ruleObj = (section as Record<string, unknown>)[rule];
+  const ruleObj = section[rule];
   if (!ruleObj || typeof ruleObj !== "object") return undefined;
-  const typed = ruleObj as { convention?: unknown; confidence?: number };
-  if (typed.convention === undefined || typed.confidence === undefined) {
+  if (ruleObj.convention === undefined || ruleObj.confidence === undefined) {
     return undefined;
   }
-  return { convention: typed.convention, confidence: typed.confidence };
+  return { convention: ruleObj.convention, confidence: ruleObj.confidence };
 }
 
 export function diffAgainstProfile(
