@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process"
+import { exec, execFile } from "node:child_process"
 import {
   readFile,
   mkdir,
@@ -10,16 +10,36 @@ import { parseArgs } from "node:util"
 import { promisify } from "node:util"
 import { fileURLToPath } from "node:url"
 
+const execAsync = promisify(exec)
 const execFileAsync = promisify(execFile)
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const PROJECT_DIR = resolve(__dirname, "../..")
 
-function cleanEnv(): NodeJS.ProcessEnv {
-  const env = { ...process.env }
-  delete env.CLAUDECODE
-  delete env.CLAUDE_CODE_ENTRYPOINT
-  delete env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS
-  return env
+async function runClaude(prompt: string, outputFile: string, timeoutMs: number): Promise<string> {
+  // Write prompt to temp file to avoid shell escaping issues
+  const promptFile = outputFile + ".prompt.tmp"
+  await writeFile(promptFile, prompt, "utf-8")
+
+  const cmd = [
+    "env -u CLAUDECODE",
+    "claude -p",
+    "--model sonnet",
+    "--output-format json",
+    "--permission-mode bypassPermissions",
+    "--no-session-persistence",
+    `"$(cat ${JSON.stringify(promptFile)})"`,
+  ].join(" ")
+
+  try {
+    const { stdout } = await execAsync(cmd, {
+      cwd: PROJECT_DIR,
+      timeout: timeoutMs,
+      maxBuffer: 10 * 1024 * 1024,
+    })
+    return stdout
+  } finally {
+    await import("node:fs/promises").then(fs => fs.rm(promptFile, { force: true })).catch(() => {})
+  }
 }
 
 interface RunConfig {
@@ -201,20 +221,7 @@ async function phaseTestBench(
     }
 
     try {
-      const { stdout } = await execFileAsync("claude", [
-        "-p",
-        "--model", "sonnet",
-        "--output-format", "json",
-        "--permission-mode", "bypassPermissions",
-        "--no-session-persistence",
-        promptContent,
-      ], {
-        cwd: PROJECT_DIR,
-        signal: AbortSignal.timeout(300_000),
-        maxBuffer: 10 * 1024 * 1024,
-        env: cleanEnv(),
-      })
-
+      const stdout = await runClaude(promptContent, outputFile, 300_000)
       await writeFile(outputFile, stdout, "utf-8")
       log("test-bench", `${promptId} complete`)
       return { promptId, outputFile, outputDir, taskDescription, success: true }
@@ -409,20 +416,7 @@ async function phaseJudge(
     log("judge", `Judging ${result.promptId}...`)
 
     try {
-      const { stdout } = await execFileAsync("claude", [
-        "-p",
-        "--model", "sonnet",
-        "--output-format", "json",
-        "--permission-mode", "bypassPermissions",
-        "--no-session-persistence",
-        prompt,
-      ], {
-        cwd: PROJECT_DIR,
-        signal: AbortSignal.timeout(300_000),
-        maxBuffer: 10 * 1024 * 1024,
-        env: cleanEnv(),
-      })
-
+      const stdout = await runClaude(prompt, judgeFile, 300_000)
       await writeFile(judgeFile, stdout, "utf-8")
       judged++
     } catch (err) {
