@@ -2,13 +2,10 @@ import { execFile } from "node:child_process"
 import {
   readFile,
   mkdir,
-  mkdtemp,
-  rm,
   readdir,
   writeFile,
 } from "node:fs/promises"
 import { join, resolve, dirname } from "node:path"
-import { tmpdir } from "node:os"
 import { parseArgs } from "node:util"
 import { promisify } from "node:util"
 import { fileURLToPath } from "node:url"
@@ -109,7 +106,11 @@ async function discoverPrompts(promptsDir: string): Promise<string[]> {
 
 // ── Phase 1: Setup ──────────────────────────────────────
 
-async function phaseSetup(config: RunConfig): Promise<string> {
+interface SetupResult {
+  skillContent: string
+}
+
+async function phaseSetup(config: RunConfig): Promise<SetupResult> {
   console.log("")
   console.log("── Phase 1: Setup ──────────────────────────────────")
 
@@ -121,37 +122,35 @@ async function phaseSetup(config: RunConfig): Promise<string> {
     process.exit(1)
   }
 
-  const skillDir = await mkdtemp(join(tmpdir(), "code-style-diag-"))
-
   if (config.dryRun) {
-    log("setup", `Would export skill from ${config.profilePath} to ${skillDir}`)
-    return skillDir
+    log("setup", `Would export skill from ${config.profilePath}`)
+    return { skillContent: "{{SKILL_CONTENT}}" }
   }
 
   log("setup", "Exporting skill from profile...")
-  // Import profile package directly from source to avoid dist path resolution issues
   const { readProfile, exportProfile } = await import(
     join(PROJECT_DIR, "packages/profile/src/index.js")
   )
   const profile = await readProfile(profileAbs)
-  const files = exportProfile(profile, "skill")
-  for (const file of files) {
-    const outPath = join(skillDir, file.path)
-    await mkdir(dirname(outPath), { recursive: true })
-    await writeFile(outPath, file.content)
-  }
-  log("setup", `Exported ${files.length} skill file(s)`)
+  const files: Array<{ path: string; content: string }> = exportProfile(profile, "skill")
 
-  try {
-    await readFile(join(skillDir, "skill.md"), "utf-8")
-  } catch {
-    console.error(`ERROR: Skill export failed — no skill.md in ${skillDir}`)
+  // Build inlined skill content: skill.md first, then references
+  const skillFile = files.find((f) => f.path === "skill.md")
+  if (!skillFile) {
+    console.error("ERROR: Skill export produced no skill.md")
     process.exit(1)
   }
 
-  log("setup", `Skill exported to ${skillDir}`)
+  const parts = [skillFile.content]
+  const refs = files.filter((f) => f.path !== "skill.md").sort((a, b) => a.path.localeCompare(b.path))
+  for (const ref of refs) {
+    parts.push(`\n---\n\n### ${ref.path}\n\n${ref.content}`)
+  }
+  const skillContent = parts.join("\n")
+
+  log("setup", `Exported ${files.length} skill file(s), inlined ${skillContent.length} chars`)
   log("setup", "Setup complete.")
-  return skillDir
+  return { skillContent }
 }
 
 // ── Phase 2: Test Bench ─────────────────────────────────
@@ -166,7 +165,7 @@ interface BenchResult {
 
 async function phaseTestBench(
   config: RunConfig,
-  skillDir: string,
+  skillContent: string,
   benchDir: string,
 ): Promise<BenchResult[]> {
   console.log("")
@@ -180,7 +179,6 @@ async function phaseTestBench(
     return []
   }
 
-  const profileAbs = resolve(PROJECT_DIR, config.profilePath)
   const tasks = promptFiles.map((file) => async (): Promise<BenchResult> => {
     const promptId = file.replace(".md", "")
     const promptPath = join(promptsDir, file)
@@ -192,8 +190,7 @@ async function phaseTestBench(
     let promptContent = await readFile(promptPath, "utf-8")
     promptContent = promptContent
       .replaceAll("{{VERSION}}", config.version)
-      .replaceAll("{{PROFILE_PATH}}", profileAbs)
-      .replaceAll("{{SKILL_DIR}}", skillDir)
+      .replaceAll("{{SKILL_CONTENT}}", skillContent)
       .replaceAll("{{OUTPUT_DIR}}", outputDir)
 
     const taskDescription = extractTaskDescription(promptContent)
@@ -484,34 +481,26 @@ async function main(): Promise<void> {
 
   await mkdir(benchDir, { recursive: true })
 
-  let skillDir: string | undefined
+  const { skillContent } = await phaseSetup(config)
 
-  try {
-    skillDir = await phaseSetup(config)
+  const benchResults = await phaseTestBench(config, skillContent, benchDir)
 
-    const benchResults = await phaseTestBench(config, skillDir, benchDir)
-
-    if (!config.skipCheck) {
-      await phaseCheck(config, benchResults, benchDir)
-    }
-
-    if (!config.skipJudge) {
-      await phaseJudge(config, benchResults, benchDir)
-    }
-
-    await phaseAssemble(config)
-
-    console.log("")
-    console.log("================================================================")
-    console.log(`  Diagnostic ${config.version} complete`)
-    console.log(`  Results:   ${resultsDir}/`)
-    console.log(`  Scorecard: ${resultsDir}/scorecard.md`)
-    console.log("================================================================")
-  } finally {
-    if (skillDir) {
-      await rm(skillDir, { recursive: true, force: true }).catch(() => {})
-    }
+  if (!config.skipCheck) {
+    await phaseCheck(config, benchResults, benchDir)
   }
+
+  if (!config.skipJudge) {
+    await phaseJudge(config, benchResults, benchDir)
+  }
+
+  await phaseAssemble(config)
+
+  console.log("")
+  console.log("================================================================")
+  console.log(`  Diagnostic ${config.version} complete`)
+  console.log(`  Results:   ${resultsDir}/`)
+  console.log(`  Scorecard: ${resultsDir}/scorecard.md`)
+  console.log("================================================================")
 }
 
 main().catch((err) => {
