@@ -25,52 +25,48 @@ function ruleToString(rule: StyleRule): string {
   return `${convention} (${Math.round(rule.confidence * 100)}%)`;
 }
 
+function diffRule(
+  path: string,
+  leftRule: StyleRule | undefined,
+  rightRule: StyleRule | undefined,
+): ProfileDiff | null {
+  if (!leftRule && rightRule) {
+    return { type: "added", path, left: "", right: ruleToString(rightRule) };
+  }
+  if (leftRule && !rightRule) {
+    return { type: "removed", path, left: ruleToString(leftRule), right: "" };
+  }
+  if (!leftRule || !rightRule) return null;
+  const left = ruleToString(leftRule);
+  const right = ruleToString(rightRule);
+  if (left === right) return null;
+  return { type: "changed", path, left, right };
+}
+
+function diffCategory(
+  category: string,
+  leftSection: Record<string, StyleRule>,
+  rightSection: Record<string, StyleRule>,
+): ProfileDiff[] {
+  const allKeys = new Set([
+    ...Object.keys(leftSection),
+    ...Object.keys(rightSection),
+  ]);
+  const out: ProfileDiff[] = [];
+  for (const key of allKeys) {
+    const diff = diffRule(`${category}.${key}`, leftSection[key], rightSection[key]);
+    if (diff) out.push(diff);
+  }
+  return out;
+}
+
 export function compareProfiles(left: Profile, right: Profile): ProfileDiff[] {
   const diffs: ProfileDiff[] = [];
-
   for (const category of COMPARABLE_CATEGORIES) {
     const leftSection = (left[category] ?? {}) as Record<string, StyleRule>;
     const rightSection = (right[category] ?? {}) as Record<string, StyleRule>;
-
-    const allKeys = new Set([
-      ...Object.keys(leftSection),
-      ...Object.keys(rightSection),
-    ]);
-
-    for (const key of allKeys) {
-      const leftRule = leftSection[key];
-      const rightRule = rightSection[key];
-      const path = `${category}.${key}`;
-
-      if (!leftRule && rightRule) {
-        diffs.push({
-          type: "added",
-          path,
-          left: "",
-          right: ruleToString(rightRule),
-        });
-      } else if (leftRule && !rightRule) {
-        diffs.push({
-          type: "removed",
-          path,
-          left: ruleToString(leftRule),
-          right: "",
-        });
-      } else if (leftRule && rightRule) {
-        const leftStr = ruleToString(leftRule);
-        const rightStr = ruleToString(rightRule);
-        if (leftStr !== rightStr) {
-          diffs.push({
-            type: "changed",
-            path,
-            left: leftStr,
-            right: rightStr,
-          });
-        }
-      }
-    }
+    diffs.push(...diffCategory(category, leftSection, rightSection));
   }
-
   return diffs;
 }
 
