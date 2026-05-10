@@ -50,6 +50,16 @@
       "type": "forbid-import",
       "from": "core/**",
       "to": "analyzer/**"
+    },
+    {
+      "$comment": "Textbook scary-hotspot signal: high churn × high branching = the riskiest file to touch. Warning-only on this young repo (most 'churn' is bootstrap, not maintenance burden); promote to error once steady-state arrives.",
+      "id": "scary-hotspots",
+      "type": "metric-product-max",
+      "metrics": ["churn_30d", "cyclomatic_max"],
+      "max": 1500,
+      "kind": "file",
+      "severity": "warning",
+      "exclude": ["**/__tests__/**", "**/fixtures/**"]
     }
   ]
 }

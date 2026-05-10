@@ -9,6 +9,7 @@ import type {
   GraphNode,
   MetricMaxRule,
   MetricMinRule,
+  MetricProductMaxRule,
   Severity,
 } from "./types.js";
 
@@ -100,6 +101,51 @@ function runMetricMinRule(
   return out;
 }
 
+function runMetricProductMaxRule(
+  rule: MetricProductMaxRule,
+  ctx: RuleContext,
+): CheckViolation[] {
+  const excluders = compilePatterns(rule.exclude);
+  const composite = rule.metrics.join(" * ");
+  const out: CheckViolation[] = [];
+  for (const node of ctx.nodes) {
+    if (rule.kind && node.kind !== rule.kind) continue;
+    if (matchesAny(node.id, excluders)) continue;
+    const inner = ctx.metricsByNode.get(node.id);
+    if (!inner) continue;
+    const components = collectComponents(rule.metrics, inner);
+    if (!components) continue;
+    const product = components.reduce((a, b) => a * b, 1);
+    if (product <= rule.max) continue;
+    const detail = rule.metrics
+      .map((m, i) => `${m}=${formatNumber(components[i]!)}`)
+      .join(" * ");
+    out.push({
+      ruleId: rule.id,
+      severity: severityOf(rule),
+      nodeId: node.id,
+      metric: composite,
+      value: product,
+      threshold: rule.max,
+      message: `${detail} = ${formatNumber(product)} > ${formatNumber(rule.max)}`,
+    });
+  }
+  return out;
+}
+
+function collectComponents(
+  metrics: readonly string[],
+  values: ReadonlyMap<string, number>,
+): number[] | null {
+  const out: number[] = [];
+  for (const m of metrics) {
+    const v = values.get(m);
+    if (v === undefined) return null;
+    out.push(v);
+  }
+  return out;
+}
+
 function runForbidImportRule(
   rule: ForbidImportRule,
   ctx: RuleContext,
@@ -128,6 +174,8 @@ function runRule(rule: CheckRule, ctx: RuleContext): CheckViolation[] {
       return runMetricMaxRule(rule, ctx);
     case "metric-min":
       return runMetricMinRule(rule, ctx);
+    case "metric-product-max":
+      return runMetricProductMaxRule(rule, ctx);
     case "forbid-import":
       return runForbidImportRule(rule, ctx);
   }
@@ -184,11 +232,34 @@ function validateRule(raw: unknown, index: number): CheckRule {
       return assertMetricMax(r);
     case "metric-min":
       return assertMetricMin(r);
+    case "metric-product-max":
+      return assertMetricProductMax(r);
     case "forbid-import":
       return assertForbidImport(r);
     default:
       throw new Error(`rule[${index}] (${r.id}) unknown type "${r.type}"`);
   }
+}
+
+function assertMetricProductMax(r: Record<string, unknown>): MetricProductMaxRule {
+  if (!Array.isArray(r.metrics) || r.metrics.length < 2) {
+    throw new Error(`${r.id}: metrics must be an array of 2+ metric names`);
+  }
+  if (!r.metrics.every((m): m is string => typeof m === "string")) {
+    throw new Error(`${r.id}: metrics must be strings`);
+  }
+  if (typeof r.max !== "number") {
+    throw new Error(`${r.id}: max must be a number`);
+  }
+  return {
+    type: "metric-product-max",
+    id: r.id as string,
+    metrics: r.metrics,
+    max: r.max,
+    kind: r.kind as MetricProductMaxRule["kind"],
+    severity: r.severity as Severity | undefined,
+    exclude: Array.isArray(r.exclude) ? (r.exclude as string[]) : undefined,
+  };
 }
 
 function assertMetricMax(r: Record<string, unknown>): MetricMaxRule {

@@ -206,6 +206,148 @@ describe("runChecks — metric-min", () => {
   });
 });
 
+describe("runChecks — metric-product-max", () => {
+  let fixture: Fixture;
+
+  afterEach(async () => {
+    if (fixture) await fs.rm(fixture.dir, { recursive: true, force: true });
+  });
+
+  it("flags nodes whose product of two metrics exceeds the max", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        { id: "calm.ts", kind: "file", name: "" },
+        { id: "scary.ts", kind: "file", name: "" },
+      ]);
+      db.insertMetrics(snapshotId, [
+        { nodeId: "calm.ts", name: "churn_30d", value: 50 },
+        { nodeId: "calm.ts", name: "cyclomatic_max", value: 5 },
+        { nodeId: "scary.ts", name: "churn_30d", value: 200 },
+        { nodeId: "scary.ts", name: "cyclomatic_max", value: 25 },
+      ]);
+    });
+
+    const db = openDatabase(fixture.dbPath);
+    try {
+      const result = runChecks(db, {
+        snapshotId: fixture.snapshotId,
+        rules: [
+          {
+            type: "metric-product-max",
+            id: "scary-hotspots",
+            metrics: ["churn_30d", "cyclomatic_max"],
+            max: 1000,
+          },
+        ],
+      });
+      expect(result.passed).toBe(false);
+      expect(result.violations).toHaveLength(1);
+      const v = result.violations[0]!;
+      expect(v.nodeId).toBe("scary.ts");
+      expect(v.value).toBe(5000);
+      expect(v.threshold).toBe(1000);
+      expect(v.metric).toBe("churn_30d * cyclomatic_max");
+      expect(v.message).toContain("churn_30d=200");
+      expect(v.message).toContain("cyclomatic_max=25");
+    } finally {
+      db.close();
+    }
+  });
+
+  it("skips nodes that are missing any of the named metrics", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        { id: "partial.ts", kind: "file", name: "" },
+        { id: "complete.ts", kind: "file", name: "" },
+      ]);
+      db.insertMetrics(snapshotId, [
+        { nodeId: "partial.ts", name: "churn_30d", value: 9999 },
+        { nodeId: "complete.ts", name: "churn_30d", value: 100 },
+        { nodeId: "complete.ts", name: "cyclomatic_max", value: 100 },
+      ]);
+    });
+
+    const db = openDatabase(fixture.dbPath);
+    try {
+      const result = runChecks(db, {
+        snapshotId: fixture.snapshotId,
+        rules: [
+          {
+            type: "metric-product-max",
+            id: "r",
+            metrics: ["churn_30d", "cyclomatic_max"],
+            max: 1000,
+          },
+        ],
+      });
+      expect(result.violations.map((v) => v.nodeId)).toEqual(["complete.ts"]);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("supports more than two metrics", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNode(snapshotId, { id: "f.ts", kind: "file", name: "" });
+      db.insertMetrics(snapshotId, [
+        { nodeId: "f.ts", name: "a", value: 2 },
+        { nodeId: "f.ts", name: "b", value: 3 },
+        { nodeId: "f.ts", name: "c", value: 5 },
+      ]);
+    });
+
+    const db = openDatabase(fixture.dbPath);
+    try {
+      const result = runChecks(db, {
+        snapshotId: fixture.snapshotId,
+        rules: [
+          { type: "metric-product-max", id: "r", metrics: ["a", "b", "c"], max: 29 },
+        ],
+      });
+      expect(result.violations[0]!.value).toBe(30);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("respects kind and exclude filters", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        { id: "src/foo.ts", kind: "file", name: "" },
+        { id: "src/__tests__/bar.test.ts", kind: "file", name: "" },
+        { id: "mod", kind: "module", name: "" },
+      ]);
+      const big = [
+        { name: "x", value: 100 },
+        { name: "y", value: 100 },
+      ];
+      for (const id of ["src/foo.ts", "src/__tests__/bar.test.ts", "mod"]) {
+        db.insertMetrics(snapshotId, big.map((m) => ({ nodeId: id, ...m })));
+      }
+    });
+
+    const db = openDatabase(fixture.dbPath);
+    try {
+      const result = runChecks(db, {
+        snapshotId: fixture.snapshotId,
+        rules: [
+          {
+            type: "metric-product-max",
+            id: "r",
+            metrics: ["x", "y"],
+            max: 100,
+            kind: "file",
+            exclude: ["__tests__"],
+          },
+        ],
+      });
+      expect(result.violations.map((v) => v.nodeId)).toEqual(["src/foo.ts"]);
+    } finally {
+      db.close();
+    }
+  });
+});
+
 describe("runChecks — forbid-import", () => {
   let fixture: Fixture;
 
@@ -271,5 +413,44 @@ describe("validateRules", () => {
     expect(rules).toHaveLength(2);
     expect(rules[0]!.type).toBe("metric-max");
     expect(rules[1]!.type).toBe("forbid-import");
+  });
+
+  it("rejects metric-product-max with fewer than 2 metrics or non-string entries", () => {
+    expect(() =>
+      validateRules({
+        rules: [{ id: "r", type: "metric-product-max", metrics: ["a"], max: 1 }],
+      }),
+    ).toThrow(/2\+/);
+    expect(() =>
+      validateRules({
+        rules: [
+          { id: "r", type: "metric-product-max", metrics: ["a", 7], max: 1 },
+        ],
+      }),
+    ).toThrow(/strings/);
+  });
+
+  it("normalizes a metric-product-max rule", () => {
+    const [rule] = validateRules({
+      rules: [
+        {
+          id: "scary",
+          type: "metric-product-max",
+          metrics: ["churn_30d", "cyclomatic_max"],
+          max: 1000,
+          kind: "file",
+          exclude: ["__tests__"],
+        },
+      ],
+    });
+    expect(rule).toEqual({
+      type: "metric-product-max",
+      id: "scary",
+      metrics: ["churn_30d", "cyclomatic_max"],
+      max: 1000,
+      kind: "file",
+      severity: undefined,
+      exclude: ["__tests__"],
+    });
   });
 });

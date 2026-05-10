@@ -17,6 +17,7 @@ export type {
   CheckRule,
   MetricMaxRule,
   MetricMinRule,
+  MetricProductMaxRule,
   ForbidImportRule,
   CheckRulesFile,
   CheckViolation,

@@ -124,6 +124,16 @@ export interface MetricMinRule {
   exclude?: string[];
 }
 
+export interface MetricProductMaxRule {
+  type: "metric-product-max";
+  id: string;
+  metrics: string[];
+  max: number;
+  kind?: NodeKind;
+  severity?: Severity;
+  exclude?: string[];
+}
+
 export interface ForbidImportRule {
   type: "forbid-import";
   id: string;
@@ -132,7 +142,11 @@ export interface ForbidImportRule {
   severity?: Severity;
 }
 
-export type CheckRule = MetricMaxRule | MetricMinRule | ForbidImportRule;
+export type CheckRule =
+  | MetricMaxRule
+  | MetricMinRule
+  | MetricProductMaxRule
+  | ForbidImportRule;
 
 export interface CheckRulesFile {
   rules: CheckRule[];
