@@ -26,6 +26,7 @@
     "@code-style/checker": "workspace:*",
     "@code-style/graph": "workspace:*",
     "@code-style/profile": "workspace:*",
+    "@code-style/render": "workspace:*",
     "@inquirer/prompts": "^8.3.0",
     "chalk": "^5.6.2",
     "commander": "^14.0.3"

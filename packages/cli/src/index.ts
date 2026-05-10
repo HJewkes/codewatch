@@ -336,6 +336,44 @@ graphCmd
     },
   );
 
+graphCmd
+  .command("render")
+  .description("Render a graph snapshot to a standalone HTML file")
+  .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")
+  .option("--snapshot <id>", "Snapshot id (default: latest)")
+  .requiredOption("--out <path>", "Output HTML file")
+  .option("--title <string>", "Heading shown in the HTML")
+  .option("--subtitle <string>", "Small subheading")
+  .action(
+    async (options: {
+      db: string;
+      snapshot?: string;
+      out: string;
+      title?: string;
+      subtitle?: string;
+    }) => {
+      try {
+        const { runGraphRenderCommand, formatGraphRenderText } = await import(
+          "./commands/graph-render.js"
+        );
+        const result = await runGraphRenderCommand({
+          db: options.db,
+          snapshot:
+            options.snapshot !== undefined ? Number(options.snapshot) : undefined,
+          out: options.out,
+          title: options.title,
+          subtitle: options.subtitle,
+        });
+        console.log(formatGraphRenderText(result));
+      } catch (err) {
+        console.error(
+          formatError(err instanceof Error ? err.message : String(err)),
+        );
+        process.exitCode = 1;
+      }
+    },
+  );
+
 program
   .command("analyze <path>")
   .description("Run extraction pipeline against a local directory")

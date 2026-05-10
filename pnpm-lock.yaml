@@ -66,6 +66,9 @@ importers:
       '@code-style/profile':
         specifier: workspace:*
         version: link:../profile
+      '@code-style/render':
+        specifier: workspace:*
+        version: link:../render
       '@inquirer/prompts':
         specifier: ^8.3.0
         version: 8.3.0(@types/node@25.3.2)
