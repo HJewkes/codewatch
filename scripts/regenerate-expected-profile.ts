@@ -2,15 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseFile } from "../packages/analyzer/src/extractors/parser.js";
-import {
-  NamingExtractor,
-  StructureExtractor,
-  ControlFlowExtractor,
-  DocumentationExtractor,
-  ErrorHandlingExtractor,
-} from "../packages/analyzer/src/extractors/index.js";
+import { createStyleExtractors } from "../packages/analyzer/src/extractors/factory.js";
 import { Aggregator } from "../packages/analyzer/src/aggregator/index.js";
-import type { Observation, Extractor } from "../packages/analyzer/src/extractors/types.js";
+import type { Observation } from "../packages/analyzer/src/extractors/types.js";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(scriptDir, "..");
@@ -21,13 +15,7 @@ async function main(): Promise<void> {
   const files = fs.readdirSync(corpusDir).filter((f) => f.endsWith(".ts")).sort();
   console.log(`Found ${files.length} corpus files in ${corpusDir}`);
 
-  const extractors: Extractor[] = [
-    new NamingExtractor(),
-    new StructureExtractor(),
-    new ControlFlowExtractor(),
-    new DocumentationExtractor(),
-    new ErrorHandlingExtractor(),
-  ];
+  const extractors = createStyleExtractors();
 
   const allObservations: Observation[] = [];
 

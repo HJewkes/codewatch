@@ -13,7 +13,7 @@ import {
 } from "./commands/diff.js";
 import { getDefaultProfilePath } from "./utils/config.js";
 import { formatError, formatSuccess } from "./utils/output.js";
-import { createExtractors, extractFromFiles } from "./utils/pipeline.js";
+import { extractFromFiles } from "./utils/pipeline.js";
 
 const program = new Command();
 
@@ -59,7 +59,7 @@ program
         },
         extract: async (corpus) => {
           const typedCorpus = corpus as CodeCorpus;
-          const extractors = createExtractors(analyzer);
+          const extractors = analyzer.createStyleExtractors();
           return extractFromFiles(
             typedCorpus.files.map((f) => ({
               content: f.content,
@@ -157,7 +157,7 @@ program
       }
       const analyzer = await import("@code-style/analyzer");
       const fs = await import("node:fs/promises");
-      const extractors = createExtractors(analyzer);
+      const extractors = analyzer.createStyleExtractors();
       const fileInputs: { content: string; path: string; language: string }[] = [];
       for (const filePath of files) {
         const lang = analyzer.getLanguageFromPath(filePath);
