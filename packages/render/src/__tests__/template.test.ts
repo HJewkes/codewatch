@@ -32,6 +32,11 @@ describe("renderHtml", () => {
     expect(html).toContain("test render");
   });
 
+  it("stays under 500 KB for the small fixture", async () => {
+    const html = await renderHtml(tinyGraph);
+    expect(html.length).toBeLessThan(500 * 1024);
+  });
+
   it("inlines the cytoscape bundle (no CDN)", async () => {
     const html = await renderHtml(tinyGraph);
     expect(html).toContain("Cytoscape Consortium");
@@ -60,5 +65,52 @@ describe("renderHtml", () => {
     const closingTagInJson = tail
       .slice(0, tail.indexOf("</script>") + "</script>".length - 1);
     expect(closingTagInJson.includes("</script>")).toBe(false);
+  });
+
+  it("renders a toolbar with chips for present node kinds (and not absent ones)", async () => {
+    const html = await renderHtml(tinyGraph);
+    expect(html).toContain('class="toolbar"');
+    expect(html).toContain('role="toolbar"');
+    expect(html).toContain('data-kind="file"');
+    expect(html).toContain('data-kind="external"');
+    // No symbol/module/package nodes in the fixture, so no chips for them.
+    expect(html).not.toContain('data-kind="symbol"');
+    expect(html).not.toContain('data-kind="module"');
+    expect(html).not.toContain('data-kind="package"');
+    // Labels and counts present.
+    expect(html).toContain(">File<");
+    expect(html).toContain(">External<");
+  });
+
+  it("renders edge-kind chips for present edge kinds", async () => {
+    const html = await renderHtml(tinyGraph);
+    expect(html).toContain('data-edge-kind="imports"');
+    expect(html).not.toContain('data-edge-kind="re-exports"');
+  });
+
+  it("includes a reset-view button in the toolbar", async () => {
+    const html = await renderHtml(tinyGraph);
+    expect(html).toContain('id="reset-view"');
+    expect(html).toContain("Reset view");
+  });
+
+  it("includes Fan-in/Fan-out side-panel scaffolding in the client script", async () => {
+    const html = await renderHtml(tinyGraph);
+    expect(html).toContain("Fan-in");
+    expect(html).toContain("Fan-out");
+    expect(html).toContain("Show neighbors");
+  });
+
+  it("calls cy.fit on initial render for fit-to-viewport", async () => {
+    const html = await renderHtml(tinyGraph);
+    expect(html).toMatch(/cy\.fit\(undefined,\s*50\)/);
+  });
+
+  it("uses a minimal footer with rendered node/edge counts", async () => {
+    const html = await renderHtml(tinyGraph);
+    expect(html).toContain("rendered with cytoscape.js");
+    expect(html).toContain(`${tinyGraph.nodes.length} nodes`);
+    // Old legend swatches in the footer should be gone.
+    expect(html).not.toMatch(/<footer>[\s\S]*Legend:[\s\S]*<\/footer>/);
   });
 });
