@@ -161,6 +161,71 @@ describe("runGraphTopCommand", () => {
     expect(text).toContain("No nodes have this metric.");
   });
 
+  it("excludes nodes matching a substring pattern", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        { id: "src/foo.ts", kind: "file", name: "foo.ts" },
+        { id: "src/__tests__/foo.test.ts", kind: "file", name: "foo.test.ts" },
+        { id: "src/bar.ts", kind: "file", name: "bar.ts" },
+      ]);
+      db.insertMetrics(snapshotId, [
+        { nodeId: "src/foo.ts", name: "loc", value: 10 },
+        { nodeId: "src/__tests__/foo.test.ts", name: "loc", value: 100 },
+        { nodeId: "src/bar.ts", name: "loc", value: 50 },
+      ]);
+    });
+
+    const result = runGraphTopCommand({
+      db: fixture.dbPath,
+      metric: "loc",
+      exclude: ["__tests__"],
+    });
+
+    expect(result.rows.map((r) => r.nodeId)).toEqual(["src/bar.ts", "src/foo.ts"]);
+  });
+
+  it("excludes nodes matching glob patterns", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        { id: "src/a.ts", kind: "file", name: "a" },
+        { id: "src/a.test.ts", kind: "file", name: "a.test" },
+        { id: "src/sub/b.test.ts", kind: "file", name: "b.test" },
+      ]);
+      db.insertMetrics(snapshotId, [
+        { nodeId: "src/a.ts", name: "loc", value: 10 },
+        { nodeId: "src/a.test.ts", name: "loc", value: 20 },
+        { nodeId: "src/sub/b.test.ts", name: "loc", value: 30 },
+      ]);
+    });
+
+    const result = runGraphTopCommand({
+      db: fixture.dbPath,
+      metric: "loc",
+      exclude: ["**/*.test.ts"],
+    });
+
+    expect(result.rows.map((r) => r.nodeId)).toEqual(["src/a.ts"]);
+  });
+
+  it("respects --limit even after excludes oversample", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      for (let i = 0; i < 10; i++) {
+        const id = i % 2 === 0 ? `keep/f${i}.ts` : `drop/f${i}.ts`;
+        db.insertNode(snapshotId, { id, kind: "file", name: "" });
+        db.insertMetric(snapshotId, { nodeId: id, name: "loc", value: i });
+      }
+    });
+
+    const result = runGraphTopCommand({
+      db: fixture.dbPath,
+      metric: "loc",
+      limit: 3,
+      exclude: ["drop/"],
+    });
+    expect(result.rows).toHaveLength(3);
+    expect(result.rows.every((r) => r.nodeId.startsWith("keep/"))).toBe(true);
+  });
+
   it("emits JSON when requested", async () => {
     fixture = await createFixture((db, snapshotId) => {
       db.insertNode(snapshotId, { id: "f.ts", kind: "file", name: "" });

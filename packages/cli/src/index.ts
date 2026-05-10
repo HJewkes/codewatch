@@ -383,6 +383,10 @@ graphCmd
   .option("--snapshot <id>", "Snapshot id (default: latest)")
   .option("--limit <n>", "Number of rows to return", "20")
   .option("--kind <kind>", "Filter to one node kind (file, module, package, external)")
+  .option(
+    "--exclude <pattern...>",
+    "Exclude node ids matching this glob or substring (repeatable)",
+  )
   .option("--json", "Output structured JSON")
   .action(
     async (options: {
@@ -391,6 +395,7 @@ graphCmd
       snapshot?: string;
       limit?: string;
       kind?: string;
+      exclude?: string[];
       json?: boolean;
     }) => {
       try {
@@ -403,6 +408,7 @@ graphCmd
             options.snapshot !== undefined ? Number(options.snapshot) : undefined,
           limit: options.limit !== undefined ? Number(options.limit) : undefined,
           kind: options.kind,
+          exclude: options.exclude,
         });
         console.log(
           options.json ? formatGraphTopJson(result) : formatGraphTopText(result),

@@ -7,6 +7,7 @@ export interface GraphTopCommandOptions {
   snapshot?: number;
   limit?: number;
   kind?: string;
+  exclude?: string[];
   json?: boolean;
 }
 
@@ -46,14 +47,19 @@ export function runGraphTopCommand(
       );
     }
 
+    const desired = options.limit ?? 20;
+    const excluders = compileExcluders(options.exclude);
+    const oversample = excluders.length > 0 ? Math.max(desired * 4, 200) : desired;
+
     const raw = db.topByMetric({
       snapshotId: snapshot.id,
       metric: options.metric,
-      limit: options.limit ?? 20,
+      limit: oversample,
       kind: options.kind,
     });
 
-    const rows: GraphTopRow[] = raw.map((r, i) => ({
+    const filtered = raw.filter((r) => !excluders.some((rx) => rx.test(r.nodeId)));
+    const rows: GraphTopRow[] = filtered.slice(0, desired).map((r, i) => ({
       rank: i + 1,
       nodeId: r.nodeId,
       name: r.name,
@@ -66,6 +72,36 @@ export function runGraphTopCommand(
   } finally {
     db.close();
   }
+}
+
+function compileExcluders(patterns: readonly string[] | undefined): RegExp[] {
+  if (!patterns) return [];
+  return patterns.map((p) => patternToRegex(p));
+}
+
+function patternToRegex(pattern: string): RegExp {
+  // Glob support: '**' matches across directories, '*' matches within a segment.
+  // Patterns without any '*' are treated as case-sensitive substring matches.
+  if (!pattern.includes("*")) {
+    return new RegExp(escapeRegex(pattern));
+  }
+  let out = "";
+  for (let i = 0; i < pattern.length; i++) {
+    const c = pattern[i]!;
+    if (c === "*" && pattern[i + 1] === "*") {
+      out += ".*";
+      i++;
+    } else if (c === "*") {
+      out += "[^/]*";
+    } else {
+      out += escapeRegex(c);
+    }
+  }
+  return new RegExp(`^${out}$`);
+}
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.+?(){}|^$\\[\]]/g, "\\$&");
 }
 
 function formatValue(v: number | null, unit: string | null): string {
