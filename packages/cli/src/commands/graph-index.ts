@@ -47,6 +47,11 @@ export function formatGraphIndexText(result: GraphIndexResult): string {
       `${chalk.bold("Renames:")} ${result.aliases} ${chalk.dim("(from git diff -M)")}`,
     );
   }
+  if (result.metrics > 0) {
+    lines.push(
+      `${chalk.bold("Metrics:")} ${result.metrics} ${chalk.dim("(fan_in, fan_out, instability)")}`,
+    );
+  }
   lines.push("");
   const d = result.durationMs;
   lines.push(
@@ -54,6 +59,7 @@ export function formatGraphIndexText(result: GraphIndexResult): string {
       `walk ${d.walk.toFixed(0)}ms  ` +
         `parse ${d.parse.toFixed(0)}ms  ` +
         `extract ${d.extract.toFixed(0)}ms  ` +
+        `metrics ${d.metrics.toFixed(0)}ms  ` +
         `persist ${d.persist.toFixed(0)}ms  ` +
         `total ${d.total.toFixed(0)}ms`,
     ),

@@ -308,6 +308,10 @@ graphCmd
     "--no-detect-renames",
     "Skip git rename detection (no id_alias entries)",
   )
+  .option(
+    "--no-compute-metrics",
+    "Skip pure-graph metrics (fan_in, fan_out, instability)",
+  )
   .option("--json", "Output structured JSON")
   .action(
     async (
@@ -317,6 +321,7 @@ graphCmd
         ref?: string;
         tsConfig?: string;
         detectRenames?: boolean;
+        computeMetrics?: boolean;
         json?: boolean;
       },
     ) => {
@@ -330,6 +335,7 @@ graphCmd
           ref: options.ref,
           tsConfigPath: options.tsConfig,
           detectRenames: options.detectRenames,
+          computeMetrics: options.computeMetrics,
           json: options.json,
         });
         console.log(output);

@@ -38,3 +38,4 @@ export {
 } from "./indexer.js";
 
 export { diffSnapshots, type DiffSnapshotsOptions } from "./diff.js";
+export { computeMetrics } from "./metrics.js";
