@@ -294,6 +294,48 @@ program
     }
   });
 
+const graphCmd = program
+  .command("graph")
+  .description("Code graph commands (index, query, render)");
+
+graphCmd
+  .command("index <path>")
+  .description("Build a code graph snapshot for a directory")
+  .option("--db <path>", "Database path (default: <path>/.codewatch/graph.db)")
+  .option("--ref <ref>", "Snapshot ref label", "wd")
+  .option("--ts-config <path>", "Path to tsconfig.json for ts-morph")
+  .option("--json", "Output structured JSON")
+  .action(
+    async (
+      rootDir: string,
+      options: {
+        db?: string;
+        ref?: string;
+        tsConfig?: string;
+        json?: boolean;
+      },
+    ) => {
+      try {
+        const { runGraphIndexCommand } = await import(
+          "./commands/graph-index.js"
+        );
+        const { output } = await runGraphIndexCommand({
+          rootDir,
+          dbPath: options.db,
+          ref: options.ref,
+          tsConfigPath: options.tsConfig,
+          json: options.json,
+        });
+        console.log(output);
+      } catch (err) {
+        console.error(
+          formatError(err instanceof Error ? err.message : String(err)),
+        );
+        process.exitCode = 1;
+      }
+    },
+  );
+
 program
   .command("analyze <path>")
   .description("Run extraction pipeline against a local directory")

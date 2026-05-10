@@ -60,6 +60,9 @@ importers:
       '@code-style/checker':
         specifier: workspace:*
         version: link:../checker
+      '@code-style/graph':
+        specifier: workspace:*
+        version: link:../graph
       '@code-style/profile':
         specifier: workspace:*
         version: link:../profile

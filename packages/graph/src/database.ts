@@ -32,6 +32,13 @@ interface NodeDbRow {
   attrs: string;
 }
 
+interface EdgeDbRow {
+  src_id: string;
+  dst_id: string;
+  kind: string;
+  attrs: string;
+}
+
 function rowToSnapshot(row: SnapshotDbRow): SnapshotRow {
   return {
     id: row.id,
@@ -54,6 +61,15 @@ function rowToNode(row: NodeDbRow): GraphNode {
   };
 }
 
+function rowToEdge(row: EdgeDbRow): GraphEdge {
+  return {
+    srcId: row.src_id,
+    dstId: row.dst_id,
+    kind: row.kind as GraphEdge["kind"],
+    attrs: JSON.parse(row.attrs) as Record<string, unknown>,
+  };
+}
+
 export class GraphDatabase {
   private readonly insertSnapshotStmt;
   private readonly insertNodeStmt;
@@ -63,6 +79,8 @@ export class GraphDatabase {
   private readonly listSnapshotsAllStmt;
   private readonly listSnapshotsByRefStmt;
   private readonly getNodeStmt;
+  private readonly listNodesStmt;
+  private readonly listEdgesStmt;
 
   constructor(private readonly db: Database.Database) {
     this.insertSnapshotStmt = db.prepare(
@@ -92,6 +110,12 @@ export class GraphDatabase {
     );
     this.getNodeStmt = db.prepare(
       "SELECT id, kind, name, parent_id, language, attrs FROM node WHERE snapshot_id = ? AND id = ?",
+    );
+    this.listNodesStmt = db.prepare(
+      "SELECT id, kind, name, parent_id, language, attrs FROM node WHERE snapshot_id = ?",
+    );
+    this.listEdgesStmt = db.prepare(
+      "SELECT src_id, dst_id, kind, attrs FROM edge WHERE snapshot_id = ?",
     );
   }
 
@@ -177,6 +201,16 @@ export class GraphDatabase {
   getNode(snapshotId: number, id: string): GraphNode | null {
     const row = this.getNodeStmt.get(snapshotId, id) as NodeDbRow | undefined;
     return row ? rowToNode(row) : null;
+  }
+
+  listNodes(snapshotId: number): GraphNode[] {
+    const rows = this.listNodesStmt.all(snapshotId) as NodeDbRow[];
+    return rows.map(rowToNode);
+  }
+
+  listEdges(snapshotId: number): GraphEdge[] {
+    const rows = this.listEdgesStmt.all(snapshotId) as EdgeDbRow[];
+    return rows.map(rowToEdge);
   }
 
   close(): void {

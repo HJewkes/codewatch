@@ -24,3 +24,10 @@ export {
   packageId,
   externalId,
 } from "./extractors/ids.js";
+
+export {
+  runGraphIndex,
+  type GraphIndexOptions,
+  type GraphIndexResult,
+  type GraphIndexDurations,
+} from "./indexer.js";
