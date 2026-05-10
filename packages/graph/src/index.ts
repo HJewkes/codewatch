@@ -12,3 +12,15 @@ export type {
 
 export { runMigrations } from "./migrations.js";
 export { openDatabase, GraphDatabase } from "./database.js";
+
+export {
+  TsMorphGraphExtractor,
+  type TsMorphGraphExtractorOptions,
+} from "./extractors/ts-morph-extractor.js";
+export {
+  fileId,
+  moduleId,
+  parentModuleId,
+  packageId,
+  externalId,
+} from "./extractors/ids.js";

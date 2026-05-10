@@ -21,7 +21,8 @@
   ],
   "dependencies": {
     "@code-style/core": "workspace:*",
-    "better-sqlite3": "^11.7.0"
+    "better-sqlite3": "^11.7.0",
+    "ts-morph": "^25.0.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.12",

@@ -1,0 +1,174 @@
+import * as path from "node:path";
+import {
+  Project,
+  ScriptTarget,
+  ModuleKind,
+  ModuleResolutionKind,
+  type SourceFile,
+} from "ts-morph";
+import type { Extractor, ParsedFile } from "@code-style/core";
+import type { EdgeKind, GraphEdge, GraphFragment, GraphNode } from "../types.js";
+import {
+  externalId,
+  fileId,
+  moduleId,
+  parentModuleId,
+} from "./ids.js";
+
+export interface TsMorphGraphExtractorOptions {
+  repoRoot: string;
+  tsConfigPath?: string;
+  project?: Project;
+}
+
+export class TsMorphGraphExtractor implements Extractor<GraphFragment> {
+  readonly name = "ts-morph-graph";
+  private readonly repoRoot: string;
+  private readonly tsConfigPath?: string;
+  private project?: Project;
+
+  constructor(options: TsMorphGraphExtractorOptions) {
+    this.repoRoot = options.repoRoot;
+    this.tsConfigPath = options.tsConfigPath;
+    this.project = options.project;
+  }
+
+  extract(file: ParsedFile): GraphFragment[] {
+    if (!isTypeScriptFile(file)) return [];
+
+    const project = this.ensureProject();
+    const sourceFile = this.loadSourceFile(project, file);
+    const nodes = this.buildFileAndModuleNodes(sourceFile);
+    const { edges, externalNodes } = this.collectEdges(sourceFile);
+    return [{ nodes: [...nodes, ...externalNodes], edges }];
+  }
+
+  private ensureProject(): Project {
+    if (this.project) return this.project;
+    this.project = this.tsConfigPath
+      ? new Project({ tsConfigFilePath: this.tsConfigPath })
+      : new Project({
+          compilerOptions: {
+            allowJs: true,
+            target: ScriptTarget.ESNext,
+            module: ModuleKind.ESNext,
+            moduleResolution: ModuleResolutionKind.NodeNext,
+          },
+        });
+    return this.project;
+  }
+
+  private loadSourceFile(project: Project, file: ParsedFile): SourceFile {
+    const existing = project.getSourceFile(file.filePath);
+    if (existing) {
+      if (existing.getFullText() !== file.content) {
+        existing.replaceWithText(file.content);
+      }
+      return existing;
+    }
+    return project.createSourceFile(file.filePath, file.content, {
+      overwrite: true,
+    });
+  }
+
+  private buildFileAndModuleNodes(sourceFile: SourceFile): GraphNode[] {
+    const abs = sourceFile.getFilePath();
+    const fId = fileId(this.repoRoot, abs);
+    const mId = moduleId(this.repoRoot, abs);
+    const parentId = parentModuleId(mId) ?? undefined;
+    return [
+      {
+        id: fId,
+        kind: "file",
+        name: path.basename(fId),
+        parentId: mId,
+        language: "typescript",
+      },
+      {
+        id: mId,
+        kind: "module",
+        name: path.basename(mId),
+        parentId,
+        language: "typescript",
+      },
+    ];
+  }
+
+  private collectEdges(sourceFile: SourceFile): {
+    edges: GraphEdge[];
+    externalNodes: GraphNode[];
+  } {
+    const srcAbs = sourceFile.getFilePath();
+    const srcFileId = fileId(this.repoRoot, srcAbs);
+    const edges: GraphEdge[] = [];
+    const externalNodes: GraphNode[] = [];
+    const seenExternals = new Set<string>();
+
+    for (const decl of sourceFile.getImportDeclarations()) {
+      this.handleSpecifier(
+        srcFileId,
+        decl.getModuleSpecifierValue(),
+        decl.getModuleSpecifierSourceFile(),
+        "imports",
+        edges,
+        externalNodes,
+        seenExternals,
+      );
+    }
+
+    for (const decl of sourceFile.getExportDeclarations()) {
+      if (!decl.hasModuleSpecifier()) continue;
+      this.handleSpecifier(
+        srcFileId,
+        decl.getModuleSpecifierValue(),
+        decl.getModuleSpecifierSourceFile(),
+        "re-exports",
+        edges,
+        externalNodes,
+        seenExternals,
+      );
+    }
+
+    return { edges, externalNodes };
+  }
+
+  private handleSpecifier(
+    srcId: string,
+    specifier: string | undefined,
+    target: SourceFile | undefined,
+    kind: EdgeKind,
+    edges: GraphEdge[],
+    externalNodes: GraphNode[],
+    seenExternals: Set<string>,
+  ): void {
+    if (!specifier) return;
+    const internal = this.resolveInternal(target);
+    if (internal) {
+      edges.push({ srcId, dstId: internal, kind, attrs: { specifier } });
+      return;
+    }
+    const extId = externalId(specifier);
+    if (!seenExternals.has(extId)) {
+      seenExternals.add(extId);
+      externalNodes.push({
+        id: extId,
+        kind: "external",
+        name: specifier,
+      });
+    }
+    edges.push({ srcId, dstId: extId, kind, attrs: { specifier } });
+  }
+
+  private resolveInternal(target: SourceFile | undefined): string | null {
+    if (!target) return null;
+    const abs = target.getFilePath();
+    const relative = path.relative(this.repoRoot, abs);
+    if (relative.startsWith("..") || path.isAbsolute(relative)) return null;
+    if (relative.split(path.sep).includes("node_modules")) return null;
+    return fileId(this.repoRoot, abs);
+  }
+}
+
+function isTypeScriptFile(file: ParsedFile): boolean {
+  return file.language === "typescript" || file.language === "tsx";
+}
