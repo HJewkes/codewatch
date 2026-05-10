@@ -8,6 +8,11 @@ export type {
   GraphFragment,
   SnapshotRow,
   EntryPoint,
+  IdAlias,
+  MetricDelta,
+  NodeRename,
+  GraphDiff,
+  GraphDiffSummary,
 } from "./types.js";
 
 export { runMigrations } from "./migrations.js";
@@ -31,3 +36,5 @@ export {
   type GraphIndexResult,
   type GraphIndexDurations,
 } from "./indexer.js";
+
+export { diffSnapshots, type DiffSnapshotsOptions } from "./diff.js";

@@ -4,6 +4,8 @@ import type {
   GraphEdge,
   GraphMetric,
   GraphNode,
+  IdAlias,
+  IdAliasReason,
   SnapshotRow,
 } from "./types.js";
 
@@ -39,6 +41,19 @@ interface EdgeDbRow {
   attrs: string;
 }
 
+interface MetricDbRow {
+  node_id: string;
+  name: string;
+  value: number | null;
+  unit: string | null;
+}
+
+interface AliasDbRow {
+  old_id: string;
+  new_id: string;
+  reason: string;
+}
+
 function rowToSnapshot(row: SnapshotDbRow): SnapshotRow {
   return {
     id: row.id,
@@ -70,17 +85,37 @@ function rowToEdge(row: EdgeDbRow): GraphEdge {
   };
 }
 
+function rowToMetric(row: MetricDbRow): GraphMetric {
+  return {
+    nodeId: row.node_id,
+    name: row.name,
+    value: row.value,
+    unit: row.unit ?? undefined,
+  };
+}
+
+function rowToAlias(row: AliasDbRow): IdAlias {
+  return {
+    oldId: row.old_id,
+    newId: row.new_id,
+    reason: row.reason as IdAliasReason,
+  };
+}
+
 export class GraphDatabase {
   private readonly insertSnapshotStmt;
   private readonly insertNodeStmt;
   private readonly insertEdgeStmt;
   private readonly insertMetricStmt;
+  private readonly insertAliasStmt;
   private readonly getSnapshotStmt;
   private readonly listSnapshotsAllStmt;
   private readonly listSnapshotsByRefStmt;
   private readonly getNodeStmt;
   private readonly listNodesStmt;
   private readonly listEdgesStmt;
+  private readonly listMetricsStmt;
+  private readonly listAliasesStmt;
 
   constructor(private readonly db: Database.Database) {
     this.insertSnapshotStmt = db.prepare(
@@ -99,6 +134,10 @@ export class GraphDatabase {
       `INSERT INTO metric (snapshot_id, node_id, name, value, unit)
        VALUES (@snapshotId, @nodeId, @name, @value, @unit)`,
     );
+    this.insertAliasStmt = db.prepare(
+      `INSERT INTO id_alias (snapshot_id, old_id, new_id, reason)
+       VALUES (@snapshotId, @oldId, @newId, @reason)`,
+    );
     this.getSnapshotStmt = db.prepare(
       "SELECT * FROM snapshot WHERE id = ?",
     );
@@ -116,6 +155,12 @@ export class GraphDatabase {
     );
     this.listEdgesStmt = db.prepare(
       "SELECT src_id, dst_id, kind, attrs FROM edge WHERE snapshot_id = ?",
+    );
+    this.listMetricsStmt = db.prepare(
+      "SELECT node_id, name, value, unit FROM metric WHERE snapshot_id = ?",
+    );
+    this.listAliasesStmt = db.prepare(
+      "SELECT old_id, new_id, reason FROM id_alias WHERE snapshot_id = ?",
     );
   }
 
@@ -162,6 +207,15 @@ export class GraphDatabase {
     });
   }
 
+  insertAlias(snapshotId: number, alias: IdAlias): void {
+    this.insertAliasStmt.run({
+      snapshotId,
+      oldId: alias.oldId,
+      newId: alias.newId,
+      reason: alias.reason,
+    });
+  }
+
   insertNodes(snapshotId: number, nodes: readonly GraphNode[]): void {
     const tx = this.db.transaction((rows: readonly GraphNode[]) => {
       for (const n of rows) this.insertNode(snapshotId, n);
@@ -181,6 +235,13 @@ export class GraphDatabase {
       for (const m of rows) this.insertMetric(snapshotId, m);
     });
     tx(metrics);
+  }
+
+  insertAliases(snapshotId: number, aliases: readonly IdAlias[]): void {
+    const tx = this.db.transaction((rows: readonly IdAlias[]) => {
+      for (const a of rows) this.insertAlias(snapshotId, a);
+    });
+    tx(aliases);
   }
 
   getSnapshot(id: number): SnapshotRow | null {
@@ -211,6 +272,21 @@ export class GraphDatabase {
   listEdges(snapshotId: number): GraphEdge[] {
     const rows = this.listEdgesStmt.all(snapshotId) as EdgeDbRow[];
     return rows.map(rowToEdge);
+  }
+
+  listMetrics(snapshotId: number): GraphMetric[] {
+    const rows = this.listMetricsStmt.all(snapshotId) as MetricDbRow[];
+    return rows.map(rowToMetric);
+  }
+
+  listAliases(snapshotId: number): IdAlias[] {
+    const rows = this.listAliasesStmt.all(snapshotId) as AliasDbRow[];
+    return rows.map(rowToAlias);
+  }
+
+  getLatestSnapshotByRef(ref: string): SnapshotRow | null {
+    const [row] = this.listSnapshots({ ref, limit: 1 });
+    return row ?? null;
   }
 
   close(): void {
