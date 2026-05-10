@@ -1,20 +1,6 @@
-export interface LlmMessage {
-  role: "system" | "user" | "assistant";
-  content: string;
-}
+import type { LlmMessage, LlmResponse, LlmProvider } from "@code-style/core";
 
-export interface LlmResponse {
-  content: string;
-  tokensUsed: number;
-}
-
-export interface LlmProvider {
-  name: string;
-  generate(
-    messages: LlmMessage[],
-    options: { maxTokens: number },
-  ): Promise<LlmResponse>;
-}
+export type { LlmMessage, LlmResponse, LlmProvider } from "@code-style/core";
 
 export class ClaudeHaikuProvider implements LlmProvider {
   readonly name = "claude-haiku";

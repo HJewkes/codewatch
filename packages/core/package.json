@@ -1,5 +1,5 @@
 {
-  "name": "@code-style/analyzer",
+  "name": "@code-style/core",
   "version": "0.0.1",
   "type": "module",
   "main": "./dist/index.js",
@@ -19,13 +19,6 @@
     "dist"
   ],
   "dependencies": {
-    "@code-style/core": "workspace:*",
-    "@code-style/profile": "workspace:*",
-    "@jscpd/core": "3.5.10",
-    "@jscpd/tokenizer": "3.5.4",
-    "octokit": "^5.0.5",
-    "tree-sitter-python": "^0.25.0",
-    "tree-sitter-typescript": "^0.23.2",
     "web-tree-sitter": "^0.26.6"
   },
   "devDependencies": {
