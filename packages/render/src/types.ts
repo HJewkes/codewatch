@@ -1,9 +1,27 @@
-import type { GraphEdge, GraphNode } from "@code-style/graph";
+import type {
+  GraphDiffSummary,
+  GraphEdge,
+  GraphNode,
+  SnapshotRow,
+} from "@code-style/graph";
+
+export type NodeStatus = "unchanged" | "added" | "removed" | "renamed";
+export type EdgeStatus = "unchanged" | "added" | "removed";
+
+export interface RenderDiffMeta {
+  fromSnapshot: SnapshotRow;
+  toSnapshot: SnapshotRow;
+  nodeStatus: Record<string, NodeStatus>;
+  edgeStatus: Record<string, EdgeStatus>;
+  renames: Record<string, string>;
+  summary: GraphDiffSummary;
+}
 
 export interface RenderInput {
   snapshotId: number;
   nodes: GraphNode[];
   edges: GraphEdge[];
+  diff?: RenderDiffMeta;
 }
 
 export interface RenderOptions {

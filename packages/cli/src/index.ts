@@ -370,6 +370,38 @@ graphCmd
   );
 
 graphCmd
+  .command("render-diff")
+  .description("Render a two-snapshot diff to a standalone HTML file (added/removed/renamed highlighted)")
+  .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")
+  .requiredOption("--from <ref-or-id>", "From-side snapshot: numeric id or ref name")
+  .requiredOption("--to <ref-or-id>", "To-side snapshot: numeric id or ref name")
+  .requiredOption("--out <path>", "Output HTML file")
+  .option("--title <string>", "Heading shown in the HTML")
+  .option("--subtitle <string>", "Small subheading (default: from→to refs)")
+  .action(
+    async (options: {
+      db: string;
+      from: string;
+      to: string;
+      out: string;
+      title?: string;
+      subtitle?: string;
+    }) => {
+      try {
+        const { runGraphRenderDiffCommand, formatGraphRenderDiffText } =
+          await import("./commands/graph-render-diff.js");
+        const result = await runGraphRenderDiffCommand(options);
+        console.log(formatGraphRenderDiffText(result));
+      } catch (err) {
+        console.error(
+          formatError(err instanceof Error ? err.message : String(err)),
+        );
+        process.exitCode = 1;
+      }
+    },
+  );
+
+graphCmd
   .command("render")
   .description("Render a graph snapshot to a standalone HTML file")
   .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")

@@ -195,6 +195,28 @@ aside h2 {
   color: var(--text-dim);
   font-weight: 600;
 }
+.badge {
+  display: inline-block;
+  padding: 1px 7px;
+  margin-left: 8px;
+  font-size: 10px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  border-radius: 999px;
+  border: 1px solid;
+  font-weight: 600;
+  vertical-align: 1px;
+}
+header .diff-summary {
+  display: inline-flex;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+header .diff-summary span.added { color: #22c55e; }
+header .diff-summary span.removed { color: #ef4444; }
+header .diff-summary span.renamed { color: #06b6d4; }
 aside .empty { color: var(--text-faint); font-style: italic; }
 aside .node-id {
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
@@ -261,6 +283,7 @@ interface CytoscapeNodeData {
   label: string;
   kind: string;
   tooltip: string;
+  status: string;
   raw: unknown;
 }
 
@@ -269,6 +292,7 @@ interface CytoscapeEdgeData {
   source: string;
   target: string;
   kind: string;
+  status: string;
 }
 
 function baseFilename(id: string): string {
@@ -284,28 +308,41 @@ function labelForNode(
   return node.name || baseFilename(node.id);
 }
 
-function buildCyData(layout: LayoutResult): {
+function buildCyData(
+  layout: LayoutResult,
+  diff: RenderInput["diff"],
+): {
   nodes: Array<{ data: CytoscapeNodeData; position: { x: number; y: number } }>;
   edges: Array<{ data: CytoscapeEdgeData }>;
 } {
-  const nodes = layout.nodes.map((n) => ({
-    data: {
-      id: n.id,
-      label: labelForNode(n),
-      kind: n.kind,
-      tooltip: n.id,
-      raw: n,
-    },
-    position: { x: n.x, y: n.y },
-  }));
-  const edges = layout.edges.map((e, i) => ({
-    data: {
-      id: `e${i}`,
-      source: e.srcId,
-      target: e.dstId,
-      kind: e.kind,
-    },
-  }));
+  const nodes = layout.nodes.map((n) => {
+    const status = diff?.nodeStatus[n.id] ?? "unchanged";
+    const oldId = diff?.renames[n.id];
+    return {
+      data: {
+        id: n.id,
+        label: labelForNode(n),
+        kind: n.kind,
+        tooltip: oldId ? `${oldId} → ${n.id}` : n.id,
+        status,
+        raw: { ...n, status, ...(oldId ? { oldId } : {}) },
+      },
+      position: { x: n.x, y: n.y },
+    };
+  });
+  const edges = layout.edges.map((e, i) => {
+    const status =
+      diff?.edgeStatus[`${e.srcId} ${e.dstId} ${e.kind}`] ?? "unchanged";
+    return {
+      data: {
+        id: `e${i}`,
+        source: e.srcId,
+        target: e.dstId,
+        kind: e.kind,
+        status,
+      },
+    };
+  });
   return { nodes, edges };
 }
 
@@ -351,7 +388,58 @@ function edgeKindChip(kind: string, count: number): string {
   );
 }
 
-function toolbarHtml(layout: LayoutResult): string {
+const STATUS_COLORS: Record<string, string> = {
+  added: "#22c55e",
+  removed: "#ef4444",
+  renamed: "#06b6d4",
+  unchanged: "#5a6573",
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  added: "Added",
+  removed: "Removed",
+  renamed: "Renamed",
+  unchanged: "Unchanged",
+};
+
+function statusChip(status: string, count: number): string {
+  const label = STATUS_LABELS[status] ?? status;
+  const color = STATUS_COLORS[status] ?? "#5eead4";
+  return (
+    `<button type="button" class="chip status-chip active" ` +
+    `data-status="${escapeHtml(status)}" data-accent ` +
+    `style="--chip-accent:${color}">` +
+    `<i style="background:${color}"></i>` +
+    `<span class="name">${escapeHtml(label)}</span>` +
+    `<span class="count">${count}</span>` +
+    `</button>`
+  );
+}
+
+function statusGroupHtml(diff: RenderInput["diff"], layout: LayoutResult): string {
+  if (!diff) return "";
+  const counts: Record<string, number> = {
+    added: 0,
+    removed: 0,
+    renamed: 0,
+    unchanged: 0,
+  };
+  for (const n of layout.nodes) {
+    const s = diff.nodeStatus[n.id] ?? "unchanged";
+    counts[s] = (counts[s] ?? 0) + 1;
+  }
+  const order = ["added", "removed", "renamed", "unchanged"];
+  const chips = order
+    .filter((s) => counts[s]! > 0)
+    .map((s) => statusChip(s, counts[s]!))
+    .join("");
+  return `<div class="group" aria-label="Diff status"><span class="group-label">Status</span>${chips}</div>`;
+}
+
+function toolbarHtml(
+  layout: LayoutResult,
+  diff: RenderInput["diff"],
+): string {
   const nodeCounts = countBy(layout.nodes, (n) => n.kind);
   const edgeCounts = countBy(layout.edges, (e) => e.kind);
   const nodeChips = Array.from(nodeCounts.entries())
@@ -365,6 +453,7 @@ function toolbarHtml(layout: LayoutResult): string {
   return `<div class="toolbar" role="toolbar" aria-label="Graph filters">
   <div class="group" aria-label="Node kinds"><span class="group-label">Nodes</span>${nodeChips}</div>
   <div class="group" aria-label="Edge kinds"><span class="group-label">Edges</span>${edgeChips}</div>
+  ${statusGroupHtml(diff, layout)}
   <div class="spacer"></div>
   <button type="button" class="btn" id="reset-view" title="Fit graph to viewport (Esc)">Reset view</button>
 </div>`;
@@ -412,6 +501,20 @@ function cyStyles(): string {
       "overlay-padding": 6,
       "overlay-opacity": 0.25
     } },
+    { selector: "node[status = 'added']", style: {
+      "border-color": "#22c55e",
+      "border-width": 3
+    } },
+    { selector: "node[status = 'removed']", style: {
+      "border-color": "#ef4444",
+      "border-width": 3,
+      "border-style": "dashed",
+      "opacity": 0.55
+    } },
+    { selector: "node[status = 'renamed']", style: {
+      "border-color": "#06b6d4",
+      "border-width": 3
+    } },
     { selector: ".faded", style: { "opacity": 0.15 } },
     { selector: ".kind-hidden", style: { "opacity": 0.05 } },
     { selector: ".highlight", style: {
@@ -432,6 +535,18 @@ function cyStyles(): string {
     } },
     { selector: "edge[kind = 're-exports']", style: {
       "line-style": "dashed"
+    } },
+    { selector: "edge[status = 'added']", style: {
+      "line-color": "#22c55e",
+      "target-arrow-color": "#22c55e",
+      "width": 2
+    } },
+    { selector: "edge[status = 'removed']", style: {
+      "line-color": "#ef4444",
+      "target-arrow-color": "#ef4444",
+      "line-style": "dashed",
+      "width": 2,
+      "opacity": 0.6
     } },
     { selector: "edge.faded", style: { "opacity": 0.05 } },
     { selector: "edge.kind-hidden", style: { "opacity": 0.05 } },
@@ -468,6 +583,13 @@ function clientScript(): string {
   const panel = document.getElementById("panel");
   const hiddenNodeKinds = new Set();
   const hiddenEdgeKinds = new Set();
+  const hiddenStatuses = new Set();
+  const STATUS_BADGE = {
+    added: { color: "#22c55e", label: "added" },
+    removed: { color: "#ef4444", label: "removed" },
+    renamed: { color: "#06b6d4", label: "renamed" },
+    unchanged: { color: "#5a6573", label: "unchanged" }
+  };
 
   function escapeHtml(s) {
     return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -500,11 +622,18 @@ function clientScript(): string {
     return '<h2 style="margin-top:14px">Attributes</h2><pre>' +
       escapeHtml(JSON.stringify(attrs, null, 2)) + '</pre>';
   }
+  function statusBadge(status) {
+    if (!status || status === "unchanged") return "";
+    const meta = STATUS_BADGE[status] || STATUS_BADGE.unchanged;
+    return '<span class="badge" style="background:' + meta.color + '22;color:' + meta.color + ';border-color:' + meta.color + '55">' +
+      escapeHtml(meta.label) + '</span>';
+  }
   function showNode(raw) {
     const nb = neighborsOf(raw.id);
     panel.innerHTML =
-      '<h2>Node</h2>' +
+      '<h2>Node ' + statusBadge(raw.status) + '</h2>' +
       '<div class="node-id">' + escapeHtml(raw.id) + '</div>' +
+      (raw.oldId ? renderRow("was", escapeHtml(raw.oldId)) : "") +
       renderRow("kind", escapeHtml(raw.kind)) +
       (raw.language ? renderRow("language", escapeHtml(raw.language)) : "") +
       (raw.name ? renderRow("name", escapeHtml(raw.name)) : "") +
@@ -567,11 +696,17 @@ function clientScript(): string {
   function applyKindVisibility() {
     cy.batch(function () {
       cy.nodes().forEach(function (n) {
-        if (hiddenNodeKinds.has(n.data("kind"))) n.addClass("kind-hidden");
+        const hidden =
+          hiddenNodeKinds.has(n.data("kind")) ||
+          hiddenStatuses.has(n.data("status"));
+        if (hidden) n.addClass("kind-hidden");
         else n.removeClass("kind-hidden");
       });
       cy.edges().forEach(function (e) {
-        if (hiddenEdgeKinds.has(e.data("kind"))) e.addClass("kind-hidden");
+        const hidden =
+          hiddenEdgeKinds.has(e.data("kind")) ||
+          hiddenStatuses.has(e.data("status"));
+        if (hidden) e.addClass("kind-hidden");
         else e.removeClass("kind-hidden");
       });
     });
@@ -595,6 +730,17 @@ function clientScript(): string {
           hiddenEdgeKinds.delete(kind); chip.classList.add("active"); chip.classList.remove("inactive");
         } else {
           hiddenEdgeKinds.add(kind); chip.classList.remove("active"); chip.classList.add("inactive");
+        }
+        applyKindVisibility();
+      });
+    });
+    document.querySelectorAll(".chip.status-chip").forEach(function (chip) {
+      chip.addEventListener("click", function () {
+        const status = chip.getAttribute("data-status");
+        if (hiddenStatuses.has(status)) {
+          hiddenStatuses.delete(status); chip.classList.add("active"); chip.classList.remove("inactive");
+        } else {
+          hiddenStatuses.add(status); chip.classList.remove("active"); chip.classList.add("inactive");
         }
         applyKindVisibility();
       });
@@ -639,6 +785,7 @@ interface HtmlContext {
   graphJson: string;
   title: string;
   subtitle: string;
+  diffSummary: string;
   toolbar: string;
   nodeCount: number;
   edgeCount: number;
@@ -657,6 +804,7 @@ function buildHtml(ctx: HtmlContext): string {
 <header>
   <h1>${escapeHtml(ctx.title)}</h1>
   <span class="subtitle">${escapeHtml(ctx.subtitle)}</span>
+  ${ctx.diffSummary}
   <input id="search" class="search" type="search" placeholder="Filter by id substring..." />
 </header>
 ${ctx.toolbar}
@@ -672,13 +820,46 @@ ${ctx.toolbar}
 </html>`;
 }
 
+function shortSha(commit: string | null | undefined): string {
+  return commit ? commit.slice(0, 7) : "—";
+}
+
+function diffSubtitle(input: RenderInput): string {
+  if (!input.diff) {
+    return `${input.nodes.length} nodes · ${input.edges.length} edges`;
+  }
+  const { fromSnapshot, toSnapshot } = input.diff;
+  return (
+    `${fromSnapshot.ref}@${shortSha(fromSnapshot.commitHash)}` +
+    ` → ${toSnapshot.ref}@${shortSha(toSnapshot.commitHash)}`
+  );
+}
+
+function diffSummaryHtml(input: RenderInput): string {
+  if (!input.diff) return "";
+  const s = input.diff.summary;
+  const parts: string[] = [];
+  if (s.addedNodes) parts.push(`<span class="added">+${s.addedNodes}</span>`);
+  if (s.removedNodes) parts.push(`<span class="removed">−${s.removedNodes}</span>`);
+  if (s.renamedNodes) parts.push(`<span class="renamed">~${s.renamedNodes}</span>`);
+  if (s.addedEdges || s.removedEdges) {
+    parts.push(
+      `<span class="dim">` +
+        `edges +${s.addedEdges} −${s.removedEdges}` +
+        `</span>`,
+    );
+  }
+  if (parts.length === 0) return "";
+  return `<span class="diff-summary">${parts.join(" ")}</span>`;
+}
+
 export async function renderHtml(
   input: RenderInput,
   options: RenderOptions = {},
 ): Promise<string> {
   const layout = await computeLayout(input);
   const bundle = await loadCytoscapeBundle();
-  const cy = buildCyData(layout);
+  const cy = buildCyData(layout, input.diff);
   const graphJson = JSON.stringify({
     snapshotId: input.snapshotId,
     nodes: cy.nodes,
@@ -687,11 +868,10 @@ export async function renderHtml(
   return buildHtml({
     bundle,
     graphJson,
-    title: options.title ?? "codewatch graph",
-    subtitle:
-      options.subtitle ??
-      `${input.nodes.length} nodes · ${input.edges.length} edges`,
-    toolbar: toolbarHtml(layout),
+    title: options.title ?? (input.diff ? "codewatch diff" : "codewatch graph"),
+    subtitle: options.subtitle ?? diffSubtitle(input),
+    diffSummary: diffSummaryHtml(input),
+    toolbar: toolbarHtml(layout, input.diff),
     nodeCount: input.nodes.length,
     edgeCount: input.edges.length,
   });
