@@ -13,6 +13,14 @@ export type {
   NodeRename,
   GraphDiff,
   GraphDiffSummary,
+  Severity,
+  CheckRule,
+  MetricMaxRule,
+  MetricMinRule,
+  ForbidImportRule,
+  CheckRulesFile,
+  CheckViolation,
+  CheckResult,
 } from "./types.js";
 
 export { runMigrations } from "./migrations.js";
@@ -40,3 +48,5 @@ export {
 export { diffSnapshots, type DiffSnapshotsOptions } from "./diff.js";
 export { computeMetrics } from "./metrics.js";
 export { computeSourceMetrics } from "./source-metrics.js";
+export { patternToRegex, compilePatterns, matchesAny } from "./patterns.js";
+export { runChecks, validateRules, type RunChecksOptions } from "./check.js";

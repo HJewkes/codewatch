@@ -1,7 +1,8 @@
 node_modules/
 dist/
 .code-style/cache/
-.codewatch/
+.codewatch/*
+!.codewatch/check.json
 *.tsbuildinfo
 .turbo/
 coverage/

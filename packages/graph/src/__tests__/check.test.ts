@@ -1,0 +1,275 @@
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
+import { tmpdir } from "node:os";
+import { openDatabase, type GraphDatabase } from "../database.js";
+import { runChecks, validateRules } from "../check.js";
+import type { CheckRule } from "../types.js";
+
+interface Fixture {
+  dir: string;
+  dbPath: string;
+  snapshotId: number;
+}
+
+async function createFixture(
+  populate: (db: GraphDatabase, snapshotId: number) => void,
+): Promise<Fixture> {
+  const dir = await fs.mkdtemp(path.join(tmpdir(), "code-style-check-"));
+  const dbPath = path.join(dir, "graph.db");
+  const db = openDatabase(dbPath);
+  const snapshotId = db.createSnapshot({
+    ref: "main",
+    indexVersion: "0.1.0",
+  });
+  populate(db, snapshotId);
+  db.close();
+  return { dir, dbPath, snapshotId };
+}
+
+describe("runChecks — metric-max", () => {
+  let fixture: Fixture;
+
+  afterEach(async () => {
+    if (fixture) await fs.rm(fixture.dir, { recursive: true, force: true });
+  });
+
+  it("reports nodes whose value exceeds the max", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        { id: "small.ts", kind: "file", name: "small" },
+        { id: "big.ts", kind: "file", name: "big" },
+      ]);
+      db.insertMetrics(snapshotId, [
+        { nodeId: "small.ts", name: "loc", value: 10 },
+        { nodeId: "big.ts", name: "loc", value: 1000 },
+      ]);
+    });
+
+    const db = openDatabase(fixture.dbPath);
+    try {
+      const result = runChecks(db, {
+        snapshotId: fixture.snapshotId,
+        rules: [
+          {
+            type: "metric-max",
+            id: "max-loc",
+            metric: "loc",
+            max: 500,
+          },
+        ],
+      });
+      expect(result.passed).toBe(false);
+      expect(result.violations).toHaveLength(1);
+      expect(result.violations[0]!.nodeId).toBe("big.ts");
+      expect(result.violations[0]!.value).toBe(1000);
+      expect(result.violations[0]!.threshold).toBe(500);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("filters by kind", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        { id: "f.ts", kind: "file", name: "f" },
+        { id: "m", kind: "module", name: "m" },
+      ]);
+      db.insertMetrics(snapshotId, [
+        { nodeId: "f.ts", name: "loc", value: 100 },
+        { nodeId: "m", name: "loc", value: 999 },
+      ]);
+    });
+
+    const db = openDatabase(fixture.dbPath);
+    try {
+      const result = runChecks(db, {
+        snapshotId: fixture.snapshotId,
+        rules: [
+          { type: "metric-max", id: "r", metric: "loc", max: 50, kind: "file" },
+        ],
+      });
+      expect(result.violations).toHaveLength(1);
+      expect(result.violations[0]!.nodeId).toBe("f.ts");
+    } finally {
+      db.close();
+    }
+  });
+
+  it("respects exclude patterns (glob and substring)", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        { id: "src/foo.ts", kind: "file", name: "foo" },
+        { id: "src/__tests__/bar.test.ts", kind: "file", name: "bar.test" },
+      ]);
+      db.insertMetrics(snapshotId, [
+        { nodeId: "src/foo.ts", name: "loc", value: 999 },
+        { nodeId: "src/__tests__/bar.test.ts", name: "loc", value: 999 },
+      ]);
+    });
+
+    const db = openDatabase(fixture.dbPath);
+    try {
+      const result = runChecks(db, {
+        snapshotId: fixture.snapshotId,
+        rules: [
+          {
+            type: "metric-max",
+            id: "r",
+            metric: "loc",
+            max: 100,
+            exclude: ["__tests__"],
+          },
+        ],
+      });
+      expect(result.violations.map((v) => v.nodeId)).toEqual(["src/foo.ts"]);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("skips nodes that don't have the metric", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNode(snapshotId, { id: "ext", kind: "external", name: "ext" });
+      db.insertMetric(snapshotId, { nodeId: "ext", name: "fan_in", value: 5 });
+    });
+
+    const db = openDatabase(fixture.dbPath);
+    try {
+      const result = runChecks(db, {
+        snapshotId: fixture.snapshotId,
+        rules: [{ type: "metric-max", id: "r", metric: "loc", max: 1 }],
+      });
+      expect(result.violations).toEqual([]);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("warning severity does not flip passed=false", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNode(snapshotId, { id: "f.ts", kind: "file", name: "" });
+      db.insertMetric(snapshotId, { nodeId: "f.ts", name: "loc", value: 1000 });
+    });
+
+    const db = openDatabase(fixture.dbPath);
+    try {
+      const result = runChecks(db, {
+        snapshotId: fixture.snapshotId,
+        rules: [
+          {
+            type: "metric-max",
+            id: "r",
+            metric: "loc",
+            max: 100,
+            severity: "warning",
+          },
+        ],
+      });
+      expect(result.violations).toHaveLength(1);
+      expect(result.passed).toBe(true);
+    } finally {
+      db.close();
+    }
+  });
+});
+
+describe("runChecks — metric-min", () => {
+  let fixture: Fixture;
+
+  afterEach(async () => {
+    if (fixture) await fs.rm(fixture.dir, { recursive: true, force: true });
+  });
+
+  it("reports nodes whose value falls below the min", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        { id: "a", kind: "file", name: "a" },
+        { id: "b", kind: "file", name: "b" },
+      ]);
+      db.insertMetrics(snapshotId, [
+        { nodeId: "a", name: "fan_in", value: 0 },
+        { nodeId: "b", name: "fan_in", value: 5 },
+      ]);
+    });
+
+    const db = openDatabase(fixture.dbPath);
+    try {
+      const result = runChecks(db, {
+        snapshotId: fixture.snapshotId,
+        rules: [{ type: "metric-min", id: "r", metric: "fan_in", min: 1 }],
+      });
+      expect(result.violations.map((v) => v.nodeId)).toEqual(["a"]);
+    } finally {
+      db.close();
+    }
+  });
+});
+
+describe("runChecks — forbid-import", () => {
+  let fixture: Fixture;
+
+  afterEach(async () => {
+    if (fixture) await fs.rm(fixture.dir, { recursive: true, force: true });
+  });
+
+  it("flags imports matching the from→to pattern", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        { id: "render/foo.ts", kind: "file", name: "" },
+        { id: "cli/bar.ts", kind: "file", name: "" },
+        { id: "render/baz.ts", kind: "file", name: "" },
+      ]);
+      db.insertEdges(snapshotId, [
+        { srcId: "render/foo.ts", dstId: "cli/bar.ts", kind: "imports" },
+        { srcId: "render/foo.ts", dstId: "render/baz.ts", kind: "imports" },
+      ]);
+    });
+
+    const db = openDatabase(fixture.dbPath);
+    try {
+      const result = runChecks(db, {
+        snapshotId: fixture.snapshotId,
+        rules: [
+          {
+            type: "forbid-import",
+            id: "no-render-to-cli",
+            from: "render/**",
+            to: "cli/**",
+          },
+        ],
+      });
+      expect(result.violations).toHaveLength(1);
+      expect(result.violations[0]!.nodeId).toBe("render/foo.ts");
+      expect(result.violations[0]!.destinationId).toBe("cli/bar.ts");
+    } finally {
+      db.close();
+    }
+  });
+});
+
+describe("validateRules", () => {
+  it("rejects non-object input", () => {
+    expect(() => validateRules(null)).toThrow();
+    expect(() => validateRules("hi")).toThrow();
+  });
+
+  it("rejects rules without id, type, or required fields", () => {
+    expect(() => validateRules({ rules: [{ type: "metric-max" }] })).toThrow(/id/);
+    expect(() => validateRules({ rules: [{ id: "r" }] })).toThrow(/type/);
+    expect(() => validateRules({ rules: [{ id: "r", type: "metric-max", metric: "loc" }] })).toThrow(/max/);
+    expect(() => validateRules({ rules: [{ id: "r", type: "unknown" }] })).toThrow(/unknown type/);
+  });
+
+  it("validates and returns normalized rules", () => {
+    const rules = validateRules({
+      rules: [
+        { id: "a", type: "metric-max", metric: "loc", max: 100, exclude: ["t"] },
+        { id: "b", type: "forbid-import", from: "x/**", to: "y/**" },
+      ],
+    }) as CheckRule[];
+    expect(rules).toHaveLength(2);
+    expect(rules[0]!.type).toBe("metric-max");
+    expect(rules[1]!.type).toBe("forbid-import");
+  });
+});

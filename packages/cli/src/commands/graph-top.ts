@@ -1,5 +1,10 @@
 import chalk from "chalk";
-import { openDatabase, type SnapshotRow } from "@code-style/graph";
+import {
+  compilePatterns,
+  matchesAny,
+  openDatabase,
+  type SnapshotRow,
+} from "@code-style/graph";
 
 export interface GraphTopCommandOptions {
   db: string;
@@ -48,7 +53,7 @@ export function runGraphTopCommand(
     }
 
     const desired = options.limit ?? 20;
-    const excluders = compileExcluders(options.exclude);
+    const excluders = compilePatterns(options.exclude);
     const oversample = excluders.length > 0 ? Math.max(desired * 4, 200) : desired;
 
     const raw = db.topByMetric({
@@ -58,7 +63,7 @@ export function runGraphTopCommand(
       kind: options.kind,
     });
 
-    const filtered = raw.filter((r) => !excluders.some((rx) => rx.test(r.nodeId)));
+    const filtered = raw.filter((r) => !matchesAny(r.nodeId, excluders));
     const rows: GraphTopRow[] = filtered.slice(0, desired).map((r, i) => ({
       rank: i + 1,
       nodeId: r.nodeId,
@@ -74,35 +79,6 @@ export function runGraphTopCommand(
   }
 }
 
-function compileExcluders(patterns: readonly string[] | undefined): RegExp[] {
-  if (!patterns) return [];
-  return patterns.map((p) => patternToRegex(p));
-}
-
-function patternToRegex(pattern: string): RegExp {
-  // Glob support: '**' matches across directories, '*' matches within a segment.
-  // Patterns without any '*' are treated as case-sensitive substring matches.
-  if (!pattern.includes("*")) {
-    return new RegExp(escapeRegex(pattern));
-  }
-  let out = "";
-  for (let i = 0; i < pattern.length; i++) {
-    const c = pattern[i]!;
-    if (c === "*" && pattern[i + 1] === "*") {
-      out += ".*";
-      i++;
-    } else if (c === "*") {
-      out += "[^/]*";
-    } else {
-      out += escapeRegex(c);
-    }
-  }
-  return new RegExp(`^${out}$`);
-}
-
-function escapeRegex(s: string): string {
-  return s.replace(/[.+?(){}|^$\\[\]]/g, "\\$&");
-}
 
 function formatValue(v: number | null, unit: string | null): string {
   if (v === null) return chalk.dim("—");

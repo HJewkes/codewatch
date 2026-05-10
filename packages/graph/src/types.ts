@@ -101,3 +101,58 @@ export interface GraphDiff {
   removedEdges: GraphEdge[];
   metricDeltas: MetricDelta[];
 }
+
+export type Severity = "error" | "warning";
+
+export interface MetricMaxRule {
+  type: "metric-max";
+  id: string;
+  metric: string;
+  max: number;
+  kind?: NodeKind;
+  severity?: Severity;
+  exclude?: string[];
+}
+
+export interface MetricMinRule {
+  type: "metric-min";
+  id: string;
+  metric: string;
+  min: number;
+  kind?: NodeKind;
+  severity?: Severity;
+  exclude?: string[];
+}
+
+export interface ForbidImportRule {
+  type: "forbid-import";
+  id: string;
+  from: string;
+  to: string;
+  severity?: Severity;
+}
+
+export type CheckRule = MetricMaxRule | MetricMinRule | ForbidImportRule;
+
+export interface CheckRulesFile {
+  rules: CheckRule[];
+}
+
+export interface CheckViolation {
+  ruleId: string;
+  severity: Severity;
+  nodeId: string;
+  message: string;
+  metric?: string;
+  value?: number;
+  threshold?: number;
+  destinationId?: string;
+}
+
+export interface CheckResult {
+  snapshotId: number;
+  rulesEvaluated: number;
+  nodesEvaluated: number;
+  violations: CheckViolation[];
+  passed: boolean;
+}

@@ -376,6 +376,44 @@ graphCmd
   );
 
 graphCmd
+  .command("check")
+  .description("Run rule checks against a snapshot (max-complexity, no-imports, …). Exits non-zero on violations.")
+  .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")
+  .option("--config <path>", "Rules file (JSON)", "./.codewatch/check.json")
+  .option("--snapshot <id>", "Snapshot id (default: latest)")
+  .option("--json", "Output structured JSON")
+  .action(
+    async (options: {
+      db: string;
+      config: string;
+      snapshot?: string;
+      json?: boolean;
+    }) => {
+      try {
+        const { runGraphCheckCommand, formatGraphCheckText, formatGraphCheckJson } =
+          await import("./commands/graph-check.js");
+        const result = await runGraphCheckCommand({
+          db: options.db,
+          config: options.config,
+          snapshot:
+            options.snapshot !== undefined ? Number(options.snapshot) : undefined,
+        });
+        console.log(
+          options.json
+            ? formatGraphCheckJson(result)
+            : formatGraphCheckText(result),
+        );
+        process.exitCode = result.result.passed ? 0 : 1;
+      } catch (err) {
+        console.error(
+          formatError(err instanceof Error ? err.message : String(err)),
+        );
+        process.exitCode = 2;
+      }
+    },
+  );
+
+graphCmd
   .command("top")
   .description("List top nodes by a metric (hotspot view)")
   .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")

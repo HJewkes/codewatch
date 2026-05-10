@@ -1,0 +1,55 @@
+{
+  "$comment": "Architectural fitness rules for codewatch. Run with `code-style graph check`. Thresholds chosen against the post-M20 baseline — when adding a new rule, run check first and set the threshold so existing code passes; new violations should be fixed, not absorbed by raising the bar.",
+  "rules": [
+    {
+      "id": "max-file-loc",
+      "type": "metric-max",
+      "metric": "loc",
+      "kind": "file",
+      "max": 500,
+      "exclude": ["**/__tests__/**", "**/fixtures/**"]
+    },
+    {
+      "id": "max-cyclomatic-per-function",
+      "type": "metric-max",
+      "metric": "cyclomatic_max",
+      "kind": "file",
+      "max": 30,
+      "exclude": ["**/__tests__/**", "**/fixtures/**"]
+    },
+    {
+      "id": "max-nesting-depth",
+      "type": "metric-max",
+      "metric": "max_nesting_depth",
+      "kind": "file",
+      "max": 5,
+      "exclude": ["**/__tests__/**", "**/fixtures/**"]
+    },
+    {
+      "id": "max-fan-out-per-file",
+      "type": "metric-max",
+      "metric": "fan_out",
+      "kind": "file",
+      "max": 15,
+      "exclude": ["**/index.ts", "**/__tests__/**"]
+    },
+    {
+      "id": "render-no-cli-deps",
+      "type": "forbid-import",
+      "from": "render/**",
+      "to": "cli/**"
+    },
+    {
+      "id": "graph-no-cli-deps",
+      "type": "forbid-import",
+      "from": "graph/**",
+      "to": "cli/**"
+    },
+    {
+      "id": "core-no-downstream-deps",
+      "type": "forbid-import",
+      "from": "core/**",
+      "to": "analyzer/**"
+    }
+  ]
+}
