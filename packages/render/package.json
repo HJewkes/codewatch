@@ -1,0 +1,31 @@
+{
+  "name": "@code-style/render",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "echo 'lint not configured yet'"
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@code-style/graph": "workspace:*",
+    "cytoscape": "^3.30.0",
+    "elkjs": "^0.10.0"
+  },
+  "devDependencies": {
+    "@types/cytoscape": "^3.21.0",
+    "@types/node": "^25.3.2"
+  }
+}
