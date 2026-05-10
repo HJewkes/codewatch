@@ -304,6 +304,10 @@ graphCmd
   .option("--db <path>", "Database path (default: <path>/.codewatch/graph.db)")
   .option("--ref <ref>", "Snapshot ref label", "wd")
   .option("--ts-config <path>", "Path to tsconfig.json for ts-morph")
+  .option(
+    "--no-detect-renames",
+    "Skip git rename detection (no id_alias entries)",
+  )
   .option("--json", "Output structured JSON")
   .action(
     async (
@@ -312,6 +316,7 @@ graphCmd
         db?: string;
         ref?: string;
         tsConfig?: string;
+        detectRenames?: boolean;
         json?: boolean;
       },
     ) => {
@@ -324,6 +329,7 @@ graphCmd
           dbPath: options.db,
           ref: options.ref,
           tsConfigPath: options.tsConfig,
+          detectRenames: options.detectRenames,
           json: options.json,
         });
         console.log(output);

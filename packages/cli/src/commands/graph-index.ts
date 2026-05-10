@@ -42,6 +42,11 @@ export function formatGraphIndexText(result: GraphIndexResult): string {
         ? chalk.dim(`  (${formatKindBreakdown(result.edgesByKind)})`)
         : ""),
   );
+  if (result.aliases > 0) {
+    lines.push(
+      `${chalk.bold("Renames:")} ${result.aliases} ${chalk.dim("(from git diff -M)")}`,
+    );
+  }
   lines.push("");
   const d = result.durationMs;
   lines.push(
