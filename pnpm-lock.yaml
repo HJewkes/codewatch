@@ -38,15 +38,6 @@ importers:
       '@jscpd/tokenizer':
         specifier: 3.5.4
         version: 3.5.4
-      octokit:
-        specifier: ^5.0.5
-        version: 5.0.5
-      tree-sitter-python:
-        specifier: ^0.25.0
-        version: 0.25.0
-      tree-sitter-typescript:
-        specifier: ^0.23.2
-        version: 0.23.2
       web-tree-sitter:
         specifier: ^0.26.6
         version: 0.26.6
@@ -88,6 +79,15 @@ importers:
 
   packages/core:
     dependencies:
+      octokit:
+        specifier: ^5.0.5
+        version: 5.0.5
+      tree-sitter-python:
+        specifier: ^0.25.0
+        version: 0.25.0
+      tree-sitter-typescript:
+        specifier: ^0.23.2
+        version: 0.23.2
       web-tree-sitter:
         specifier: ^0.26.6
         version: 0.26.6

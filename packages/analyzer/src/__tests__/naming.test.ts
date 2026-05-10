@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { NamingExtractor } from "../extractors/naming.js";
-import { parseFile } from "../extractors/parser.js";
+import { parseFile } from "@code-style/core";
 import type { ParsedFile } from "../extractors/types.js";
 import * as fs from "node:fs";
 import * as path from "node:path";
