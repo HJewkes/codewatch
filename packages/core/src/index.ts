@@ -2,6 +2,19 @@ export type { ParsedFile, Extractor } from "./parser/types.js";
 export { parseFile, getSupportedLanguages } from "./parser/parser.js";
 
 export type { LlmMessage, LlmResponse, LlmProvider } from "./llm/types.js";
+export {
+  ClaudeHaikuProvider,
+  OllamaProvider,
+  createProvider,
+} from "./llm/providers.js";
+export {
+  LlmRunner,
+  type LlmJob,
+  type LlmJobSuccess,
+  type LlmJobFailure,
+  type LlmRunResult,
+  type LlmRunnerConfig,
+} from "./llm/runner.js";
 
 export type {
   IngestConfig,

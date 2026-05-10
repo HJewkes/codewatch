@@ -1,6 +1,4 @@
-import type { LlmMessage, LlmResponse, LlmProvider } from "@code-style/core";
-
-export type { LlmMessage, LlmResponse, LlmProvider } from "@code-style/core";
+import type { LlmMessage, LlmResponse, LlmProvider } from "./types.js";
 
 export class ClaudeHaikuProvider implements LlmProvider {
   readonly name = "claude-haiku";
