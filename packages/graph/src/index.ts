@@ -48,5 +48,13 @@ export {
 export { diffSnapshots, type DiffSnapshotsOptions } from "./diff.js";
 export { computeMetrics } from "./metrics.js";
 export { computeSourceMetrics } from "./source-metrics.js";
+export {
+  computeChurnMetrics,
+  parseChurnLog,
+  aggregateChurn,
+  resolveRenamedPath,
+  type ChurnEntry,
+  type ComputeChurnOptions,
+} from "./churn.js";
 export { patternToRegex, compilePatterns, matchesAny } from "./patterns.js";
 export { runChecks, validateRules, type RunChecksOptions } from "./check.js";

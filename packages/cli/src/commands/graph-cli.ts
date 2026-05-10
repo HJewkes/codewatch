@@ -37,6 +37,14 @@ function registerIndex(graphCmd: Command): void {
       "--no-compute-metrics",
       "Skip pure-graph metrics (fan_in, fan_out, instability)",
     )
+    .option(
+      "--no-churn",
+      "Skip git churn metrics (churn_30d, churn_30d_commits, churn_30d_authors)",
+    )
+    .option(
+      "--churn-window <days>",
+      "Days of git history to count churn over (default 30)",
+    )
     .option("--json", "Output structured JSON")
     .action(
       async (
@@ -47,6 +55,8 @@ function registerIndex(graphCmd: Command): void {
           tsConfig?: string;
           detectRenames?: boolean;
           computeMetrics?: boolean;
+          churn?: boolean;
+          churnWindow?: string;
           json?: boolean;
         },
       ) => {
@@ -59,6 +69,8 @@ function registerIndex(graphCmd: Command): void {
             tsConfigPath: options.tsConfig,
             detectRenames: options.detectRenames,
             computeMetrics: options.computeMetrics,
+            computeChurn: options.churn,
+            churnWindowDays: asNumber(options.churnWindow),
             json: options.json,
           });
           console.log(output);
