@@ -49,7 +49,7 @@ export function formatGraphIndexText(result: GraphIndexResult): string {
   }
   if (result.metrics > 0) {
     lines.push(
-      `${chalk.bold("Metrics:")} ${result.metrics} ${chalk.dim("(fan_in, fan_out, instability)")}`,
+      `${chalk.bold("Metrics:")} ${result.metrics} ${chalk.dim("(degree + source-content)")}`,
     );
   }
   lines.push("");

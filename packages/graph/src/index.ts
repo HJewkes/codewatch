@@ -39,3 +39,4 @@ export {
 
 export { diffSnapshots, type DiffSnapshotsOptions } from "./diff.js";
 export { computeMetrics } from "./metrics.js";
+export { computeSourceMetrics } from "./source-metrics.js";

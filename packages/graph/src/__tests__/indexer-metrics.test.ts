@@ -101,4 +101,27 @@ describe("runGraphIndex with metric computation", () => {
       db.close();
     }
   });
+
+  it("populates source-content metrics on file nodes", async () => {
+    const result = await runGraphIndex({ rootDir: project.rootDir });
+    const db = openDatabase(project.dbPath);
+    try {
+      const fileMetrics = db
+        .listMetrics(result.snapshotId)
+        .filter((m) => m.nodeId === "src/b.ts");
+      const names = new Set(fileMetrics.map((m) => m.name));
+      expect(names.has("loc")).toBe(true);
+      expect(names.has("function_count")).toBe(true);
+      // Module nodes don't get source metrics — only file nodes.
+      const moduleMetricNames = new Set(
+        db
+          .listMetrics(result.snapshotId)
+          .filter((m) => m.nodeId === "src/b")
+          .map((m) => m.name),
+      );
+      expect(moduleMetricNames.has("loc")).toBe(false);
+    } finally {
+      db.close();
+    }
+  });
 });
