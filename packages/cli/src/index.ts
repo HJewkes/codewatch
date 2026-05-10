@@ -376,6 +376,47 @@ graphCmd
   );
 
 graphCmd
+  .command("top")
+  .description("List top nodes by a metric (hotspot view)")
+  .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")
+  .requiredOption("--metric <name>", "Metric name (e.g. cyclomatic_max, loc, fan_in)")
+  .option("--snapshot <id>", "Snapshot id (default: latest)")
+  .option("--limit <n>", "Number of rows to return", "20")
+  .option("--kind <kind>", "Filter to one node kind (file, module, package, external)")
+  .option("--json", "Output structured JSON")
+  .action(
+    async (options: {
+      db: string;
+      metric: string;
+      snapshot?: string;
+      limit?: string;
+      kind?: string;
+      json?: boolean;
+    }) => {
+      try {
+        const { runGraphTopCommand, formatGraphTopText, formatGraphTopJson } =
+          await import("./commands/graph-top.js");
+        const result = runGraphTopCommand({
+          db: options.db,
+          metric: options.metric,
+          snapshot:
+            options.snapshot !== undefined ? Number(options.snapshot) : undefined,
+          limit: options.limit !== undefined ? Number(options.limit) : undefined,
+          kind: options.kind,
+        });
+        console.log(
+          options.json ? formatGraphTopJson(result) : formatGraphTopText(result),
+        );
+      } catch (err) {
+        console.error(
+          formatError(err instanceof Error ? err.message : String(err)),
+        );
+        process.exitCode = 1;
+      }
+    },
+  );
+
+graphCmd
   .command("render-diff")
   .description("Render a two-snapshot diff to a standalone HTML file (added/removed/renamed highlighted)")
   .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")

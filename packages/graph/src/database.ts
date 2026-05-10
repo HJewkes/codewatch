@@ -279,6 +279,54 @@ export class GraphDatabase {
     return rows.map(rowToMetric);
   }
 
+  listMetricNames(snapshotId: number): string[] {
+    const rows = this.db
+      .prepare(
+        "SELECT DISTINCT name FROM metric WHERE snapshot_id = ? ORDER BY name",
+      )
+      .all(snapshotId) as Array<{ name: string }>;
+    return rows.map((r) => r.name);
+  }
+
+  topByMetric(opts: {
+    snapshotId: number;
+    metric: string;
+    limit?: number;
+    kind?: string;
+  }): Array<{
+    nodeId: string;
+    name: string;
+    kind: string;
+    value: number | null;
+    unit: string | null;
+  }> {
+    const limit = opts.limit ?? 20;
+    const sql =
+      `SELECT m.node_id, m.value, m.unit, n.kind, n.name ` +
+      `FROM metric m JOIN node n ` +
+      `ON n.snapshot_id = m.snapshot_id AND n.id = m.node_id ` +
+      `WHERE m.snapshot_id = ? AND m.name = ?` +
+      (opts.kind ? ` AND n.kind = ?` : ``) +
+      ` ORDER BY m.value DESC LIMIT ?`;
+    const params = opts.kind
+      ? [opts.snapshotId, opts.metric, opts.kind, limit]
+      : [opts.snapshotId, opts.metric, limit];
+    const rows = this.db.prepare(sql).all(...params) as Array<{
+      node_id: string;
+      value: number | null;
+      unit: string | null;
+      kind: string;
+      name: string;
+    }>;
+    return rows.map((r) => ({
+      nodeId: r.node_id,
+      name: r.name,
+      kind: r.kind,
+      value: r.value,
+      unit: r.unit,
+    }));
+  }
+
   listAliases(snapshotId: number): IdAlias[] {
     const rows = this.listAliasesStmt.all(snapshotId) as AliasDbRow[];
     return rows.map(rowToAlias);
