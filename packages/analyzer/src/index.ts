@@ -14,6 +14,7 @@ export {
 
 // Extractors
 export {
+  type StyleExtractor,
   type Extractor,
   type Observation,
   type ObservationCategory,

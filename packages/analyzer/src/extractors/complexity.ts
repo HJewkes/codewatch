@@ -1,5 +1,5 @@
 import type { Node } from "web-tree-sitter";
-import type { Extractor, ParsedFile, Observation } from "./types.js";
+import type { StyleExtractor, ParsedFile, Observation } from "./types.js";
 
 interface FunctionInfo {
   name: string;
@@ -55,7 +55,7 @@ const PY_BRANCH_TYPES = new Set([
   "conditional_expression",
 ]);
 
-export class ComplexityExtractor implements Extractor {
+export class ComplexityExtractor implements StyleExtractor {
   readonly name = "complexity";
 
   extract(file: ParsedFile): Observation[] {

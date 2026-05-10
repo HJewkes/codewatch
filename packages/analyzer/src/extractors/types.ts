@@ -30,5 +30,8 @@ export interface Observation {
   metadata?: Record<string, unknown>;
 }
 
-/** Style extractor — produces per-file Observations. */
-export type Extractor = CoreExtractor<Observation>;
+/** Style extractor — produces per-file style Observations. */
+export type StyleExtractor = CoreExtractor<Observation>;
+
+/** @deprecated Use StyleExtractor. Retained for backward compatibility. */
+export type Extractor = StyleExtractor;

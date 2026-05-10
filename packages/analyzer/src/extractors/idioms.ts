@@ -1,4 +1,4 @@
-import type { Extractor, Observation, ParsedFile } from "./types.js";
+import type { StyleExtractor, Observation, ParsedFile } from "./types.js";
 import type {
   IClone,
   IMapFrame,
@@ -18,7 +18,7 @@ interface CloneInstance {
   fragment: string;
 }
 
-export class IdiomsExtractor implements Extractor {
+export class IdiomsExtractor implements StyleExtractor {
   readonly name = "idioms";
 
   private minLines: number;

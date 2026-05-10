@@ -1,5 +1,5 @@
 import type { Node } from "web-tree-sitter";
-import type { Extractor, ParsedFile, Observation } from "./types.js";
+import type { StyleExtractor, ParsedFile, Observation } from "./types.js";
 
 const NAMING_PATTERNS: Record<string, RegExp> = {
   camelCase: /^[a-z][a-zA-Z0-9]*$/,
@@ -26,7 +26,7 @@ function detectBooleanPrefix(name: string, language: string): string | null {
   return match ? match[1] : null;
 }
 
-export class NamingExtractor implements Extractor {
+export class NamingExtractor implements StyleExtractor {
   readonly name = "naming";
 
   extract(file: ParsedFile): Observation[] {

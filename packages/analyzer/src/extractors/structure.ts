@@ -1,5 +1,5 @@
 import type { Node } from "web-tree-sitter";
-import type { Extractor, ParsedFile, Observation } from "./types.js";
+import type { StyleExtractor, ParsedFile, Observation } from "./types.js";
 
 const PYTHON_BUILTINS = new Set([
   "os", "sys", "re", "json", "math", "time", "datetime", "pathlib",
@@ -48,7 +48,7 @@ function isBarrelFile(root: Node): boolean {
   return exportFromCount > 0 && otherStatements <= 1;
 }
 
-export class StructureExtractor implements Extractor {
+export class StructureExtractor implements StyleExtractor {
   readonly name = "structure";
 
   extract(file: ParsedFile): Observation[] {

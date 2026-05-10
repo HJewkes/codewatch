@@ -1,4 +1,4 @@
-import type { Extractor } from "./types.js";
+import type { StyleExtractor } from "./types.js";
 import { NamingExtractor } from "./naming.js";
 import { StructureExtractor } from "./structure.js";
 import { ControlFlowExtractor } from "./control-flow.js";
@@ -13,7 +13,7 @@ import { ReviewVoiceExtractor } from "./review-voice.js";
  * Canonical set of style extractors. Single source of truth — CLI commands,
  * scripts, and tests should import this rather than reconstructing the list.
  */
-export function createStyleExtractors(): Extractor[] {
+export function createStyleExtractors(): StyleExtractor[] {
   return [
     new NamingExtractor(),
     new StructureExtractor(),
