@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { computeLayout } from "./layout.js";
+import { computeOverlays, type OverlayResult } from "./overlay.js";
 import type { LayoutResult, RenderInput, RenderOptions } from "./types.js";
 
 const require = createRequire(import.meta.url);
@@ -217,6 +218,17 @@ header .diff-summary {
 header .diff-summary span.added { color: #22c55e; }
 header .diff-summary span.removed { color: #ef4444; }
 header .diff-summary span.renamed { color: #06b6d4; }
+header .overlay-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  border-radius: 4px;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  margin-left: 4px;
+}
 aside .empty { color: var(--text-faint); font-style: italic; }
 aside .node-id {
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
@@ -229,6 +241,8 @@ aside .row { display: flex; gap: 6px; margin: 2px 0; }
 aside .row .k { color: var(--text-dim); min-width: 72px; }
 aside .row .v { color: var(--text); }
 aside .row .v.num { font-variant-numeric: tabular-nums; }
+aside .row .v .delta-up { color: #d95757; font-size: 11px; }
+aside .row .v .delta-down { color: #5eead4; font-size: 11px; }
 aside .actions {
   margin-top: 6px;
   display: flex;
@@ -284,6 +298,9 @@ interface CytoscapeNodeData {
   kind: string;
   tooltip: string;
   status: string;
+  width: number;
+  height: number;
+  overlay_fill?: string;
   raw: unknown;
 }
 
@@ -311,6 +328,9 @@ function labelForNode(
 function buildCyData(
   layout: LayoutResult,
   diff: RenderInput["diff"],
+  fills: Map<string, string> | null,
+  metricsByNode: Map<string, Record<string, number>>,
+  metricsBeforeByNode: Map<string, Record<string, number>>,
 ): {
   nodes: Array<{ data: CytoscapeNodeData; position: { x: number; y: number } }>;
   edges: Array<{ data: CytoscapeEdgeData }>;
@@ -318,6 +338,9 @@ function buildCyData(
   const nodes = layout.nodes.map((n) => {
     const status = diff?.nodeStatus[n.id] ?? "unchanged";
     const oldId = diff?.renames[n.id];
+    const overlayFill = fills?.get(n.id);
+    const metrics = metricsByNode.get(n.id) ?? {};
+    const metricsBefore = metricsBeforeByNode.get(oldId ?? n.id) ?? {};
     return {
       data: {
         id: n.id,
@@ -325,7 +348,20 @@ function buildCyData(
         kind: n.kind,
         tooltip: oldId ? `${oldId} → ${n.id}` : n.id,
         status,
-        raw: { ...n, status, ...(oldId ? { oldId } : {}) },
+        width: n.width,
+        height: n.height,
+        ...(overlayFill ? { overlay_fill: overlayFill } : {}),
+        raw: {
+          ...n,
+          status,
+          ...(oldId ? { oldId } : {}),
+          metrics,
+          ...(Object.keys(metricsBefore).length > 0
+            ? { metricsBefore }
+            : {}),
+          width: n.width,
+          height: n.height,
+        },
       },
       position: { x: n.x, y: n.y },
     };
@@ -344,6 +380,23 @@ function buildCyData(
     };
   });
   return { nodes, edges };
+}
+
+function metricMapFromList(
+  metrics: readonly { nodeId: string; name: string; value: number | null }[] | undefined,
+): Map<string, Record<string, number>> {
+  const out = new Map<string, Record<string, number>>();
+  if (!metrics) return out;
+  for (const m of metrics) {
+    if (m.value === null || !Number.isFinite(m.value)) continue;
+    let inner = out.get(m.nodeId);
+    if (!inner) {
+      inner = {};
+      out.set(m.nodeId, inner);
+    }
+    inner[m.name] = m.value;
+  }
+  return out;
 }
 
 function countBy<T>(items: T[], key: (t: T) => string): Map<string, number> {
@@ -464,7 +517,8 @@ function cyStyles(): string {
     { selector: "node", style: {
       "background-color": "data(fill)",
       "shape": "round-rectangle",
-      "width": 180, "height": 48,
+      "width": "data(width)",
+      "height": "data(height)",
       "label": "data(label)",
       "color": "#d7dee8",
       "font-family": "-apple-system, system-ui, sans-serif",
@@ -483,7 +537,7 @@ function cyStyles(): string {
       "transition-timing-function": "ease-in-out"
     } },
     { selector: "node[kind = 'module']", style: {
-      "width": 150, "height": 40, "opacity": 0.9,
+      "opacity": 0.9,
       "font-size": 12
     } },
     { selector: "node[kind = 'external']", style: {
@@ -576,7 +630,8 @@ function clientScript(): string {
   });
   const KIND_FILL = ${JSON.stringify(KIND_COLORS)};
   cy.nodes().forEach(function (n) {
-    n.data("fill", KIND_FILL[n.data("kind")] || "#4a6da7");
+    const overlay = n.data("overlay_fill");
+    n.data("fill", overlay || KIND_FILL[n.data("kind")] || "#4a6da7");
   });
   cy.ready(function () { cy.fit(undefined, 50); });
 
@@ -628,6 +683,39 @@ function clientScript(): string {
     return '<span class="badge" style="background:' + meta.color + '22;color:' + meta.color + ';border-color:' + meta.color + '55">' +
       escapeHtml(meta.label) + '</span>';
   }
+  function fmtNum(v) {
+    if (v === null || v === undefined) return '—';
+    if (Number.isInteger(v)) return String(v);
+    return Number(v).toFixed(3).replace(/\\.?0+$/, '');
+  }
+  function fmtDelta(after, before) {
+    if (before === undefined || before === null) return '';
+    if (after === undefined || after === null) return '';
+    const d = after - before;
+    if (d === 0) return '';
+    const cls = d > 0 ? 'delta-up' : 'delta-down';
+    const sign = d > 0 ? '+' : '';
+    return ' <span class="' + cls + '">(' + sign + fmtNum(d) + ')</span>';
+  }
+  function metricsBlock(metrics, before) {
+    if (!metrics || Object.keys(metrics).length === 0) return '';
+    const order = ['loc','function_count','cyclomatic_max','cyclomatic_sum','max_nesting_depth','fan_in','fan_out','instability'];
+    const seen = new Set();
+    const rows = [];
+    function pushRow(name) {
+      if (seen.has(name)) return;
+      seen.add(name);
+      const v = metrics[name];
+      if (v === undefined) return;
+      const b = before ? before[name] : undefined;
+      rows.push('<div class="row"><div class="k">' + escapeHtml(name) + '</div>' +
+        '<div class="v num">' + fmtNum(v) + fmtDelta(v, b) + '</div></div>');
+    }
+    for (const n of order) pushRow(n);
+    for (const k of Object.keys(metrics)) pushRow(k);
+    if (rows.length === 0) return '';
+    return '<h2 style="margin-top:14px">Metrics</h2>' + rows.join('');
+  }
   function showNode(raw) {
     const nb = neighborsOf(raw.id);
     panel.innerHTML =
@@ -645,6 +733,7 @@ function clientScript(): string {
         neighborListHtml(nb.inbound, 'data-neighbor') : '') +
       (nb.outbound.length ? '<h2 style="margin-top:14px">Top outbound</h2>' +
         neighborListHtml(nb.outbound, 'data-neighbor') : '') +
+      metricsBlock(raw.metrics, raw.metricsBefore) +
       attrsBlock(raw.attrs);
   }
   showEmpty();
@@ -785,6 +874,7 @@ interface HtmlContext {
   graphJson: string;
   title: string;
   subtitle: string;
+  overlayBadge: string;
   diffSummary: string;
   toolbar: string;
   nodeCount: number;
@@ -804,6 +894,7 @@ function buildHtml(ctx: HtmlContext): string {
 <header>
   <h1>${escapeHtml(ctx.title)}</h1>
   <span class="subtitle">${escapeHtml(ctx.subtitle)}</span>
+  ${ctx.overlayBadge}
   ${ctx.diffSummary}
   <input id="search" class="search" type="search" placeholder="Filter by id substring..." />
 </header>
@@ -853,13 +944,40 @@ function diffSummaryHtml(input: RenderInput): string {
   return `<span class="diff-summary">${parts.join(" ")}</span>`;
 }
 
+function overlayBadgeHtml(overlay: OverlayResult): string {
+  const parts: string[] = [];
+  if (overlay.sizeBy) {
+    parts.push(
+      `<span class="overlay-badge">size: ${escapeHtml(overlay.sizeBy)}</span>`,
+    );
+  }
+  if (overlay.colorBy) {
+    parts.push(
+      `<span class="overlay-badge">color: ${escapeHtml(overlay.colorBy)}</span>`,
+    );
+  }
+  return parts.join(" ");
+}
+
 export async function renderHtml(
   input: RenderInput,
   options: RenderOptions = {},
 ): Promise<string> {
-  const layout = await computeLayout(input);
+  const overlay = computeOverlays(input.nodes, input.metrics, {
+    sizeBy: options.sizeBy,
+    colorBy: options.colorBy,
+  });
+  const layout = await computeLayout(input, overlay.sizing);
   const bundle = await loadCytoscapeBundle();
-  const cy = buildCyData(layout, input.diff);
+  const metricsByNode = metricMapFromList(input.metrics);
+  const metricsBeforeByNode = metricMapFromList(input.diff?.metricsBefore);
+  const cy = buildCyData(
+    layout,
+    input.diff,
+    overlay.fills,
+    metricsByNode,
+    metricsBeforeByNode,
+  );
   const graphJson = JSON.stringify({
     snapshotId: input.snapshotId,
     nodes: cy.nodes,
@@ -870,6 +988,7 @@ export async function renderHtml(
     graphJson,
     title: options.title ?? (input.diff ? "codewatch diff" : "codewatch graph"),
     subtitle: options.subtitle ?? diffSubtitle(input),
+    overlayBadge: overlayBadgeHtml(overlay),
     diffSummary: diffSummaryHtml(input),
     toolbar: toolbarHtml(layout, input.diff),
     nodeCount: input.nodes.length,

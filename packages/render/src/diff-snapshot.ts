@@ -51,12 +51,14 @@ export async function loadDiff(
       edgeStatus,
       renames: renamesNewToOld,
       summary: diff.summary,
+      metricsBefore: db.listMetrics(fromSnapshot.id),
     };
 
     return {
       snapshotId: toSnapshot.id,
       nodes,
       edges,
+      metrics: db.listMetrics(toSnapshot.id),
       diff: meta,
     };
   } finally {

@@ -10,6 +10,8 @@ export interface GraphRenderDiffCommandOptions {
   out: string;
   title?: string;
   subtitle?: string;
+  sizeBy?: string;
+  colorBy?: string;
 }
 
 export interface GraphRenderDiffResult {
@@ -37,6 +39,8 @@ export async function runGraphRenderDiffCommand(
   const html = await renderHtml(input, {
     title: options.title,
     subtitle: options.subtitle,
+    sizeBy: options.sizeBy,
+    colorBy: options.colorBy,
   });
   const outPath = resolve(options.out);
   await mkdir(dirname(outPath), { recursive: true });

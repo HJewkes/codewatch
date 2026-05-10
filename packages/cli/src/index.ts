@@ -425,6 +425,8 @@ graphCmd
   .requiredOption("--out <path>", "Output HTML file")
   .option("--title <string>", "Heading shown in the HTML")
   .option("--subtitle <string>", "Small subheading (default: from→to refs)")
+  .option("--size-by <metric>", "Vary node size by this metric")
+  .option("--color-by <metric>", "Heat-map node fill by this metric")
   .action(
     async (options: {
       db: string;
@@ -433,6 +435,8 @@ graphCmd
       out: string;
       title?: string;
       subtitle?: string;
+      sizeBy?: string;
+      colorBy?: string;
     }) => {
       try {
         const { runGraphRenderDiffCommand, formatGraphRenderDiffText } =
@@ -456,6 +460,8 @@ graphCmd
   .requiredOption("--out <path>", "Output HTML file")
   .option("--title <string>", "Heading shown in the HTML")
   .option("--subtitle <string>", "Small subheading")
+  .option("--size-by <metric>", "Vary node size by this metric")
+  .option("--color-by <metric>", "Heat-map node fill by this metric")
   .action(
     async (options: {
       db: string;
@@ -463,6 +469,8 @@ graphCmd
       out: string;
       title?: string;
       subtitle?: string;
+      sizeBy?: string;
+      colorBy?: string;
     }) => {
       try {
         const { runGraphRenderCommand, formatGraphRenderText } = await import(
@@ -475,6 +483,8 @@ graphCmd
           out: options.out,
           title: options.title,
           subtitle: options.subtitle,
+          sizeBy: options.sizeBy,
+          colorBy: options.colorBy,
         });
         console.log(formatGraphRenderText(result));
       } catch (err) {

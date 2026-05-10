@@ -15,6 +15,7 @@ export async function loadSnapshot(
       snapshotId: id,
       nodes: db.listNodes(id),
       edges: db.listEdges(id),
+      metrics: db.listMetrics(id),
     };
   } finally {
     db.close();

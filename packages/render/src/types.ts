@@ -1,6 +1,7 @@
 import type {
   GraphDiffSummary,
   GraphEdge,
+  GraphMetric,
   GraphNode,
   SnapshotRow,
 } from "@code-style/graph";
@@ -15,18 +16,22 @@ export interface RenderDiffMeta {
   edgeStatus: Record<string, EdgeStatus>;
   renames: Record<string, string>;
   summary: GraphDiffSummary;
+  metricsBefore?: GraphMetric[];
 }
 
 export interface RenderInput {
   snapshotId: number;
   nodes: GraphNode[];
   edges: GraphEdge[];
+  metrics?: GraphMetric[];
   diff?: RenderDiffMeta;
 }
 
 export interface RenderOptions {
   title?: string;
   subtitle?: string;
+  sizeBy?: string;
+  colorBy?: string;
 }
 
 export type LaidOutNode = GraphNode & {

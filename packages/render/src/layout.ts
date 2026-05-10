@@ -4,7 +4,6 @@ import type { ElkExtendedEdge, ElkNode, ELK } from "elkjs/lib/elk-api.js";
 // elk.bundled exposes the constructor as its default export, but the bundled
 // .js has no companion .d.ts. Re-cast through the typed constructor from elk-api.
 const ELKCtor = ElkBundled as unknown as new () => ELK;
-import type { GraphNode } from "@code-style/graph";
 import type { LaidOutNode, LayoutResult, RenderInput } from "./types.js";
 
 const NODE_WIDTH = 180;
@@ -18,8 +17,18 @@ const ELK_LAYOUT_OPTIONS = {
   "elk.padding": "[top=24,left=24,bottom=24,right=24]",
 };
 
-function toElkNode(n: GraphNode): ElkNode {
-  return { id: n.id, width: NODE_WIDTH, height: NODE_HEIGHT };
+function dimsFor(
+  nodeId: string,
+  sizing: Map<string, { width: number; height: number }> | null,
+): { width: number; height: number } {
+  return sizing?.get(nodeId) ?? { width: NODE_WIDTH, height: NODE_HEIGHT };
+}
+
+function toElkNodes(
+  input: RenderInput,
+  sizing: Map<string, { width: number; height: number }> | null,
+): ElkNode[] {
+  return input.nodes.map((n) => ({ id: n.id, ...dimsFor(n.id, sizing) }));
 }
 
 function toElkEdges(input: RenderInput, nodeIds: Set<string>): ElkExtendedEdge[] {
@@ -35,24 +44,32 @@ function toElkEdges(input: RenderInput, nodeIds: Set<string>): ElkExtendedEdge[]
 function applyLayout(
   input: RenderInput,
   positions: Map<string, { x: number; y: number }>,
+  sizing: Map<string, { width: number; height: number }> | null,
 ): LaidOutNode[] {
   return input.nodes.map((n) => {
     const p = positions.get(n.id) ?? { x: 0, y: 0 };
-    return { ...n, x: p.x, y: p.y, width: NODE_WIDTH, height: NODE_HEIGHT };
+    const d = dimsFor(n.id, sizing);
+    return { ...n, x: p.x, y: p.y, width: d.width, height: d.height };
   });
 }
 
-function gridFallback(input: RenderInput): LaidOutNode[] {
+function gridFallback(
+  input: RenderInput,
+  sizing: Map<string, { width: number; height: number }> | null,
+): LaidOutNode[] {
   const cols = Math.max(1, Math.ceil(Math.sqrt(input.nodes.length)));
   const gapX = NODE_WIDTH + 40;
   const gapY = NODE_HEIGHT + 40;
-  return input.nodes.map((n, i) => ({
-    ...n,
-    x: (i % cols) * gapX,
-    y: Math.floor(i / cols) * gapY,
-    width: NODE_WIDTH,
-    height: NODE_HEIGHT,
-  }));
+  return input.nodes.map((n, i) => {
+    const d = dimsFor(n.id, sizing);
+    return {
+      ...n,
+      x: (i % cols) * gapX,
+      y: Math.floor(i / cols) * gapY,
+      width: d.width,
+      height: d.height,
+    };
+  });
 }
 
 function readPositions(root: ElkNode): Map<string, { x: number; y: number }> {
@@ -66,22 +83,29 @@ function readPositions(root: ElkNode): Map<string, { x: number; y: number }> {
   return out;
 }
 
-export async function computeLayout(input: RenderInput): Promise<LayoutResult> {
+export async function computeLayout(
+  input: RenderInput,
+  sizing: Map<string, { width: number; height: number }> | null = null,
+): Promise<LayoutResult> {
   if (input.nodes.length === 0) return { nodes: [], edges: input.edges };
   const ids = new Set(input.nodes.map((n) => n.id));
   const root: ElkNode = {
     id: "root",
     layoutOptions: ELK_LAYOUT_OPTIONS,
-    children: input.nodes.map(toElkNode),
+    children: toElkNodes(input, sizing),
     edges: toElkEdges(input, ids),
   };
   try {
     const elk = new ELKCtor();
     const laid = await elk.layout(root);
     const positions = readPositions(laid);
-    if (positions.size === 0) return { nodes: gridFallback(input), edges: input.edges };
-    return { nodes: applyLayout(input, positions), edges: input.edges };
+    if (positions.size === 0)
+      return { nodes: gridFallback(input, sizing), edges: input.edges };
+    return {
+      nodes: applyLayout(input, positions, sizing),
+      edges: input.edges,
+    };
   } catch {
-    return { nodes: gridFallback(input), edges: input.edges };
+    return { nodes: gridFallback(input, sizing), edges: input.edges };
   }
 }
