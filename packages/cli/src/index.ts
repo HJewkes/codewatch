@@ -337,6 +337,33 @@ graphCmd
   );
 
 graphCmd
+  .command("diff")
+  .description("Diff two graph snapshots (added / removed / renamed nodes + edges, metric deltas)")
+  .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")
+  .requiredOption("--from <ref-or-id>", "From-side snapshot: numeric id or ref name")
+  .requiredOption("--to <ref-or-id>", "To-side snapshot: numeric id or ref name")
+  .option("--json", "Output structured JSON")
+  .action(
+    async (options: { db: string; from: string; to: string; json?: boolean }) => {
+      try {
+        const { runGraphDiffCommand, formatGraphDiffText, formatGraphDiffJson } =
+          await import("./commands/graph-diff.js");
+        const result = await runGraphDiffCommand(options);
+        console.log(
+          options.json
+            ? formatGraphDiffJson(result)
+            : formatGraphDiffText(result),
+        );
+      } catch (err) {
+        console.error(
+          formatError(err instanceof Error ? err.message : String(err)),
+        );
+        process.exitCode = 1;
+      }
+    },
+  );
+
+graphCmd
   .command("render")
   .description("Render a graph snapshot to a standalone HTML file")
   .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")
