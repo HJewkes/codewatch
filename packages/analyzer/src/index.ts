@@ -25,7 +25,13 @@ export {
   ControlFlowExtractor,
   DocumentationExtractor,
   ErrorHandlingExtractor,
+  FormattingExtractor,
+  ComplexityExtractor,
+  IdiomsExtractor,
+  ReviewVoiceExtractor,
 } from "./extractors/index.js";
+
+export { createStyleExtractors } from "./extractors/factory.js";
 
 // Aggregator
 export {

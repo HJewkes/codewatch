@@ -294,4 +294,32 @@ program
     }
   });
 
+program
+  .command("analyze <path>")
+  .description("Run extraction pipeline against a local directory")
+  .option(
+    "--lang <langs...>",
+    "Languages to analyze (typescript, python)",
+  )
+  .option("--json", "Output structured JSON")
+  .action(async (rootDir: string, options: { lang?: string[]; json?: boolean }) => {
+    try {
+      const { runAnalyze, formatAnalyzeText, formatAnalyzeJson } = await import(
+        "./commands/analyze.js"
+      );
+      const result = await runAnalyze({
+        rootDir,
+        languages: options.lang,
+      });
+      console.log(
+        options.json ? formatAnalyzeJson(result) : formatAnalyzeText(result),
+      );
+    } catch (err) {
+      console.error(
+        formatError(err instanceof Error ? err.message : String(err)),
+      );
+      process.exitCode = 1;
+    }
+  });
+
 program.parse();
