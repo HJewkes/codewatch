@@ -1,5 +1,6 @@
 import type { ParsedFile } from "@code-style/core";
 import type { Node } from "web-tree-sitter";
+import { cognitiveComplexityOf } from "./cognitive-complexity.js";
 import type { GraphMetric } from "./types.js";
 
 const TS_FUNCTION_TYPES = new Set([
@@ -48,6 +49,7 @@ const PY_BRANCH_TYPES = new Set([
 
 interface FunctionStats {
   cyclomatic: number;
+  cognitive: number;
   nestingDepth: number;
 }
 
@@ -91,6 +93,18 @@ function metricsForFile(nodeId: string, file: ParsedFile): GraphMetric[] {
     });
     out.push({
       nodeId,
+      name: "cognitive_max",
+      value: Math.max(...stats.map((s) => s.cognitive)),
+      unit: "count",
+    });
+    out.push({
+      nodeId,
+      name: "cognitive_sum",
+      value: stats.reduce((acc, s) => acc + s.cognitive, 0),
+      unit: "count",
+    });
+    out.push({
+      nodeId,
       name: "max_nesting_depth",
       value: Math.max(...stats.map((s) => s.nestingDepth)),
       unit: "count",
@@ -113,6 +127,7 @@ function analyzeFunctions(file: ParsedFile): FunctionStats[] {
       if (body) {
         stats.push({
           cyclomatic: cyclomaticOf(body, file.language),
+          cognitive: cognitiveComplexityOf(body, file.language),
           nestingDepth: nestingDepthOf(body, file.language, 0),
         });
       }
