@@ -22,16 +22,31 @@ const COMMIT_HASH_RE = /^[0-9a-f]{7,40}$/;
 const NUMSTAT_FIRST_RE = /^(\d+|-)$/;
 
 export function computeChurnMetrics(options: ComputeChurnOptions): GraphMetric[] {
+  const entries = loadChurnEntries(options) ?? [];
+  return aggregateChurn(
+    entries,
+    options.windowDays ?? DEFAULT_WINDOW_DAYS,
+    options.knownFileIds,
+  );
+}
+
+/**
+ * Parse the last `windowDays` of git history into ChurnEntry[] rebased onto
+ * `repoRoot`. Returns null if git isn't available; [] if no commits matched.
+ * Used both for churn metrics and for change-coupling.
+ */
+export function loadChurnEntries(
+  options: ComputeChurnOptions,
+): ChurnEntry[] | null {
   const windowDays = options.windowDays ?? DEFAULT_WINDOW_DAYS;
   const gitRoot = detectGitToplevel(options.repoRoot);
-  if (gitRoot === null) return [];
+  if (gitRoot === null) return null;
   const log = runGitLog(options.repoRoot, windowDays);
-  if (log === null) return [];
+  if (log === null) return null;
   const canonicalRoot = canonicalize(options.repoRoot);
-  const rebased = parseChurnLog(log).flatMap((entry) =>
+  return parseChurnLog(log).flatMap((entry) =>
     rebaseEntry(entry, gitRoot, canonicalRoot),
   );
-  return aggregateChurn(rebased, windowDays, options.knownFileIds);
 }
 
 function rebaseEntry(

@@ -59,6 +59,26 @@ code-style graph relevant --db packages/.codewatch/graph.db \
 
 Without `--seed` the command falls back to uniform-teleport centrality — i.e. "what does the whole repo orbit around." With one or more seeds the ranking is repo-map-style: closest co-dependencies first, fading out by graph distance. `--max-tokens` swaps the table for a per-package tree, sized to fit a context budget; seeds are always excluded from the output (the LLM already has them).
 
+## Change-coupling map (logical, not structural)
+
+`graph relevant` ranks by **what imports what**. `graph coupled` ranks by **what changes together**. Two files with no import relationship can still be tightly coupled in practice — every time you touch X you also touch Y. That's the signal CodeScene built its repo intelligence on; codewatch surfaces it cheaply from `git log`.
+
+```bash
+# Top co-edited pairs across the last 30 days.
+code-style graph coupled --db packages/.codewatch/graph.db \
+  --repo-root packages --limit 20
+
+# Files that move with a given seed.
+code-style graph coupled --db packages/.codewatch/graph.db \
+  --repo-root packages --seed cli/src/index.ts
+
+# Widen to 90 days; show pairs even if they only co-changed once.
+code-style graph coupled --db packages/.codewatch/graph.db \
+  --repo-root packages --window-days 90 --min-count 1
+```
+
+Sweeping commits (e.g. mass renames) are clipped with `--large-commit-threshold` (default 50 files) to avoid the O(n²) pair explosion that big-bang refactors would produce. `--exclude '**/*.test.ts'` removes obvious test↔source pairs when you want pure source coupling.
+
 ## Bad-signal notes
 
 Metrics are role-blind. A few rankings are systematically misleading on this codebase and worth knowing about before acting:

@@ -53,12 +53,19 @@ export { computeMetrics } from "./metrics.js";
 export { computeSourceMetrics } from "./source-metrics.js";
 export {
   computeChurnMetrics,
+  loadChurnEntries,
   parseChurnLog,
   aggregateChurn,
   resolveRenamedPath,
   type ChurnEntry,
   type ComputeChurnOptions,
 } from "./churn.js";
+export {
+  computeChangeCoupling,
+  couplingFor,
+  type CoEditPair,
+  type ComputeChangeCouplingOptions,
+} from "./change-coupling.js";
 export { patternToRegex, compilePatterns, matchesAny } from "./patterns.js";
 export {
   computePageRank,
