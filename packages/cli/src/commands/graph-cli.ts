@@ -4,6 +4,7 @@ import { registerGraphCoupled } from "./graph-coupled.js";
 import { registerGraphPrune } from "./graph-prune.js";
 import { registerGraphRelevant } from "./graph-relevant.js";
 import { registerGraphRenderCheckDiff } from "./graph-render-check-diff.js";
+import { registerGraphReport } from "./graph-report.js";
 
 function reportError(err: unknown): void {
   console.error(formatError(err instanceof Error ? err.message : String(err)));
@@ -25,6 +26,7 @@ export function registerGraphCommands(program: Command): void {
   registerTop(graphCmd);
   registerGraphRelevant(graphCmd);
   registerGraphCoupled(graphCmd);
+  registerGraphReport(graphCmd);
   registerRenderDiff(graphCmd);
   registerRender(graphCmd);
   registerGraphRenderCheckDiff(graphCmd);
