@@ -17,6 +17,7 @@ export function registerGraphCommands(program: Command): void {
   registerIndex(graphCmd);
   registerDiff(graphCmd);
   registerCheck(graphCmd);
+  registerCheckDiff(graphCmd);
   registerTop(graphCmd);
   registerRenderDiff(graphCmd);
   registerRender(graphCmd);
@@ -147,6 +148,43 @@ function registerCheck(graphCmd: Command): void {
         } catch (err) {
           reportError(err);
           process.exitCode = 2;
+        }
+      },
+    );
+}
+
+function registerCheckDiff(graphCmd: Command): void {
+  graphCmd
+    .command("check-diff")
+    .description("Diff rule violations across two snapshots (new / resolved / worsened / improved)")
+    .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")
+    .option("--config <path>", "Rules file (JSON)", "./.codewatch/check.json")
+    .requiredOption("--from <ref-or-id>", "From-side snapshot")
+    .requiredOption("--to <ref-or-id>", "To-side snapshot")
+    .option("--json", "Output structured JSON")
+    .action(
+      async (options: {
+        db: string;
+        config: string;
+        from: string;
+        to: string;
+        json?: boolean;
+      }) => {
+        try {
+          const {
+            runGraphCheckDiffCommand,
+            formatGraphCheckDiffText,
+            formatGraphCheckDiffJson,
+          } = await import("./graph-check-diff.js");
+          const result = await runGraphCheckDiffCommand(options);
+          console.log(
+            options.json
+              ? formatGraphCheckDiffJson(result)
+              : formatGraphCheckDiffText(result),
+          );
+        } catch (err) {
+          reportError(err);
+          process.exitCode = 1;
         }
       },
     );
