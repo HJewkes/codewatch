@@ -137,6 +137,18 @@ function rawExtras(
   });
 }
 
+function tooltipFor(nodeId: string, oldId: string | undefined): string {
+  return oldId ? `${oldId} → ${nodeId}` : nodeId;
+}
+
+function roleField(role: string | undefined): { role?: string } {
+  return role ? { role } : {};
+}
+
+function overlayFillField(fill: string | undefined): { overlay_fill?: string } {
+  return fill ? { overlay_fill: fill } : {};
+}
+
 function buildNodeEntry(
   n: LaidOutNode,
   ctx: NodeAssemblyContext,
@@ -144,7 +156,6 @@ function buildNodeEntry(
   const { diff, fills, metricsByNode, metricsBeforeByNode, violationsByNode, diffSummary } = ctx;
   const status = diff?.nodeStatus[n.id] ?? "unchanged";
   const oldId = diff?.renames[n.id];
-  const overlayFill = fills?.get(n.id);
   const metrics = metricsByNode.get(n.id) ?? {};
   const metricsBefore = metricsBeforeByNode.get(oldId ?? n.id) ?? {};
   const violation = violationsByNode.get(n.id);
@@ -156,13 +167,13 @@ function buildNodeEntry(
       id: n.id,
       label: labelForNode(n),
       kind: n.kind,
-      ...(n.role ? { role: n.role } : {}),
-      tooltip: oldId ? `${oldId} → ${n.id}` : n.id,
+      ...roleField(n.role),
+      tooltip: tooltipFor(n.id, oldId),
       status,
       ...violationFields(violation, trend, resolved),
       width: n.width,
       height: n.height,
-      ...(overlayFill ? { overlay_fill: overlayFill } : {}),
+      ...overlayFillField(fills?.get(n.id)),
       raw: {
         ...n,
         status,

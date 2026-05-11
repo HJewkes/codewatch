@@ -1,4 +1,5 @@
 import * as path from "node:path";
+import { existsSync } from "node:fs";
 import {
   Project,
   ScriptTarget,
@@ -161,12 +162,28 @@ export class TsMorphGraphExtractor implements Extractor<GraphFragment> {
 
   private resolveInternal(target: SourceFile | undefined): string | null {
     if (!target) return null;
-    const abs = target.getFilePath();
+    const abs = remapDistToSrc(target.getFilePath());
     const relative = path.relative(this.repoRoot, abs);
     if (relative.startsWith("..") || path.isAbsolute(relative)) return null;
     if (relative.split(path.sep).includes("node_modules")) return null;
     return fileId(this.repoRoot, abs);
   }
+}
+
+// ts-morph resolves workspace imports like `@code-style/analyzer` to the
+// package's `types` entry (`<pkg>/dist/index.d.ts`), but the indexer's file
+// walker excludes `dist/` and `.d.ts`. Without remapping, every cross-package
+// edge points to a nonexistent node and the rendered graph fails to construct.
+function remapDistToSrc(abs: string): string {
+  const m = /^(.*)[\\/]dist[\\/](.+)\.d\.ts$/.exec(abs);
+  if (!m) return abs;
+  const base = m[1]!;
+  const sub = m[2]!;
+  for (const ext of [".ts", ".tsx"]) {
+    const candidate = path.join(base, "src", sub + ext);
+    if (existsSync(candidate)) return candidate;
+  }
+  return abs;
 }
 
 function isTypeScriptFile(file: ParsedFile): boolean {

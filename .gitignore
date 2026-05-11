@@ -8,6 +8,7 @@ dist/
 coverage/
 .brain/
 .claude/settings.local.json
+.playwright-mcp/
 docs/*-handoff.md
 docs/diagnostic/*/scorecard.md
 docs/diagnostic/*/test-bench/
