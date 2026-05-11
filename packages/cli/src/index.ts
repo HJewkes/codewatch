@@ -250,16 +250,56 @@ const hookCmd = program
 hookCmd
   .command("install")
   .description("Install code-style pre-commit hook")
-  .action(async () => {
-    try {
-      const { installHook } = await import("./commands/hook.js");
-      await installHook(process.cwd());
-      console.log(formatSuccess("Pre-commit hook installed."));
-    } catch (err) {
-      console.error(formatError(err instanceof Error ? err.message : String(err)));
-      process.exitCode = 1;
-    }
-  });
+  .option(
+    "--with-graph-check",
+    "Also run `graph index <path> && graph check` when staged changes touch source files",
+  )
+  .option(
+    "--no-style-check",
+    "Skip the `code-style diff --fix` line (use when no profile is configured)",
+  )
+  .option(
+    "--graph-path <path>",
+    "Directory to index for the graph check (default: .)",
+  )
+  .option(
+    "--bin <command>",
+    "CLI binary to invoke from the hook (default: code-style)",
+  )
+  .action(
+    async (options: {
+      withGraphCheck?: boolean;
+      styleCheck?: boolean;
+      graphPath?: string;
+      bin?: string;
+    }) => {
+      try {
+        const { installHook } = await import("./commands/hook.js");
+        await installHook(process.cwd(), {
+          withGraphCheck: options.withGraphCheck,
+          withStyleCheck: options.styleCheck,
+          graphPath: options.graphPath,
+          bin: options.bin,
+        });
+        console.log(
+          formatSuccess(describeInstalled(options)),
+        );
+      } catch (err) {
+        console.error(formatError(err instanceof Error ? err.message : String(err)));
+        process.exitCode = 1;
+      }
+    },
+  );
+
+function describeInstalled(options: {
+  withGraphCheck?: boolean;
+  styleCheck?: boolean;
+}): string {
+  const parts: string[] = [];
+  if (options.styleCheck !== false) parts.push("style");
+  if (options.withGraphCheck) parts.push("graph check");
+  return `Pre-commit hook installed (${parts.join(" + ")}).`;
+}
 
 hookCmd
   .command("remove")
