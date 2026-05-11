@@ -33,7 +33,9 @@ code-style graph top --db packages/.codewatch/graph.db \
   --metric fan_in --kind file --limit 10
 ```
 
-Available metrics on every snapshot: `loc`, `function_count`, `cyclomatic_max`, `cyclomatic_sum`, `max_nesting_depth`, `fan_in`, `fan_out`, `instability`, `churn_30d`, `churn_30d_commits`, `churn_30d_authors`, `bus_factor_30d`, `top_author_share_30d` (window configurable via `--churn-window <n>` at index time).
+Available metrics on every snapshot: `loc`, `function_count`, `cyclomatic_max`, `cyclomatic_sum`, `cognitive_max`, `cognitive_sum`, `max_nesting_depth`, `fan_in`, `fan_out`, `instability`, `churn_30d`, `churn_30d_commits`, `churn_30d_authors`, `bus_factor_30d`, `top_author_share_30d` (window configurable via `--churn-window <n>` at index time).
+
+**Cyclomatic vs cognitive**: cyclomatic counts every branch including each `else if` and `case`, so a flat 6-arm switch reads as cmax=6 even when the logic is shallow. Cognitive complexity (Sonarsource's metric, the only complexity metric with peer-reviewed validation against human understandability) flattens else-if chains and switch cases but adds a *nesting bonus* — deeply-nested control flow costs more. Where cognitive ≫ cyclomatic in a file, the worst function is nesting-heavy, not branch-heavy; that's the kind of code humans actually struggle with.
 
 Use `--exclude <pattern>` (repeatable) to drop test fixtures, configs, or any noise from the ranking. Glob: `--exclude '**/*.test.ts'`. Substring: `--exclude __tests__`.
 
