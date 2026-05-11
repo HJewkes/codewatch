@@ -101,6 +101,26 @@ code-style graph top --db packages/.codewatch/graph.db \
 
 A useful rule for mature codebases: `metric-min bus_factor_30d 2` catches new files added by one author and never touched by anyone else.
 
+## Health rollup
+
+One command combines the substrate above into a single markdown report — the kind you'd commit monthly to track debt drift:
+
+```bash
+code-style graph report --db packages/.codewatch/graph.db \
+  --repo-root packages \
+  --exclude-role test fixture barrel \
+  --out docs/architecture/health-2026-05.md
+```
+
+Sections:
+
+- **Hotspots** — files ranked by `churn × complexity` (prefers `cognitive_max` over `cyclomatic_max` when both are available).
+- **Knowledge-silo risks** — files with `bus_factor = 1`, ordered by churn (single-owner files nobody else has touched are urgent only if they're actively changing).
+- **Tight coupling clusters** — top co-edited pairs from `graph coupled`.
+- **Most central files** — uniform-teleport PageRank, surfacing the architectural load-bearing files.
+
+`--json` swaps the markdown for a structured object suitable for ingestion or diffing across snapshots.
+
 ## Bad-signal notes
 
 Metrics are role-blind. A few rankings are systematically misleading on this codebase and worth knowing about before acting:
