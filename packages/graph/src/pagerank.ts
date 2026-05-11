@@ -39,6 +39,11 @@ const DEFAULT_EDGE_WEIGHTS: Record<EdgeKind, number> = {
   "depends-on": 1.0,
 };
 
+interface Adjacency {
+  outNeighbors: Array<Array<{ to: number; w: number }>>;
+  outWeightSum: number[];
+}
+
 export function computePageRank(
   nodes: readonly GraphNode[],
   edges: readonly GraphEdge[],
@@ -52,9 +57,33 @@ export function computePageRank(
   const maxIters = options.maxIterations ?? DEFAULT_MAX_ITERS;
   const weights = { ...DEFAULT_EDGE_WEIGHTS, ...(options.edgeWeights ?? {}) };
 
-  const idx = new Map<string, number>();
-  for (let i = 0; i < n; i++) idx.set(nodes[i]!.id, i);
+  const idx = buildIdIndex(nodes);
+  const adj = buildAdjacency(idx, edges, weights, n);
+  const pers = buildPersonalization(idx, n, options.personalization);
 
+  const { rank, iterations, converged } = powerIterate(
+    pers,
+    adj,
+    damping,
+    tolerance,
+    maxIters,
+  );
+
+  return { rows: rankToRows(nodes, rank), iterations, converged };
+}
+
+function buildIdIndex(nodes: readonly GraphNode[]): Map<string, number> {
+  const idx = new Map<string, number>();
+  for (let i = 0; i < nodes.length; i++) idx.set(nodes[i]!.id, i);
+  return idx;
+}
+
+function buildAdjacency(
+  idx: ReadonlyMap<string, number>,
+  edges: readonly GraphEdge[],
+  weights: Record<EdgeKind, number>,
+  n: number,
+): Adjacency {
   const outNeighbors: Array<Array<{ to: number; w: number }>> = Array.from(
     { length: n },
     () => [],
@@ -69,62 +98,92 @@ export function computePageRank(
     outNeighbors[si]!.push({ to: di, w });
     outWeightSum[si]! += w;
   }
+  return { outNeighbors, outWeightSum };
+}
 
-  const pers = buildPersonalization(idx, n, options.personalization);
-
+function powerIterate(
+  pers: readonly number[],
+  adj: Adjacency,
+  damping: number,
+  tolerance: number,
+  maxIters: number,
+): { rank: number[]; iterations: number; converged: boolean } {
+  const n = pers.length;
   let rank = pers.slice();
   let next = new Array<number>(n).fill(0);
-
   let iterations = 0;
   let converged = false;
   for (let iter = 0; iter < maxIters; iter++) {
     iterations = iter + 1;
-
-    let danglingMass = 0;
-    for (let i = 0; i < n; i++) {
-      if (outWeightSum[i]! === 0) danglingMass += rank[i]!;
-    }
-
-    const teleportFromPers = (1 - damping) + damping * danglingMass;
-    for (let i = 0; i < n; i++) {
-      next[i] = teleportFromPers * pers[i]!;
-    }
-
-    for (let i = 0; i < n; i++) {
-      const s = outWeightSum[i]!;
-      if (s === 0) continue;
-      const r = rank[i]!;
-      if (r === 0) continue;
-      const factor = (damping * r) / s;
-      const list = outNeighbors[i]!;
-      for (let k = 0; k < list.length; k++) {
-        const edge = list[k]!;
-        next[edge.to]! += factor * edge.w;
-      }
-    }
-
-    let diff = 0;
-    for (let i = 0; i < n; i++) diff += Math.abs(next[i]! - rank[i]!);
-
-    const tmp = rank;
-    rank = next;
-    next = tmp;
+    const dangling = sumDangling(rank, adj.outWeightSum);
+    const teleport = 1 - damping + damping * dangling;
+    seedTeleport(next, pers, teleport);
+    distributeRank(next, rank, adj, damping);
+    const diff = l1Diff(rank, next);
+    [rank, next] = [next, rank];
     next.fill(0);
-
     if (diff < tolerance) {
       converged = true;
       break;
     }
   }
+  return { rank, iterations, converged };
+}
 
-  const rows: PageRankRow[] = nodes
+function sumDangling(
+  rank: readonly number[],
+  outWeightSum: readonly number[],
+): number {
+  let total = 0;
+  for (let i = 0; i < rank.length; i++) {
+    if (outWeightSum[i] === 0) total += rank[i]!;
+  }
+  return total;
+}
+
+function seedTeleport(
+  next: number[],
+  pers: readonly number[],
+  teleport: number,
+): void {
+  for (let i = 0; i < next.length; i++) next[i] = teleport * pers[i]!;
+}
+
+function distributeRank(
+  next: number[],
+  rank: readonly number[],
+  adj: Adjacency,
+  damping: number,
+): void {
+  for (let i = 0; i < rank.length; i++) {
+    const s = adj.outWeightSum[i]!;
+    if (s === 0 || rank[i]! === 0) continue;
+    const factor = (damping * rank[i]!) / s;
+    const list = adj.outNeighbors[i]!;
+    for (let k = 0; k < list.length; k++) {
+      next[list[k]!.to]! += factor * list[k]!.w;
+    }
+  }
+}
+
+function l1Diff(a: readonly number[], b: readonly number[]): number {
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff += Math.abs(b[i]! - a[i]!);
+  return diff;
+}
+
+function rankToRows(
+  nodes: readonly GraphNode[],
+  rank: readonly number[],
+): PageRankRow[] {
+  return nodes
     .map((node, i) => ({ nodeId: node.id, score: rank[i]! }))
-    .sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      return a.nodeId < b.nodeId ? -1 : a.nodeId > b.nodeId ? 1 : 0;
-    });
+    .sort(compareRows);
+}
 
-  return { rows, iterations, converged };
+function compareRows(a: PageRankRow, b: PageRankRow): number {
+  if (b.score !== a.score) return b.score - a.score;
+  return a.nodeId < b.nodeId ? -1 : a.nodeId > b.nodeId ? 1 : 0;
 }
 
 function buildPersonalization(
@@ -132,24 +191,34 @@ function buildPersonalization(
   n: number,
   pers: PageRankOptions["personalization"],
 ): number[] {
+  if (!pers || pers.size === 0) return uniformVector(n);
   const out = new Array<number>(n).fill(0);
-  if (!pers || pers.size === 0) {
-    const uniform = 1 / n;
-    for (let i = 0; i < n; i++) out[i] = uniform;
-    return out;
-  }
+  const total = applySeedWeights(out, idx, pers);
+  if (total === 0) return uniformVector(n);
+  for (let i = 0; i < n; i++) out[i]! /= total;
+  return out;
+}
+
+function uniformVector(n: number): number[] {
+  return new Array<number>(n).fill(1 / n);
+}
+
+function applySeedWeights(
+  out: number[],
+  idx: ReadonlyMap<string, number>,
+  pers: NonNullable<PageRankOptions["personalization"]>,
+): number {
   let total = 0;
   for (const [id, w] of pers) {
+    if (!isValidWeight(w)) continue;
     const i = idx.get(id);
-    if (i === undefined || !Number.isFinite(w) || w <= 0) continue;
+    if (i === undefined) continue;
     out[i] = w;
     total += w;
   }
-  if (total === 0) {
-    const uniform = 1 / n;
-    for (let i = 0; i < n; i++) out[i] = uniform;
-    return out;
-  }
-  for (let i = 0; i < n; i++) out[i]! /= total;
-  return out;
+  return total;
+}
+
+function isValidWeight(w: number): boolean {
+  return Number.isFinite(w) && w > 0;
 }

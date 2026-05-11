@@ -73,19 +73,14 @@ export function runGraphRelevantCommand(
     });
 
     const nodeById = new Map<string, GraphNode>(nodes.map((n) => [n.id, n]));
-    const excluders = compilePatterns(options.exclude);
-    const excludedRoles = new Set(options.excludeRole ?? []);
-    const seedSet = new Set(seedIds);
-
-    const filtered = pageRank.rows.filter((r) => {
-      const node = nodeById.get(r.nodeId);
-      if (!node) return false;
-      if (seedSet.has(r.nodeId)) return false;
-      if (options.kind && node.kind !== options.kind) return false;
-      if (excluders.length > 0 && matchesAny(r.nodeId, excluders)) return false;
-      if (node.role && excludedRoles.has(node.role)) return false;
-      return true;
-    });
+    const filter: RowFilter = {
+      nodeById,
+      excluders: compilePatterns(options.exclude),
+      excludedRoles: new Set(options.excludeRole ?? []),
+      seedSet: new Set(seedIds),
+      kindFilter: options.kind,
+    };
+    const filtered = pageRank.rows.filter((r) => keepRow(r, filter));
 
     const { rows, tokenEstimate } = sliceRows(filtered, nodeById, options);
 
@@ -101,6 +96,27 @@ export function runGraphRelevantCommand(
   } finally {
     db.close();
   }
+}
+
+interface RowFilter {
+  nodeById: ReadonlyMap<string, GraphNode>;
+  excluders: RegExp[];
+  excludedRoles: ReadonlySet<string>;
+  seedSet: ReadonlySet<string>;
+  kindFilter: string | undefined;
+}
+
+function keepRow(
+  r: { nodeId: string; score: number },
+  f: RowFilter,
+): boolean {
+  if (f.seedSet.has(r.nodeId)) return false;
+  const node = f.nodeById.get(r.nodeId);
+  if (!node) return false;
+  if (f.kindFilter && node.kind !== f.kindFilter) return false;
+  if (matchesAny(r.nodeId, f.excluders)) return false;
+  if (node.role && f.excludedRoles.has(node.role)) return false;
+  return true;
 }
 
 function resolveSeeds(
@@ -120,44 +136,61 @@ function resolveSeeds(
   return matched;
 }
 
+function toRow(
+  r: { nodeId: string; score: number },
+  rank: number,
+  nodeById: ReadonlyMap<string, GraphNode>,
+): GraphRelevantRow {
+  const node = nodeById.get(r.nodeId)!;
+  return {
+    rank,
+    nodeId: r.nodeId,
+    name: node.name,
+    kind: node.kind,
+    role: (node.role ?? null) as NodeRole | null,
+    parentId: node.parentId ?? null,
+    score: r.score,
+  };
+}
+
+function sliceByLimit(
+  ranked: readonly { nodeId: string; score: number }[],
+  nodeById: ReadonlyMap<string, GraphNode>,
+  limit: number,
+): GraphRelevantRow[] {
+  return ranked.slice(0, limit).map((r, i) => toRow(r, i + 1, nodeById));
+}
+
+function sliceByTokenBudget(
+  ranked: readonly { nodeId: string; score: number }[],
+  nodeById: ReadonlyMap<string, GraphNode>,
+  maxTokens: number,
+): { rows: GraphRelevantRow[]; tokenEstimate: number } {
+  const budgetChars = maxTokens * CHARS_PER_TOKEN;
+  const rows: GraphRelevantRow[] = [];
+  let usedChars = 0;
+  for (const r of ranked) {
+    const row = toRow(r, rows.length + 1, nodeById);
+    const lineChars = row.nodeId.length + 12;
+    if (rows.length > 0 && usedChars + lineChars > budgetChars) break;
+    rows.push(row);
+    usedChars += lineChars;
+  }
+  return { rows, tokenEstimate: Math.ceil(usedChars / CHARS_PER_TOKEN) };
+}
+
 function sliceRows(
   ranked: readonly { nodeId: string; score: number }[],
   nodeById: ReadonlyMap<string, GraphNode>,
   options: GraphRelevantCommandOptions,
 ): { rows: GraphRelevantRow[]; tokenEstimate: number | null } {
-  const toRow = (
-    r: { nodeId: string; score: number },
-    rank: number,
-  ): GraphRelevantRow => {
-    const node = nodeById.get(r.nodeId)!;
-    return {
-      rank,
-      nodeId: r.nodeId,
-      name: node.name,
-      kind: node.kind,
-      role: (node.role ?? null) as NodeRole | null,
-      parentId: node.parentId ?? null,
-      score: r.score,
-    };
-  };
-
   if (options.maxTokens !== undefined) {
-    const budgetChars = options.maxTokens * CHARS_PER_TOKEN;
-    const rows: GraphRelevantRow[] = [];
-    let usedChars = 0;
-    for (const r of ranked) {
-      const row = toRow(r, rows.length + 1);
-      const lineChars = row.nodeId.length + 12;
-      if (rows.length > 0 && usedChars + lineChars > budgetChars) break;
-      rows.push(row);
-      usedChars += lineChars;
-    }
-    return { rows, tokenEstimate: Math.ceil(usedChars / CHARS_PER_TOKEN) };
+    return sliceByTokenBudget(ranked, nodeById, options.maxTokens);
   }
-
-  const desired = options.limit ?? 30;
-  const rows = ranked.slice(0, desired).map((r, i) => toRow(r, i + 1));
-  return { rows, tokenEstimate: null };
+  return {
+    rows: sliceByLimit(ranked, nodeById, options.limit ?? 30),
+    tokenEstimate: null,
+  };
 }
 
 function formatScore(s: number): string {

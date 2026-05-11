@@ -267,7 +267,7 @@ export function buildCyData(
   violationsByNode: ViolationsByNode,
   diffSummary: DiffSummary,
 ): {
-  nodes: Array<{ data: CytoscapeNodeData; position: { x: number; y: number } }>;
+  nodes: Array<{ data: CytoscapeNodeData; position?: { x: number; y: number } }>;
   edges: Array<{ data: CytoscapeEdgeData }>;
 } {
   const ctx: NodeAssemblyContext = {
