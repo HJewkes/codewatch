@@ -96,6 +96,21 @@ export function topHotspots(
   return rows.slice(0, limit);
 }
 
+export function hotspotScoreOf(ctx: ReportContext, nodeId: string): number {
+  if (!keepNode(ctx, nodeId)) return 0;
+  const churn = lookupMetric(ctx, `churn_${ctx.windowDays}d`, nodeId) ?? 0;
+  const complexity = lookupMetric(ctx, pickComplexityMetric(ctx), nodeId) ?? 0;
+  if (churn === 0 || complexity === 0) return 0;
+  return churn * complexity;
+}
+
+export function busFactorOf(
+  ctx: ReportContext,
+  nodeId: string,
+): number | undefined {
+  return lookupMetric(ctx, `bus_factor_${ctx.windowDays}d`, nodeId);
+}
+
 export function topBusFactorRisks(
   ctx: ReportContext,
   limit: number,

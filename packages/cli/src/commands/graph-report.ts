@@ -15,10 +15,13 @@ import {
 } from "./graph-report-format.js";
 import {
   buildReportContext,
+  busFactorOf,
+  hotspotScoreOf,
   topBusFactorRisks,
   topCentralFiles,
   topCouplingClusters,
   topHotspots,
+  type ReportContext,
 } from "./graph-report-sections.js";
 import type {
   BusFactorRow,
@@ -85,7 +88,7 @@ export function runGraphReportCommand(
       centralFiles: topCentralFiles(nodes, edges, ctx, limit),
     };
     if (options.vs) {
-      result.drift = computeDrift(db, options, result, limit);
+      result.drift = computeDrift(db, options, ctx, result, limit);
     }
     return result;
   } finally {
@@ -96,6 +99,7 @@ export function runGraphReportCommand(
 function computeDrift(
   db: GraphDatabase,
   options: GraphReportCommandOptions,
+  currentCtx: ReportContext,
   current: GraphReportResult,
   limit: number,
 ): GraphReportResult["drift"] {
@@ -116,8 +120,10 @@ function computeDrift(
     baselineSnapshot,
     currentHotspots: current.hotspots,
     baselineHotspots: topHotspots(baseCtx, limit),
+    currentHotspotScore: (id) => hotspotScoreOf(currentCtx, id),
     currentSilos: current.busFactorRisks,
     baselineSilos: topBusFactorRisks(baseCtx, limit),
+    currentBusFactor: (id) => busFactorOf(currentCtx, id),
     currentCoupling: current.couplingClusters,
     baselineCoupling: topCouplingClusters(baseCtx, options.repoRoot, baseWindow, limit),
   });
