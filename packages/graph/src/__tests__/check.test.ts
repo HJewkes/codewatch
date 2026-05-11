@@ -424,6 +424,178 @@ describe("runChecks — forbid-import", () => {
   });
 });
 
+describe("runChecks — baseline", () => {
+  let fixture: Fixture;
+
+  afterEach(async () => {
+    if (fixture) await fs.rm(fixture.dir, { recursive: true, force: true });
+  });
+
+  async function createTwoSnapshotFixture(
+    populateBaseline: (db: GraphDatabase, snapshotId: number) => void,
+    populateHead: (db: GraphDatabase, snapshotId: number) => void,
+  ): Promise<{ fixture: Fixture; baselineId: number; headId: number }> {
+    const dir = await fs.mkdtemp(path.join(tmpdir(), "code-style-baseline-"));
+    const dbPath = path.join(dir, "graph.db");
+    const db = openDatabase(dbPath);
+    const baselineId = db.createSnapshot({ ref: "baseline", indexVersion: "0.1.0" });
+    populateBaseline(db, baselineId);
+    const headId = db.createSnapshot({ ref: "head", indexVersion: "0.1.0" });
+    populateHead(db, headId);
+    db.close();
+    return { fixture: { dir, dbPath, snapshotId: headId }, baselineId, headId };
+  }
+
+  it("marks identical violations as carryover and lets passed=true", async () => {
+    const built = await createTwoSnapshotFixture(
+      (db, snapshotId) => {
+        db.insertNode(snapshotId, { id: "huge.ts", kind: "file", name: "" });
+        db.insertMetric(snapshotId, { nodeId: "huge.ts", name: "loc", value: 9000 });
+      },
+      (db, snapshotId) => {
+        db.insertNode(snapshotId, { id: "huge.ts", kind: "file", name: "" });
+        db.insertMetric(snapshotId, { nodeId: "huge.ts", name: "loc", value: 9001 });
+      },
+    );
+    fixture = built.fixture;
+
+    const db = openDatabase(fixture.dbPath);
+    try {
+      const result = runChecks(db, {
+        snapshotId: built.headId,
+        rules: [{ id: "r", type: "metric-max", metric: "loc", max: 500 }],
+        baselineSnapshotId: built.baselineId,
+      });
+      expect(result.violations).toHaveLength(1);
+      expect(result.violations[0]!.isCarryover).toBe(true);
+      expect(result.passed).toBe(true);
+      expect(result.carryoverErrors).toBe(1);
+      expect(result.newErrors).toBe(0);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("flags violations not present in baseline as new and fails when error severity", async () => {
+    const built = await createTwoSnapshotFixture(
+      (db, snapshotId) => {
+        db.insertNode(snapshotId, { id: "old.ts", kind: "file", name: "" });
+        db.insertMetric(snapshotId, { nodeId: "old.ts", name: "loc", value: 9000 });
+      },
+      (db, snapshotId) => {
+        db.insertNodes(snapshotId, [
+          { id: "old.ts", kind: "file", name: "" },
+          { id: "new.ts", kind: "file", name: "" },
+        ]);
+        db.insertMetrics(snapshotId, [
+          { nodeId: "old.ts", name: "loc", value: 9000 },
+          { nodeId: "new.ts", name: "loc", value: 1234 },
+        ]);
+      },
+    );
+    fixture = built.fixture;
+
+    const db = openDatabase(fixture.dbPath);
+    try {
+      const result = runChecks(db, {
+        snapshotId: built.headId,
+        rules: [{ id: "r", type: "metric-max", metric: "loc", max: 500 }],
+        baselineSnapshotId: built.baselineId,
+      });
+      expect(result.violations).toHaveLength(2);
+      const byNode = new Map(result.violations.map((v) => [v.nodeId, v]));
+      expect(byNode.get("old.ts")!.isCarryover).toBe(true);
+      expect(byNode.get("new.ts")!.isCarryover).toBeUndefined();
+      expect(result.passed).toBe(false);
+      expect(result.newErrors).toBe(1);
+      expect(result.carryoverErrors).toBe(1);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("treats forbid-import violations as carryover when the edge existed at baseline", async () => {
+    const built = await createTwoSnapshotFixture(
+      (db, snapshotId) => {
+        db.insertNodes(snapshotId, [
+          { id: "render/a.ts", kind: "file", name: "" },
+          { id: "cli/b.ts", kind: "file", name: "" },
+        ]);
+        db.insertEdge(snapshotId, {
+          srcId: "render/a.ts",
+          dstId: "cli/b.ts",
+          kind: "imports",
+        });
+      },
+      (db, snapshotId) => {
+        db.insertNodes(snapshotId, [
+          { id: "render/a.ts", kind: "file", name: "" },
+          { id: "render/c.ts", kind: "file", name: "" },
+          { id: "cli/b.ts", kind: "file", name: "" },
+        ]);
+        db.insertEdges(snapshotId, [
+          { srcId: "render/a.ts", dstId: "cli/b.ts", kind: "imports" },
+          { srcId: "render/c.ts", dstId: "cli/b.ts", kind: "imports" },
+        ]);
+      },
+    );
+    fixture = built.fixture;
+
+    const db = openDatabase(fixture.dbPath);
+    try {
+      const result = runChecks(db, {
+        snapshotId: built.headId,
+        rules: [
+          {
+            id: "no-r2c",
+            type: "forbid-import",
+            from: "render/**",
+            to: "cli/**",
+          },
+        ],
+        baselineSnapshotId: built.baselineId,
+      });
+      expect(result.violations).toHaveLength(2);
+      const carry = result.violations.filter((v) => v.isCarryover);
+      const fresh = result.violations.filter((v) => !v.isCarryover);
+      expect(carry).toHaveLength(1);
+      expect(carry[0]!.nodeId).toBe("render/a.ts");
+      expect(fresh).toHaveLength(1);
+      expect(fresh[0]!.nodeId).toBe("render/c.ts");
+      expect(result.passed).toBe(false);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("ignores violations that exist only in baseline (no head equivalent)", async () => {
+    const built = await createTwoSnapshotFixture(
+      (db, snapshotId) => {
+        db.insertNode(snapshotId, { id: "gone.ts", kind: "file", name: "" });
+        db.insertMetric(snapshotId, { nodeId: "gone.ts", name: "loc", value: 9999 });
+      },
+      (db, snapshotId) => {
+        db.insertNode(snapshotId, { id: "kept.ts", kind: "file", name: "" });
+        db.insertMetric(snapshotId, { nodeId: "kept.ts", name: "loc", value: 1 });
+      },
+    );
+    fixture = built.fixture;
+
+    const db = openDatabase(fixture.dbPath);
+    try {
+      const result = runChecks(db, {
+        snapshotId: built.headId,
+        rules: [{ id: "r", type: "metric-max", metric: "loc", max: 500 }],
+        baselineSnapshotId: built.baselineId,
+      });
+      expect(result.violations).toEqual([]);
+      expect(result.passed).toBe(true);
+    } finally {
+      db.close();
+    }
+  });
+});
+
 describe("validateRules", () => {
   it("rejects non-object input", () => {
     expect(() => validateRules(null)).toThrow();

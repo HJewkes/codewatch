@@ -28,8 +28,18 @@ jobs:
       - run: pnpm -r typecheck
       - run: pnpm test
       - name: Architectural fitness check
+        env:
+          BASE_REF: ${{ github.event_name == 'pull_request' && github.base_ref || 'main' }}
         run: |
+          # Index head into the shared DB.
           node packages/cli/dist/index.js graph index packages \
-            --db .codewatch/graph.db --ref ci
+            --db .codewatch/graph.db --ref head
+          # Index baseline (the PR target, or main on a push) from a separate
+          # worktree using the same CLI build.
+          git worktree add /tmp/baseline "origin/$BASE_REF"
+          node packages/cli/dist/index.js graph index /tmp/baseline/packages \
+            --db .codewatch/graph.db --ref baseline
+          # Fail only on *new* violations — carryover errors are tolerated.
           node packages/cli/dist/index.js graph check \
-            --db .codewatch/graph.db --config .codewatch/check.json
+            --db .codewatch/graph.db --config .codewatch/check.json \
+            --baseline baseline

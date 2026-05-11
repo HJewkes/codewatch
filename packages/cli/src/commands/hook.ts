@@ -85,7 +85,7 @@ function renderBlock(options: InstallHookOptions): string {
     lines.push(
       `if git diff --cached --name-only | grep -qE '${TS_GLOB}'; then`,
       `  ${bin} graph index ${target} --db ${db} >/dev/null || exit 1`,
-      `  ${bin} graph check --db ${db} || exit 1`,
+      `  ${bin} graph check --db ${db} --baseline previous || exit 1`,
       "fi",
     );
   }

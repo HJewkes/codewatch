@@ -116,12 +116,17 @@ function registerCheck(graphCmd: Command): void {
     .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")
     .option("--config <path>", "Rules file (JSON)", "./.codewatch/check.json")
     .option("--snapshot <id>", "Snapshot id (default: latest)")
+    .option(
+      "--baseline <ref-or-id>",
+      "Suppress violations that already exist in this baseline snapshot",
+    )
     .option("--json", "Output structured JSON")
     .action(
       async (options: {
         db: string;
         config: string;
         snapshot?: string;
+        baseline?: string;
         json?: boolean;
       }) => {
         try {
@@ -131,6 +136,7 @@ function registerCheck(graphCmd: Command): void {
             db: options.db,
             config: options.config,
             snapshot: asNumber(options.snapshot),
+            baseline: options.baseline,
           });
           console.log(
             options.json

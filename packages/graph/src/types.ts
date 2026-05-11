@@ -173,12 +173,18 @@ export interface CheckViolation {
   value?: number;
   threshold?: number;
   destinationId?: string;
+  isCarryover?: boolean;
 }
 
 export interface CheckResult {
   snapshotId: number;
+  baselineSnapshotId?: number;
   rulesEvaluated: number;
   nodesEvaluated: number;
   violations: CheckViolation[];
+  newErrors: number;
+  newWarnings: number;
+  carryoverErrors: number;
+  carryoverWarnings: number;
   passed: boolean;
 }

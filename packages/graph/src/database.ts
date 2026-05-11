@@ -144,10 +144,10 @@ export class GraphDatabase {
       "SELECT * FROM snapshot WHERE id = ?",
     );
     this.listSnapshotsAllStmt = db.prepare(
-      "SELECT * FROM snapshot ORDER BY taken_at DESC LIMIT ?",
+      "SELECT * FROM snapshot ORDER BY taken_at DESC, id DESC LIMIT ?",
     );
     this.listSnapshotsByRefStmt = db.prepare(
-      "SELECT * FROM snapshot WHERE ref = ? ORDER BY taken_at DESC LIMIT ?",
+      "SELECT * FROM snapshot WHERE ref = ? ORDER BY taken_at DESC, id DESC LIMIT ?",
     );
     this.getNodeStmt = db.prepare(
       "SELECT id, kind, name, parent_id, language, role, attrs FROM node WHERE snapshot_id = ? AND id = ?",

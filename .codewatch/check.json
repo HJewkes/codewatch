@@ -2,11 +2,12 @@
   "$comment": "Architectural fitness rules for codewatch. Run with `code-style graph check`. Thresholds chosen against the post-M20 baseline. M26: glob excludes replaced with role-based excludes — a single `excludeRoles: [\"test\", \"fixture\"]` is more semantic than `**/__tests__/**` and survives a directory rename.",
   "rules": [
     {
+      "$comment": "Tightened from 500 → 350 in M27 because baseline mode lets us ratchet without breaking existing files. New files >350 fail; the 3 carryovers (template.ts 377, check.ts 375, index.ts 351) stay flagged but don't block.",
       "id": "max-file-loc",
       "type": "metric-max",
       "metric": "loc",
       "kind": "file",
-      "max": 500,
+      "max": 350,
       "excludeRoles": ["test", "fixture"]
     },
     {
@@ -52,13 +53,12 @@
       "to": "analyzer/**"
     },
     {
-      "$comment": "Textbook scary-hotspot signal: high churn × high branching = the riskiest file to touch. Warning-only on this young repo (most 'churn' is bootstrap, not maintenance burden); promote to error once steady-state arrives.",
+      "$comment": "Textbook scary-hotspot signal: high churn × high branching = the riskiest file to touch. Promoted to error in M27 — baseline mode means existing hotspots are carryover, so this only fails PRs that *worsen* the count. Run with --baseline main in CI; without baseline this rule will fail on existing files.",
       "id": "scary-hotspots",
       "type": "metric-product-max",
       "metrics": ["churn_30d", "cyclomatic_max"],
       "max": 1500,
       "kind": "file",
-      "severity": "warning",
       "excludeRoles": ["test", "fixture"]
     }
   ]
