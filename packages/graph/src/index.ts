@@ -68,3 +68,10 @@ export {
   type UnchangedViolation,
 } from "./check-diff.js";
 export { classifyRole, annotateRoles, ALL_ROLES } from "./roles.js";
+export {
+  planPrune,
+  runPrune,
+  type PrunePlan,
+  type PruneOptions,
+  type PruneResult,
+} from "./prune.js";

@@ -113,6 +113,29 @@ interface RuleBucket {
   improved: UnchangedViolation[];
 }
 
+function chip(n: number, color: (s: string) => string, label: string): string | null {
+  return n > 0 ? color(`${label}${n}`) : null;
+}
+
+function formatBucketCounts(b: RuleBucket): string {
+  const chips = [
+    chip(b.newViolations.length, chalk.red, "+ new "),
+    chip(b.resolvedViolations.length, chalk.green, "- resolved "),
+    chip(b.worsened.length, chalk.red, "↑ worsened "),
+    chip(b.improved.length, chalk.green, "↓ improved "),
+  ].filter((s): s is string => s !== null);
+  return chips.join(", ");
+}
+
+function formatBucketBody(b: RuleBucket): string[] {
+  const out: string[] = [];
+  for (const v of b.newViolations) out.push(formatViolationLine(v, chalk.red("+")));
+  for (const v of b.resolvedViolations) out.push(formatViolationLine(v, chalk.green("-")));
+  for (const u of b.worsened) out.push(formatUnchangedLine(u));
+  for (const u of b.improved) out.push(formatUnchangedLine(u));
+  return out;
+}
+
 function bucketByRule(diff: CheckDiff): RuleBucket[] {
   const map = new Map<string, RuleBucket>();
   const ensure = (id: string): RuleBucket => {
@@ -147,20 +170,10 @@ export function formatGraphCheckDiffText(result: GraphCheckDiffCommandResult): s
   }
 
   for (const b of buckets) {
-    const counts = [
-      b.newViolations.length && chalk.red(`+${b.newViolations.length} new`),
-      b.resolvedViolations.length && chalk.green(`-${b.resolvedViolations.length} resolved`),
-      b.worsened.length && chalk.red(`↑${b.worsened.length} worsened`),
-      b.improved.length && chalk.green(`↓${b.improved.length} improved`),
-    ]
-      .filter(Boolean)
-      .join(", ");
+    const counts = formatBucketCounts(b);
     if (!counts) continue;
     lines.push(chalk.bold(`${b.ruleId}  ${chalk.dim(`(${counts})`)}`));
-    for (const v of b.newViolations) lines.push(formatViolationLine(v, chalk.red("+")));
-    for (const v of b.resolvedViolations) lines.push(formatViolationLine(v, chalk.green("-")));
-    for (const u of b.worsened) lines.push(formatUnchangedLine(u));
-    for (const u of b.improved) lines.push(formatUnchangedLine(u));
+    lines.push(...formatBucketBody(b));
     lines.push("");
   }
 

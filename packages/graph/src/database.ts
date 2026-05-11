@@ -343,6 +343,30 @@ export class GraphDatabase {
     return row ?? null;
   }
 
+  deleteSnapshots(ids: readonly number[]): void {
+    if (ids.length === 0) return;
+    const stmt = this.db.prepare("DELETE FROM snapshot WHERE id = ?");
+    const tx = this.db.transaction((rows: readonly number[]) => {
+      for (const id of rows) stmt.run(id);
+    });
+    tx(ids);
+  }
+
+  vacuum(): void {
+    this.db.exec("VACUUM");
+  }
+
+  countRowsByTable(tables: readonly string[]): Record<string, number> {
+    const out: Record<string, number> = {};
+    for (const table of tables) {
+      const row = this.db
+        .prepare(`SELECT COUNT(*) AS n FROM ${table}`)
+        .get() as { n: number };
+      out[table] = row.n;
+    }
+    return out;
+  }
+
   close(): void {
     this.db.close();
   }
