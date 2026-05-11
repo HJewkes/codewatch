@@ -1,0 +1,80 @@
+import { describe, it, expect } from "vitest";
+import { renderHtml } from "../template.js";
+import type { RenderInput } from "../types.js";
+
+interface ParsedGraph {
+  snapshotId: number;
+  nodes: Array<{ data: { id: string } }>;
+  edges: Array<{ data: { id: string; source: string; target: string } }>;
+}
+
+function extractGraphJson(html: string): ParsedGraph {
+  const marker = "window.__GRAPH__ = ";
+  const start = html.indexOf(marker);
+  if (start < 0) throw new Error("__GRAPH__ assignment not found");
+  const jsonStart = start + marker.length;
+  const jsonEnd = html.indexOf(";</script>", jsonStart);
+  if (jsonEnd < 0) throw new Error("__GRAPH__ closing semicolon not found");
+  const raw = html
+    .slice(jsonStart, jsonEnd)
+    .replace(/\\u003c/g, "<");
+  return JSON.parse(raw);
+}
+
+function findDangling(g: ParsedGraph): typeof g.edges {
+  const ids = new Set(g.nodes.map((n) => n.data.id));
+  return g.edges.filter(
+    (e) => !ids.has(e.data.source) || !ids.has(e.data.target),
+  );
+}
+
+const fixture: RenderInput = {
+  snapshotId: 42,
+  nodes: [
+    { id: "pkg/src/index.ts", kind: "file", name: "index.ts", role: "source" },
+    { id: "pkg/src/util.ts", kind: "file", name: "util.ts", role: "source" },
+    { id: "pkg/src", kind: "module", name: "src" },
+    { id: "npm:lodash", kind: "external", name: "lodash" },
+  ],
+  edges: [
+    { srcId: "pkg/src/index.ts", dstId: "pkg/src/util.ts", kind: "imports" },
+    { srcId: "pkg/src/index.ts", dstId: "npm:lodash", kind: "imports" },
+    { srcId: "pkg/src/util.ts", dstId: "pkg/src", kind: "re-exports" },
+  ],
+};
+
+describe("renderHtml graph consistency", () => {
+  it("embeds a __GRAPH__ payload that parses as valid JSON", async () => {
+    const html = await renderHtml(fixture);
+    const g = extractGraphJson(html);
+    expect(g.snapshotId).toBe(42);
+    expect(g.nodes.length).toBe(4);
+    expect(g.edges.length).toBe(3);
+  });
+
+  it("emits no edges referencing nonexistent nodes", async () => {
+    const html = await renderHtml(fixture);
+    const g = extractGraphJson(html);
+    expect(findDangling(g)).toEqual([]);
+  });
+
+  it("preserves the exact node id set from input", async () => {
+    const html = await renderHtml(fixture);
+    const g = extractGraphJson(html);
+    const outIds = new Set(g.nodes.map((n) => n.data.id));
+    const inIds = new Set(fixture.nodes.map((n) => n.id));
+    expect(outIds).toEqual(inIds);
+  });
+
+  it("preserves the exact edge endpoints from input", async () => {
+    const html = await renderHtml(fixture);
+    const g = extractGraphJson(html);
+    const outEndpoints = g.edges
+      .map((e) => `${e.data.source} → ${e.data.target}`)
+      .sort();
+    const inEndpoints = fixture.edges
+      .map((e) => `${e.srcId} → ${e.dstId}`)
+      .sort();
+    expect(outEndpoints).toEqual(inEndpoints);
+  });
+});
