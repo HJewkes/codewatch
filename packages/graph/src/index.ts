@@ -66,6 +66,11 @@ export {
   type CoEditPair,
   type ComputeChangeCouplingOptions,
 } from "./change-coupling.js";
+export {
+  computeOwnershipMetrics,
+  type ComputeOwnershipOptions,
+  type OwnershipForFile,
+} from "./ownership.js";
 export { patternToRegex, compilePatterns, matchesAny } from "./patterns.js";
 export {
   computePageRank,
