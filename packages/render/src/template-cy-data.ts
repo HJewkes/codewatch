@@ -35,16 +35,53 @@ interface NodeAssemblyContext {
   diffSummary: DiffSummary;
 }
 
+type Violation = ReturnType<ViolationsByNode["get"]>;
+type ResolvedList = Array<{ ruleId: string; message: string }>;
+type TrendList = Array<{ ruleId: string; before: number; after: number; delta: number }>;
+
+function compact<T extends Record<string, unknown>>(obj: T): Partial<T> {
+  const out: Partial<T> = {};
+  for (const k of Object.keys(obj) as Array<keyof T>) {
+    if (obj[k] !== undefined) out[k] = obj[k];
+  }
+  return out;
+}
+
 function baseFilename(id: string): string {
   return id.split("/").pop() ?? id;
+}
+
+function externalLabel(node: { id: string; name: string }): string {
+  return node.name || node.id;
+}
+
+function symbolLabel(node: { id: string; name: string }): string {
+  return node.name || baseFilename(node.id);
 }
 
 function labelForNode(
   node: { id: string; kind: string; name: string },
 ): string {
-  if (node.kind === "external") return node.name || node.id;
   if (node.kind === "file") return baseFilename(node.id);
-  return node.name || baseFilename(node.id);
+  if (node.kind === "external") return externalLabel(node);
+  return symbolLabel(node);
+}
+
+function isValidMetric(value: number | null): value is number {
+  return value !== null && Number.isFinite(value);
+}
+
+function recordMetric(
+  out: Map<string, Record<string, number>>,
+  m: { nodeId: string; name: string; value: number | null },
+): void {
+  if (!isValidMetric(m.value)) return;
+  let inner = out.get(m.nodeId);
+  if (!inner) {
+    inner = {};
+    out.set(m.nodeId, inner);
+  }
+  inner[m.name] = m.value;
 }
 
 export function metricMapFromList(
@@ -52,47 +89,52 @@ export function metricMapFromList(
 ): Map<string, Record<string, number>> {
   const out = new Map<string, Record<string, number>>();
   if (!metrics) return out;
-  for (const m of metrics) {
-    if (m.value === null || !Number.isFinite(m.value)) continue;
-    let inner = out.get(m.nodeId);
-    if (!inner) {
-      inner = {};
-      out.set(m.nodeId, inner);
-    }
-    inner[m.name] = m.value;
-  }
+  metrics.forEach((m) => recordMetric(out, m));
   return out;
 }
 
+function severityOf(v: Violation): "error" | "warning" | undefined {
+  if (!v) return undefined;
+  return v.error > 0 ? "error" : "warning";
+}
+
+function originOf(v: Violation): "new" | "carryover" | undefined {
+  if (!v) return undefined;
+  return v.isCarryover ? "carryover" : "new";
+}
+
+function resolvedCountOf(r: ResolvedList | undefined): number | undefined {
+  return r && r.length > 0 ? r.length : undefined;
+}
+
 function violationFields(
-  violation: ReturnType<ViolationsByNode["get"]>,
+  v: Violation,
   trend: "worsened" | "improved" | undefined,
-  resolvedCount: number,
+  resolved: ResolvedList | undefined,
 ): Partial<CytoscapeNodeData> {
-  const out: Partial<CytoscapeNodeData> = {};
-  if (violation) {
-    out.violation_severity = violation.error > 0 ? "error" : "warning";
-    out.violation_origin = violation.isCarryover ? "carryover" : "new";
-  }
-  if (trend) out.violation_trend = trend;
-  if (resolvedCount > 0) out.resolved_count = resolvedCount;
-  return out;
+  return compact({
+    violation_severity: severityOf(v),
+    violation_origin: originOf(v),
+    violation_trend: trend,
+    resolved_count: resolvedCountOf(resolved),
+  });
 }
 
 function rawExtras(
   oldId: string | undefined,
   metricsBefore: Record<string, number>,
-  violation: ReturnType<ViolationsByNode["get"]>,
-  resolved: Array<{ ruleId: string; message: string }> | undefined,
-  trendDetails: Array<{ ruleId: string; before: number; after: number; delta: number }> | undefined,
+  violation: Violation,
+  resolved: ResolvedList | undefined,
+  trendDetails: TrendList | undefined,
 ): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  if (oldId) out.oldId = oldId;
-  if (Object.keys(metricsBefore).length > 0) out.metricsBefore = metricsBefore;
-  if (violation) out.violations = violation.items;
-  if (resolved) out.resolvedViolations = resolved;
-  if (trendDetails) out.violationTrends = trendDetails;
-  return out;
+  const hasBefore = Object.keys(metricsBefore).length > 0;
+  return compact({
+    oldId,
+    metricsBefore: hasBefore ? metricsBefore : undefined,
+    violations: violation?.items,
+    resolvedViolations: resolved,
+    violationTrends: trendDetails,
+  });
 }
 
 function buildNodeEntry(
@@ -117,7 +159,7 @@ function buildNodeEntry(
       ...(n.role ? { role: n.role } : {}),
       tooltip: oldId ? `${oldId} → ${n.id}` : n.id,
       status,
-      ...violationFields(violation, trend, resolved?.length ?? 0),
+      ...violationFields(violation, trend, resolved),
       width: n.width,
       height: n.height,
       ...(overlayFill ? { overlay_fill: overlayFill } : {}),
