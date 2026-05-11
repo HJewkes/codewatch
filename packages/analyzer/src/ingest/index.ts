@@ -6,8 +6,11 @@ export type {
   PullRequest,
   PullRequestFile,
   IngestMetadata,
-} from "./types.js";
+} from "@code-style/core";
 
-export { GitHubService } from "./github-service.js";
-export { shouldIncludeFile, getLanguageFromPath } from "./file-filter.js";
-export { FileCache } from "./cache.js";
+export {
+  GitHubService,
+  shouldIncludeFile,
+  getLanguageFromPath,
+  FileCache,
+} from "@code-style/core";

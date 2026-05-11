@@ -1,12 +1,12 @@
 import type { Node } from "web-tree-sitter";
-import type { Extractor, ParsedFile, Observation } from "./types.js";
+import type { StyleExtractor, ParsedFile, Observation } from "./types.js";
 
 const ARRAY_METHODS = new Set([
   "map", "filter", "reduce", "forEach", "find", "some", "every", "flatMap",
   "findIndex",
 ]);
 
-export class ControlFlowExtractor implements Extractor {
+export class ControlFlowExtractor implements StyleExtractor {
   readonly name = "control-flow";
 
   extract(file: ParsedFile): Observation[] {

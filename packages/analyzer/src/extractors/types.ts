@@ -1,5 +1,7 @@
-import type { Tree } from "web-tree-sitter";
+import type { Extractor as CoreExtractor } from "@code-style/core";
 import type { ProfileCategory } from "@code-style/profile";
+
+export type { ParsedFile } from "@code-style/core";
 
 /**
  * Categories that extractors emit. Includes all ProfileCategory values
@@ -28,14 +30,8 @@ export interface Observation {
   metadata?: Record<string, unknown>;
 }
 
-export interface ParsedFile {
-  tree: Tree;
-  content: string;
-  filePath: string;
-  language: string;
-}
+/** Style extractor — produces per-file style Observations. */
+export type StyleExtractor = CoreExtractor<Observation>;
 
-export interface Extractor {
-  name: string;
-  extract(file: ParsedFile): Observation[];
-}
+/** @deprecated Use StyleExtractor. Retained for backward compatibility. */
+export type Extractor = StyleExtractor;

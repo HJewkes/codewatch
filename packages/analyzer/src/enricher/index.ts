@@ -1,5 +1,10 @@
 import type { AggregatedFeature } from "../aggregator/index.js";
-import type { LlmProvider, LlmMessage } from "./providers.js";
+import {
+  LlmRunner,
+  type LlmJob,
+  type LlmMessage,
+  type LlmProvider,
+} from "@code-style/core";
 import {
   getPromptForFeature,
   needsAiEnrichment,
@@ -14,7 +19,7 @@ export {
   type LlmProvider,
   type LlmMessage,
   type LlmResponse,
-} from "./providers.js";
+} from "@code-style/core";
 
 export type { AggregatedFeature } from "../aggregator/index.js";
 
@@ -44,14 +49,15 @@ export interface EnricherConfig {
 }
 
 export class Enricher {
-  private provider: LlmProvider;
+  private runner: LlmRunner;
   private enabled: boolean;
-  private totalTokenBudget: number;
 
   constructor(config: EnricherConfig) {
-    this.provider = config.provider;
+    this.runner = new LlmRunner({
+      provider: config.provider,
+      totalTokenBudget: config.totalTokenBudget,
+    });
     this.enabled = config.enabled ?? true;
-    this.totalTokenBudget = config.totalTokenBudget ?? 20_000;
   }
 
   async enrich(
@@ -67,21 +73,9 @@ export class Enricher {
       };
     }
 
-    const enriched = new Map<string, EnrichmentEntry>();
-    const errors: EnrichmentError[] = [];
-    let totalTokensUsed = 0;
-    let budgetExceeded = false;
-
-    const featuresToEnrich = Array.from(features.entries()).filter(
-      ([type]) => needsAiEnrichment(type),
-    );
-
-    for (const [type, feature] of featuresToEnrich) {
-      if (totalTokensUsed >= this.totalTokenBudget) {
-        budgetExceeded = true;
-        break;
-      }
-
+    const jobs: LlmJob<string>[] = [];
+    for (const [type, feature] of features) {
+      if (!needsAiEnrichment(type)) continue;
       const promptTemplate = getPromptForFeature(type);
       if (!promptTemplate) continue;
 
@@ -94,32 +88,28 @@ export class Enricher {
         },
       ];
 
-      try {
-        const response = await this.provider.generate(messages, {
-          maxTokens: promptTemplate.maxTokens,
-        });
+      jobs.push({ key: type, messages, maxTokens: promptTemplate.maxTokens });
+    }
 
-        enriched.set(type, {
-          featureType: type,
-          description: response.content,
-          tokensUsed: response.tokensUsed,
-        });
+    const runResult = await this.runner.run(jobs);
 
-        totalTokensUsed += response.tokensUsed;
-      } catch (error) {
-        errors.push({
-          featureType: type,
-          error:
-            error instanceof Error ? error.message : String(error),
-        });
-      }
+    const enriched = new Map<string, EnrichmentEntry>();
+    for (const r of runResult.results) {
+      enriched.set(r.key, {
+        featureType: r.key,
+        description: r.content,
+        tokensUsed: r.tokensUsed,
+      });
     }
 
     return {
       enriched,
-      errors,
-      totalTokensUsed,
-      budgetExceeded,
+      errors: runResult.errors.map((e) => ({
+        featureType: e.key,
+        error: e.error,
+      })),
+      totalTokensUsed: runResult.totalTokensUsed,
+      budgetExceeded: runResult.budgetExceeded,
       skipped: false,
     };
   }

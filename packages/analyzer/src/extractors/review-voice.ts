@@ -1,4 +1,4 @@
-import type { Extractor, Observation, ParsedFile } from "./types.js";
+import type { StyleExtractor, Observation, ParsedFile } from "./types.js";
 
 interface ReviewComment {
   body: string;
@@ -145,7 +145,7 @@ const KEYWORD_PATTERNS: Array<{ keyword: string; pattern: RegExp }> = [
   { keyword: "magic-number", pattern: /\bmagic\s+number/i },
 ];
 
-export class ReviewVoiceExtractor implements Extractor {
+export class ReviewVoiceExtractor implements StyleExtractor {
   readonly name = "reviewVoice";
 
   extract(_file: ParsedFile): Observation[] {

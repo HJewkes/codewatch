@@ -1,5 +1,5 @@
 import type { Node } from "web-tree-sitter";
-import type { Extractor, ParsedFile, Observation } from "./types.js";
+import type { StyleExtractor, ParsedFile, Observation } from "./types.js";
 
 const RESULT_TYPE_NAMES = new Set([
   "Result", "Either", "Ok", "Err", "Success", "Failure",
@@ -9,7 +9,7 @@ const GENERIC_CATCH_TYPES = new Set([
   "Error", "Exception", "unknown",
 ]);
 
-export class ErrorHandlingExtractor implements Extractor {
+export class ErrorHandlingExtractor implements StyleExtractor {
   readonly name = "error-handling";
 
   extract(file: ParsedFile): Observation[] {

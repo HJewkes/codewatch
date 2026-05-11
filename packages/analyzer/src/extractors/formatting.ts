@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import type { Extractor, ParsedFile, Observation } from "./types.js";
+import type { StyleExtractor, ParsedFile, Observation } from "./types.js";
 
 interface PrettierConfig {
   semi?: boolean;
@@ -15,7 +15,7 @@ interface EditorConfigSection {
   insert_final_newline?: string;
 }
 
-export class FormattingExtractor implements Extractor {
+export class FormattingExtractor implements StyleExtractor {
   readonly name = "formatting";
 
   extract(file: ParsedFile): Observation[] {

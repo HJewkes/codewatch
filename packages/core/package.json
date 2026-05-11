@@ -1,0 +1,30 @@
+{
+  "name": "@code-style/core",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo 'lint not configured yet'"
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "octokit": "^5.0.5",
+    "tree-sitter-python": "^0.25.0",
+    "tree-sitter-typescript": "^0.23.2",
+    "web-tree-sitter": "^0.26.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.2"
+  }
+}

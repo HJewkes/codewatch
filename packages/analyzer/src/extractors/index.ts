@@ -1,5 +1,11 @@
-export type { Extractor, Observation, ObservationCategory, ParsedFile } from "./types.js";
-export { parseFile, getSupportedLanguages } from "./parser.js";
+export type {
+  StyleExtractor,
+  Extractor,
+  Observation,
+  ObservationCategory,
+  ParsedFile,
+} from "./types.js";
+export { parseFile, getSupportedLanguages } from "@code-style/core";
 export { NamingExtractor } from "./naming.js";
 export { StructureExtractor } from "./structure.js";
 export { ControlFlowExtractor } from "./control-flow.js";

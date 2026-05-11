@@ -1,33 +1,19 @@
-import type { Extractor, Observation, ParsedFile } from "@code-style/analyzer";
+import type {
+  Extractor,
+  Observation,
+  ParsedFile,
+} from "@code-style/analyzer";
 
-export interface ExtractorModule {
-  NamingExtractor: new () => Extractor;
-  StructureExtractor: new () => Extractor;
-  ControlFlowExtractor: new () => Extractor;
-  DocumentationExtractor: new () => Extractor;
-  ErrorHandlingExtractor: new () => Extractor;
-  parseFile: (
-    content: string,
-    filePath: string,
-    language: string,
-  ) => Promise<ParsedFile | null>;
-  getLanguageFromPath: (filePath: string) => string | null;
-}
-
-export function createExtractors(analyzer: ExtractorModule): Extractor[] {
-  return [
-    new analyzer.NamingExtractor(),
-    new analyzer.StructureExtractor(),
-    new analyzer.ControlFlowExtractor(),
-    new analyzer.DocumentationExtractor(),
-    new analyzer.ErrorHandlingExtractor(),
-  ];
-}
+type ParseFn = (
+  content: string,
+  filePath: string,
+  language: string,
+) => Promise<ParsedFile | null>;
 
 export async function extractFromFiles(
   files: { content: string; path: string; language: string }[],
   extractors: Extractor[],
-  parseFn: ExtractorModule["parseFile"],
+  parseFn: ParseFn,
 ): Promise<Observation[]> {
   const observations: Observation[] = [];
   for (const file of files) {

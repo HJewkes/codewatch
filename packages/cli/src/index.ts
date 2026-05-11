@@ -13,7 +13,8 @@ import {
 } from "./commands/diff.js";
 import { getDefaultProfilePath } from "./utils/config.js";
 import { formatError, formatSuccess } from "./utils/output.js";
-import { createExtractors, extractFromFiles } from "./utils/pipeline.js";
+import { extractFromFiles } from "./utils/pipeline.js";
+import { registerGraphCommands } from "./commands/graph-cli.js";
 
 const program = new Command();
 
@@ -59,7 +60,7 @@ program
         },
         extract: async (corpus) => {
           const typedCorpus = corpus as CodeCorpus;
-          const extractors = createExtractors(analyzer);
+          const extractors = analyzer.createStyleExtractors();
           return extractFromFiles(
             typedCorpus.files.map((f) => ({
               content: f.content,
@@ -157,7 +158,7 @@ program
       }
       const analyzer = await import("@code-style/analyzer");
       const fs = await import("node:fs/promises");
-      const extractors = createExtractors(analyzer);
+      const extractors = analyzer.createStyleExtractors();
       const fileInputs: { content: string; path: string; language: string }[] = [];
       for (const filePath of files) {
         const lang = analyzer.getLanguageFromPath(filePath);
@@ -249,16 +250,62 @@ const hookCmd = program
 hookCmd
   .command("install")
   .description("Install code-style pre-commit hook")
-  .action(async () => {
-    try {
-      const { installHook } = await import("./commands/hook.js");
-      await installHook(process.cwd());
-      console.log(formatSuccess("Pre-commit hook installed."));
-    } catch (err) {
-      console.error(formatError(err instanceof Error ? err.message : String(err)));
-      process.exitCode = 1;
-    }
-  });
+  .option(
+    "--with-graph-check",
+    "Also run `graph index <path> && graph check` when staged changes touch source files",
+  )
+  .option(
+    "--no-style-check",
+    "Skip the `code-style diff --fix` line (use when no profile is configured)",
+  )
+  .option(
+    "--graph-path <path>",
+    "Directory to index for the graph check (default: .)",
+  )
+  .option(
+    "--db-path <path>",
+    "Shared db path for `graph index` and `graph check` (default: .codewatch/graph.db)",
+  )
+  .option(
+    "--bin <command>",
+    "CLI binary to invoke from the hook (default: code-style)",
+  )
+  .action(
+    async (options: {
+      withGraphCheck?: boolean;
+      styleCheck?: boolean;
+      graphPath?: string;
+      dbPath?: string;
+      bin?: string;
+    }) => {
+      try {
+        const { installHook } = await import("./commands/hook.js");
+        await installHook(process.cwd(), {
+          withGraphCheck: options.withGraphCheck,
+          withStyleCheck: options.styleCheck,
+          graphPath: options.graphPath,
+          dbPath: options.dbPath,
+          bin: options.bin,
+        });
+        console.log(
+          formatSuccess(describeInstalled(options)),
+        );
+      } catch (err) {
+        console.error(formatError(err instanceof Error ? err.message : String(err)));
+        process.exitCode = 1;
+      }
+    },
+  );
+
+function describeInstalled(options: {
+  withGraphCheck?: boolean;
+  styleCheck?: boolean;
+}): string {
+  const parts: string[] = [];
+  if (options.styleCheck !== false) parts.push("style");
+  if (options.withGraphCheck) parts.push("graph check");
+  return `Pre-commit hook installed (${parts.join(" + ")}).`;
+}
 
 hookCmd
   .command("remove")
@@ -290,6 +337,36 @@ program
       });
     } catch (err) {
       console.error(formatError(err instanceof Error ? err.message : String(err)));
+      process.exitCode = 1;
+    }
+  });
+
+registerGraphCommands(program);
+
+program
+  .command("analyze <path>")
+  .description("Run extraction pipeline against a local directory")
+  .option(
+    "--lang <langs...>",
+    "Languages to analyze (typescript, python)",
+  )
+  .option("--json", "Output structured JSON")
+  .action(async (rootDir: string, options: { lang?: string[]; json?: boolean }) => {
+    try {
+      const { runAnalyze, formatAnalyzeText, formatAnalyzeJson } = await import(
+        "./commands/analyze.js"
+      );
+      const result = await runAnalyze({
+        rootDir,
+        languages: options.lang,
+      });
+      console.log(
+        options.json ? formatAnalyzeJson(result) : formatAnalyzeText(result),
+      );
+    } catch (err) {
+      console.error(
+        formatError(err instanceof Error ? err.message : String(err)),
+      );
       process.exitCode = 1;
     }
   });

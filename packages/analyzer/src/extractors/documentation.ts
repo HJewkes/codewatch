@@ -1,10 +1,10 @@
 import type { Node } from "web-tree-sitter";
-import type { Extractor, ParsedFile, Observation } from "./types.js";
+import type { StyleExtractor, ParsedFile, Observation } from "./types.js";
 
 const JSDOC_TAG_PATTERN = /@(param|returns?|throws?|example|deprecated|see|since|type|typedef|template|callback|async)\b/g;
 const PYTHON_DOC_TAG_PATTERN = /^[ \t]*(Args|Returns?|Raises?|Yields?|Note|Notes|Example|Attributes|Todo|References):/gm;
 
-export class DocumentationExtractor implements Extractor {
+export class DocumentationExtractor implements StyleExtractor {
   readonly name = "documentation";
 
   extract(file: ParsedFile): Observation[] {

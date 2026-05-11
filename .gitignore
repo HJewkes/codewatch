@@ -1,6 +1,14 @@
 node_modules/
 dist/
 .code-style/cache/
+.codewatch/*
+!.codewatch/check.json
 *.tsbuildinfo
 .turbo/
 coverage/
+.brain/
+.claude/settings.local.json
+.playwright-mcp/
+docs/*-handoff.md
+docs/diagnostic/*/scorecard.md
+docs/diagnostic/*/test-bench/

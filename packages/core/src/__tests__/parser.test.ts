@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseFile, getSupportedLanguages } from "../extractors/parser.js";
+import { parseFile, getSupportedLanguages } from "../parser/parser.js";
 
 describe("parseFile", () => {
   it("parses TypeScript source code", async () => {
