@@ -71,6 +71,21 @@ export function cyStyles(): string {
     { selector: "node[violation_origin = 'new']", style: {
       "overlay-padding": 8
     } },
+    { selector: "node[violation_trend = 'worsened']", style: {
+      "overlay-color": "#f97316",
+      "overlay-padding": 8,
+      "overlay-opacity": 0.32
+    } },
+    { selector: "node[violation_trend = 'improved']", style: {
+      "overlay-color": "#3b82f6",
+      "overlay-padding": 6,
+      "overlay-opacity": 0.22
+    } },
+    { selector: "node[resolved_count > 0]", style: {
+      "border-color": "#22c55e",
+      "border-width": 3,
+      "border-style": "double"
+    } },
     { selector: ".faded", style: { "opacity": 0.15 } },
     { selector: ".kind-hidden", style: { "opacity": 0.05 } },
     { selector: ".highlight", style: {

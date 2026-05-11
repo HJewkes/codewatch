@@ -1,5 +1,6 @@
 import type {
   CheckResult,
+  CheckViolation,
   GraphDiffSummary,
   GraphEdge,
   GraphMetric,
@@ -20,6 +21,16 @@ export interface RenderDiffMeta {
   metricsBefore?: GraphMetric[];
 }
 
+export interface CheckDiffOverlay {
+  fromSnapshot: SnapshotRow;
+  toSnapshot: SnapshotRow;
+  resolved: CheckViolation[];
+  worsened: Array<{ violation: CheckViolation; before: number; after: number }>;
+  improved: Array<{ violation: CheckViolation; before: number; after: number }>;
+  newCount: number;
+  resolvedCount: number;
+}
+
 export interface RenderInput {
   snapshotId: number;
   nodes: GraphNode[];
@@ -27,6 +38,7 @@ export interface RenderInput {
   metrics?: GraphMetric[];
   diff?: RenderDiffMeta;
   checkResult?: CheckResult;
+  checkDiff?: CheckDiffOverlay;
 }
 
 export interface RenderOptions {

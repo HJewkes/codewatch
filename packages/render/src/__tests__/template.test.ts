@@ -114,6 +114,103 @@ describe("renderHtml", () => {
     expect(html).not.toMatch(/<footer>[\s\S]*Legend:[\s\S]*<\/footer>/);
   });
 
+  describe("check-diff overlay", () => {
+    const baseSnap = { id: 1, ref: "from", commitHash: null, takenAt: "", indexVersion: "0", attrs: {} };
+    const headSnap = { id: 2, ref: "to", commitHash: null, takenAt: "", indexVersion: "0", attrs: {} };
+
+    it("threads resolved violations into the cy data and adds the green border style", async () => {
+      const html = await renderHtml({
+        snapshotId: 2,
+        nodes: [
+          { id: "fixed.ts", kind: "file", name: "fixed" },
+        ],
+        edges: [],
+        checkDiff: {
+          fromSnapshot: baseSnap,
+          toSnapshot: headSnap,
+          resolved: [
+            {
+              ruleId: "max-loc",
+              severity: "error",
+              nodeId: "fixed.ts",
+              message: "loc=9000 > 500",
+            },
+          ],
+          worsened: [],
+          improved: [],
+          newCount: 0,
+          resolvedCount: 1,
+        },
+      });
+      expect(html).toContain('"resolved_count":1');
+      expect(html).toContain("resolved_count > 0");
+      expect(html).toContain("resolvedBlock");
+    });
+
+    it("marks worsened nodes and exposes trend details", async () => {
+      const html = await renderHtml({
+        snapshotId: 2,
+        nodes: [{ id: "worse.ts", kind: "file", name: "worse" }],
+        edges: [],
+        checkDiff: {
+          fromSnapshot: baseSnap,
+          toSnapshot: headSnap,
+          resolved: [],
+          worsened: [
+            {
+              violation: {
+                ruleId: "max-loc",
+                severity: "error",
+                nodeId: "worse.ts",
+                message: "loc=600 > 500",
+                value: 600,
+              },
+              before: 510,
+              after: 600,
+            },
+          ],
+          improved: [],
+          newCount: 0,
+          resolvedCount: 0,
+        },
+      });
+      expect(html).toContain('"violation_trend":"worsened"');
+      expect(html).toContain('"violationTrends"');
+      expect(html).toContain("trendsBlock");
+    });
+
+    it("prefers worsened over improved when both touch the same node", async () => {
+      const html = await renderHtml({
+        snapshotId: 2,
+        nodes: [{ id: "x.ts", kind: "file", name: "x" }],
+        edges: [],
+        checkDiff: {
+          fromSnapshot: baseSnap,
+          toSnapshot: headSnap,
+          resolved: [],
+          worsened: [
+            {
+              violation: { ruleId: "a", severity: "error", nodeId: "x.ts", message: "" },
+              before: 1,
+              after: 9,
+            },
+          ],
+          improved: [
+            {
+              violation: { ruleId: "b", severity: "error", nodeId: "x.ts", message: "" },
+              before: 9,
+              after: 1,
+            },
+          ],
+          newCount: 0,
+          resolvedCount: 0,
+        },
+      });
+      expect(html).toContain('"violation_trend":"worsened"');
+      expect(html).not.toContain('"violation_trend":"improved"');
+    });
+  });
+
   describe("check overlay", () => {
     const checkGraph: RenderInput = {
       snapshotId: 1,

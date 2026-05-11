@@ -83,10 +83,43 @@ interface CytoscapeNodeData {
   status: string;
   violation_severity?: "error" | "warning";
   violation_origin?: "new" | "carryover";
+  violation_trend?: "worsened" | "improved";
+  resolved_count?: number;
   width: number;
   height: number;
   overlay_fill?: string;
   raw: unknown;
+}
+
+interface DiffSummary {
+  resolvedByNode: Map<string, Array<{ ruleId: string; message: string }>>;
+  trendByNode: Map<string, "worsened" | "improved">;
+  trendDetailsByNode: Map<string, Array<{ ruleId: string; before: number; after: number; delta: number }>>;
+}
+
+function buildCheckDiffSummary(checkDiff: RenderInput["checkDiff"]): DiffSummary {
+  const resolvedByNode = new Map<string, Array<{ ruleId: string; message: string }>>();
+  const trendByNode = new Map<string, "worsened" | "improved">();
+  const trendDetailsByNode = new Map<string, Array<{ ruleId: string; before: number; after: number; delta: number }>>();
+  if (!checkDiff) return { resolvedByNode, trendByNode, trendDetailsByNode };
+  for (const v of checkDiff.resolved) {
+    let list = resolvedByNode.get(v.nodeId);
+    if (!list) { list = []; resolvedByNode.set(v.nodeId, list); }
+    list.push({ ruleId: v.ruleId, message: v.message });
+  }
+  for (const u of checkDiff.worsened) {
+    trendByNode.set(u.violation.nodeId, "worsened");
+    let list = trendDetailsByNode.get(u.violation.nodeId);
+    if (!list) { list = []; trendDetailsByNode.set(u.violation.nodeId, list); }
+    list.push({ ruleId: u.violation.ruleId, before: u.before, after: u.after, delta: u.after - u.before });
+  }
+  for (const u of checkDiff.improved) {
+    if (!trendByNode.has(u.violation.nodeId)) trendByNode.set(u.violation.nodeId, "improved");
+    let list = trendDetailsByNode.get(u.violation.nodeId);
+    if (!list) { list = []; trendDetailsByNode.set(u.violation.nodeId, list); }
+    list.push({ ruleId: u.violation.ruleId, before: u.before, after: u.after, delta: u.after - u.before });
+  }
+  return { resolvedByNode, trendByNode, trendDetailsByNode };
 }
 
 type ViolationsByNode = Map<
@@ -155,6 +188,7 @@ function buildCyData(
   metricsByNode: Map<string, Record<string, number>>,
   metricsBeforeByNode: Map<string, Record<string, number>>,
   violationsByNode: ViolationsByNode,
+  diffSummary: DiffSummary,
 ): {
   nodes: Array<{ data: CytoscapeNodeData; position: { x: number; y: number } }>;
   edges: Array<{ data: CytoscapeEdgeData }>;
@@ -176,6 +210,9 @@ function buildCyData(
         ? "carryover"
         : "new"
       : undefined;
+    const trend = diffSummary.trendByNode.get(n.id);
+    const resolved = diffSummary.resolvedByNode.get(n.id);
+    const trendDetails = diffSummary.trendDetailsByNode.get(n.id);
     return {
       data: {
         id: n.id,
@@ -186,6 +223,8 @@ function buildCyData(
         status,
         ...(violationSeverity ? { violation_severity: violationSeverity } : {}),
         ...(violationOrigin ? { violation_origin: violationOrigin } : {}),
+        ...(trend ? { violation_trend: trend } : {}),
+        ...(resolved && resolved.length > 0 ? { resolved_count: resolved.length } : {}),
         width: n.width,
         height: n.height,
         ...(overlayFill ? { overlay_fill: overlayFill } : {}),
@@ -198,6 +237,8 @@ function buildCyData(
             ? { metricsBefore }
             : {}),
           ...(violation ? { violations: violation.items } : {}),
+          ...(resolved ? { resolvedViolations: resolved } : {}),
+          ...(trendDetails ? { violationTrends: trendDetails } : {}),
           width: n.width,
           height: n.height,
         },
@@ -528,6 +569,7 @@ export async function renderHtml(
   const metricsByNode = metricMapFromList(input.metrics);
   const metricsBeforeByNode = metricMapFromList(input.diff?.metricsBefore);
   const violationsByNode = buildViolationsMap(input.checkResult);
+  const diffSummary = buildCheckDiffSummary(input.checkDiff);
   const cy = buildCyData(
     layout,
     input.diff,
@@ -535,6 +577,7 @@ export async function renderHtml(
     metricsByNode,
     metricsBeforeByNode,
     violationsByNode,
+    diffSummary,
   );
   const graphJson = JSON.stringify({
     snapshotId: input.snapshotId,

@@ -115,6 +115,26 @@ export function clientScript(kindColors: Record<string, string>): string {
     }).join('');
     return '<h2 style="margin-top:14px;color:#fca5a5">Violations (' + violations.length + ')</h2>' + rows;
   }
+  function resolvedBlock(resolved) {
+    if (!resolved || resolved.length === 0) return '';
+    const rows = resolved.map(function (v) {
+      return '<div class="row"><div class="k" style="color:#86efac">FIXED</div>' +
+        '<div class="v">' + escapeHtml(v.ruleId) +
+        '<div class="dim" style="font-size:11px">was: ' + escapeHtml(v.message) + '</div></div></div>';
+    }).join('');
+    return '<h2 style="margin-top:14px;color:#86efac">Resolved (' + resolved.length + ')</h2>' + rows;
+  }
+  function trendsBlock(trends) {
+    if (!trends || trends.length === 0) return '';
+    const rows = trends.map(function (t) {
+      const cls = t.delta > 0 ? 'delta-up' : 'delta-down';
+      const sign = t.delta > 0 ? '+' : '';
+      return '<div class="row"><div class="k">' + escapeHtml(t.ruleId) + '</div>' +
+        '<div class="v num">' + fmtNum(t.before) + ' → ' + fmtNum(t.after) +
+        ' <span class="' + cls + '">(' + sign + fmtNum(t.delta) + ')</span></div></div>';
+    }).join('');
+    return '<h2 style="margin-top:14px">Trend</h2>' + rows;
+  }
   function showNode(raw) {
     const nb = neighborsOf(raw.id);
     panel.innerHTML =
@@ -130,6 +150,8 @@ export function clientScript(kindColors: Record<string, string>): string {
       renderRow("Fan-out", String(nb.outbound.length), "num") +
       '<div class="actions"><a data-action="show-neighbors">Show neighbors</a></div>' +
       violationsBlock(raw.violations) +
+      trendsBlock(raw.violationTrends) +
+      resolvedBlock(raw.resolvedViolations) +
       (nb.inbound.length ? '<h2 style="margin-top:14px">Top inbound</h2>' +
         neighborListHtml(nb.inbound, 'data-neighbor') : '') +
       (nb.outbound.length ? '<h2 style="margin-top:14px">Top outbound</h2>' +
