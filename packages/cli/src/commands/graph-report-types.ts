@@ -32,4 +32,36 @@ export interface GraphReportResult {
   busFactorRisks: BusFactorRow[];
   couplingClusters: CouplingRow[];
   centralFiles: CentralRow[];
+  drift?: ReportDrift;
+}
+
+export interface HotspotDelta {
+  nodeId: string;
+  before: number;
+  after: number;
+  delta: number;
+}
+
+export interface BusFactorChange {
+  nodeId: string;
+  churn: number;
+}
+
+export interface CouplingDelta {
+  fileA: string;
+  fileB: string;
+  before: number;
+  after: number;
+}
+
+export interface ReportDrift {
+  baselineSnapshot: SnapshotRow;
+  newHotspots: HotspotRow[];
+  resolvedHotspots: HotspotRow[];
+  worsenedHotspots: HotspotDelta[];
+  improvedHotspots: HotspotDelta[];
+  newSilos: BusFactorChange[];
+  resolvedSilos: BusFactorChange[];
+  newCoupling: CouplingRow[];
+  intensifiedCoupling: CouplingDelta[];
 }

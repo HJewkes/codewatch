@@ -1,9 +1,13 @@
 import type {
+  BusFactorChange,
   BusFactorRow,
   CentralRow,
+  CouplingDelta,
   CouplingRow,
   GraphReportResult,
+  HotspotDelta,
   HotspotRow,
+  ReportDrift,
 } from "./graph-report-types.js";
 
 export function formatGraphReportMarkdown(result: GraphReportResult): string {
@@ -19,6 +23,7 @@ export function formatGraphReportMarkdown(result: GraphReportResult): string {
   pushBusFactor(lines, result.busFactorRisks);
   pushCoupling(lines, result.couplingClusters);
   pushCentral(lines, result.centralFiles);
+  if (result.drift) pushDrift(lines, result.drift);
   return lines.join("\n");
 }
 
@@ -91,3 +96,91 @@ function pushCentral(lines: string[], rows: readonly CentralRow[]): void {
   }
   lines.push("");
 }
+
+function pushDrift(lines: string[], drift: ReportDrift): void {
+  lines.push(
+    `## Drift since snapshot ${drift.baselineSnapshot.id} (${drift.baselineSnapshot.ref})`,
+  );
+  lines.push("");
+  pushDriftHotspots(lines, drift);
+  pushDriftSilos(lines, drift);
+  pushDriftCoupling(lines, drift);
+}
+
+function pushDriftHotspots(lines: string[], drift: ReportDrift): void {
+  lines.push("### Hotspots");
+  lines.push("");
+  pushList(lines, "🆕 New", drift.newHotspots.map((h) => h.nodeId));
+  pushList(lines, "✅ Resolved", drift.resolvedHotspots.map((h) => h.nodeId));
+  pushDeltaList(lines, "📈 Worsened", drift.worsenedHotspots);
+  pushDeltaList(lines, "📉 Improved", drift.improvedHotspots);
+  lines.push("");
+}
+
+function pushDriftSilos(lines: string[], drift: ReportDrift): void {
+  lines.push("### Knowledge silos");
+  lines.push("");
+  pushList(lines, "🆕 New", drift.newSilos.map((s) => s.nodeId));
+  pushList(lines, "✅ Resolved", drift.resolvedSilos.map((s) => s.nodeId));
+  lines.push("");
+}
+
+function pushDriftCoupling(lines: string[], drift: ReportDrift): void {
+  lines.push("### Coupling clusters");
+  lines.push("");
+  pushList(
+    lines,
+    "🆕 New pairs",
+    drift.newCoupling.map((c) => `${c.fileA} ↔ ${c.fileB}`),
+  );
+  pushIntensified(lines, drift.intensifiedCoupling);
+  lines.push("");
+}
+
+function pushList(
+  lines: string[],
+  label: string,
+  items: readonly string[],
+): void {
+  if (items.length === 0) {
+    lines.push(`- ${label}: _none_`);
+    return;
+  }
+  lines.push(`- ${label}:`);
+  for (const id of items) lines.push(`  - ${id}`);
+}
+
+function pushDeltaList(
+  lines: string[],
+  label: string,
+  items: readonly HotspotDelta[],
+): void {
+  if (items.length === 0) {
+    lines.push(`- ${label}: _none_`);
+    return;
+  }
+  lines.push(`- ${label}:`);
+  for (const d of items) {
+    const sign = d.delta > 0 ? "+" : "";
+    lines.push(`  - ${d.nodeId} (${d.before} → ${d.after}, ${sign}${d.delta})`);
+  }
+}
+
+function pushIntensified(
+  lines: string[],
+  items: readonly CouplingDelta[],
+): void {
+  if (items.length === 0) {
+    lines.push("- 📈 Intensified: _none_");
+    return;
+  }
+  lines.push("- 📈 Intensified:");
+  for (const c of items) {
+    lines.push(
+      `  - ${c.fileA} ↔ ${c.fileB} (${c.before} → ${c.after})`,
+    );
+  }
+}
+
+// Imported types (avoid unused-import warnings for shared types)
+export type { BusFactorChange };

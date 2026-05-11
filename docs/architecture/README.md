@@ -119,6 +119,15 @@ Sections:
 - **Tight coupling clusters** — top co-edited pairs from `graph coupled`.
 - **Most central files** — uniform-teleport PageRank, surfacing the architectural load-bearing files.
 
+Pass `--vs <ref-or-id>` to add a **Drift** section that diffs the current report against a baseline snapshot — new hotspots, resolved silos, intensified coupling, score deltas on files that show up in both. The natural "monthly debt diff."
+
+```bash
+# Compare the current snapshot against the one tagged "last-month".
+code-style graph report --db packages/.codewatch/graph.db \
+  --repo-root packages --vs last-month \
+  --out docs/architecture/health-2026-05.md
+```
+
 `--json` swaps the markdown for a structured object suitable for ingestion or diffing across snapshots.
 
 ## Bad-signal notes
