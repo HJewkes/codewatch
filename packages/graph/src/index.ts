@@ -60,6 +60,12 @@ export {
   type ComputeChurnOptions,
 } from "./churn.js";
 export { patternToRegex, compilePatterns, matchesAny } from "./patterns.js";
+export {
+  computePageRank,
+  type PageRankOptions,
+  type PageRankResult,
+  type PageRankRow,
+} from "./pagerank.js";
 export { runChecks, validateRules, type RunChecksOptions } from "./check.js";
 export {
   diffCheckResults,

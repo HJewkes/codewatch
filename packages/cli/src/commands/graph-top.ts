@@ -6,6 +6,7 @@ import {
   type NodeRole,
   type SnapshotRow,
 } from "@code-style/graph";
+import { padLeft, padRight, visualWidth } from "../utils/table.js";
 
 export interface GraphTopCommandOptions {
   db: string;
@@ -95,18 +96,6 @@ function formatValue(v: number | null, unit: string | null): string {
   const formatted =
     Number.isInteger(v) ? String(v) : v.toFixed(3).replace(/\.?0+$/, "");
   return unit ? `${formatted} ${chalk.dim(unit)}` : formatted;
-}
-
-function padLeft(s: string, n: number): string {
-  return s.length >= n ? s : " ".repeat(n - s.length) + s;
-}
-
-function padRight(s: string, n: number): string {
-  return s.length >= n ? s : s + " ".repeat(n - s.length);
-}
-
-function visualWidth(s: string): number {
-  return s.replace(/\[[0-9;]*m/g, "").length;
 }
 
 export function formatGraphTopText(result: GraphTopResult): string {

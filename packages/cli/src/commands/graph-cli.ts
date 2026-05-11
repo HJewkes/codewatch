@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import { formatError } from "../utils/output.js";
 import { registerGraphPrune } from "./graph-prune.js";
+import { registerGraphRelevant } from "./graph-relevant.js";
 import { registerGraphRenderCheckDiff } from "./graph-render-check-diff.js";
 
 function reportError(err: unknown): void {
@@ -21,6 +22,7 @@ export function registerGraphCommands(program: Command): void {
   registerCheck(graphCmd);
   registerCheckDiff(graphCmd);
   registerTop(graphCmd);
+  registerGraphRelevant(graphCmd);
   registerRenderDiff(graphCmd);
   registerRender(graphCmd);
   registerGraphRenderCheckDiff(graphCmd);

@@ -37,6 +37,28 @@ Available metrics on every snapshot: `loc`, `function_count`, `cyclomatic_max`, 
 
 Use `--exclude <pattern>` (repeatable) to drop test fixtures, configs, or any noise from the ranking. Glob: `--exclude '**/*.test.ts'`. Substring: `--exclude __tests__`.
 
+## Relevance map (Aider-style)
+
+`graph top` answers "which files have the worst numbers?" — `graph relevant` answers "given the file(s) I'm editing, which other files should I read?" The score is personalized PageRank over the import graph: teleportation concentrates on the seed nodes, and rank flows along `imports` / `re-exports` / `calls` edges, so heavily-depended-upon files reachable from the seed surface first.
+
+```bash
+# Top files most relevant to the CLI entrypoint, excluding barrels/tests.
+code-style graph relevant --db packages/.codewatch/graph.db \
+  --seed cli/src/index.ts \
+  --kind file --exclude-role test fixture barrel \
+  --limit 15
+
+# Multiple seeds via glob.
+code-style graph relevant --db packages/.codewatch/graph.db \
+  --seed 'cli/src/commands/graph-*.ts'
+
+# LLM-consumable tree, capped by token budget.
+code-style graph relevant --db packages/.codewatch/graph.db \
+  --seed cli/src/index.ts --max-tokens 800 --kind file
+```
+
+Without `--seed` the command falls back to uniform-teleport centrality — i.e. "what does the whole repo orbit around." With one or more seeds the ranking is repo-map-style: closest co-dependencies first, fading out by graph distance. `--max-tokens` swaps the table for a per-package tree, sized to fit a context budget; seeds are always excluded from the output (the LLM already has them).
+
 ## Bad-signal notes
 
 Metrics are role-blind. A few rankings are systematically misleading on this codebase and worth knowing about before acting:
