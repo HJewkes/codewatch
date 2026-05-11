@@ -61,14 +61,39 @@ describe("installHook", () => {
     await installHook(testDir, { withGraphCheck: true });
     const content = await fs.readFile(hookPath, "utf-8");
     expect(content).toContain("git diff --cached --name-only");
-    expect(content).toContain("code-style graph index . >/dev/null");
-    expect(content).toContain("code-style graph check");
+    expect(content).toContain(
+      "code-style graph index . --db .codewatch/graph.db >/dev/null",
+    );
+    expect(content).toContain("code-style graph check --db .codewatch/graph.db");
   });
 
   it("uses a custom graph path when provided", async () => {
     await installHook(testDir, { withGraphCheck: true, graphPath: "packages" });
     const content = await fs.readFile(hookPath, "utf-8");
     expect(content).toContain("code-style graph index packages");
+  });
+
+  it("passes --db to both index and check so they share a snapshot", async () => {
+    await installHook(testDir, { withGraphCheck: true, graphPath: "packages" });
+    const content = await fs.readFile(hookPath, "utf-8");
+    const indexLine = content.split("\n").find((l) => l.includes("graph index"))!;
+    const checkLine = content.split("\n").find((l) => l.includes("graph check"))!;
+    const dbOf = (line: string): string | undefined =>
+      /--db ([^\s]+)/.exec(line)?.[1];
+    expect(dbOf(indexLine)).toBe(".codewatch/graph.db");
+    expect(dbOf(checkLine)).toBe(".codewatch/graph.db");
+    expect(dbOf(indexLine)).toBe(dbOf(checkLine));
+  });
+
+  it("respects a custom dbPath", async () => {
+    await installHook(testDir, {
+      withGraphCheck: true,
+      graphPath: "packages",
+      dbPath: "tmp/graph.db",
+    });
+    const content = await fs.readFile(hookPath, "utf-8");
+    expect(content).toContain("graph index packages --db tmp/graph.db");
+    expect(content).toContain("graph check --db tmp/graph.db");
   });
 
   it("omits the style check line when withStyleCheck=false", async () => {

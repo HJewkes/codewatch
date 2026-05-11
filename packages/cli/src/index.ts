@@ -263,6 +263,10 @@ hookCmd
     "Directory to index for the graph check (default: .)",
   )
   .option(
+    "--db-path <path>",
+    "Shared db path for `graph index` and `graph check` (default: .codewatch/graph.db)",
+  )
+  .option(
     "--bin <command>",
     "CLI binary to invoke from the hook (default: code-style)",
   )
@@ -271,6 +275,7 @@ hookCmd
       withGraphCheck?: boolean;
       styleCheck?: boolean;
       graphPath?: string;
+      dbPath?: string;
       bin?: string;
     }) => {
       try {
@@ -279,6 +284,7 @@ hookCmd
           withGraphCheck: options.withGraphCheck,
           withStyleCheck: options.styleCheck,
           graphPath: options.graphPath,
+          dbPath: options.dbPath,
           bin: options.bin,
         });
         console.log(

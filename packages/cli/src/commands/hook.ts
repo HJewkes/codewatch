@@ -9,6 +9,7 @@ export interface InstallHookOptions {
   withGraphCheck?: boolean;
   withStyleCheck?: boolean;
   graphPath?: string;
+  dbPath?: string;
   bin?: string;
 }
 
@@ -63,6 +64,8 @@ export function stripBlock(content: string): string {
   return out.join("\n").replace(/\n*$/, "\n");
 }
 
+const DEFAULT_DB_PATH = ".codewatch/graph.db";
+
 function renderBlock(options: InstallHookOptions): string {
   const bin = options.bin ?? DEFAULT_BIN;
   const styleCheck = options.withStyleCheck !== false;
@@ -78,10 +81,11 @@ function renderBlock(options: InstallHookOptions): string {
   }
   if (graphCheck) {
     const target = options.graphPath ?? ".";
+    const db = options.dbPath ?? DEFAULT_DB_PATH;
     lines.push(
       `if git diff --cached --name-only | grep -qE '${TS_GLOB}'; then`,
-      `  ${bin} graph index ${target} >/dev/null || exit 1`,
-      `  ${bin} graph check || exit 1`,
+      `  ${bin} graph index ${target} --db ${db} >/dev/null || exit 1`,
+      `  ${bin} graph check --db ${db} || exit 1`,
       "fi",
     );
   }
