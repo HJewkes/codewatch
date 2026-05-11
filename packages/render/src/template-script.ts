@@ -1,103 +1,4 @@
-function cyStyles(): string {
-  return `[
-    { selector: "node", style: {
-      "background-color": "data(fill)",
-      "shape": "round-rectangle",
-      "width": "data(width)",
-      "height": "data(height)",
-      "label": "data(label)",
-      "color": "#d7dee8",
-      "font-family": "-apple-system, system-ui, sans-serif",
-      "font-size": 13,
-      "text-valign": "center",
-      "text-halign": "center",
-      "text-wrap": "ellipsis",
-      "text-max-width": 160,
-      "text-outline-color": "#0f1419",
-      "text-outline-width": 1.5,
-      "text-outline-opacity": 0.85,
-      "border-width": 1,
-      "border-color": "#2a333f",
-      "transition-property": "opacity, border-color, overlay-opacity",
-      "transition-duration": "120ms",
-      "transition-timing-function": "ease-in-out"
-    } },
-    { selector: "node[kind = 'module']", style: {
-      "opacity": 0.9,
-      "font-size": 12
-    } },
-    { selector: "node[kind = 'external']", style: {
-      "shape": "octagon",
-      "background-color": "#d97757",
-      "color": "#1a1410",
-      "text-outline-color": "#1a1410",
-      "text-outline-opacity": 0.4
-    } },
-    { selector: "node[kind = 'package']", style: {
-      "shape": "round-tag"
-    } },
-    { selector: "node:selected", style: {
-      "overlay-color": "#5eead4",
-      "overlay-padding": 6,
-      "overlay-opacity": 0.25
-    } },
-    { selector: "node[status = 'added']", style: {
-      "border-color": "#22c55e",
-      "border-width": 3
-    } },
-    { selector: "node[status = 'removed']", style: {
-      "border-color": "#ef4444",
-      "border-width": 3,
-      "border-style": "dashed",
-      "opacity": 0.55
-    } },
-    { selector: "node[status = 'renamed']", style: {
-      "border-color": "#06b6d4",
-      "border-width": 3
-    } },
-    { selector: ".faded", style: { "opacity": 0.15 } },
-    { selector: ".kind-hidden", style: { "opacity": 0.05 } },
-    { selector: ".highlight", style: {
-      "overlay-color": "#5eead4",
-      "overlay-padding": 5,
-      "overlay-opacity": 0.18
-    } },
-    { selector: "edge", style: {
-      "curve-style": "bezier",
-      "width": 1.2,
-      "line-color": "#3a4452",
-      "target-arrow-color": "#3a4452",
-      "target-arrow-shape": "triangle",
-      "arrow-scale": 0.8,
-      "opacity": 0.7,
-      "transition-property": "opacity, line-color, target-arrow-color, width",
-      "transition-duration": "120ms"
-    } },
-    { selector: "edge[kind = 're-exports']", style: {
-      "line-style": "dashed"
-    } },
-    { selector: "edge[status = 'added']", style: {
-      "line-color": "#22c55e",
-      "target-arrow-color": "#22c55e",
-      "width": 2
-    } },
-    { selector: "edge[status = 'removed']", style: {
-      "line-color": "#ef4444",
-      "target-arrow-color": "#ef4444",
-      "line-style": "dashed",
-      "width": 2,
-      "opacity": 0.6
-    } },
-    { selector: "edge.faded", style: { "opacity": 0.05 } },
-    { selector: "edge.kind-hidden", style: { "opacity": 0.05 } },
-    { selector: "edge.highlight", style: {
-      "line-color": "#5eead4",
-      "target-arrow-color": "#5eead4",
-      "width": 2.2,
-      "opacity": 1
-    } }
-  ]`;
-}
+import { cyStyles } from "./template-cy-styles.js";
 
 export function clientScript(kindColors: Record<string, string>): string {
   return `
@@ -123,6 +24,7 @@ export function clientScript(kindColors: Record<string, string>): string {
   const hiddenNodeKinds = new Set();
   const hiddenEdgeKinds = new Set();
   const hiddenStatuses = new Set();
+  const hiddenRoles = new Set();
   const STATUS_BADGE = {
     added: { color: "#22c55e", label: "added" },
     removed: { color: "#ef4444", label: "removed" },
@@ -207,6 +109,7 @@ export function clientScript(kindColors: Record<string, string>): string {
       '<div class="node-id">' + escapeHtml(raw.id) + '</div>' +
       (raw.oldId ? renderRow("was", escapeHtml(raw.oldId)) : "") +
       renderRow("kind", escapeHtml(raw.kind)) +
+      (raw.role ? renderRow("role", escapeHtml(raw.role)) : "") +
       (raw.language ? renderRow("language", escapeHtml(raw.language)) : "") +
       (raw.name ? renderRow("name", escapeHtml(raw.name)) : "") +
       (raw.parentId ? renderRow("parent", escapeHtml(raw.parentId)) : "") +
@@ -269,9 +172,11 @@ export function clientScript(kindColors: Record<string, string>): string {
   function applyKindVisibility() {
     cy.batch(function () {
       cy.nodes().forEach(function (n) {
+        const role = n.data("role");
         const hidden =
           hiddenNodeKinds.has(n.data("kind")) ||
-          hiddenStatuses.has(n.data("status"));
+          hiddenStatuses.has(n.data("status")) ||
+          (role && hiddenRoles.has(role));
         if (hidden) n.addClass("kind-hidden");
         else n.removeClass("kind-hidden");
       });
@@ -314,6 +219,17 @@ export function clientScript(kindColors: Record<string, string>): string {
           hiddenStatuses.delete(status); chip.classList.add("active"); chip.classList.remove("inactive");
         } else {
           hiddenStatuses.add(status); chip.classList.remove("active"); chip.classList.add("inactive");
+        }
+        applyKindVisibility();
+      });
+    });
+    document.querySelectorAll(".chip.role-chip").forEach(function (chip) {
+      chip.addEventListener("click", function () {
+        const role = chip.getAttribute("data-role");
+        if (hiddenRoles.has(role)) {
+          hiddenRoles.delete(role); chip.classList.add("active"); chip.classList.remove("inactive");
+        } else {
+          hiddenRoles.add(role); chip.classList.remove("active"); chip.classList.add("inactive");
         }
         applyKindVisibility();
       });

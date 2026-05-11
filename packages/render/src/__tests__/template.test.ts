@@ -113,4 +113,44 @@ describe("renderHtml", () => {
     // Old legend swatches in the footer should be gone.
     expect(html).not.toMatch(/<footer>[\s\S]*Legend:[\s\S]*<\/footer>/);
   });
+
+  describe("role overlay", () => {
+    const roleyGraph: RenderInput = {
+      snapshotId: 1,
+      nodes: [
+        { id: "a/src/foo.ts", kind: "file", name: "foo", role: "source" },
+        { id: "a/src/foo.test.ts", kind: "file", name: "foo.test", role: "test" },
+        { id: "a/src/index.ts", kind: "file", name: "index", role: "barrel" },
+        { id: "npm:lodash", kind: "external", name: "lodash" },
+      ],
+      edges: [],
+    };
+
+    it("renders a Role group in the toolbar with one chip per present role", async () => {
+      const html = await renderHtml(roleyGraph);
+      expect(html).toContain('aria-label="Role"');
+      expect(html).toContain('class="group-label">Role');
+      expect(html).toContain('data-role="source"');
+      expect(html).toContain('data-role="test"');
+      expect(html).toContain('data-role="barrel"');
+    });
+
+    it("omits the Role group entirely when no node has a role", async () => {
+      const html = await renderHtml(tinyGraph);
+      expect(html).not.toContain('aria-label="Role"');
+    });
+
+    it("threads role into the cytoscape data and side-panel scaffolding", async () => {
+      const html = await renderHtml(roleyGraph);
+      expect(html).toContain('"role":"test"');
+      expect(html).toContain('"role":"barrel"');
+      expect(html).toContain('renderRow("role"');
+    });
+
+    it("wires the role chip handler into the client script", async () => {
+      const html = await renderHtml(roleyGraph);
+      expect(html).toContain('chip.role-chip');
+      expect(html).toContain('hiddenRoles');
+    });
+  });
 });

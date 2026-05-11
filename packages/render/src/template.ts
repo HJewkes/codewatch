@@ -56,10 +56,29 @@ const STATUS_LABELS: Record<string, string> = {
   unchanged: "Unchanged",
 };
 
+const ROLE_COLORS: Record<string, string> = {
+  test: "#7e76c2",
+  fixture: "#9077a8",
+  barrel: "#7c8794",
+  types: "#3a8794",
+  config: "#a08660",
+  source: "#4a6da7",
+};
+
+const ROLE_LABELS: Record<string, string> = {
+  test: "Test",
+  fixture: "Fixture",
+  barrel: "Barrel",
+  types: "Types",
+  config: "Config",
+  source: "Source",
+};
+
 interface CytoscapeNodeData {
   id: string;
   label: string;
   kind: string;
+  role?: string;
   tooltip: string;
   status: string;
   width: number;
@@ -109,6 +128,7 @@ function buildCyData(
         id: n.id,
         label: labelForNode(n),
         kind: n.kind,
+        ...(n.role ? { role: n.role } : {}),
         tooltip: oldId ? `${oldId} → ${n.id}` : n.id,
         status,
         width: n.width,
@@ -230,6 +250,19 @@ function statusChip(status: string, count: number): string {
   });
 }
 
+function roleChip(role: string, count: number): string {
+  const color = ROLE_COLORS[role] ?? "#5eead4";
+  return chipButton({
+    cls: "role-chip",
+    attr: "data-role",
+    attrValue: role,
+    swatchHtml: `<i style="background:${color}"></i>`,
+    accent: color,
+    label: ROLE_LABELS[role] ?? role,
+    count,
+  });
+}
+
 function statusGroupHtml(diff: RenderInput["diff"], layout: LayoutResult): string {
   if (!diff) return "";
   const counts: Record<string, number> = {
@@ -247,6 +280,20 @@ function statusGroupHtml(diff: RenderInput["diff"], layout: LayoutResult): strin
     .map((s) => statusChip(s, counts[s]!))
     .join("");
   return `<div class="group" aria-label="Diff status"><span class="group-label">Status</span>${chips}</div>`;
+}
+
+function roleGroupHtml(layout: LayoutResult): string {
+  const counts = new Map<string, number>();
+  for (const n of layout.nodes) {
+    if (!n.role) continue;
+    counts.set(n.role, (counts.get(n.role) ?? 0) + 1);
+  }
+  if (counts.size === 0) return "";
+  const items = Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([role, count]) => roleChip(role, count))
+    .join("");
+  return `<div class="group" aria-label="Role"><span class="group-label">Role</span>${items}</div>`;
 }
 
 function toolbarHtml(
@@ -276,6 +323,7 @@ function toolbarHtml(
   );
   return `<div class="toolbar" role="toolbar" aria-label="Graph filters">
   ${nodeGroup}
+  ${roleGroupHtml(layout)}
   ${edgeGroup}
   ${statusGroupHtml(diff, layout)}
   <div class="spacer"></div>
