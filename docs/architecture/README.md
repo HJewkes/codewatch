@@ -33,7 +33,7 @@ code-style graph top --db packages/.codewatch/graph.db \
   --metric fan_in --kind file --limit 10
 ```
 
-Available metrics on every snapshot: `loc`, `function_count`, `cyclomatic_max`, `cyclomatic_sum`, `max_nesting_depth`, `fan_in`, `fan_out`, `instability`, `churn_30d`, `churn_30d_commits`, `churn_30d_authors` (window configurable via `--churn-window <n>` at index time).
+Available metrics on every snapshot: `loc`, `function_count`, `cyclomatic_max`, `cyclomatic_sum`, `max_nesting_depth`, `fan_in`, `fan_out`, `instability`, `churn_30d`, `churn_30d_commits`, `churn_30d_authors`, `bus_factor_30d`, `top_author_share_30d` (window configurable via `--churn-window <n>` at index time).
 
 Use `--exclude <pattern>` (repeatable) to drop test fixtures, configs, or any noise from the ranking. Glob: `--exclude '**/*.test.ts'`. Substring: `--exclude __tests__`.
 
@@ -78,6 +78,26 @@ code-style graph coupled --db packages/.codewatch/graph.db \
 ```
 
 Sweeping commits (e.g. mass renames) are clipped with `--large-commit-threshold` (default 50 files) to avoid the O(n²) pair explosion that big-bang refactors would produce. `--exclude '**/*.test.ts'` removes obvious test↔source pairs when you want pure source coupling.
+
+## Ownership & bus-factor
+
+Per-file author concentration, emitted as snapshot metrics alongside churn:
+
+- **`top_author_share_30d`** (0..1) — fraction of churn (lines added+deleted) from the single largest contributor. A value of 1.0 means one author owns the file; 0.33 means three roughly-equal contributors.
+- **`bus_factor_30d`** (count) — minimum number of authors whose combined contribution covers ≥50% of churn. `bus_factor=1` is the textbook "knowledge silo" warning sign.
+
+```bash
+# Where is the bus factor lowest? (knowledge concentration risk)
+code-style graph top --db packages/.codewatch/graph.db \
+  --metric bus_factor_30d --kind file --limit 10 \
+  --exclude-role test fixture
+
+# Single-owner files outside tests (refactor coordination signal).
+code-style graph top --db packages/.codewatch/graph.db \
+  --metric top_author_share_30d --kind file --limit 10
+```
+
+A useful rule for mature codebases: `metric-min bus_factor_30d 2` catches new files added by one author and never touched by anyone else.
 
 ## Bad-signal notes
 
