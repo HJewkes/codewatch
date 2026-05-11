@@ -18,6 +18,20 @@ const migrations: Migration[] = [
       db.exec(schema);
     },
   },
+  {
+    version: 2,
+    up: (db) => {
+      const cols = db
+        .prepare("PRAGMA table_info(node)")
+        .all() as Array<{ name: string }>;
+      if (!cols.some((c) => c.name === "role")) {
+        db.exec("ALTER TABLE node ADD COLUMN role TEXT");
+        db.exec(
+          "CREATE INDEX IF NOT EXISTS idx_node_role ON node (snapshot_id, role)",
+        );
+      }
+    },
+  },
 ];
 
 function ensureMigrationTable(db: Database.Database): void {

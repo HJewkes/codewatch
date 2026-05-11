@@ -3,6 +3,7 @@ import {
   compilePatterns,
   matchesAny,
   openDatabase,
+  type NodeRole,
   type SnapshotRow,
 } from "@code-style/graph";
 
@@ -13,6 +14,7 @@ export interface GraphTopCommandOptions {
   limit?: number;
   kind?: string;
   exclude?: string[];
+  excludeRole?: string[];
   json?: boolean;
 }
 
@@ -21,6 +23,7 @@ export interface GraphTopRow {
   nodeId: string;
   name: string;
   kind: string;
+  role: NodeRole | null;
   value: number | null;
   unit: string | null;
 }
@@ -54,7 +57,9 @@ export function runGraphTopCommand(
 
     const desired = options.limit ?? 20;
     const excluders = compilePatterns(options.exclude);
-    const oversample = excluders.length > 0 ? Math.max(desired * 4, 200) : desired;
+    const excludedRoles = new Set(options.excludeRole ?? []);
+    const filtering = excluders.length > 0 || excludedRoles.size > 0;
+    const oversample = filtering ? Math.max(desired * 4, 200) : desired;
 
     const raw = db.topByMetric({
       snapshotId: snapshot.id,
@@ -63,12 +68,17 @@ export function runGraphTopCommand(
       kind: options.kind,
     });
 
-    const filtered = raw.filter((r) => !matchesAny(r.nodeId, excluders));
+    const filtered = raw.filter(
+      (r) =>
+        !matchesAny(r.nodeId, excluders) &&
+        !(r.role && excludedRoles.has(r.role)),
+    );
     const rows: GraphTopRow[] = filtered.slice(0, desired).map((r, i) => ({
       rank: i + 1,
       nodeId: r.nodeId,
       name: r.name,
       kind: r.kind,
+      role: (r.role ?? null) as NodeRole | null,
       value: r.value,
       unit: r.unit,
     }));

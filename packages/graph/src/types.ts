@@ -16,12 +16,21 @@ export type EdgeKind =
 
 export type IdAliasReason = "rename" | "move" | "merge";
 
+export type NodeRole =
+  | "test"
+  | "fixture"
+  | "barrel"
+  | "types"
+  | "config"
+  | "source";
+
 export interface GraphNode {
   id: string;
   kind: NodeKind;
   name: string;
   parentId?: string;
   language?: string;
+  role?: NodeRole;
   attrs?: Record<string, unknown>;
 }
 
@@ -112,6 +121,7 @@ export interface MetricMaxRule {
   kind?: NodeKind;
   severity?: Severity;
   exclude?: string[];
+  excludeRoles?: NodeRole[];
 }
 
 export interface MetricMinRule {
@@ -122,6 +132,7 @@ export interface MetricMinRule {
   kind?: NodeKind;
   severity?: Severity;
   exclude?: string[];
+  excludeRoles?: NodeRole[];
 }
 
 export interface MetricProductMaxRule {
@@ -132,6 +143,7 @@ export interface MetricProductMaxRule {
   kind?: NodeKind;
   severity?: Severity;
   exclude?: string[];
+  excludeRoles?: NodeRole[];
 }
 
 export interface ForbidImportRule {

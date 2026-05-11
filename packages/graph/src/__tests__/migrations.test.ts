@@ -47,14 +47,14 @@ describe("runMigrations", () => {
     }
   });
 
-  it("records the migration in the _migration table", () => {
+  it("records every applied migration in the _migration table", () => {
     const db = new Database(dbPath);
     try {
       runMigrations(db);
       const rows = db
-        .prepare("SELECT version FROM _migration")
+        .prepare("SELECT version FROM _migration ORDER BY version")
         .all() as Array<{ version: number }>;
-      expect(rows).toEqual([{ version: 1 }]);
+      expect(rows.map((r) => r.version)).toEqual([1, 2]);
     } finally {
       db.close();
     }
@@ -67,13 +67,51 @@ describe("runMigrations", () => {
 
     const db2 = new Database(dbPath);
     try {
+      const before = (
+        db2.prepare("SELECT COUNT(*) AS n FROM _migration").get() as { n: number }
+      ).n;
       expect(() => runMigrations(db2)).not.toThrow();
-      const rows = db2
-        .prepare("SELECT COUNT(*) AS n FROM _migration")
-        .get() as { n: number };
-      expect(rows.n).toBe(1);
+      const after = (
+        db2.prepare("SELECT COUNT(*) AS n FROM _migration").get() as { n: number }
+      ).n;
+      expect(after).toBe(before);
     } finally {
       db2.close();
+    }
+  });
+
+  it("v2 adds a `role` column when upgrading a pre-role database", () => {
+    const db = new Database(dbPath);
+    try {
+      // Simulate v1 with the OLD schema (no role column).
+      db.exec(`
+        CREATE TABLE _migration (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL);
+        INSERT INTO _migration (version, applied_at) VALUES (1, '2020-01-01');
+        CREATE TABLE snapshot (
+          id INTEGER PRIMARY KEY, ref TEXT NOT NULL, commit_hash TEXT,
+          taken_at TEXT NOT NULL, index_version TEXT NOT NULL,
+          attrs JSON NOT NULL DEFAULT '{}'
+        );
+        CREATE TABLE node (
+          snapshot_id INTEGER NOT NULL REFERENCES snapshot(id),
+          id TEXT NOT NULL, kind TEXT NOT NULL, name TEXT NOT NULL,
+          parent_id TEXT, language TEXT, attrs JSON NOT NULL DEFAULT '{}',
+          PRIMARY KEY (snapshot_id, id)
+        );
+      `);
+      const before = db
+        .prepare("PRAGMA table_info(node)")
+        .all() as Array<{ name: string }>;
+      expect(before.some((c) => c.name === "role")).toBe(false);
+
+      runMigrations(db);
+
+      const after = db
+        .prepare("PRAGMA table_info(node)")
+        .all() as Array<{ name: string }>;
+      expect(after.some((c) => c.name === "role")).toBe(true);
+    } finally {
+      db.close();
     }
   });
 });

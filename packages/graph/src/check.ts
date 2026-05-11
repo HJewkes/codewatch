@@ -10,6 +10,7 @@ import type {
   MetricMaxRule,
   MetricMinRule,
   MetricProductMaxRule,
+  NodeRole,
   Severity,
 } from "./types.js";
 
@@ -56,10 +57,12 @@ function runMetricMaxRule(
   ctx: RuleContext,
 ): CheckViolation[] {
   const excluders = compilePatterns(rule.exclude);
+  const excludedRoles = new Set(rule.excludeRoles ?? []);
   const out: CheckViolation[] = [];
   for (const node of ctx.nodes) {
     if (rule.kind && node.kind !== rule.kind) continue;
     if (matchesAny(node.id, excluders)) continue;
+    if (node.role && excludedRoles.has(node.role)) continue;
     const value = ctx.metricsByNode.get(node.id)?.get(rule.metric);
     if (value === undefined) continue;
     if (value <= rule.max) continue;
@@ -81,10 +84,12 @@ function runMetricMinRule(
   ctx: RuleContext,
 ): CheckViolation[] {
   const excluders = compilePatterns(rule.exclude);
+  const excludedRoles = new Set(rule.excludeRoles ?? []);
   const out: CheckViolation[] = [];
   for (const node of ctx.nodes) {
     if (rule.kind && node.kind !== rule.kind) continue;
     if (matchesAny(node.id, excluders)) continue;
+    if (node.role && excludedRoles.has(node.role)) continue;
     const value = ctx.metricsByNode.get(node.id)?.get(rule.metric);
     if (value === undefined) continue;
     if (value >= rule.min) continue;
@@ -106,11 +111,13 @@ function runMetricProductMaxRule(
   ctx: RuleContext,
 ): CheckViolation[] {
   const excluders = compilePatterns(rule.exclude);
+  const excludedRoles = new Set(rule.excludeRoles ?? []);
   const composite = rule.metrics.join(" * ");
   const out: CheckViolation[] = [];
   for (const node of ctx.nodes) {
     if (rule.kind && node.kind !== rule.kind) continue;
     if (matchesAny(node.id, excluders)) continue;
+    if (node.role && excludedRoles.has(node.role)) continue;
     const inner = ctx.metricsByNode.get(node.id);
     if (!inner) continue;
     const components = collectComponents(rule.metrics, inner);
@@ -258,7 +265,8 @@ function assertMetricProductMax(r: Record<string, unknown>): MetricProductMaxRul
     max: r.max,
     kind: r.kind as MetricProductMaxRule["kind"],
     severity: r.severity as Severity | undefined,
-    exclude: Array.isArray(r.exclude) ? (r.exclude as string[]) : undefined,
+    exclude: parseStringArray(r.exclude),
+    excludeRoles: parseRoleArray(r.id as string, r.excludeRoles),
   };
 }
 
@@ -272,7 +280,8 @@ function assertMetricMax(r: Record<string, unknown>): MetricMaxRule {
     max: r.max,
     kind: r.kind as MetricMaxRule["kind"],
     severity: r.severity as Severity | undefined,
-    exclude: Array.isArray(r.exclude) ? (r.exclude as string[]) : undefined,
+    exclude: parseStringArray(r.exclude),
+    excludeRoles: parseRoleArray(r.id as string, r.excludeRoles),
   };
 }
 
@@ -286,8 +295,37 @@ function assertMetricMin(r: Record<string, unknown>): MetricMinRule {
     min: r.min,
     kind: r.kind as MetricMinRule["kind"],
     severity: r.severity as Severity | undefined,
-    exclude: Array.isArray(r.exclude) ? (r.exclude as string[]) : undefined,
+    exclude: parseStringArray(r.exclude),
+    excludeRoles: parseRoleArray(r.id as string, r.excludeRoles),
   };
+}
+
+function parseStringArray(value: unknown): string[] | undefined {
+  return Array.isArray(value) ? (value as string[]) : undefined;
+}
+
+const ROLE_VALUES: ReadonlySet<NodeRole> = new Set([
+  "test",
+  "fixture",
+  "barrel",
+  "types",
+  "config",
+  "source",
+]);
+
+function parseRoleArray(ruleId: string, value: unknown): NodeRole[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) {
+    throw new Error(`${ruleId}: excludeRoles must be an array`);
+  }
+  for (const entry of value) {
+    if (typeof entry !== "string" || !ROLE_VALUES.has(entry as NodeRole)) {
+      throw new Error(
+        `${ruleId}: unknown role "${entry}" — valid: ${[...ROLE_VALUES].join(", ")}`,
+      );
+    }
+  }
+  return value as NodeRole[];
 }
 
 function assertForbidImport(r: Record<string, unknown>): ForbidImportRule {

@@ -105,4 +105,31 @@ describe("GraphDatabase", () => {
     expect(db.getNode(snapshotId, "does-not-exist")).toBeNull();
     expect(db.getSnapshot(99999)).toBeNull();
   });
+
+  it("round-trips the role column on a node", () => {
+    const snapshotId = db.createSnapshot({ ref: "wd", indexVersion: "0.1.0" });
+    db.insertNode(snapshotId, {
+      id: "src/foo.test.ts",
+      kind: "file",
+      name: "foo.test",
+      role: "test",
+    });
+    db.insertNode(snapshotId, {
+      id: "src/index.ts",
+      kind: "file",
+      name: "index",
+      role: "barrel",
+    });
+    db.insertNode(snapshotId, {
+      id: "src/no-role.ts",
+      kind: "file",
+      name: "no-role",
+    });
+
+    const fetched = db.listNodes(snapshotId);
+    const byId = new Map(fetched.map((n) => [n.id, n]));
+    expect(byId.get("src/foo.test.ts")!.role).toBe("test");
+    expect(byId.get("src/index.ts")!.role).toBe("barrel");
+    expect(byId.get("src/no-role.ts")!.role).toBeUndefined();
+  });
 });

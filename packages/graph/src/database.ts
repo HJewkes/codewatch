@@ -31,6 +31,7 @@ interface NodeDbRow {
   name: string;
   parent_id: string | null;
   language: string | null;
+  role: string | null;
   attrs: string;
 }
 
@@ -72,6 +73,7 @@ function rowToNode(row: NodeDbRow): GraphNode {
     name: row.name,
     parentId: row.parent_id ?? undefined,
     language: row.language ?? undefined,
+    role: (row.role ?? undefined) as GraphNode["role"],
     attrs: JSON.parse(row.attrs) as Record<string, unknown>,
   };
 }
@@ -123,8 +125,8 @@ export class GraphDatabase {
        VALUES (@ref, @commitHash, @takenAt, @indexVersion, @attrs)`,
     );
     this.insertNodeStmt = db.prepare(
-      `INSERT INTO node (snapshot_id, id, kind, name, parent_id, language, attrs)
-       VALUES (@snapshotId, @id, @kind, @name, @parentId, @language, @attrs)`,
+      `INSERT INTO node (snapshot_id, id, kind, name, parent_id, language, role, attrs)
+       VALUES (@snapshotId, @id, @kind, @name, @parentId, @language, @role, @attrs)`,
     );
     this.insertEdgeStmt = db.prepare(
       `INSERT INTO edge (snapshot_id, src_id, dst_id, kind, attrs)
@@ -148,10 +150,10 @@ export class GraphDatabase {
       "SELECT * FROM snapshot WHERE ref = ? ORDER BY taken_at DESC LIMIT ?",
     );
     this.getNodeStmt = db.prepare(
-      "SELECT id, kind, name, parent_id, language, attrs FROM node WHERE snapshot_id = ? AND id = ?",
+      "SELECT id, kind, name, parent_id, language, role, attrs FROM node WHERE snapshot_id = ? AND id = ?",
     );
     this.listNodesStmt = db.prepare(
-      "SELECT id, kind, name, parent_id, language, attrs FROM node WHERE snapshot_id = ?",
+      "SELECT id, kind, name, parent_id, language, role, attrs FROM node WHERE snapshot_id = ?",
     );
     this.listEdgesStmt = db.prepare(
       "SELECT src_id, dst_id, kind, attrs FROM edge WHERE snapshot_id = ?",
@@ -183,6 +185,7 @@ export class GraphDatabase {
       name: node.name,
       parentId: node.parentId ?? null,
       language: node.language ?? null,
+      role: node.role ?? null,
       attrs: JSON.stringify(node.attrs ?? {}),
     });
   }
@@ -297,12 +300,13 @@ export class GraphDatabase {
     nodeId: string;
     name: string;
     kind: string;
+    role: string | null;
     value: number | null;
     unit: string | null;
   }> {
     const limit = opts.limit ?? 20;
     const sql =
-      `SELECT m.node_id, m.value, m.unit, n.kind, n.name ` +
+      `SELECT m.node_id, m.value, m.unit, n.kind, n.name, n.role ` +
       `FROM metric m JOIN node n ` +
       `ON n.snapshot_id = m.snapshot_id AND n.id = m.node_id ` +
       `WHERE m.snapshot_id = ? AND m.name = ?` +
@@ -317,11 +321,13 @@ export class GraphDatabase {
       unit: string | null;
       kind: string;
       name: string;
+      role: string | null;
     }>;
     return rows.map((r) => ({
       nodeId: r.node_id,
       name: r.name,
       kind: r.kind,
+      role: r.role,
       value: r.value,
       unit: r.unit,
     }));

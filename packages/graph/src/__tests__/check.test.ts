@@ -96,6 +96,40 @@ describe("runChecks — metric-max", () => {
     }
   });
 
+  it("respects excludeRoles", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        { id: "src/foo.ts", kind: "file", name: "foo", role: "source" },
+        { id: "src/foo.test.ts", kind: "file", name: "foo.test", role: "test" },
+        { id: "src/index.ts", kind: "file", name: "index", role: "barrel" },
+      ]);
+      db.insertMetrics(snapshotId, [
+        { nodeId: "src/foo.ts", name: "loc", value: 999 },
+        { nodeId: "src/foo.test.ts", name: "loc", value: 999 },
+        { nodeId: "src/index.ts", name: "loc", value: 999 },
+      ]);
+    });
+
+    const db = openDatabase(fixture.dbPath);
+    try {
+      const result = runChecks(db, {
+        snapshotId: fixture.snapshotId,
+        rules: [
+          {
+            type: "metric-max",
+            id: "r",
+            metric: "loc",
+            max: 100,
+            excludeRoles: ["test", "barrel"],
+          },
+        ],
+      });
+      expect(result.violations.map((v) => v.nodeId)).toEqual(["src/foo.ts"]);
+    } finally {
+      db.close();
+    }
+  });
+
   it("respects exclude patterns (glob and substring)", async () => {
     fixture = await createFixture((db, snapshotId) => {
       db.insertNodes(snapshotId, [
@@ -413,6 +447,22 @@ describe("validateRules", () => {
     expect(rules).toHaveLength(2);
     expect(rules[0]!.type).toBe("metric-max");
     expect(rules[1]!.type).toBe("forbid-import");
+  });
+
+  it("rejects unknown role values in excludeRoles", () => {
+    expect(() =>
+      validateRules({
+        rules: [
+          {
+            id: "r",
+            type: "metric-max",
+            metric: "loc",
+            max: 1,
+            excludeRoles: ["banana"],
+          },
+        ],
+      }),
+    ).toThrow(/unknown role/);
   });
 
   it("rejects metric-product-max with fewer than 2 metrics or non-string entries", () => {

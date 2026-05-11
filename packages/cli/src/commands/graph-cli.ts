@@ -159,6 +159,10 @@ function registerTop(graphCmd: Command): void {
       "--exclude <pattern...>",
       "Exclude node ids matching this glob or substring (repeatable)",
     )
+    .option(
+      "--exclude-role <role...>",
+      "Exclude nodes with this role (test, fixture, barrel, types, config; repeatable)",
+    )
     .option("--json", "Output structured JSON")
     .action(
       async (options: {
@@ -168,6 +172,7 @@ function registerTop(graphCmd: Command): void {
         limit?: string;
         kind?: string;
         exclude?: string[];
+        excludeRole?: string[];
         json?: boolean;
       }) => {
         try {
@@ -180,6 +185,7 @@ function registerTop(graphCmd: Command): void {
             limit: asNumber(options.limit),
             kind: options.kind,
             exclude: options.exclude,
+            excludeRole: options.excludeRole,
           });
           console.log(
             options.json ? formatGraphTopJson(result) : formatGraphTopText(result),

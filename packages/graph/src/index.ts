@@ -1,5 +1,6 @@
 export type {
   NodeKind,
+  NodeRole,
   EdgeKind,
   IdAliasReason,
   GraphNode,
@@ -59,3 +60,4 @@ export {
 } from "./churn.js";
 export { patternToRegex, compilePatterns, matchesAny } from "./patterns.js";
 export { runChecks, validateRules, type RunChecksOptions } from "./check.js";
+export { classifyRole, annotateRoles, ALL_ROLES } from "./roles.js";

@@ -16,12 +16,14 @@ CREATE TABLE node (
   name          TEXT NOT NULL,
   parent_id     TEXT,
   language      TEXT,
+  role          TEXT,
   attrs         JSON NOT NULL DEFAULT '{}',
   PRIMARY KEY (snapshot_id, id)
 );
 
 CREATE INDEX idx_node_kind   ON node (snapshot_id, kind);
 CREATE INDEX idx_node_parent ON node (snapshot_id, parent_id);
+CREATE INDEX idx_node_role   ON node (snapshot_id, role);
 
 CREATE TABLE edge (
   snapshot_id   INTEGER NOT NULL REFERENCES snapshot(id) ON DELETE CASCADE,

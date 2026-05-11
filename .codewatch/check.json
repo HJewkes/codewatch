@@ -1,5 +1,5 @@
 {
-  "$comment": "Architectural fitness rules for codewatch. Run with `code-style graph check`. Thresholds chosen against the post-M20 baseline — when adding a new rule, run check first and set the threshold so existing code passes; new violations should be fixed, not absorbed by raising the bar.",
+  "$comment": "Architectural fitness rules for codewatch. Run with `code-style graph check`. Thresholds chosen against the post-M20 baseline. M26: glob excludes replaced with role-based excludes — a single `excludeRoles: [\"test\", \"fixture\"]` is more semantic than `**/__tests__/**` and survives a directory rename.",
   "rules": [
     {
       "id": "max-file-loc",
@@ -7,7 +7,7 @@
       "metric": "loc",
       "kind": "file",
       "max": 500,
-      "exclude": ["**/__tests__/**", "**/fixtures/**"]
+      "excludeRoles": ["test", "fixture"]
     },
     {
       "id": "max-cyclomatic-per-function",
@@ -15,7 +15,7 @@
       "metric": "cyclomatic_max",
       "kind": "file",
       "max": 30,
-      "exclude": ["**/__tests__/**", "**/fixtures/**"]
+      "excludeRoles": ["test", "fixture"]
     },
     {
       "id": "max-nesting-depth",
@@ -23,7 +23,7 @@
       "metric": "max_nesting_depth",
       "kind": "file",
       "max": 5,
-      "exclude": ["**/__tests__/**", "**/fixtures/**"]
+      "excludeRoles": ["test", "fixture"]
     },
     {
       "id": "max-fan-out-per-file",
@@ -31,7 +31,7 @@
       "metric": "fan_out",
       "kind": "file",
       "max": 15,
-      "exclude": ["**/index.ts", "**/__tests__/**"]
+      "excludeRoles": ["barrel", "test"]
     },
     {
       "id": "render-no-cli-deps",
@@ -59,7 +59,7 @@
       "max": 1500,
       "kind": "file",
       "severity": "warning",
-      "exclude": ["**/__tests__/**", "**/fixtures/**"]
+      "excludeRoles": ["test", "fixture"]
     }
   ]
 }
