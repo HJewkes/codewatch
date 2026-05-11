@@ -229,6 +229,11 @@ export function toolbarHtml(
   ${statusGroupHtml(diff, layout)}
   ${violationGroupHtml(checkResult)}
   <div class="spacer"></div>
-  <button type="button" class="btn" id="reset-view" title="Fit graph to viewport (Esc)">Reset view</button>
+  <span class="hint" aria-hidden="true">drag to pan · scroll to zoom</span>
+  <div class="zoom-group" role="group" aria-label="Zoom controls">
+    <button type="button" class="btn zoom-btn" id="zoom-out" title="Zoom out ( − )" aria-label="Zoom out">−</button>
+    <button type="button" class="btn zoom-btn" id="zoom-in" title="Zoom in ( + )" aria-label="Zoom in">+</button>
+    <button type="button" class="btn" id="reset-view" title="Fit graph to viewport ( f / Esc )">Fit</button>
+  </div>
 </div>`;
 }

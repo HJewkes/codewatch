@@ -88,10 +88,12 @@ describe("renderHtml", () => {
     expect(html).not.toContain('data-edge-kind="re-exports"');
   });
 
-  it("includes a reset-view button in the toolbar", async () => {
+  it("includes zoom and fit controls in the toolbar", async () => {
     const html = await renderHtml(tinyGraph);
     expect(html).toContain('id="reset-view"');
-    expect(html).toContain("Reset view");
+    expect(html).toContain('id="zoom-in"');
+    expect(html).toContain('id="zoom-out"');
+    expect(html).toContain(">Fit<");
   });
 
   it("includes Fan-in/Fan-out side-panel scaffolding in the client script", async () => {

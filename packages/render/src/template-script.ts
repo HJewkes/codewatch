@@ -298,19 +298,38 @@ export function clientScript(kindColors: Record<string, string>): string {
   }
   bindChips();
 
-  const resetBtn = document.getElementById("reset-view");
-  resetBtn.addEventListener("click", function () {
+  const ZOOM_STEP = 1.25;
+  function fitToViewport() {
     cy.elements().unselect();
     clearHighlights();
     showEmpty();
     cy.fit(undefined, 50);
-  });
+  }
+  function zoomBy(factor) {
+    const next = Math.max(cy.minZoom(), Math.min(cy.maxZoom(), cy.zoom() * factor));
+    cy.animate({ zoom: { level: next, renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 } }, duration: 120 });
+  }
+  document.getElementById("reset-view").addEventListener("click", fitToViewport);
+  document.getElementById("zoom-in").addEventListener("click", function () { zoomBy(ZOOM_STEP); });
+  document.getElementById("zoom-out").addEventListener("click", function () { zoomBy(1 / ZOOM_STEP); });
+
+  function isTypingTarget(t) {
+    if (!t || !t.tagName) return false;
+    const tag = t.tagName.toUpperCase();
+    return tag === "INPUT" || tag === "TEXTAREA" || t.isContentEditable;
+  }
   document.addEventListener("keydown", function (evt) {
-    if (evt.key === "Escape") {
-      cy.elements().unselect();
-      clearHighlights();
-      showEmpty();
-      cy.fit(undefined, 50);
+    if (isTypingTarget(evt.target)) return;
+    if (evt.metaKey || evt.ctrlKey || evt.altKey) return;
+    if (evt.key === "Escape" || evt.key === "f" || evt.key === "F") {
+      fitToViewport();
+      evt.preventDefault();
+    } else if (evt.key === "+" || evt.key === "=") {
+      zoomBy(ZOOM_STEP);
+      evt.preventDefault();
+    } else if (evt.key === "-" || evt.key === "_") {
+      zoomBy(1 / ZOOM_STEP);
+      evt.preventDefault();
     }
   });
 

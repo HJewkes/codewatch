@@ -127,6 +127,25 @@ header .search:focus {
   transition: border-color 120ms ease, background 120ms ease;
 }
 .toolbar button.btn:hover { border-color: var(--accent); }
+.toolbar .zoom-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.toolbar .zoom-btn {
+  min-width: 28px;
+  padding: 4px 0;
+  font-size: 16px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.toolbar .hint {
+  color: var(--text-faint);
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  margin-right: 6px;
+  user-select: none;
+}
 main {
   display: grid;
   grid-template-columns: 1fr 320px;
