@@ -114,6 +114,75 @@ describe("renderHtml", () => {
     expect(html).not.toMatch(/<footer>[\s\S]*Legend:[\s\S]*<\/footer>/);
   });
 
+  describe("check overlay", () => {
+    const checkGraph: RenderInput = {
+      snapshotId: 1,
+      nodes: [
+        { id: "src/big.ts", kind: "file", name: "big" },
+        { id: "src/ok.ts", kind: "file", name: "ok" },
+      ],
+      edges: [],
+      checkResult: {
+        snapshotId: 1,
+        rulesEvaluated: 1,
+        nodesEvaluated: 2,
+        violations: [
+          {
+            ruleId: "max-loc",
+            severity: "error",
+            nodeId: "src/big.ts",
+            message: "loc=9000 > 500",
+            metric: "loc",
+            value: 9000,
+            threshold: 500,
+          },
+        ],
+        newErrors: 1,
+        newWarnings: 0,
+        carryoverErrors: 0,
+        carryoverWarnings: 0,
+        passed: false,
+      },
+    };
+
+    it("adds a Violations group to the toolbar with one chip per rule", async () => {
+      const html = await renderHtml(checkGraph);
+      expect(html).toContain('aria-label="Violations"');
+      expect(html).toContain('data-rule="max-loc"');
+    });
+
+    it("threads violation severity into the cy data and side-panel scaffolding", async () => {
+      const html = await renderHtml(checkGraph);
+      expect(html).toContain('"violation_severity":"error"');
+      expect(html).toContain('"violations":[');
+      expect(html).toContain('violationsBlock');
+    });
+
+    it("emits a check status badge in the header", async () => {
+      const html = await renderHtml(checkGraph);
+      expect(html).toContain("1 error(s)");
+    });
+
+    it("emits a passing badge when no violations", async () => {
+      const passing: RenderInput = {
+        ...checkGraph,
+        checkResult: {
+          ...checkGraph.checkResult!,
+          violations: [],
+          newErrors: 0,
+          passed: true,
+        },
+      };
+      const html = await renderHtml(passing);
+      expect(html).toContain("rules pass");
+    });
+
+    it("omits the Violations group entirely when no checkResult is provided", async () => {
+      const html = await renderHtml(tinyGraph);
+      expect(html).not.toContain('aria-label="Violations"');
+    });
+  });
+
   describe("role overlay", () => {
     const roleyGraph: RenderInput = {
       snapshotId: 1,

@@ -55,6 +55,22 @@ export function cyStyles(): string {
       "border-color": "#06b6d4",
       "border-width": 3
     } },
+    { selector: "node[violation_severity = 'error']", style: {
+      "overlay-color": "#ef4444",
+      "overlay-padding": 6,
+      "overlay-opacity": 0.32
+    } },
+    { selector: "node[violation_severity = 'warning']", style: {
+      "overlay-color": "#f59e0b",
+      "overlay-padding": 6,
+      "overlay-opacity": 0.28
+    } },
+    { selector: "node[violation_origin = 'carryover']", style: {
+      "overlay-opacity": 0.12
+    } },
+    { selector: "node[violation_origin = 'new']", style: {
+      "overlay-padding": 8
+    } },
     { selector: ".faded", style: { "opacity": 0.15 } },
     { selector: ".kind-hidden", style: { "opacity": 0.05 } },
     { selector: ".highlight", style: {

@@ -81,10 +81,51 @@ interface CytoscapeNodeData {
   role?: string;
   tooltip: string;
   status: string;
+  violation_severity?: "error" | "warning";
+  violation_origin?: "new" | "carryover";
   width: number;
   height: number;
   overlay_fill?: string;
   raw: unknown;
+}
+
+type ViolationsByNode = Map<
+  string,
+  {
+    error: number;
+    warning: number;
+    isCarryover: boolean;
+    items: Array<{
+      ruleId: string;
+      severity: string;
+      message: string;
+      isCarryover: boolean;
+    }>;
+  }
+>;
+
+function buildViolationsMap(
+  checkResult: RenderInput["checkResult"],
+): ViolationsByNode {
+  const out: ViolationsByNode = new Map();
+  if (!checkResult) return out;
+  for (const v of checkResult.violations) {
+    let entry = out.get(v.nodeId);
+    if (!entry) {
+      entry = { error: 0, warning: 0, isCarryover: true, items: [] };
+      out.set(v.nodeId, entry);
+    }
+    if (v.severity === "error") entry.error++;
+    else entry.warning++;
+    if (!v.isCarryover) entry.isCarryover = false;
+    entry.items.push({
+      ruleId: v.ruleId,
+      severity: v.severity,
+      message: v.message,
+      isCarryover: v.isCarryover ?? false,
+    });
+  }
+  return out;
 }
 
 interface CytoscapeEdgeData {
@@ -113,6 +154,7 @@ function buildCyData(
   fills: Map<string, string> | null,
   metricsByNode: Map<string, Record<string, number>>,
   metricsBeforeByNode: Map<string, Record<string, number>>,
+  violationsByNode: ViolationsByNode,
 ): {
   nodes: Array<{ data: CytoscapeNodeData; position: { x: number; y: number } }>;
   edges: Array<{ data: CytoscapeEdgeData }>;
@@ -123,6 +165,17 @@ function buildCyData(
     const overlayFill = fills?.get(n.id);
     const metrics = metricsByNode.get(n.id) ?? {};
     const metricsBefore = metricsBeforeByNode.get(oldId ?? n.id) ?? {};
+    const violation = violationsByNode.get(n.id);
+    const violationSeverity: "error" | "warning" | undefined = violation
+      ? violation.error > 0
+        ? "error"
+        : "warning"
+      : undefined;
+    const violationOrigin: "new" | "carryover" | undefined = violation
+      ? violation.isCarryover
+        ? "carryover"
+        : "new"
+      : undefined;
     return {
       data: {
         id: n.id,
@@ -131,6 +184,8 @@ function buildCyData(
         ...(n.role ? { role: n.role } : {}),
         tooltip: oldId ? `${oldId} → ${n.id}` : n.id,
         status,
+        ...(violationSeverity ? { violation_severity: violationSeverity } : {}),
+        ...(violationOrigin ? { violation_origin: violationOrigin } : {}),
         width: n.width,
         height: n.height,
         ...(overlayFill ? { overlay_fill: overlayFill } : {}),
@@ -142,6 +197,7 @@ function buildCyData(
           ...(Object.keys(metricsBefore).length > 0
             ? { metricsBefore }
             : {}),
+          ...(violation ? { violations: violation.items } : {}),
           width: n.width,
           height: n.height,
         },
@@ -282,6 +338,29 @@ function statusGroupHtml(diff: RenderInput["diff"], layout: LayoutResult): strin
   return `<div class="group" aria-label="Diff status"><span class="group-label">Status</span>${chips}</div>`;
 }
 
+function violationGroupHtml(checkResult: RenderInput["checkResult"]): string {
+  if (!checkResult || checkResult.violations.length === 0) return "";
+  const counts = new Map<string, number>();
+  for (const v of checkResult.violations) {
+    counts.set(v.ruleId, (counts.get(v.ruleId) ?? 0) + 1);
+  }
+  const items = Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([ruleId, count]) =>
+      chipButton({
+        cls: "violation-chip",
+        attr: "data-rule",
+        attrValue: ruleId,
+        swatchHtml: `<i style="background:#ef4444"></i>`,
+        accent: "#ef4444",
+        label: ruleId,
+        count,
+      }),
+    )
+    .join("");
+  return `<div class="group" aria-label="Violations"><span class="group-label">Violations</span>${items}</div>`;
+}
+
 function roleGroupHtml(layout: LayoutResult): string {
   const counts = new Map<string, number>();
   for (const n of layout.nodes) {
@@ -299,6 +378,7 @@ function roleGroupHtml(layout: LayoutResult): string {
 function toolbarHtml(
   layout: LayoutResult,
   diff: RenderInput["diff"],
+  checkResult: RenderInput["checkResult"],
 ): string {
   const groupHtml = (
     label: string,
@@ -326,9 +406,29 @@ function toolbarHtml(
   ${roleGroupHtml(layout)}
   ${edgeGroup}
   ${statusGroupHtml(diff, layout)}
+  ${violationGroupHtml(checkResult)}
   <div class="spacer"></div>
   <button type="button" class="btn" id="reset-view" title="Fit graph to viewport (Esc)">Reset view</button>
 </div>`;
+}
+
+function checkBadgeHtml(checkResult: RenderInput["checkResult"]): string {
+  if (!checkResult) return "";
+  const errors =
+    checkResult.newErrors + checkResult.carryoverErrors;
+  const warnings =
+    checkResult.newWarnings + checkResult.carryoverWarnings;
+  if (errors === 0 && warnings === 0) {
+    return `<span class="overlay-badge" style="background:#26543e;color:#86efac">✓ rules pass</span>`;
+  }
+  const parts: string[] = [];
+  if (errors > 0) {
+    parts.push(`<span class="overlay-badge" style="background:#5a2a2a;color:#fca5a5">${errors} error(s)</span>`);
+  }
+  if (warnings > 0) {
+    parts.push(`<span class="overlay-badge" style="background:#5a4a2a;color:#fcd34d">${warnings} warning(s)</span>`);
+  }
+  return parts.join(" ");
 }
 
 interface HtmlContext {
@@ -427,12 +527,14 @@ export async function renderHtml(
   const bundle = await loadCytoscapeBundle();
   const metricsByNode = metricMapFromList(input.metrics);
   const metricsBeforeByNode = metricMapFromList(input.diff?.metricsBefore);
+  const violationsByNode = buildViolationsMap(input.checkResult);
   const cy = buildCyData(
     layout,
     input.diff,
     overlay.fills,
     metricsByNode,
     metricsBeforeByNode,
+    violationsByNode,
   );
   const graphJson = JSON.stringify({
     snapshotId: input.snapshotId,
@@ -444,9 +546,10 @@ export async function renderHtml(
     graphJson,
     title: options.title ?? (input.diff ? "codewatch diff" : "codewatch graph"),
     subtitle: options.subtitle ?? diffSubtitle(input),
-    overlayBadge: overlayBadgeHtml(overlay),
+    overlayBadge:
+      overlayBadgeHtml(overlay) + " " + checkBadgeHtml(input.checkResult),
     diffSummary: diffSummaryHtml(input),
-    toolbar: toolbarHtml(layout, input.diff),
+    toolbar: toolbarHtml(layout, input.diff, input.checkResult),
     nodeCount: input.nodes.length,
     edgeCount: input.edges.length,
   });

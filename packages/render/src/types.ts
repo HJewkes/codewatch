@@ -1,4 +1,5 @@
 import type {
+  CheckResult,
   GraphDiffSummary,
   GraphEdge,
   GraphMetric,
@@ -25,6 +26,7 @@ export interface RenderInput {
   edges: GraphEdge[];
   metrics?: GraphMetric[];
   diff?: RenderDiffMeta;
+  checkResult?: CheckResult;
 }
 
 export interface RenderOptions {

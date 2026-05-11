@@ -291,6 +291,14 @@ function registerRender(graphCmd: Command): void {
     .option("--subtitle <string>", "Small subheading")
     .option("--size-by <metric>", "Vary node size by this metric")
     .option("--color-by <metric>", "Heat-map node fill by this metric")
+    .option(
+      "--check <path>",
+      "Run rule checks (rules JSON) and overlay violations on the rendered map",
+    )
+    .option(
+      "--baseline <ref-or-id>",
+      "Mark violations also present in this baseline as carryover (used with --check)",
+    )
     .action(
       async (options: {
         db: string;
@@ -300,6 +308,8 @@ function registerRender(graphCmd: Command): void {
         subtitle?: string;
         sizeBy?: string;
         colorBy?: string;
+        check?: string;
+        baseline?: string;
       }) => {
         try {
           const { runGraphRenderCommand, formatGraphRenderText } =
@@ -312,6 +322,8 @@ function registerRender(graphCmd: Command): void {
             subtitle: options.subtitle,
             sizeBy: options.sizeBy,
             colorBy: options.colorBy,
+            check: options.check,
+            baseline: options.baseline,
           });
           console.log(formatGraphRenderText(result));
         } catch (err) {

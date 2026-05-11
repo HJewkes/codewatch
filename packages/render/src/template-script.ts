@@ -25,6 +25,7 @@ export function clientScript(kindColors: Record<string, string>): string {
   const hiddenEdgeKinds = new Set();
   const hiddenStatuses = new Set();
   const hiddenRoles = new Set();
+  const onlyRule = { value: null };  // null=show all, string=show only nodes violating this rule
   const STATUS_BADGE = {
     added: { color: "#22c55e", label: "added" },
     removed: { color: "#ef4444", label: "removed" },
@@ -102,6 +103,18 @@ export function clientScript(kindColors: Record<string, string>): string {
     if (rows.length === 0) return '';
     return '<h2 style="margin-top:14px">Metrics</h2>' + rows.join('');
   }
+  function violationsBlock(violations) {
+    if (!violations || violations.length === 0) return '';
+    const rows = violations.map(function (v) {
+      const sev = v.severity === 'error' ? '#fca5a5' : '#fcd34d';
+      const carry = v.isCarryover ? ' <span class="dim">(carryover)</span>' : '';
+      return '<div class="row"><div class="k" style="color:' + sev + '">' +
+        escapeHtml(v.severity.toUpperCase()) + '</div>' +
+        '<div class="v">' + escapeHtml(v.ruleId) + carry +
+        '<div class="dim" style="font-size:11px">' + escapeHtml(v.message) + '</div></div></div>';
+    }).join('');
+    return '<h2 style="margin-top:14px;color:#fca5a5">Violations (' + violations.length + ')</h2>' + rows;
+  }
   function showNode(raw) {
     const nb = neighborsOf(raw.id);
     panel.innerHTML =
@@ -116,6 +129,7 @@ export function clientScript(kindColors: Record<string, string>): string {
       renderRow("Fan-in", String(nb.inbound.length), "num") +
       renderRow("Fan-out", String(nb.outbound.length), "num") +
       '<div class="actions"><a data-action="show-neighbors">Show neighbors</a></div>' +
+      violationsBlock(raw.violations) +
       (nb.inbound.length ? '<h2 style="margin-top:14px">Top inbound</h2>' +
         neighborListHtml(nb.inbound, 'data-neighbor') : '') +
       (nb.outbound.length ? '<h2 style="margin-top:14px">Top outbound</h2>' +
@@ -169,14 +183,22 @@ export function clientScript(kindColors: Record<string, string>): string {
     if (nid) selectNodeById(nid);
   });
 
+  function nodeViolatesRule(n, ruleId) {
+    const violations = (n.data("raw") || {}).violations;
+    if (!violations) return false;
+    return violations.some(function (v) { return v.ruleId === ruleId; });
+  }
   function applyKindVisibility() {
     cy.batch(function () {
       cy.nodes().forEach(function (n) {
         const role = n.data("role");
+        const ruleFilter = onlyRule.value;
+        const failsRuleFilter = ruleFilter && !nodeViolatesRule(n, ruleFilter);
         const hidden =
           hiddenNodeKinds.has(n.data("kind")) ||
           hiddenStatuses.has(n.data("status")) ||
-          (role && hiddenRoles.has(role));
+          (role && hiddenRoles.has(role)) ||
+          failsRuleFilter;
         if (hidden) n.addClass("kind-hidden");
         else n.removeClass("kind-hidden");
       });
@@ -230,6 +252,23 @@ export function clientScript(kindColors: Record<string, string>): string {
           hiddenRoles.delete(role); chip.classList.add("active"); chip.classList.remove("inactive");
         } else {
           hiddenRoles.add(role); chip.classList.remove("active"); chip.classList.add("inactive");
+        }
+        applyKindVisibility();
+      });
+    });
+    const violationChips = document.querySelectorAll(".chip.violation-chip");
+    violationChips.forEach(function (chip) {
+      chip.addEventListener("click", function () {
+        const rule = chip.getAttribute("data-rule");
+        if (onlyRule.value === rule) {
+          onlyRule.value = null;
+          violationChips.forEach(function (c) { c.classList.add("active"); c.classList.remove("inactive"); });
+        } else {
+          onlyRule.value = rule;
+          violationChips.forEach(function (c) {
+            if (c === chip) { c.classList.add("active"); c.classList.remove("inactive"); }
+            else { c.classList.remove("active"); c.classList.add("inactive"); }
+          });
         }
         applyKindVisibility();
       });
