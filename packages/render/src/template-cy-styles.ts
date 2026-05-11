@@ -34,7 +34,28 @@ export function cyStyles(): string {
       "text-outline-opacity": 0.4
     } },
     { selector: "node[kind = 'package']", style: {
-      "shape": "round-tag"
+      "shape": "round-rectangle",
+      "background-color": "#1a2230",
+      "background-opacity": 0.55,
+      "border-color": "#3a4452",
+      "border-width": 1,
+      "border-style": "solid",
+      "color": "#7c8794",
+      "font-size": 11,
+      "font-weight": 600,
+      "text-valign": "top",
+      "text-halign": "center",
+      "text-margin-y": -6,
+      "text-outline-color": "#0f1419",
+      "text-outline-width": 2,
+      "padding": 14,
+      "text-transform": "uppercase",
+      "z-compound-depth": "bottom"
+    } },
+    { selector: "node[kind = 'package'][id = 'pkg:external']", style: {
+      "background-color": "#2a1f18",
+      "border-color": "#5e3825",
+      "color": "#a3826b"
     } },
     { selector: "node:selected", style: {
       "overlay-color": "#5eead4",

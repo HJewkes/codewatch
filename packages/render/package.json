@@ -21,8 +21,11 @@
   ],
   "dependencies": {
     "@code-style/graph": "workspace:*",
+    "cose-base": "^1.0.3",
     "cytoscape": "^3.30.0",
-    "elkjs": "^0.10.0"
+    "cytoscape-cose-bilkent": "^4.1.0",
+    "elkjs": "^0.10.0",
+    "layout-base": "^1.0.2"
   },
   "devDependencies": {
     "@types/cytoscape": "^3.21.0",

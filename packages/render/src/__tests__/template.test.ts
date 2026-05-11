@@ -32,9 +32,9 @@ describe("renderHtml", () => {
     expect(html).toContain("test render");
   });
 
-  it("stays under 500 KB for the small fixture", async () => {
+  it("stays under 1 MB for the small fixture", async () => {
     const html = await renderHtml(tinyGraph);
-    expect(html.length).toBeLessThan(500 * 1024);
+    expect(html.length).toBeLessThan(1024 * 1024);
   });
 
   it("inlines the cytoscape bundle (no CDN)", async () => {
@@ -73,11 +73,11 @@ describe("renderHtml", () => {
     expect(html).toContain('role="toolbar"');
     expect(html).toContain('data-kind="file"');
     expect(html).toContain('data-kind="external"');
-    // No symbol/module/package nodes in the fixture, so no chips for them.
+    // Synthetic package containers exist as compound parents in cytoscape but
+    // the toolbar still tracks input-kinds — no chip for synth packages.
     expect(html).not.toContain('data-kind="symbol"');
     expect(html).not.toContain('data-kind="module"');
     expect(html).not.toContain('data-kind="package"');
-    // Labels and counts present.
     expect(html).toContain(">File<");
     expect(html).toContain(">External<");
   });

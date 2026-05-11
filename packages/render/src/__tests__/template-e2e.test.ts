@@ -91,7 +91,8 @@ describe("renderHtml in a real browser", () => {
 
     expect(pageErrors).toEqual([]);
     expect(consoleErrors).toEqual([]);
-    expect(cyState.nodeCount).toBe(fixture.nodes.length);
+    // Output may include synthetic `pkg:*` compound parents on top of input.
+    expect(cyState.nodeCount).toBeGreaterThanOrEqual(fixture.nodes.length);
     expect(cyState.edgeCount).toBe(fixture.edges.length);
     expect(cyState.canvasCount).toBeGreaterThan(0);
     expect(cyState.danglingCount).toBe(0);

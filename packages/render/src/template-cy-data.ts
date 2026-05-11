@@ -6,6 +6,7 @@ interface CytoscapeNodeData {
   label: string;
   kind: string;
   role?: string;
+  parent?: string;
   tooltip: string;
   status: string;
   violation_severity?: "error" | "warning";
@@ -16,6 +17,55 @@ interface CytoscapeNodeData {
   height: number;
   overlay_fill?: string;
   raw: unknown;
+}
+
+export const EXTERNAL_PARENT_ID = "pkg:external";
+
+function packageFromInternalId(id: string): string | undefined {
+  const first = id.split("/")[0];
+  return first ? `pkg:${first}` : undefined;
+}
+
+function packageIdFor(node: { id: string; kind: string }): string | undefined {
+  if (node.kind === "external") return EXTERNAL_PARENT_ID;
+  if (node.kind === "package") return undefined;
+  return packageFromInternalId(node.id);
+}
+
+function packageLabelFor(pkgId: string): string {
+  if (pkgId === EXTERNAL_PARENT_ID) return "external deps";
+  return pkgId.replace(/^pkg:/, "");
+}
+
+function packageEntry(pkg: string): { data: CytoscapeNodeData } {
+  // Width/height are hints for non-compound layout; cytoscape sizes compound
+  // parents by their children's bounding box regardless.
+  return {
+    data: {
+      id: pkg,
+      label: packageLabelFor(pkg),
+      kind: "package",
+      tooltip: pkg,
+      status: "unchanged",
+      width: 180,
+      height: 48,
+      raw: { id: pkg, kind: "package", name: packageLabelFor(pkg) },
+    },
+  };
+}
+
+function synthesizePackageEntries(
+  layout: LayoutResult,
+): Array<{ data: CytoscapeNodeData }> {
+  const seen = new Set<string>();
+  const out: Array<{ data: CytoscapeNodeData }> = [];
+  layout.nodes.forEach((n) => {
+    const pkg = packageIdFor(n);
+    if (!pkg || seen.has(pkg)) return;
+    seen.add(pkg);
+    out.push(packageEntry(pkg));
+  });
+  return out;
 }
 
 interface CytoscapeEdgeData {
@@ -145,6 +195,10 @@ function roleField(role: string | undefined): { role?: string } {
   return role ? { role } : {};
 }
 
+function parentField(parentPkg: string | undefined): { parent?: string } {
+  return parentPkg ? { parent: parentPkg } : {};
+}
+
 function overlayFillField(fill: string | undefined): { overlay_fill?: string } {
   return fill ? { overlay_fill: fill } : {};
 }
@@ -168,6 +222,7 @@ function buildNodeEntry(
       label: labelForNode(n),
       kind: n.kind,
       ...roleField(n.role),
+      ...parentField(packageIdFor(n)),
       tooltip: tooltipFor(n.id, oldId),
       status,
       ...violationFields(violation, trend, resolved),
@@ -218,8 +273,10 @@ export function buildCyData(
   const ctx: NodeAssemblyContext = {
     diff, fills, metricsByNode, metricsBeforeByNode, violationsByNode, diffSummary,
   };
+  const packageEntries = synthesizePackageEntries(layout);
+  const nodeEntries = layout.nodes.map((n) => buildNodeEntry(n, ctx));
   return {
-    nodes: layout.nodes.map((n) => buildNodeEntry(n, ctx)),
+    nodes: [...packageEntries, ...nodeEntries],
     edges: layout.edges.map((e, i) => buildEdgeEntry(e, i, diff)),
   };
 }

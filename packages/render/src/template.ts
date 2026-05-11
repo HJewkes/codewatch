@@ -4,6 +4,7 @@ import { computeLayout } from "./layout.js";
 import { computeOverlays, type OverlayResult } from "./overlay.js";
 import { inlineStyles } from "./template-styles.js";
 import { clientScript } from "./template-script.js";
+import { loadLayoutBundles, type LayoutBundles } from "./template-layout-bundles.js";
 import { KIND_COLORS, escapeHtml, toolbarHtml } from "./template-toolbar.js";
 import {
   buildCheckDiffSummary,
@@ -27,6 +28,7 @@ async function loadCytoscapeBundle(): Promise<string> {
 
 interface HtmlContext {
   bundle: string;
+  layoutBundles: LayoutBundles;
   graphJson: string;
   title: string;
   subtitle: string;
@@ -61,6 +63,9 @@ ${ctx.toolbar}
 </main>
 <footer>${ctx.nodeCount} nodes · ${ctx.edgeCount} edges · rendered with cytoscape.js</footer>
 <script>${ctx.bundle}</script>
+<script>${ctx.layoutBundles.layoutBase}</script>
+<script>${ctx.layoutBundles.coseBase}</script>
+<script>${ctx.layoutBundles.coseBilkent}</script>
 <script>window.__GRAPH__ = ${escapeForScript(ctx.graphJson)};</script>
 <script>${clientScript(KIND_COLORS)}</script>
 </body>
@@ -118,7 +123,10 @@ export async function renderHtml(
     colorBy: options.colorBy,
   });
   const layout = await computeLayout(input, overlay.sizing);
-  const bundle = await loadCytoscapeBundle();
+  const [bundle, layoutBundles] = await Promise.all([
+    loadCytoscapeBundle(),
+    loadLayoutBundles(),
+  ]);
   const metricsByNode = metricMapFromList(input.metrics);
   const metricsBeforeByNode = metricMapFromList(input.diff?.metricsBefore);
   const violationsByNode = buildViolationsMap(input.checkResult);
@@ -139,6 +147,7 @@ export async function renderHtml(
   });
   return buildHtml({
     bundle,
+    layoutBundles,
     graphJson,
     title: options.title ?? (input.diff ? "codewatch diff" : "codewatch graph"),
     subtitle: options.subtitle ?? diffSubtitle(input),
