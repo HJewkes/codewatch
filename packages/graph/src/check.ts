@@ -7,6 +7,7 @@ import type {
   ForbidImportRule,
   GraphEdge,
   GraphNode,
+  LayeredDepsRule,
   MetricMaxRule,
   MetricMinRule,
   MetricProductMaxRule,
@@ -154,6 +155,39 @@ function collectComponents(
   return out;
 }
 
+function runLayeredDepsRule(
+  rule: LayeredDepsRule,
+  ctx: RuleContext,
+): CheckViolation[] {
+  const packageLayer = new Map<string, number>();
+  for (let i = 0; i < rule.layers.length; i++) {
+    for (const pkg of rule.layers[i]!) packageLayer.set(pkg, i);
+  }
+  const out: CheckViolation[] = [];
+  for (const edge of ctx.edges) {
+    if (edge.kind !== "imports" && edge.kind !== "re-exports") continue;
+    const srcPkg = packageHead(edge.srcId);
+    const dstPkg = packageHead(edge.dstId);
+    const srcLayer = packageLayer.get(srcPkg);
+    const dstLayer = packageLayer.get(dstPkg);
+    if (srcLayer === undefined || dstLayer === undefined) continue;
+    if (srcLayer >= dstLayer) continue;
+    out.push({
+      ruleId: rule.id,
+      severity: severityOf(rule),
+      nodeId: edge.srcId,
+      destinationId: edge.dstId,
+      message: `${srcPkg} (layer ${srcLayer}) imports ${dstPkg} (layer ${dstLayer})`,
+    });
+  }
+  return out;
+}
+
+function packageHead(id: string): string {
+  const slash = id.indexOf("/");
+  return slash < 0 ? id : id.slice(0, slash);
+}
+
 function runForbidImportRule(
   rule: ForbidImportRule,
   ctx: RuleContext,
@@ -186,6 +220,8 @@ function runRule(rule: CheckRule, ctx: RuleContext): CheckViolation[] {
       return runMetricProductMaxRule(rule, ctx);
     case "forbid-import":
       return runForbidImportRule(rule, ctx);
+    case "layered-deps":
+      return runLayeredDepsRule(rule, ctx);
   }
 }
 
@@ -301,9 +337,40 @@ function validateRule(raw: unknown, index: number): CheckRule {
       return assertMetricProductMax(r);
     case "forbid-import":
       return assertForbidImport(r);
+    case "layered-deps":
+      return assertLayeredDeps(r);
     default:
       throw new Error(`rule[${index}] (${r.id}) unknown type "${r.type}"`);
   }
+}
+
+function assertLayeredDeps(r: Record<string, unknown>): LayeredDepsRule {
+  if (!Array.isArray(r.layers) || r.layers.length < 2) {
+    throw new Error(`${r.id}: layers must be an array of 2+ string arrays`);
+  }
+  for (const layer of r.layers) {
+    if (!Array.isArray(layer) || !layer.every((p) => typeof p === "string")) {
+      throw new Error(`${r.id}: each layer must be a string[]`);
+    }
+    if (layer.length === 0) {
+      throw new Error(`${r.id}: empty layers not allowed`);
+    }
+  }
+  const seen = new Set<string>();
+  for (const layer of r.layers as string[][]) {
+    for (const pkg of layer) {
+      if (seen.has(pkg)) {
+        throw new Error(`${r.id}: package "${pkg}" appears in more than one layer`);
+      }
+      seen.add(pkg);
+    }
+  }
+  return {
+    type: "layered-deps",
+    id: r.id as string,
+    layers: r.layers as string[][],
+    severity: r.severity as Severity | undefined,
+  };
 }
 
 function assertMetricProductMax(r: Record<string, unknown>): MetricProductMaxRule {

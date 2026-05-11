@@ -424,6 +424,120 @@ describe("runChecks — forbid-import", () => {
   });
 });
 
+describe("runChecks — layered-deps", () => {
+  let fixture: Fixture;
+  afterEach(async () => {
+    if (fixture) await fs.rm(fixture.dir, { recursive: true, force: true });
+  });
+
+  const layers: string[][] = [
+    ["core"],
+    ["analyzer", "graph"],
+    ["render"],
+    ["cli"],
+  ];
+
+  it("flags low-layer importing high-layer", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        { id: "core/foo.ts", kind: "file", name: "" },
+        { id: "cli/bar.ts", kind: "file", name: "" },
+      ]);
+      db.insertEdge(snapshotId, {
+        srcId: "core/foo.ts",
+        dstId: "cli/bar.ts",
+        kind: "imports",
+      });
+    });
+    const db = openDatabase(fixture.dbPath);
+    try {
+      const result = runChecks(db, {
+        snapshotId: fixture.snapshotId,
+        rules: [{ id: "layers", type: "layered-deps", layers }],
+      });
+      expect(result.violations).toHaveLength(1);
+      expect(result.violations[0]!.nodeId).toBe("core/foo.ts");
+      expect(result.violations[0]!.destinationId).toBe("cli/bar.ts");
+      expect(result.violations[0]!.message).toContain("layer 0");
+      expect(result.violations[0]!.message).toContain("layer 3");
+    } finally {
+      db.close();
+    }
+  });
+
+  it("allows same-layer cross-package imports", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        { id: "analyzer/a.ts", kind: "file", name: "" },
+        { id: "graph/b.ts", kind: "file", name: "" },
+      ]);
+      db.insertEdge(snapshotId, {
+        srcId: "analyzer/a.ts",
+        dstId: "graph/b.ts",
+        kind: "imports",
+      });
+    });
+    const db = openDatabase(fixture.dbPath);
+    try {
+      const result = runChecks(db, {
+        snapshotId: fixture.snapshotId,
+        rules: [{ id: "layers", type: "layered-deps", layers }],
+      });
+      expect(result.violations).toEqual([]);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("allows high-layer importing low-layer (normal direction)", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        { id: "cli/a.ts", kind: "file", name: "" },
+        { id: "core/b.ts", kind: "file", name: "" },
+      ]);
+      db.insertEdge(snapshotId, {
+        srcId: "cli/a.ts",
+        dstId: "core/b.ts",
+        kind: "imports",
+      });
+    });
+    const db = openDatabase(fixture.dbPath);
+    try {
+      const result = runChecks(db, {
+        snapshotId: fixture.snapshotId,
+        rules: [{ id: "layers", type: "layered-deps", layers }],
+      });
+      expect(result.violations).toEqual([]);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("skips edges where either side is not in any layer (externals, etc.)", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        { id: "core/foo.ts", kind: "file", name: "" },
+        { id: "npm:lodash", kind: "external", name: "lodash" },
+      ]);
+      db.insertEdge(snapshotId, {
+        srcId: "core/foo.ts",
+        dstId: "npm:lodash",
+        kind: "imports",
+      });
+    });
+    const db = openDatabase(fixture.dbPath);
+    try {
+      const result = runChecks(db, {
+        snapshotId: fixture.snapshotId,
+        rules: [{ id: "layers", type: "layered-deps", layers }],
+      });
+      expect(result.violations).toEqual([]);
+    } finally {
+      db.close();
+    }
+  });
+});
+
 describe("runChecks — baseline", () => {
   let fixture: Fixture;
 
@@ -619,6 +733,28 @@ describe("validateRules", () => {
     expect(rules).toHaveLength(2);
     expect(rules[0]!.type).toBe("metric-max");
     expect(rules[1]!.type).toBe("forbid-import");
+  });
+
+  it("rejects layered-deps with fewer than 2 layers", () => {
+    expect(() =>
+      validateRules({
+        rules: [{ id: "r", type: "layered-deps", layers: [["core"]] }],
+      }),
+    ).toThrow(/2\+/);
+  });
+
+  it("rejects layered-deps with a package in multiple layers", () => {
+    expect(() =>
+      validateRules({
+        rules: [
+          {
+            id: "r",
+            type: "layered-deps",
+            layers: [["core"], ["analyzer", "core"]],
+          },
+        ],
+      }),
+    ).toThrow(/"core" appears in more than one layer/);
   });
 
   it("rejects unknown role values in excludeRoles", () => {

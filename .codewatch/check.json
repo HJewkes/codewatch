@@ -35,22 +35,15 @@
       "excludeRoles": ["barrel", "test"]
     },
     {
-      "id": "render-no-cli-deps",
-      "type": "forbid-import",
-      "from": "render/**",
-      "to": "cli/**"
-    },
-    {
-      "id": "graph-no-cli-deps",
-      "type": "forbid-import",
-      "from": "graph/**",
-      "to": "cli/**"
-    },
-    {
-      "id": "core-no-downstream-deps",
-      "type": "forbid-import",
-      "from": "core/**",
-      "to": "analyzer/**"
+      "$comment": "Replaces three former forbid-import rules (render→cli, graph→cli, core→analyzer) with one declarative layer spec. New packages added to the wrong layer fail automatically without anyone remembering to add a rule.",
+      "id": "package-layers",
+      "type": "layered-deps",
+      "layers": [
+        ["core"],
+        ["analyzer", "graph", "profile"],
+        ["checker", "render"],
+        ["cli"]
+      ]
     },
     {
       "$comment": "Textbook scary-hotspot signal: high churn × high branching = the riskiest file to touch. Promoted to error in M27 — baseline mode means existing hotspots are carryover, so this only fails PRs that *worsen* the count. Run with --baseline main in CI; without baseline this rule will fail on existing files.",

@@ -154,11 +154,19 @@ export interface ForbidImportRule {
   severity?: Severity;
 }
 
+export interface LayeredDepsRule {
+  type: "layered-deps";
+  id: string;
+  layers: string[][];
+  severity?: Severity;
+}
+
 export type CheckRule =
   | MetricMaxRule
   | MetricMinRule
   | MetricProductMaxRule
-  | ForbidImportRule;
+  | ForbidImportRule
+  | LayeredDepsRule;
 
 export interface CheckRulesFile {
   rules: CheckRule[];
