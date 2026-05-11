@@ -24,6 +24,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r build
       - run: pnpm -r typecheck
+      - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test
       - name: Architectural fitness check
         env:
