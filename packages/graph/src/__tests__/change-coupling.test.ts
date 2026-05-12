@@ -11,15 +11,16 @@ function entry(commit: string, filePath: string): ChurnEntry {
 
 describe("computeChangeCoupling", () => {
   it("returns no pairs when no commits touch >=2 files", () => {
-    const pairs = computeChangeCoupling([
+    const { pairs, skippedLargeCommits } = computeChangeCoupling([
       entry("c1", "a.ts"),
       entry("c2", "b.ts"),
     ]);
     expect(pairs).toEqual([]);
+    expect(skippedLargeCommits).toBe(0);
   });
 
   it("counts each commit that touched both files in a pair", () => {
-    const pairs = computeChangeCoupling([
+    const { pairs } = computeChangeCoupling([
       entry("c1", "a.ts"),
       entry("c1", "b.ts"),
       entry("c2", "a.ts"),
@@ -34,7 +35,7 @@ describe("computeChangeCoupling", () => {
 
   it("dedupes per-commit file mentions", () => {
     // Same file appears twice in one commit (e.g. multiple hunks).
-    const pairs = computeChangeCoupling(
+    const { pairs } = computeChangeCoupling(
       [
         entry("c1", "a.ts"),
         entry("c1", "a.ts"),
@@ -57,10 +58,39 @@ describe("computeChangeCoupling", () => {
     entries.push(entry("c1", "a.ts"), entry("c1", "b.ts"));
     entries.push(entry("c2", "a.ts"), entry("c2", "b.ts"));
 
-    const pairs = computeChangeCoupling(entries, { largeCommitThreshold: 4 });
+    const { pairs } = computeChangeCoupling(entries, {
+      largeCommitThreshold: 4,
+    });
     expect(pairs).toHaveLength(1);
     expect(pairs[0]).toMatchObject({ fileA: "a.ts", fileB: "b.ts", count: 2 });
     expect(pairs[0]!.commits).toEqual(["c1", "c2"]);
+  });
+
+  it("reports skippedLargeCommits count for over-threshold commits", () => {
+    const entries: ChurnEntry[] = [];
+    // Two sweeping 5-file commits — both skipped at threshold 4.
+    for (const f of ["a.ts", "b.ts", "c.ts", "d.ts", "e.ts"]) {
+      entries.push(entry("sweep1", f));
+      entries.push(entry("sweep2", f));
+    }
+    // A 3-file commit that fits under the threshold.
+    entries.push(entry("normal", "x.ts"), entry("normal", "y.ts"), entry("normal", "z.ts"));
+    // A single-file commit (won't pair, won't count as skipped either).
+    entries.push(entry("solo", "a.ts"));
+
+    const result = computeChangeCoupling(entries, { largeCommitThreshold: 4 });
+    expect(result.skippedLargeCommits).toBe(2);
+    expect(result.largeCommitThreshold).toBe(4);
+  });
+
+  it("uses the default threshold when none is provided", () => {
+    const entries: ChurnEntry[] = [];
+    for (let i = 0; i < 60; i++) {
+      entries.push(entry("big", `file${i}.ts`));
+    }
+    const result = computeChangeCoupling(entries);
+    expect(result.skippedLargeCommits).toBe(1);
+    expect(result.largeCommitThreshold).toBe(50);
   });
 
   it("respects --min-count threshold", () => {
@@ -74,8 +104,10 @@ describe("computeChangeCoupling", () => {
     ];
     const lowBar = computeChangeCoupling(entries, { minCount: 1 });
     const strict = computeChangeCoupling(entries, { minCount: 2 });
-    expect(lowBar.length).toBeGreaterThan(strict.length);
-    expect(strict.map((p) => `${p.fileA}|${p.fileB}`)).toEqual(["a.ts|b.ts"]);
+    expect(lowBar.pairs.length).toBeGreaterThan(strict.pairs.length);
+    expect(strict.pairs.map((p) => `${p.fileA}|${p.fileB}`)).toEqual([
+      "a.ts|b.ts",
+    ]);
   });
 
   it("truncates commits sample at maxCommitsPerPair", () => {
@@ -83,7 +115,7 @@ describe("computeChangeCoupling", () => {
     for (let i = 1; i <= 6; i++) {
       entries.push(entry(`c${i}`, "a.ts"), entry(`c${i}`, "b.ts"));
     }
-    const pairs = computeChangeCoupling(entries, {
+    const { pairs } = computeChangeCoupling(entries, {
       minCount: 2,
       maxCommitsPerPair: 3,
     });
@@ -92,7 +124,7 @@ describe("computeChangeCoupling", () => {
   });
 
   it("filters by knownFileIds", () => {
-    const pairs = computeChangeCoupling(
+    const { pairs } = computeChangeCoupling(
       [
         entry("c1", "a.ts"),
         entry("c1", "b.ts"),
@@ -119,7 +151,7 @@ describe("computeChangeCoupling", () => {
       entry("c5", "x.ts"),
       entry("x.ts", "y.ts"),
     ];
-    const pairs = computeChangeCoupling(entries);
+    const { pairs } = computeChangeCoupling(entries);
     expect(pairs.slice(0, 2).map((p) => `${p.fileA}|${p.fileB}`)).toEqual([
       "a.ts|b.ts",
       "c.ts|d.ts",

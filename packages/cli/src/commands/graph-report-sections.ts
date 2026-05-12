@@ -146,7 +146,7 @@ export function topCouplingClusters(
     knownFileIds: collectKeptFileIds(ctx),
   });
   if (entries === null) return [];
-  const pairs = computeChangeCoupling(entries, { minCount: 2 });
+  const { pairs } = computeChangeCoupling(entries, { minCount: 2 });
   const filtered = pairs.filter(
     (p) => keepNode(ctx, p.fileA) && keepNode(ctx, p.fileB),
   );
