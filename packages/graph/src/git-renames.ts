@@ -24,6 +24,10 @@ export function isInsideGitRepo(repoRoot: string): boolean {
   return runGit(repoRoot, ["rev-parse", "--is-inside-work-tree"]) === "true";
 }
 
+export function detectGitToplevel(cwd: string): string | null {
+  return runGit(cwd, ["rev-parse", "--show-toplevel"]);
+}
+
 export function detectRenames(
   options: DetectRenamesOptions,
 ): RenamePair[] {

@@ -7,7 +7,7 @@ import {
   type GraphMetric,
   type SnapshotRow,
 } from "@code-style/graph";
-import { formatError } from "../utils/output.js";
+import { formatError, snapshotVersionMismatchWarning } from "../utils/output.js";
 import { computeReportDrift } from "./graph-report-drift.js";
 import {
   formatGraphReportJson,
@@ -105,6 +105,13 @@ function computeDrift(
 ): GraphReportResult["drift"] {
   const baselineSnapshot = resolveSnapshot(db, options.vs!);
   if (baselineSnapshot.id === current.snapshot.id) return undefined;
+
+  const warning = snapshotVersionMismatchWarning(
+    current.snapshot.indexVersion,
+    baselineSnapshot.indexVersion,
+    "graph report --vs",
+  );
+  if (warning) console.warn(warning);
 
   const baseNodes = db.listNodes(baselineSnapshot.id);
   const baseMetrics = db.listMetrics(baselineSnapshot.id);

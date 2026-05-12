@@ -123,7 +123,9 @@ Pass `--vs <ref-or-id>` to add a **Drift** section that diffs the current report
 
 Resolved vs Displaced: a hotspot is **Resolved** only when its current score actually dropped (or the file is gone); if it just fell off the top-N because newer files outranked it, it's flagged **Displaced** instead. Same for silos — **Resolved** means `bus_factor` cleared (got a second contributor) or the file had no churn in the window; **Displaced** means it's still single-owner with lower churn.
 
-Drift comparisons assume both snapshots were indexed by the same `code-style` version. Comparing across a metrics change (e.g., before/after the addition of `cognitive_max` or `-M`-aware churn) will produce misleading deltas — re-index the baseline if needed.
+Drift comparisons assume both snapshots were indexed by the same `code-style` version. Comparing across a metrics change (e.g., before/after the addition of `cognitive_max` or `-M`-aware churn) will produce misleading deltas — re-index the baseline if needed. `graph report --vs` and `graph check --baseline` will emit a stderr warning when the two snapshots' index versions differ.
+
+As of indexer 0.2.0, node IDs are rooted at the git toplevel regardless of where you invoke the indexer from — `code-style graph index ./packages` and `code-style graph index .` produce the same IDs for files they both cover. Snapshots produced by 0.1.0 used scan-root-relative IDs and are not directly comparable; the version warning catches this case.
 
 ```bash
 # Compare the current snapshot against the one tagged "last-month".
