@@ -97,6 +97,26 @@ describe("computeOwnershipMetrics", () => {
     expect(metrics).toEqual([]);
   });
 
+  it("counts unique author identities by email for bus_factor", () => {
+    // ChurnEntry.author holds git's %ae (email). Real repos have spelling
+    // drift on display names ("Henry Jewkes" vs "hjewkes" vs bot variants),
+    // but the email stays stable — so 5 commits from alice@ and 2 from bob@
+    // should resolve to exactly 2 distinct authors regardless of name churn.
+    const entries: ChurnEntry[] = [
+      ...Array.from({ length: 5 }, (_, i) =>
+        entry(`a${i}`, "alice@example.com", "f.ts", 10),
+      ),
+      ...Array.from({ length: 2 }, (_, i) =>
+        entry(`b${i}`, "bob@example.com", "f.ts", 10),
+      ),
+    ];
+    const metrics = computeOwnershipMetrics(entries, {
+      busFactorThreshold: 0.99,
+    });
+    // alice: 50 lines, bob: 20. Threshold 0.99 forces both to be counted.
+    expect(findMetric(metrics, "f.ts", "bus_factor_30d")).toBe(2);
+  });
+
   it("rounds top_author_share to 3 decimals", () => {
     // 1/3 = 0.3333… → 0.333
     const metrics = computeOwnershipMetrics([

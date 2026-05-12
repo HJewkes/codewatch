@@ -6,6 +6,7 @@ import type { GraphMetric } from "./types.js";
 
 export interface ChurnEntry {
   commit: string;
+  /** Author identity — git author email (%ae); stable across name spelling drift. */
   author: string;
   filePath: string;
   added: number;
@@ -164,7 +165,10 @@ function runGitLog(repoRoot: string, windowDays: number): string | null {
         "--no-merges",
         "--numstat",
         "-M",
-        "--pretty=format:%H%x09%an",
+        // %ae (author email) is a more stable identity than %an (display name):
+        // names drift across spelling variants ("Henry Jewkes" / "hjewkes" /
+        // bot or squash-merge display names) and inflate distinct-author counts.
+        "--pretty=format:%H%x09%ae",
       ],
       {
         cwd: repoRoot,
