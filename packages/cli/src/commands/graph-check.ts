@@ -10,6 +10,7 @@ import {
   type GraphDatabase,
   type SnapshotRow,
 } from "@code-style/graph";
+import { snapshotVersionMismatchWarning } from "../utils/output.js";
 
 export interface GraphCheckCommandOptions {
   db: string;
@@ -44,6 +45,14 @@ export async function runGraphCheckCommand(
     const baselineSnapshot = options.baseline
       ? resolveSnapshot(db, options.baseline, "--baseline", snapshot.id)
       : undefined;
+    if (baselineSnapshot) {
+      const warning = snapshotVersionMismatchWarning(
+        snapshot.indexVersion,
+        baselineSnapshot.indexVersion,
+        "graph check --baseline",
+      );
+      if (warning) console.warn(warning);
+    }
     const result = runChecks(db, {
       snapshotId: snapshot.id,
       rules,

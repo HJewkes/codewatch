@@ -46,3 +46,23 @@ export function formatHeader(text: string): string {
 export function formatDim(text: string): string {
   return chalk.dim(text);
 }
+
+/**
+ * Returns a warning string when two snapshots were produced by different
+ * indexer versions, since cross-version comparisons can be misleading (node
+ * IDs, metric definitions, or scoring may have shifted). Returns null when
+ * the versions match. Callers route the result to console.warn / stderr.
+ */
+export function snapshotVersionMismatchWarning(
+  currentVersion: string,
+  baselineVersion: string,
+  context: string,
+): string | null {
+  if (currentVersion === baselineVersion) return null;
+  return formatWarning(
+    `${context}: indexer version mismatch ` +
+      `(current ${currentVersion} vs baseline ${baselineVersion}). ` +
+      "Node IDs or metric definitions may have changed between versions — " +
+      "re-index the baseline if the comparison looks off.",
+  );
+}
