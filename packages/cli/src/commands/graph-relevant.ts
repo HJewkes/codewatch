@@ -1,5 +1,4 @@
 import type { Command } from "commander";
-import chalk from "chalk";
 import {
   compilePatterns,
   computePageRank,
@@ -10,7 +9,17 @@ import {
   type SnapshotRow,
 } from "@code-style/graph";
 import { formatError } from "../utils/output.js";
-import { padLeft, padRight, visualWidth } from "../utils/table.js";
+import {
+  buildExplanations,
+  type RelevantAuthor,
+  type RelevantVia,
+} from "./graph-relevant-explain.js";
+import {
+  formatGraphRelevantJson,
+  formatGraphRelevantText,
+} from "./graph-relevant-format.js";
+
+export { formatGraphRelevantJson, formatGraphRelevantText };
 
 export interface GraphRelevantCommandOptions {
   db: string;
@@ -23,7 +32,11 @@ export interface GraphRelevantCommandOptions {
   excludeRole?: string[];
   damping?: number;
   json?: boolean;
+  explain?: boolean;
+  repoRoot?: string;
 }
+
+export type { RelevantVia, RelevantAuthor };
 
 export interface GraphRelevantRow {
   rank: number;
@@ -33,6 +46,8 @@ export interface GraphRelevantRow {
   role: NodeRole | null;
   parentId: string | null;
   score: number;
+  via?: RelevantVia | null;
+  topAuthor?: RelevantAuthor | null;
 }
 
 export interface GraphRelevantResult {
@@ -43,6 +58,7 @@ export interface GraphRelevantResult {
   converged: boolean;
   tokenBudget: number | null;
   tokenEstimate: number | null;
+  explained: boolean;
 }
 
 const CHARS_PER_TOKEN = 4;
@@ -84,14 +100,21 @@ export function runGraphRelevantCommand(
 
     const { rows, tokenEstimate } = sliceRows(filtered, nodeById, options);
 
+    const annotated = options.explain
+      ? buildExplanations(rows, edges, pageRank.rows, options.repoRoot).map(
+          (e) => ({ ...e.row, via: e.via, topAuthor: e.topAuthor }),
+        )
+      : rows;
+
     return {
       snapshot,
       seeds: seedIds,
-      rows,
+      rows: annotated,
       iterations: pageRank.iterations,
       converged: pageRank.converged,
       tokenBudget: options.maxTokens ?? null,
       tokenEstimate,
+      explained: Boolean(options.explain),
     };
   } finally {
     db.close();
@@ -193,112 +216,6 @@ function sliceRows(
   };
 }
 
-function formatScore(s: number): string {
-  return s.toExponential(2);
-}
-
-export function formatGraphRelevantText(result: GraphRelevantResult): string {
-  if (result.tokenBudget !== null) return formatGraphRelevantTree(result);
-  return formatGraphRelevantList(result);
-}
-
-function formatGraphRelevantList(result: GraphRelevantResult): string {
-  const lines: string[] = [];
-  const title = result.seeds.length > 0
-    ? `Relevant to ${result.seeds.length === 1 ? result.seeds[0] : `${result.seeds.length} seeds`} — snap ${result.snapshot.id} (${result.snapshot.ref})`
-    : `Most central nodes (uniform teleport) — snap ${result.snapshot.id} (${result.snapshot.ref})`;
-  lines.push(chalk.bold.underline(title));
-  if (result.seeds.length > 1) {
-    lines.push(chalk.dim(`Seeds: ${result.seeds.join(", ")}`));
-  }
-  lines.push(
-    chalk.dim(
-      `iterations=${result.iterations}${result.converged ? "" : " (not converged)"}`,
-    ),
-  );
-  lines.push("");
-
-  if (result.rows.length === 0) {
-    lines.push(chalk.dim("No nodes to rank."));
-    return lines.join("\n");
-  }
-
-  const scoreStrings = result.rows.map((r) => formatScore(r.score));
-  const scoreWidth = Math.max(...scoreStrings.map((s) => s.length), "score".length);
-  const kindWidth = Math.max(
-    ...result.rows.map((r) => r.kind.length),
-    "kind".length,
-  );
-
-  lines.push(
-    chalk.dim(
-      `  ${padLeft("rank", 4)}  ${padLeft("score", scoreWidth)}  ${padRight("kind", kindWidth)}  id`,
-    ),
-  );
-  for (const r of result.rows) {
-    const scoreStr = formatScore(r.score);
-    const scorePad = " ".repeat(Math.max(0, scoreWidth - visualWidth(scoreStr)));
-    lines.push(
-      `  ${padLeft(String(r.rank), 4)}  ${scorePad}${scoreStr}  ${padRight(r.kind, kindWidth)}  ${r.nodeId}`,
-    );
-  }
-  return lines.join("\n");
-}
-
-function formatGraphRelevantTree(result: GraphRelevantResult): string {
-  const lines: string[] = [];
-  const seedLabel =
-    result.seeds.length === 0
-      ? "(no seed)"
-      : result.seeds.length === 1
-        ? result.seeds[0]
-        : `${result.seeds.length} seeds`;
-  lines.push(`# Repo map relevant to: ${seedLabel}`);
-  lines.push(
-    `# budget=${result.tokenBudget} tokens, est=${result.tokenEstimate ?? 0}, ` +
-      `snap=${result.snapshot.id}, iterations=${result.iterations}`,
-  );
-  lines.push("");
-
-  if (result.rows.length === 0) {
-    lines.push("(nothing relevant)");
-    return lines.join("\n");
-  }
-
-  const grouped = new Map<string, GraphRelevantRow[]>();
-  const groupOrder: string[] = [];
-  for (const row of result.rows) {
-    const key = groupKey(row);
-    if (!grouped.has(key)) {
-      grouped.set(key, []);
-      groupOrder.push(key);
-    }
-    grouped.get(key)!.push(row);
-  }
-
-  for (const key of groupOrder) {
-    lines.push(key);
-    for (const row of grouped.get(key)!) {
-      lines.push(`  ${row.nodeId}    ${formatScore(row.score)}`);
-    }
-  }
-
-  return lines.join("\n");
-}
-
-function groupKey(row: GraphRelevantRow): string {
-  if (row.kind === "external") return "external";
-  // Top-level segment is the package directory on typical monorepo layouts;
-  // for unrooted nodes, fall back to the parent module.
-  const firstSlash = row.nodeId.indexOf("/");
-  if (firstSlash > 0) return row.nodeId.slice(0, firstSlash);
-  return row.parentId ?? "(unknown)";
-}
-
-export function formatGraphRelevantJson(result: GraphRelevantResult): string {
-  return JSON.stringify(result, null, 2);
-}
-
 function asNumber(s: string | undefined): number | undefined {
   return s !== undefined ? Number(s) : undefined;
 }
@@ -333,6 +250,14 @@ export function registerGraphRelevant(graphCmd: Command): void {
       "Exclude nodes with this role (test, fixture, barrel, types, config; repeatable)",
     )
     .option("--damping <n>", "PageRank damping factor (0..1; default 0.85)")
+    .option(
+      "--explain",
+      "Annotate each row with top inbound predecessor and top 30d author",
+    )
+    .option(
+      "--repo-root <path>",
+      "Repo root for git author lookup (default: detect from cwd)",
+    )
     .option("--json", "Output structured JSON")
     .action(
       (options: {
@@ -345,6 +270,8 @@ export function registerGraphRelevant(graphCmd: Command): void {
         exclude?: string[];
         excludeRole?: string[];
         damping?: string;
+        explain?: boolean;
+        repoRoot?: string;
         json?: boolean;
       }) => {
         try {
@@ -358,6 +285,8 @@ export function registerGraphRelevant(graphCmd: Command): void {
             exclude: options.exclude,
             excludeRole: options.excludeRole,
             damping: asNumber(options.damping),
+            explain: options.explain,
+            repoRoot: options.repoRoot,
           });
           console.log(
             options.json

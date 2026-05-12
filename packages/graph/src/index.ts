@@ -60,6 +60,7 @@ export {
   type ChurnEntry,
   type ComputeChurnOptions,
 } from "./churn.js";
+export { detectGitToplevel } from "./git-renames.js";
 export {
   computeChangeCoupling,
   couplingFor,
@@ -75,6 +76,7 @@ export {
 export { patternToRegex, compilePatterns, matchesAny } from "./patterns.js";
 export {
   computePageRank,
+  getEdgeWeight,
   type PageRankOptions,
   type PageRankResult,
   type PageRankRow,
