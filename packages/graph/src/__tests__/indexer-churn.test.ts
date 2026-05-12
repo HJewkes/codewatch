@@ -135,7 +135,11 @@ describe("runGraphIndex with churn metrics", () => {
     }
   });
 
-  it("rebases git-root-relative paths to rootDir when indexing a subdir", async () => {
+  it("produces git-root-relative ids even when indexing a subdir", async () => {
+    // Scanning packages/ should still yield ids rooted at the git toplevel
+    // (packages/foo/src/inside.ts, not foo/src/inside.ts) so that snapshots
+    // taken from different cwds stay comparable. Files outside the scan
+    // range (outside.ts at the repo root) are still excluded by the walker.
     await writeFile(repo.dir, "packages/foo/src/inside.ts", "export const a = 1;\n");
     await writeFile(repo.dir, "outside.ts", "export const b = 2;\n");
     await commit(repo.dir, "init");
@@ -155,7 +159,7 @@ describe("runGraphIndex with churn metrics", () => {
     try {
       const all = db.listMetrics(result.snapshotId);
       const inside = all.find(
-        (m) => m.nodeId === "foo/src/inside.ts" && m.name === "churn_30d",
+        (m) => m.nodeId === "packages/foo/src/inside.ts" && m.name === "churn_30d",
       );
       expect(inside?.value ?? 0).toBeGreaterThan(0);
       expect(all.some((m) => m.nodeId.includes("outside.ts"))).toBe(false);

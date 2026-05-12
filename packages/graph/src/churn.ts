@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { realpathSync } from "node:fs";
 import * as path from "node:path";
+import { detectGitToplevel } from "./git-renames.js";
 import type { GraphMetric } from "./types.js";
 
 export interface ChurnEntry {
@@ -151,18 +152,6 @@ function setAdd(map: Map<string, Set<string>>, key: string, value: string): void
 
 function collapseSlashes(s: string): string {
   return s.replace(/\/+/g, "/");
-}
-
-function detectGitToplevel(cwd: string): string | null {
-  try {
-    return execFileSync("git", ["rev-parse", "--show-toplevel"], {
-      cwd,
-      encoding: "utf-8",
-      stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
-  } catch {
-    return null;
-  }
 }
 
 function runGitLog(repoRoot: string, windowDays: number): string | null {
