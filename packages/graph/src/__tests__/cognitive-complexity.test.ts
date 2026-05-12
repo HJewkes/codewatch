@@ -58,14 +58,28 @@ describe("cognitive complexity — TypeScript", () => {
     expect(score(metrics)).toBe(4);
   });
 
-  it("counts logical operators (&&, ||) as +1 each", async () => {
+  it("counts a chain of like logical operators as one increment", async () => {
+    // Sonarsource: a sequence of like operators counts once (+1), not per
+    // occurrence. `a && b && c` is one && chain.
     const file = await parseTs(`
       function f(a: boolean, b: boolean, c: boolean) {
         if (a && b && c) return 1;
       }
     `);
     const metrics = computeSourceMetrics([file], idOf);
-    // if: 1; two &&: +2. Total = 3.
+    // if: 1; one && chain: +1. Total = 2.
+    expect(score(metrics)).toBe(2);
+  });
+
+  it("counts each kind transition in a mixed logical chain", async () => {
+    // `(a && b) || c` — two sequences (&&, then ||), +1 each.
+    const file = await parseTs(`
+      function f(a: boolean, b: boolean, c: boolean) {
+        if (a && b || c) return 1;
+      }
+    `);
+    const metrics = computeSourceMetrics([file], idOf);
+    // if: 1; &&: +1; ||: +1. Total = 3.
     expect(score(metrics)).toBe(3);
   });
 
@@ -141,14 +155,25 @@ def f(x):
     expect(score(metrics)).toBe(4);
   });
 
-  it("counts boolean operators (and/or) as +1 each", async () => {
+  it("counts a chain of like boolean operators (and/or) as one increment", async () => {
     const file = await parsePy(`
 def f(a, b, c):
     if a and b and c:
         return 1
 `);
     const metrics = computeSourceMetrics([file], idOf);
-    // if: 1; two boolean_operator nodes: +2. Total = 3.
+    // if: 1; one `and` chain: +1. Total = 2.
+    expect(score(metrics)).toBe(2);
+  });
+
+  it("counts each kind transition in a mixed and/or chain", async () => {
+    const file = await parsePy(`
+def f(a, b, c):
+    if a and b or c:
+        return 1
+`);
+    const metrics = computeSourceMetrics([file], idOf);
+    // if: 1; `and`: +1; `or`: +1. Total = 3.
     expect(score(metrics)).toBe(3);
   });
 });

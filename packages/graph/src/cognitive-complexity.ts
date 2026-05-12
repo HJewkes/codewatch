@@ -78,7 +78,13 @@ const TS_HANDLER: LanguageHandler = {
   },
   flatIncrement(node) {
     if (node.type === "else_clause") return 1;
-    if (node.type === "binary_expression" && isLogicalOp(node)) return 1;
+    if (
+      node.type === "binary_expression" &&
+      isLogicalOp(node) &&
+      !isInnerOfSameOpChain(node, "binary_expression")
+    ) {
+      return 1;
+    }
     return 0;
   },
 };
@@ -92,7 +98,12 @@ const PY_HANDLER: LanguageHandler = {
   },
   flatIncrement(node) {
     if (node.type === "elif_clause" || node.type === "else_clause") return 1;
-    if (node.type === "boolean_operator") return 1;
+    if (
+      node.type === "boolean_operator" &&
+      !isInnerOfSameOpChain(node, "boolean_operator")
+    ) {
+      return 1;
+    }
     return 0;
   },
 };
@@ -100,6 +111,20 @@ const PY_HANDLER: LanguageHandler = {
 function isLogicalOp(node: Node): boolean {
   const op = node.childForFieldName("operator");
   return !!op && (op.text === "&&" || op.text === "||");
+}
+
+/**
+ * Per Sonarsource: a sequence of like binary logical operators counts once,
+ * not per occurrence. `a && b && c` is one chain (+1), not two (+2). Skip
+ * the increment when this node's operator matches its parent's operator —
+ * the outer node already counted the chain.
+ */
+function isInnerOfSameOpChain(node: Node, parentType: string): boolean {
+  const parent = node.parent;
+  if (!parent || parent.type !== parentType) return false;
+  const op = node.childForFieldName("operator")?.text;
+  const parentOp = parent.childForFieldName("operator")?.text;
+  return !!op && op === parentOp;
 }
 
 /**
