@@ -121,6 +121,10 @@ Sections:
 
 Pass `--vs <ref-or-id>` to add a **Drift** section that diffs the current report against a baseline snapshot — new hotspots, resolved silos, intensified coupling, score deltas on files that show up in both. The natural "monthly debt diff."
 
+Resolved vs Displaced: a hotspot is **Resolved** only when its current score actually dropped (or the file is gone); if it just fell off the top-N because newer files outranked it, it's flagged **Displaced** instead. Same for silos — **Resolved** means `bus_factor` cleared (got a second contributor) or the file had no churn in the window; **Displaced** means it's still single-owner with lower churn.
+
+Drift comparisons assume both snapshots were indexed by the same `code-style` version. Comparing across a metrics change (e.g., before/after the addition of `cognitive_max` or `-M`-aware churn) will produce misleading deltas — re-index the baseline if needed.
+
 ```bash
 # Compare the current snapshot against the one tagged "last-month".
 code-style graph report --db packages/.codewatch/graph.db \

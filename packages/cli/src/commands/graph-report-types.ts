@@ -57,11 +57,17 @@ export interface CouplingDelta {
 export interface ReportDrift {
   baselineSnapshot: SnapshotRow;
   newHotspots: HotspotRow[];
-  resolvedHotspots: HotspotRow[];
+  /** Was in baseline top-N, score actually went down (or file gone). */
+  resolvedHotspots: HotspotDelta[];
+  /** Was in baseline top-N, score didn't improve — newer hotspots displaced it. */
+  displacedHotspots: HotspotDelta[];
   worsenedHotspots: HotspotDelta[];
   improvedHotspots: HotspotDelta[];
   newSilos: BusFactorChange[];
+  /** Was silo (bus_factor=1) in baseline, now bus_factor>1 or no churn in window. */
   resolvedSilos: BusFactorChange[];
+  /** Still bus_factor=1, but churn dropped below top-N (still single-owner). */
+  displacedSilos: BusFactorChange[];
   newCoupling: CouplingRow[];
   intensifiedCoupling: CouplingDelta[];
 }

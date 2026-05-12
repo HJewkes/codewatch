@@ -13,24 +13,38 @@ export interface ComputeDriftInput {
   baselineSnapshot: SnapshotRow;
   currentHotspots: readonly HotspotRow[];
   baselineHotspots: readonly HotspotRow[];
+  /** Current churn × complexity for any nodeId. 0 when file is gone or no longer has churn/complexity. */
+  currentHotspotScore: (nodeId: string) => number;
   currentSilos: readonly BusFactorRow[];
   baselineSilos: readonly BusFactorRow[];
+  /** Current bus_factor for any nodeId. undefined when file has no churn in window. */
+  currentBusFactor: (nodeId: string) => number | undefined;
   currentCoupling: readonly CouplingRow[];
   baselineCoupling: readonly CouplingRow[];
 }
 
 export function computeReportDrift(input: ComputeDriftInput): ReportDrift {
-  const hot = diffHotspots(input.currentHotspots, input.baselineHotspots);
-  const silos = diffSilos(input.currentSilos, input.baselineSilos);
+  const hot = diffHotspots(
+    input.currentHotspots,
+    input.baselineHotspots,
+    input.currentHotspotScore,
+  );
+  const silos = diffSilos(
+    input.currentSilos,
+    input.baselineSilos,
+    input.currentBusFactor,
+  );
   const coupling = diffCoupling(input.currentCoupling, input.baselineCoupling);
   return {
     baselineSnapshot: input.baselineSnapshot,
     newHotspots: hot.added,
-    resolvedHotspots: hot.removed,
+    resolvedHotspots: hot.resolved,
+    displacedHotspots: hot.displaced,
     worsenedHotspots: hot.worsened,
     improvedHotspots: hot.improved,
     newSilos: silos.added,
-    resolvedSilos: silos.removed,
+    resolvedSilos: silos.resolved,
+    displacedSilos: silos.displaced,
     newCoupling: coupling.added,
     intensifiedCoupling: coupling.intensified,
   };
@@ -39,16 +53,19 @@ export function computeReportDrift(input: ComputeDriftInput): ReportDrift {
 function diffHotspots(
   cur: readonly HotspotRow[],
   base: readonly HotspotRow[],
+  currentScore: (nodeId: string) => number,
 ): {
   added: HotspotRow[];
-  removed: HotspotRow[];
+  resolved: HotspotDelta[];
+  displaced: HotspotDelta[];
   worsened: HotspotDelta[];
   improved: HotspotDelta[];
 } {
   const baseById = new Map(base.map((r) => [r.nodeId, r] as const));
   const curById = new Map(cur.map((r) => [r.nodeId, r] as const));
   const added: HotspotRow[] = [];
-  const removed: HotspotRow[] = [];
+  const resolved: HotspotDelta[] = [];
+  const displaced: HotspotDelta[] = [];
   const worsened: HotspotDelta[] = [];
   const improved: HotspotDelta[] = [];
   for (const r of cur) {
@@ -62,30 +79,50 @@ function diffHotspots(
     else if (delta < 0) improved.push({ nodeId: r.nodeId, before: b.score, after: r.score, delta });
   }
   for (const b of base) {
-    if (!curById.has(b.nodeId)) removed.push(b);
+    if (curById.has(b.nodeId)) continue;
+    const after = currentScore(b.nodeId);
+    const delta = after - b.score;
+    const row: HotspotDelta = { nodeId: b.nodeId, before: b.score, after, delta };
+    if (after < b.score) resolved.push(row);
+    else displaced.push(row);
   }
   worsened.sort((a, b) => b.delta - a.delta);
   improved.sort((a, b) => a.delta - b.delta);
-  return { added, removed, worsened, improved };
+  resolved.sort((a, b) => a.delta - b.delta);
+  displaced.sort((a, b) => b.before - a.before);
+  return { added, resolved, displaced, worsened, improved };
 }
 
 function diffSilos(
   cur: readonly BusFactorRow[],
   base: readonly BusFactorRow[],
-): { added: BusFactorChange[]; removed: BusFactorChange[] } {
+  currentBusFactor: (nodeId: string) => number | undefined,
+): {
+  added: BusFactorChange[];
+  resolved: BusFactorChange[];
+  displaced: BusFactorChange[];
+} {
   const baseIds = new Set(base.map((r) => r.nodeId));
   const curIds = new Set(cur.map((r) => r.nodeId));
   const added: BusFactorChange[] = [];
-  const removed: BusFactorChange[] = [];
+  const resolved: BusFactorChange[] = [];
+  const displaced: BusFactorChange[] = [];
   for (const r of cur) {
     if (!baseIds.has(r.nodeId)) added.push({ nodeId: r.nodeId, churn: r.churn });
   }
   for (const r of base) {
-    if (!curIds.has(r.nodeId)) removed.push({ nodeId: r.nodeId, churn: r.churn });
+    if (curIds.has(r.nodeId)) continue;
+    const bf = currentBusFactor(r.nodeId);
+    if (bf === undefined || bf > 1) {
+      resolved.push({ nodeId: r.nodeId, churn: r.churn });
+    } else {
+      displaced.push({ nodeId: r.nodeId, churn: r.churn });
+    }
   }
   added.sort((a, b) => b.churn - a.churn);
-  removed.sort((a, b) => b.churn - a.churn);
-  return { added, removed };
+  resolved.sort((a, b) => b.churn - a.churn);
+  displaced.sort((a, b) => b.churn - a.churn);
+  return { added, resolved, displaced };
 }
 
 function diffCoupling(

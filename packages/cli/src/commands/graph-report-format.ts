@@ -111,7 +111,8 @@ function pushDriftHotspots(lines: string[], drift: ReportDrift): void {
   lines.push("### Hotspots");
   lines.push("");
   pushList(lines, "🆕 New", drift.newHotspots.map((h) => h.nodeId));
-  pushList(lines, "✅ Resolved", drift.resolvedHotspots.map((h) => h.nodeId));
+  pushDeltaList(lines, "✅ Resolved", drift.resolvedHotspots);
+  pushDeltaList(lines, "📤 Displaced (still high score, outranked)", drift.displacedHotspots);
   pushDeltaList(lines, "📈 Worsened", drift.worsenedHotspots);
   pushDeltaList(lines, "📉 Improved", drift.improvedHotspots);
   lines.push("");
@@ -121,7 +122,8 @@ function pushDriftSilos(lines: string[], drift: ReportDrift): void {
   lines.push("### Knowledge silos");
   lines.push("");
   pushList(lines, "🆕 New", drift.newSilos.map((s) => s.nodeId));
-  pushList(lines, "✅ Resolved", drift.resolvedSilos.map((s) => s.nodeId));
+  pushList(lines, "✅ Resolved (bus_factor cleared or no churn)", drift.resolvedSilos.map((s) => s.nodeId));
+  pushList(lines, "📤 Displaced (still single-owner, lower churn)", drift.displacedSilos.map((s) => s.nodeId));
   lines.push("");
 }
 
