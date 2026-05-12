@@ -242,4 +242,191 @@ describe("runGraphRelevantCommand", () => {
     expect(result.snapshot.id).toBe(secondId);
     expect(result.rows.map((r) => r.nodeId)).toEqual(["x.ts"]);
   });
+
+  it("without --explain, leaves via and topAuthor unset", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        { id: "a.ts", kind: "file", name: "a.ts" },
+        { id: "b.ts", kind: "file", name: "b.ts" },
+      ]);
+      db.insertEdges(snapshotId, [
+        { srcId: "a.ts", dstId: "b.ts", kind: "imports" },
+      ]);
+    });
+
+    const result = runGraphRelevantCommand({ db: fixture.dbPath });
+    expect(result.explained).toBe(false);
+    for (const row of result.rows) {
+      expect(row.via).toBeUndefined();
+      expect(row.topAuthor).toBeUndefined();
+    }
+  });
+
+  it("--explain sets via to the highest-contribution predecessor", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        { id: "weak.ts", kind: "file", name: "weak.ts" },
+        { id: "strong.ts", kind: "file", name: "strong.ts" },
+        { id: "popular.ts", kind: "file", name: "popular.ts" },
+        { id: "target.ts", kind: "file", name: "target.ts" },
+      ]);
+      // strong.ts has many inbound edges → high PR score
+      db.insertEdges(snapshotId, [
+        { srcId: "weak.ts", dstId: "target.ts", kind: "imports" },
+        { srcId: "strong.ts", dstId: "target.ts", kind: "imports" },
+        { srcId: "popular.ts", dstId: "strong.ts", kind: "imports" },
+        { srcId: "weak.ts", dstId: "strong.ts", kind: "imports" },
+        { srcId: "target.ts", dstId: "strong.ts", kind: "imports" },
+      ]);
+    });
+
+    const result = runGraphRelevantCommand({
+      db: fixture.dbPath,
+      explain: true,
+      repoRoot: fixture.dir,
+    });
+    expect(result.explained).toBe(true);
+    const target = result.rows.find((r) => r.nodeId === "target.ts")!;
+    expect(target.via).not.toBeNull();
+    expect(target.via!.nodeId).toBe("strong.ts");
+  });
+
+  it("--explain prefers higher-weight edge kinds for via", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        { id: "a.ts", kind: "file", name: "a.ts" },
+        { id: "b.ts", kind: "file", name: "b.ts" },
+        { id: "shared.ts", kind: "file", name: "shared.ts" },
+      ]);
+      // a and b have similar PR (one inbound each, none to here); but b→shared
+      // uses 'calls' (weight 1.5) vs a→shared 'imports' (weight 1.0).
+      db.insertEdges(snapshotId, [
+        { srcId: "shared.ts", dstId: "a.ts", kind: "imports" },
+        { srcId: "shared.ts", dstId: "b.ts", kind: "imports" },
+        { srcId: "a.ts", dstId: "shared.ts", kind: "imports" },
+        { srcId: "b.ts", dstId: "shared.ts", kind: "calls" },
+      ]);
+    });
+
+    const result = runGraphRelevantCommand({
+      db: fixture.dbPath,
+      explain: true,
+      repoRoot: fixture.dir,
+    });
+    const shared = result.rows.find((r) => r.nodeId === "shared.ts")!;
+    expect(shared.via!.nodeId).toBe("b.ts");
+  });
+
+  it("--explain sets via to null for nodes with no predecessors", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        { id: "lonely.ts", kind: "file", name: "lonely.ts" },
+      ]);
+    });
+
+    const result = runGraphRelevantCommand({
+      db: fixture.dbPath,
+      explain: true,
+      repoRoot: fixture.dir,
+    });
+    expect(result.rows[0]!.via).toBeNull();
+  });
+
+  it("--explain omits topAuthor for non-file rows", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        { id: "@pkg/foo", kind: "package", name: "@pkg/foo" },
+        { id: "foo/a.ts", kind: "file", name: "a.ts", parentId: "@pkg/foo" },
+      ]);
+      db.insertEdges(snapshotId, [
+        { srcId: "@pkg/foo", dstId: "foo/a.ts", kind: "depends-on" },
+      ]);
+    });
+
+    const result = runGraphRelevantCommand({
+      db: fixture.dbPath,
+      explain: true,
+      repoRoot: fixture.dir,
+    });
+    const pkgRow = result.rows.find((r) => r.nodeId === "@pkg/foo")!;
+    expect(pkgRow.topAuthor).toBeNull();
+  });
+
+  it("--explain returns null topAuthor when repoRoot is not a git repo", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNode(snapshotId, { id: "a.ts", kind: "file", name: "a.ts" });
+    });
+
+    const result = runGraphRelevantCommand({
+      db: fixture.dbPath,
+      explain: true,
+      repoRoot: fixture.dir, // tmpdir, no .git
+    });
+    expect(result.rows[0]!.topAuthor).toBeNull();
+  });
+
+  it("--explain decorates the list output with a via sub-line", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        { id: "a.ts", kind: "file", name: "a.ts" },
+        { id: "b.ts", kind: "file", name: "b.ts" },
+      ]);
+      db.insertEdges(snapshotId, [
+        { srcId: "a.ts", dstId: "b.ts", kind: "imports" },
+      ]);
+    });
+
+    const result = runGraphRelevantCommand({
+      db: fixture.dbPath,
+      explain: true,
+      repoRoot: fixture.dir,
+    });
+    const text = formatGraphRelevantText(result).replace(/\[[0-9;]*m/g, "");
+    expect(text).toContain("via a.ts");
+  });
+
+  it("--explain decorates the tree output with inline annotations", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        { id: "@pkg/foo", kind: "package", name: "@pkg/foo" },
+        { id: "foo/a.ts", kind: "file", name: "a.ts", parentId: "@pkg/foo" },
+        { id: "foo/b.ts", kind: "file", name: "b.ts", parentId: "@pkg/foo" },
+      ]);
+      db.insertEdges(snapshotId, [
+        { srcId: "foo/a.ts", dstId: "foo/b.ts", kind: "imports" },
+      ]);
+    });
+
+    const result = runGraphRelevantCommand({
+      db: fixture.dbPath,
+      explain: true,
+      maxTokens: 200,
+      repoRoot: fixture.dir,
+    });
+    const text = formatGraphRelevantText(result);
+    expect(text).toMatch(/# via /);
+  });
+
+  it("--explain JSON includes via and topAuthor fields", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        { id: "a.ts", kind: "file", name: "a.ts" },
+        { id: "b.ts", kind: "file", name: "b.ts" },
+      ]);
+      db.insertEdges(snapshotId, [
+        { srcId: "a.ts", dstId: "b.ts", kind: "imports" },
+      ]);
+    });
+
+    const result = runGraphRelevantCommand({
+      db: fixture.dbPath,
+      explain: true,
+      repoRoot: fixture.dir,
+    });
+    const json = JSON.parse(formatGraphRelevantJson(result));
+    expect(json.explained).toBe(true);
+    const bRow = json.rows.find((r: { nodeId: string }) => r.nodeId === "b.ts");
+    expect(bRow.via).toEqual({ nodeId: "a.ts", weight: expect.any(Number) });
+    expect(bRow.topAuthor).toBeNull();
+  });
 });
