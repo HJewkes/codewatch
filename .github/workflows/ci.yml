@@ -20,9 +20,12 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 22
-          cache: pnpm
+          # No pnpm cache here: setup-node@v6 keys the store cache on lockfile
+          # hash only. When the runtime Node version changes, the cached
+          # native-module binaries (better-sqlite3) become ABI-mismatched and
+          # subsequent installs reuse them without rebuilding. Disable until
+          # the cache action also keys on Node version.
       - run: pnpm install --frozen-lockfile
-      - run: pnpm rebuild
       - run: pnpm -r build
       - run: pnpm -r typecheck
       - run: pnpm --filter @code-style/render exec playwright install --with-deps chromium
