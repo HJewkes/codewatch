@@ -47,6 +47,8 @@ describe("formatGraphCoupledText", () => {
         topRow(1, "a.ts", "b.ts", 5),
         topRow(2, "c.ts", "d.ts", 3),
       ],
+      skippedLargeCommits: 0,
+      largeCommitThreshold: 50,
     };
     const text = formatGraphCoupledText(result).replace(/\[[0-9;]*m/g, "");
     expect(text).toContain("Top co-edited pairs");
@@ -64,6 +66,8 @@ describe("formatGraphCoupledText", () => {
       windowDays: 30,
       totalPairs: 3,
       rows: [seedRow(1, "bar.ts", 4), seedRow(2, "baz.ts", 2)],
+      skippedLargeCommits: 0,
+      largeCommitThreshold: 50,
     };
     const text = formatGraphCoupledText(result).replace(/\[[0-9;]*m/g, "");
     expect(text).toContain("Co-edited with foo.ts");
@@ -79,6 +83,8 @@ describe("formatGraphCoupledText", () => {
       windowDays: 30,
       totalPairs: 0,
       rows: [],
+      skippedLargeCommits: 0,
+      largeCommitThreshold: 50,
     };
     const text = formatGraphCoupledText(result).replace(/\[[0-9;]*m/g, "");
     expect(text).toContain("No co-edits in window.");
@@ -93,6 +99,8 @@ describe("formatGraphCoupledJson", () => {
       windowDays: 14,
       totalPairs: 1,
       rows: [seedRow(1, "bar.ts", 3)],
+      skippedLargeCommits: 0,
+      largeCommitThreshold: 50,
     };
     const parsed = JSON.parse(formatGraphCoupledJson(result));
     expect(parsed.seed).toBe("foo.ts");

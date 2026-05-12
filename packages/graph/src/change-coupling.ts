@@ -24,6 +24,18 @@ export interface ComputeChangeCouplingOptions {
   knownFileIds?: ReadonlySet<string>;
 }
 
+export interface ChangeCouplingResult {
+  pairs: CoEditPair[];
+  /**
+   * Count of commits dropped by largeCommitThreshold. Exposed so callers can
+   * surface a diagnostic when sweeping refactors dominate the window and
+   * suppress what would otherwise look like coupling signal.
+   */
+  skippedLargeCommits: number;
+  /** Threshold that was applied (echoed for diagnostic messages). */
+  largeCommitThreshold: number;
+}
+
 interface CommitMeta {
   commit: string;
   files: string[];
@@ -41,7 +53,7 @@ const DEFAULT_LARGE_COMMIT_THRESHOLD = 50;
 export function computeChangeCoupling(
   entries: readonly ChurnEntry[],
   options: ComputeChangeCouplingOptions = {},
-): CoEditPair[] {
+): ChangeCouplingResult {
   const minCount = options.minCount ?? DEFAULT_MIN_COUNT;
   const maxCommits =
     options.maxCommitsPerPair ?? DEFAULT_MAX_COMMITS_PER_PAIR;
@@ -50,11 +62,20 @@ export function computeChangeCoupling(
 
   const byCommit = groupByCommit(entries, options.knownFileIds);
   const pairs = new Map<string, PairAccum>();
+  let skippedLargeCommits = 0;
   for (const meta of byCommit.values()) {
-    if (meta.files.length < 2 || meta.files.length > largeThreshold) continue;
+    if (meta.files.length < 2) continue;
+    if (meta.files.length > largeThreshold) {
+      skippedLargeCommits++;
+      continue;
+    }
     accumulatePairs(meta, pairs, maxCommits);
   }
-  return finalize(pairs, minCount);
+  return {
+    pairs: finalize(pairs, minCount),
+    skippedLargeCommits,
+    largeCommitThreshold: largeThreshold,
+  };
 }
 
 function groupByCommit(

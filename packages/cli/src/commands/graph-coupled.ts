@@ -10,7 +10,7 @@ import {
   type CoEditPair,
   type SnapshotRow,
 } from "@code-style/graph";
-import { formatError } from "../utils/output.js";
+import { formatError, formatWarning } from "../utils/output.js";
 import { padLeft, padRight } from "../utils/table.js";
 
 export interface GraphCoupledCommandOptions {
@@ -49,6 +49,8 @@ export interface GraphCoupledResult {
   windowDays: number;
   rows: GraphCoupledRow[];
   totalPairs: number;
+  skippedLargeCommits: number;
+  largeCommitThreshold: number;
 }
 
 const DEFAULT_WINDOW_DAYS = 30;
@@ -72,14 +74,14 @@ export function runGraphCoupledCommand(
     );
   }
 
-  const pairs = computeChangeCoupling(entries, {
+  const coupling = computeChangeCoupling(entries, {
     minCount: options.minCount,
     largeCommitThreshold: options.largeCommitThreshold,
     knownFileIds,
   });
 
   const excluders = compilePatterns(options.exclude);
-  const filtered = filterPairs(pairs, excluders);
+  const filtered = filterPairs(coupling.pairs, excluders);
 
   const limit = options.limit ?? DEFAULT_LIMIT;
   const seed = resolveSeed(options.seed, filtered);
@@ -93,6 +95,8 @@ export function runGraphCoupledCommand(
     windowDays,
     rows,
     totalPairs: filtered.length,
+    skippedLargeCommits: coupling.skippedLargeCommits,
+    largeCommitThreshold: coupling.largeCommitThreshold,
   };
 }
 
@@ -295,6 +299,14 @@ export function registerGraphCoupled(graphCmd: Command): void {
             largeCommitThreshold: asNumber(options.largeCommitThreshold),
             exclude: options.exclude,
           });
+          if (result.skippedLargeCommits > 0) {
+            console.warn(
+              formatWarning(
+                `Skipped ${result.skippedLargeCommits} commit(s) touching > ${result.largeCommitThreshold} files ` +
+                  `(use --large-commit-threshold to adjust)`,
+              ),
+            );
+          }
           console.log(
             options.json
               ? formatGraphCoupledJson(result)

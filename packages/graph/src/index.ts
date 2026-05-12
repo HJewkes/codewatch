@@ -64,6 +64,7 @@ export {
   computeChangeCoupling,
   couplingFor,
   type CoEditPair,
+  type ChangeCouplingResult,
   type ComputeChangeCouplingOptions,
 } from "./change-coupling.js";
 export {
