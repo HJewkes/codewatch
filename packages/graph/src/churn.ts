@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { realpathSync } from "node:fs";
 import * as path from "node:path";
-import { detectGitToplevel } from "./git-renames.js";
+import { detectGitToplevel, discoveryEnv } from "./git-renames.js";
 import type { GraphMetric } from "./types.js";
 
 export interface ChurnEntry {
@@ -175,6 +175,7 @@ function runGitLog(repoRoot: string, windowDays: number): string | null {
         encoding: "utf-8",
         maxBuffer: 64 * 1024 * 1024,
         stdio: ["ignore", "pipe", "ignore"],
+        env: discoveryEnv(),
       },
     );
   } catch {

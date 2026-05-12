@@ -129,4 +129,54 @@ describe("runGraphIndex id-root behavior", () => {
       dbPkg.close();
     }
   });
+
+  it("uses git toplevel even when GIT_DIR is inherited (pre-commit hook env)", async () => {
+    // Git sets GIT_DIR (and GIT_INDEX_FILE) for hook subprocesses. When those
+    // leak into our `git rev-parse --show-toplevel` call, git returns the cwd
+    // instead of the real toplevel — so id-root falls back to the scan root
+    // and snapshots produced by the hook lose the packages/ prefix vs
+    // snapshots produced outside the hook. Verify the indexer strips those
+    // vars internally so behavior is identical with or without them set.
+    git(scratch, ["init", "-q", "-b", "main"]);
+    git(scratch, ["config", "user.email", "t@e.test"]);
+    git(scratch, ["config", "user.name", "t"]);
+    git(scratch, ["config", "commit.gpgsign", "false"]);
+    await writeFile(scratch, "pkg-a/src/a.ts", "export const a = 1;\n");
+    const gitDir = path.join(scratch, ".git");
+
+    const prevGitDir = process.env.GIT_DIR;
+    const prevGitIndex = process.env.GIT_INDEX_FILE;
+    const prevGitWork = process.env.GIT_WORK_TREE;
+    process.env.GIT_DIR = gitDir;
+    process.env.GIT_INDEX_FILE = path.join(gitDir, "index");
+    try {
+      const result = await runGraphIndex({
+        rootDir: path.join(scratch, "pkg-a"),
+        ref: "hook-env",
+        computeChurn: false,
+        detectRenames: false,
+      });
+      const db = openDatabase(path.join(scratch, "pkg-a", ".codewatch", "graph.db"));
+      try {
+        const fileIds = db
+          .listNodes(result.snapshotId)
+          .filter((n) => n.kind === "file")
+          .map((n) => n.id);
+        // Repo-rooted id, not scan-rooted — proves env-var stripping worked.
+        expect(fileIds).toContain("pkg-a/src/a.ts");
+        expect(fileIds).not.toContain("src/a.ts");
+      } finally {
+        db.close();
+      }
+    } finally {
+      restoreEnv("GIT_DIR", prevGitDir);
+      restoreEnv("GIT_INDEX_FILE", prevGitIndex);
+      restoreEnv("GIT_WORK_TREE", prevGitWork);
+    }
+  });
 });
+
+function restoreEnv(key: string, value: string | undefined): void {
+  if (value === undefined) delete process.env[key];
+  else process.env[key] = value;
+}
