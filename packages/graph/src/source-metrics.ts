@@ -1,6 +1,7 @@
 import type { ParsedFile } from "@code-style/core";
 import type { Node } from "web-tree-sitter";
 import { cognitiveComplexityOf } from "./cognitive-complexity.js";
+import { computeLcomMetrics } from "./lcom.js";
 import type { GraphMetric } from "./types.js";
 
 const TS_FUNCTION_TYPES = new Set([
@@ -110,6 +111,7 @@ function metricsForFile(nodeId: string, file: ParsedFile): GraphMetric[] {
       unit: "count",
     });
   }
+  out.push(...computeLcomMetrics(file, nodeId));
   return out;
 }
 
