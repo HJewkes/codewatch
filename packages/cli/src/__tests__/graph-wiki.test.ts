@@ -231,6 +231,31 @@ describe("formatWiki + writeWikiFiles", () => {
     expect(readme).toContain("[packages/cli](./packages-cli.md)");
   });
 
+  it("README.md includes a Mermaid architecture diagram when packages have edges", async () => {
+    fx = await fixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        fileNode("packages/cli/src/a.ts"),
+        fileNode("packages/graph/src/b.ts"),
+      ]);
+      db.insertEdges(snapshotId, [
+        {
+          srcId: "packages/cli/src/a.ts",
+          dstId: "packages/graph/src/b.ts",
+          kind: "imports",
+        },
+      ]);
+    });
+    const result = runGraphWikiCommand({
+      db: fx.dbPath,
+      repoRoot: fx.dir,
+    });
+    const readme = formatWiki(result).find((f) => f.path === "README.md")!.content;
+    expect(readme).toContain("## Architecture");
+    expect(readme).toContain("```mermaid");
+    expect(readme).toContain("flowchart LR");
+    expect(readme).toContain("P_packages_cli --> P_packages_graph");
+  });
+
   it("writeWikiFiles creates the directory and writes each file", async () => {
     fx = await fixture((db, snapshotId) => {
       db.insertNode(snapshotId, fileNode("packages/cli/src/a.ts"));

@@ -11,6 +11,7 @@ import {
   type SnapshotRow,
 } from "@code-style/graph";
 import { formatError } from "../utils/output.js";
+import { computeArch } from "./graph-arch.js";
 import { buildReportContext } from "./graph-report-sections.js";
 import {
   bucketFilesByPackage,
@@ -85,7 +86,15 @@ export function runGraphWikiCommand(
       windowDays,
       limit,
     });
-    return { snapshot, windowDays, packages: pkgs };
+    const arch = computeArch({
+      snapshot,
+      nodes,
+      edges,
+      packages,
+      exclude: options.exclude,
+      excludeRole: options.excludeRole,
+    });
+    return { snapshot, windowDays, packages: pkgs, arch };
   } finally {
     db.close();
   }

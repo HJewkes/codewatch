@@ -5,6 +5,8 @@ import {
   matchesAny,
   openDatabase,
   type GraphDatabase,
+  type GraphEdge,
+  type GraphNode,
   type SnapshotRow,
 } from "@code-style/graph";
 import { formatError } from "../utils/output.js";
@@ -46,49 +48,69 @@ export interface ArchResult {
 
 const EXTERNAL_BUCKET = "(external)";
 
+export interface ComputeArchInput {
+  snapshot: SnapshotRow;
+  nodes: readonly GraphNode[];
+  edges: readonly GraphEdge[];
+  packages: readonly PackageRoot[];
+  exclude?: string[];
+  excludeRole?: string[];
+  includeExternal?: boolean;
+  minEdges?: number;
+}
+
+export function computeArch(input: ComputeArchInput): ArchResult {
+  const excluders = compilePatterns(input.exclude);
+  const excludedRoles = new Set(input.excludeRole ?? []);
+  const fileIds = input.nodes
+    .filter((n) => n.kind === "file")
+    .filter((n) => !excludedRoles.has(n.role ?? ""))
+    .filter((n) => !matchesAny(n.id, excluders))
+    .map((n) => n.id);
+
+  const fileByPackage = bucketFilesByPackage(fileIds, input.packages);
+  const pkgByFile = invertBuckets(fileByPackage);
+  const externalIds = new Set(
+    input.nodes.filter((n) => n.kind === "external").map((n) => n.id),
+  );
+
+  const counts = aggregateEdges(
+    input.edges,
+    pkgByFile,
+    externalIds,
+    Boolean(input.includeExternal),
+  );
+
+  const minEdges = Math.max(1, input.minEdges ?? 1);
+  return {
+    snapshot: input.snapshot,
+    packages: activePackages(
+      input.packages,
+      fileByPackage,
+      Boolean(input.includeExternal),
+      counts,
+    ),
+    edges: toSortedEdges(counts, minEdges),
+    includesExternal: Boolean(input.includeExternal),
+  };
+}
+
 export function runGraphArchCommand(
   options: GraphArchCommandOptions,
 ): ArchResult {
   const db = openDatabase(options.db);
   try {
     const snapshot = pickSnapshot(db, options.snapshot);
-    const nodes = db.listNodes(snapshot.id);
-    const edges = db.listEdges(snapshot.id);
-
-    const excluders = compilePatterns(options.exclude);
-    const excludedRoles = new Set(options.excludeRole ?? []);
-    const fileNodes = nodes
-      .filter((n) => n.kind === "file")
-      .filter((n) => !excludedRoles.has(n.role ?? ""))
-      .filter((n) => !matchesAny(n.id, excluders));
-    const fileIds = fileNodes.map((n) => n.id);
-
-    const allPackages = detectPackages(options.repoRoot);
-    const fileByPackage = bucketFilesByPackage(fileIds, allPackages);
-    const pkgByFile = invertBuckets(fileByPackage);
-    const externalIds = new Set(
-      nodes.filter((n) => n.kind === "external").map((n) => n.id),
-    );
-
-    const counts = aggregateEdges(
-      edges,
-      pkgByFile,
-      externalIds,
-      Boolean(options.includeExternal),
-    );
-
-    const minEdges = Math.max(1, options.minEdges ?? 1);
-    return {
+    return computeArch({
       snapshot,
-      packages: activePackages(
-        allPackages,
-        fileByPackage,
-        Boolean(options.includeExternal),
-        counts,
-      ),
-      edges: toSortedEdges(counts, minEdges),
-      includesExternal: Boolean(options.includeExternal),
-    };
+      nodes: db.listNodes(snapshot.id),
+      edges: db.listEdges(snapshot.id),
+      packages: detectPackages(options.repoRoot),
+      exclude: options.exclude,
+      excludeRole: options.excludeRole,
+      includeExternal: options.includeExternal,
+      minEdges: options.minEdges,
+    });
   } finally {
     db.close();
   }
@@ -124,17 +146,28 @@ function aggregateEdges(
   for (const e of edges) {
     const fromPkg = pkgByFile.get(e.srcId);
     if (!fromPkg) continue;
-    let toPkg: string | undefined;
-    if (pkgByFile.has(e.dstId)) {
-      toPkg = pkgByFile.get(e.dstId);
-    } else if (externalIds.has(e.dstId)) {
-      if (!includeExternal) continue;
-      toPkg = EXTERNAL_BUCKET;
-    }
+    const toPkg = resolveDestinationBucket(
+      e.dstId,
+      pkgByFile,
+      externalIds,
+      includeExternal,
+    );
     if (!toPkg || toPkg === fromPkg) continue;
     bump(counts, fromPkg, toPkg);
   }
   return counts;
+}
+
+function resolveDestinationBucket(
+  dstId: string,
+  pkgByFile: ReadonlyMap<string, string>,
+  externalIds: ReadonlySet<string>,
+  includeExternal: boolean,
+): string | null {
+  const pkg = pkgByFile.get(dstId);
+  if (pkg !== undefined) return pkg;
+  if (externalIds.has(dstId) && includeExternal) return EXTERNAL_BUCKET;
+  return null;
 }
 
 function bump(

@@ -10,6 +10,7 @@ import {
   topHotspots,
   type ReportContext,
 } from "./graph-report-sections.js";
+import type { ArchResult } from "./graph-arch.js";
 import type {
   BusFactorRow,
   CentralRow,
@@ -49,6 +50,7 @@ export interface WikiResult {
   snapshot: SnapshotRow;
   windowDays: number;
   packages: PackageWiki[];
+  arch: ArchResult;
 }
 
 export interface BuildWikiInput {
