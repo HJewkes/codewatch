@@ -40,6 +40,18 @@ describe("shouldIncludeFile", () => {
     expect(shouldIncludeFile("src/__generated__/types.ts", languages)).toBe(false);
   });
 
+  it("excludes .claude/ (agent worktrees, skills, hook configs)", () => {
+    expect(
+      shouldIncludeFile(
+        ".claude/worktrees/agent-abc/packages/cli/src/index.ts",
+        languages,
+      ),
+    ).toBe(false);
+    expect(
+      shouldIncludeFile(".claude/skills/foo/index.ts", languages),
+    ).toBe(false);
+  });
+
   it("excludes lock files", () => {
     expect(shouldIncludeFile("pnpm-lock.yaml", languages)).toBe(false);
   });
