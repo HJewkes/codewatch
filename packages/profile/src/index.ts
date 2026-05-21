@@ -3,42 +3,31 @@ export {
   ExampleSchema,
   StabilitySchema,
   FixabilitySchema,
+  type StyleRule,
+  type Stability,
+  type Fixability,
+} from "./schema/style-rule.js";
+export {
   ProfileSchema,
   SCHEMA_VERSION,
   DEFAULT_SEVERITY_THRESHOLDS,
   PROFILE_CATEGORIES,
-  type StyleRule,
-  type Stability,
-  type Fixability,
   type Profile,
   type ProfileCategory,
   type SeverityThresholds,
   type Severity,
-} from "./schema/index.js";
+} from "./schema/profile.js";
 
 export { readProfile, writeProfile, validateProfile } from "./io.js";
 
-export { migrateProfile, registerMigration } from "./migrations/index.js";
+export { migrateProfile, registerMigration } from "./migrations/migrate-profile.js";
 
+export type { GeneratedFile } from "./exporters/types.js";
+export { generateSkillFiles } from "./exporters/skill.js";
+export { generateClaudeRules } from "./exporters/claude-rules.js";
+export { generateHooksConfig } from "./exporters/hooks.js";
+export { generateEslintExport } from "./exporters/eslint.js";
 export {
-  type GeneratedFile,
-  generateSkillFiles,
-  generateClaudeRules,
-  generateHooksConfig,
-  generateEslintExport,
-  generateRuffExport,
-  generateMarkdownExport,
-  generateEditorConfigExport,
-  exportProfile,
-  SUPPORTED_FORMATS,
-  type ExportFormat,
-  extractAllRules,
-  getTopRules,
-  getRulesByCategory,
-  getRulesForCategory,
-  detectLanguages,
-  type RuleEntry,
-  type ExtractedRule,
   toEslintSeverity,
   severityRank,
   buildNamingConventionRule,
@@ -46,4 +35,21 @@ export {
   buildFunctionLengthRule,
   buildFileNamingRule,
   buildJsdocRules,
-} from "./exporters/index.js";
+} from "./exporters/eslint-rules.js";
+export { generateRuffExport } from "./exporters/ruff.js";
+export { generateMarkdownExport } from "./exporters/markdown.js";
+export { generateEditorConfigExport } from "./exporters/editorconfig.js";
+export {
+  exportProfile,
+  SUPPORTED_FORMATS,
+  type ExportFormat,
+} from "./exporters/export-index.js";
+export {
+  extractAllRules,
+  getTopRules,
+  getRulesByCategory,
+  getRulesForCategory,
+  detectLanguages,
+  type RuleEntry,
+  type ExtractedRule,
+} from "./exporters/template-helpers.js";

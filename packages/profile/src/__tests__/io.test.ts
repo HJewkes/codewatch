@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { readProfile, writeProfile, validateProfile } from "../io.js";
-import { SCHEMA_VERSION, DEFAULT_SEVERITY_THRESHOLDS } from "../schema/index.js";
+import { SCHEMA_VERSION, DEFAULT_SEVERITY_THRESHOLDS } from "../schema/profile.js";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { tmpdir } from "node:os";

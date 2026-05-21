@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { LlmProvider, LlmResponse } from "@code-style/core";
-import { Enricher, type AggregatedFeature } from "../enricher/index.js";
+import { Enricher, type AggregatedFeature } from "../enricher/enricher.js";
 import type { ObservationCategory } from "../extractors/types.js";
 
 function createMockProvider(

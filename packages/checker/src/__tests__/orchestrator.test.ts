@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { orchestrate } from "../orchestrator/index.js";
+import { orchestrate } from "../orchestrator/orchestrate.js";
 import type { Profile } from "@code-style/profile";
 
 vi.mock("../runners/eslint-runner.js", () => ({

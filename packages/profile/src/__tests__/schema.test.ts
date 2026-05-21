@@ -1,11 +1,6 @@
 import { describe, it, expect } from "vitest";
-import {
-  StyleRuleSchema,
-  ProfileSchema,
-  SCHEMA_VERSION,
-  type StyleRule,
-  type Profile,
-} from "../schema/index.js";
+import { StyleRuleSchema, type StyleRule } from "../schema/style-rule.js";
+import { ProfileSchema, SCHEMA_VERSION, type Profile } from "../schema/profile.js";
 
 describe("StyleRule", () => {
   it("validates a complete style rule", () => {

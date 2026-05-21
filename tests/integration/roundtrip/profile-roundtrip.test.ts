@@ -9,16 +9,14 @@ import {
   ControlFlowExtractor,
   DocumentationExtractor,
   ErrorHandlingExtractor,
-} from "../../../packages/analyzer/src/extractors/index.js"
-import { Aggregator } from "../../../packages/analyzer/src/aggregator/index.js"
+  Aggregator,
+  type AggregatorResult,
+  type AggregatedFeature,
+} from "../../../packages/analyzer/src/index.js"
 import type {
   Observation,
   Extractor,
 } from "../../../packages/analyzer/src/extractors/types.js"
-import type {
-  AggregatorResult,
-  AggregatedFeature,
-} from "../../../packages/analyzer/src/aggregator/index.js"
 import {
   ProfileSchema,
   SCHEMA_VERSION,
