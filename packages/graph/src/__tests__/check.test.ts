@@ -538,6 +538,346 @@ describe("runChecks — layered-deps", () => {
   });
 });
 
+describe("runChecks — no-internal-only-barrels", () => {
+  let fixture: Fixture;
+  afterEach(async () => {
+    if (fixture) await fs.rm(fixture.dir, { recursive: true, force: true });
+  });
+
+  const packageRoots = ["packages/analyzer", "packages/cli", "packages/core"];
+
+  it("flags a barrel whose only importers are inside its own package", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        {
+          id: "packages/analyzer/src/aggregator/index.ts",
+          kind: "file",
+          name: "",
+          role: "barrel",
+        },
+        {
+          id: "packages/analyzer/src/aggregator/foo.ts",
+          kind: "file",
+          name: "",
+          role: "source",
+        },
+        {
+          id: "packages/analyzer/src/something-else.ts",
+          kind: "file",
+          name: "",
+          role: "source",
+        },
+      ]);
+      db.insertEdges(snapshotId, [
+        {
+          srcId: "packages/analyzer/src/something-else.ts",
+          dstId: "packages/analyzer/src/aggregator/index.ts",
+          kind: "imports",
+        },
+      ]);
+    });
+    const db = openDatabase(fixture.dbPath);
+    try {
+      const result = runChecks(db, {
+        snapshotId: fixture.snapshotId,
+        rules: [
+          {
+            id: "no-internal-only-barrels",
+            type: "no-internal-only-barrels",
+            packageRoots,
+          },
+        ],
+      });
+      expect(result.violations).toHaveLength(1);
+      expect(result.violations[0]!.nodeId).toBe(
+        "packages/analyzer/src/aggregator/index.ts",
+      );
+      expect(result.violations[0]!.message).toMatch(/1 internal/);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("does not flag a public-API barrel imported from another package", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        {
+          id: "packages/analyzer/src/index.ts",
+          kind: "file",
+          name: "",
+          role: "barrel",
+        },
+        {
+          id: "packages/cli/src/foo.ts",
+          kind: "file",
+          name: "",
+          role: "source",
+        },
+      ]);
+      db.insertEdge(snapshotId, {
+        srcId: "packages/cli/src/foo.ts",
+        dstId: "packages/analyzer/src/index.ts",
+        kind: "imports",
+      });
+    });
+    const db = openDatabase(fixture.dbPath);
+    try {
+      const result = runChecks(db, {
+        snapshotId: fixture.snapshotId,
+        rules: [
+          {
+            id: "r",
+            type: "no-internal-only-barrels",
+            packageRoots,
+          },
+        ],
+      });
+      expect(result.violations).toEqual([]);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("counts re-exports as importers (a re-exporting barrel makes the target public)", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        {
+          id: "packages/analyzer/src/aggregator/index.ts",
+          kind: "file",
+          name: "",
+          role: "barrel",
+        },
+        {
+          id: "packages/analyzer/src/index.ts",
+          kind: "file",
+          name: "",
+          role: "barrel",
+        },
+        {
+          id: "packages/cli/src/use-it.ts",
+          kind: "file",
+          name: "",
+          role: "source",
+        },
+      ]);
+      db.insertEdges(snapshotId, [
+        {
+          srcId: "packages/analyzer/src/index.ts",
+          dstId: "packages/analyzer/src/aggregator/index.ts",
+          kind: "re-exports",
+        },
+        {
+          srcId: "packages/cli/src/use-it.ts",
+          dstId: "packages/analyzer/src/index.ts",
+          kind: "imports",
+        },
+      ]);
+    });
+    const db = openDatabase(fixture.dbPath);
+    try {
+      const result = runChecks(db, {
+        snapshotId: fixture.snapshotId,
+        rules: [
+          {
+            id: "r",
+            type: "no-internal-only-barrels",
+            packageRoots,
+          },
+        ],
+      });
+      const flagged = result.violations.map((v) => v.nodeId).sort();
+      expect(flagged).toEqual(["packages/analyzer/src/aggregator/index.ts"]);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("flags a barrel with zero importers (unused, internal by default)", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNode(snapshotId, {
+        id: "packages/core/src/dead/index.ts",
+        kind: "file",
+        name: "",
+        role: "barrel",
+      });
+    });
+    const db = openDatabase(fixture.dbPath);
+    try {
+      const result = runChecks(db, {
+        snapshotId: fixture.snapshotId,
+        rules: [
+          {
+            id: "r",
+            type: "no-internal-only-barrels",
+            packageRoots,
+          },
+        ],
+      });
+      expect(result.violations).toHaveLength(1);
+      expect(result.violations[0]!.message).toMatch(/no importers/);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("ignores non-file kinds and non-barrel roles", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        {
+          id: "packages/analyzer/src/aggregator/index",
+          kind: "module",
+          name: "",
+          role: "barrel",
+        },
+        {
+          id: "packages/analyzer/src/aggregator/foo.ts",
+          kind: "file",
+          name: "",
+          role: "source",
+        },
+      ]);
+    });
+    const db = openDatabase(fixture.dbPath);
+    try {
+      const result = runChecks(db, {
+        snapshotId: fixture.snapshotId,
+        rules: [
+          {
+            id: "r",
+            type: "no-internal-only-barrels",
+            packageRoots,
+          },
+        ],
+      });
+      expect(result.violations).toEqual([]);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("skips barrels that fall outside every declared packageRoot", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNode(snapshotId, {
+        id: "tools/scaffold/index.ts",
+        kind: "file",
+        name: "",
+        role: "barrel",
+      });
+    });
+    const db = openDatabase(fixture.dbPath);
+    try {
+      const result = runChecks(db, {
+        snapshotId: fixture.snapshotId,
+        rules: [
+          {
+            id: "r",
+            type: "no-internal-only-barrels",
+            packageRoots,
+          },
+        ],
+      });
+      expect(result.violations).toEqual([]);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("respects exclude patterns (e.g. for CLI bin entries the role classifier mislabels)", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        {
+          id: "packages/cli/src/index.ts",
+          kind: "file",
+          name: "",
+          role: "barrel",
+        },
+        {
+          id: "packages/cli/src/commands/index.ts",
+          kind: "file",
+          name: "",
+          role: "barrel",
+        },
+      ]);
+    });
+    const db = openDatabase(fixture.dbPath);
+    try {
+      const result = runChecks(db, {
+        snapshotId: fixture.snapshotId,
+        rules: [
+          {
+            id: "r",
+            type: "no-internal-only-barrels",
+            packageRoots,
+            exclude: ["packages/cli/src/index.ts"],
+          },
+        ],
+      });
+      expect(result.violations.map((v) => v.nodeId)).toEqual([
+        "packages/cli/src/commands/index.ts",
+      ]);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("uses longest-prefix match so a nested packageRoot wins over its parent", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        {
+          id: "packages/analyzer/sub/src/index.ts",
+          kind: "file",
+          name: "",
+          role: "barrel",
+        },
+        {
+          id: "packages/analyzer/sub/src/foo.ts",
+          kind: "file",
+          name: "",
+          role: "source",
+        },
+        {
+          id: "packages/analyzer/src/uses-sub.ts",
+          kind: "file",
+          name: "",
+          role: "source",
+        },
+      ]);
+      db.insertEdges(snapshotId, [
+        {
+          srcId: "packages/analyzer/sub/src/foo.ts",
+          dstId: "packages/analyzer/sub/src/index.ts",
+          kind: "imports",
+        },
+        {
+          srcId: "packages/analyzer/src/uses-sub.ts",
+          dstId: "packages/analyzer/sub/src/index.ts",
+          kind: "imports",
+        },
+      ]);
+    });
+    const db = openDatabase(fixture.dbPath);
+    try {
+      // The nested root "packages/analyzer/sub" beats "packages/analyzer",
+      // so the importer in packages/analyzer/src/uses-sub.ts is treated
+      // as external — the barrel is public to its own narrower package
+      // and should not be flagged.
+      const result = runChecks(db, {
+        snapshotId: fixture.snapshotId,
+        rules: [
+          {
+            id: "r",
+            type: "no-internal-only-barrels",
+            packageRoots: ["packages/analyzer", "packages/analyzer/sub"],
+          },
+        ],
+      });
+      expect(result.violations).toEqual([]);
+    } finally {
+      db.close();
+    }
+  });
+});
+
 describe("runChecks — baseline", () => {
   let fixture: Fixture;
 
@@ -786,6 +1126,32 @@ describe("validateRules", () => {
         ],
       }),
     ).toThrow(/strings/);
+  });
+
+  it("rejects no-internal-only-barrels without packageRoots", () => {
+    expect(() =>
+      validateRules({
+        rules: [{ id: "r", type: "no-internal-only-barrels" }],
+      }),
+    ).toThrow(/packageRoots/);
+    expect(() =>
+      validateRules({
+        rules: [
+          { id: "r", type: "no-internal-only-barrels", packageRoots: [] },
+        ],
+      }),
+    ).toThrow(/non-empty/);
+    expect(() =>
+      validateRules({
+        rules: [
+          {
+            id: "r",
+            type: "no-internal-only-barrels",
+            packageRoots: ["packages/a", ""],
+          },
+        ],
+      }),
+    ).toThrow(/non-empty/);
   });
 
   it("normalizes a metric-product-max rule", () => {

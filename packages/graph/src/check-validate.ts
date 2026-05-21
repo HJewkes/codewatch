@@ -5,6 +5,7 @@ import type {
   MetricMaxRule,
   MetricMinRule,
   MetricProductMaxRule,
+  NoInternalOnlyBarrelsRule,
   NodeRole,
   Severity,
 } from "./types.js";
@@ -42,9 +43,33 @@ function validateRule(raw: unknown, index: number): CheckRule {
       return assertForbidImport(r);
     case "layered-deps":
       return assertLayeredDeps(r);
+    case "no-internal-only-barrels":
+      return assertNoInternalOnlyBarrels(r);
     default:
       throw new Error(`rule[${index}] (${r.id}) unknown type "${r.type}"`);
   }
+}
+
+function assertNoInternalOnlyBarrels(
+  r: Record<string, unknown>,
+): NoInternalOnlyBarrelsRule {
+  if (!Array.isArray(r.packageRoots) || r.packageRoots.length === 0) {
+    throw new Error(
+      `${r.id}: packageRoots must be a non-empty array of path-prefix strings`,
+    );
+  }
+  for (const p of r.packageRoots) {
+    if (typeof p !== "string" || !p) {
+      throw new Error(`${r.id}: each packageRoots entry must be a non-empty string`);
+    }
+  }
+  return {
+    type: "no-internal-only-barrels",
+    id: r.id as string,
+    packageRoots: r.packageRoots as string[],
+    severity: r.severity as Severity | undefined,
+    exclude: parseStringArray(r.exclude),
+  };
 }
 
 function assertLayeredDeps(r: Record<string, unknown>): LayeredDepsRule {

@@ -161,12 +161,27 @@ export interface LayeredDepsRule {
   severity?: Severity;
 }
 
+export interface NoInternalOnlyBarrelsRule {
+  type: "no-internal-only-barrels";
+  id: string;
+  /**
+   * Path prefixes that mark package roots (e.g. ["packages/cli", "packages/core"]).
+   * A barrel and its importer are "same-package" iff they share the same longest-matching prefix.
+   * Required because node ids carry no intrinsic notion of package membership.
+   */
+  packageRoots: string[];
+  severity?: Severity;
+  /** Globs/substrings to skip — e.g. CLI bin entries that look like barrels to the role classifier. */
+  exclude?: string[];
+}
+
 export type CheckRule =
   | MetricMaxRule
   | MetricMinRule
   | MetricProductMaxRule
   | ForbidImportRule
-  | LayeredDepsRule;
+  | LayeredDepsRule
+  | NoInternalOnlyBarrelsRule;
 
 export interface CheckRulesFile {
   rules: CheckRule[];
