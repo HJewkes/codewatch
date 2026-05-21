@@ -39,6 +39,14 @@ const DEFAULT_EDGE_WEIGHTS: Record<EdgeKind, number> = {
   "depends-on": 1.0,
 };
 
+/** Edge weight used by PageRank for a given edge kind, honoring user overrides. */
+export function getEdgeWeight(
+  kind: EdgeKind,
+  overrides?: Partial<Record<EdgeKind, number>>,
+): number {
+  return overrides?.[kind] ?? DEFAULT_EDGE_WEIGHTS[kind] ?? 1.0;
+}
+
 interface Adjacency {
   outNeighbors: Array<Array<{ to: number; w: number }>>;
   outWeightSum: number[];
