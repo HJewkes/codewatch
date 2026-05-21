@@ -8,6 +8,7 @@ const EXCLUDED_DIRS = [
   ".next",
   "__generated__",
   ".git",
+  ".claude",
   "coverage",
 ];
 
