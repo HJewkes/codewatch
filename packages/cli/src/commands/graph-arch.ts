@@ -1,20 +1,25 @@
 import type { Command } from "commander";
 import * as fs from "node:fs/promises";
 import {
-  compilePatterns,
-  matchesAny,
+  computePartitionQuality,
   openDatabase,
   type GraphDatabase,
-  type GraphEdge,
-  type GraphNode,
+  type PartitionQualityResult,
   type SnapshotRow,
 } from "@code-style/graph";
 import { formatError } from "../utils/output.js";
 import {
   bucketFilesByPackage,
   detectPackages,
-  type PackageRoot,
 } from "./graph-wiki-packages.js";
+import {
+  computeArch,
+  filteredFileIds,
+  type ComputeArchInput,
+} from "./graph-arch-compute.js";
+
+export type { ComputeArchInput };
+export { computeArch };
 
 export interface GraphArchCommandOptions {
   db: string;
@@ -25,6 +30,8 @@ export interface GraphArchCommandOptions {
   excludeRole?: string[];
   includeExternal?: boolean;
   minEdges?: number;
+  /** Compute partition quality (modularity Q + per-package + pair flags). */
+  health?: boolean;
 }
 
 export interface ArchPackage {
@@ -44,55 +51,8 @@ export interface ArchResult {
   packages: ArchPackage[];
   edges: ArchEdge[];
   includesExternal: boolean;
-}
-
-const EXTERNAL_BUCKET = "(external)";
-
-export interface ComputeArchInput {
-  snapshot: SnapshotRow;
-  nodes: readonly GraphNode[];
-  edges: readonly GraphEdge[];
-  packages: readonly PackageRoot[];
-  exclude?: string[];
-  excludeRole?: string[];
-  includeExternal?: boolean;
-  minEdges?: number;
-}
-
-export function computeArch(input: ComputeArchInput): ArchResult {
-  const excluders = compilePatterns(input.exclude);
-  const excludedRoles = new Set(input.excludeRole ?? []);
-  const fileIds = input.nodes
-    .filter((n) => n.kind === "file")
-    .filter((n) => !excludedRoles.has(n.role ?? ""))
-    .filter((n) => !matchesAny(n.id, excluders))
-    .map((n) => n.id);
-
-  const fileByPackage = bucketFilesByPackage(fileIds, input.packages);
-  const pkgByFile = invertBuckets(fileByPackage);
-  const externalIds = new Set(
-    input.nodes.filter((n) => n.kind === "external").map((n) => n.id),
-  );
-
-  const counts = aggregateEdges(
-    input.edges,
-    pkgByFile,
-    externalIds,
-    Boolean(input.includeExternal),
-  );
-
-  const minEdges = Math.max(1, input.minEdges ?? 1);
-  return {
-    snapshot: input.snapshot,
-    packages: activePackages(
-      input.packages,
-      fileByPackage,
-      Boolean(input.includeExternal),
-      counts,
-    ),
-    edges: toSortedEdges(counts, minEdges),
-    includesExternal: Boolean(input.includeExternal),
-  };
+  /** Present when options.health=true. */
+  quality?: PartitionQualityResult;
 }
 
 export function runGraphArchCommand(
@@ -101,16 +61,30 @@ export function runGraphArchCommand(
   const db = openDatabase(options.db);
   try {
     const snapshot = pickSnapshot(db, options.snapshot);
-    return computeArch({
+    const nodes = db.listNodes(snapshot.id);
+    const edges = db.listEdges(snapshot.id);
+    const packages = detectPackages(options.repoRoot);
+    const result = computeArch({
       snapshot,
-      nodes: db.listNodes(snapshot.id),
-      edges: db.listEdges(snapshot.id),
-      packages: detectPackages(options.repoRoot),
+      nodes,
+      edges,
+      packages,
       exclude: options.exclude,
       excludeRole: options.excludeRole,
       includeExternal: options.includeExternal,
       minEdges: options.minEdges,
     });
+    if (options.health) {
+      const fileIds = filteredFileIds(nodes, options);
+      const fileByPackage = bucketFilesByPackage(fileIds, packages);
+      result.quality = computePartitionQuality({
+        packages,
+        fileByPackage,
+        nodes,
+        edges,
+      });
+    }
+    return result;
   } finally {
     db.close();
   }
@@ -123,114 +97,6 @@ function pickSnapshot(db: GraphDatabase, id: number | undefined): SnapshotRow {
       : (db.listSnapshots({ limit: 1 })[0] ?? null);
   if (!snapshot) throw new Error("No snapshot found");
   return snapshot;
-}
-
-function invertBuckets(
-  fileByPackage: ReadonlyMap<string, ReadonlyArray<string>>,
-): Map<string, string> {
-  const out = new Map<string, string>();
-  for (const [pkgId, files] of fileByPackage) {
-    if (pkgId === "") continue;
-    for (const f of files) out.set(f, pkgId);
-  }
-  return out;
-}
-
-function aggregateEdges(
-  edges: ReadonlyArray<{ srcId: string; dstId: string }>,
-  pkgByFile: ReadonlyMap<string, string>,
-  externalIds: ReadonlySet<string>,
-  includeExternal: boolean,
-): Map<string, Map<string, number>> {
-  const counts = new Map<string, Map<string, number>>();
-  for (const e of edges) {
-    const fromPkg = pkgByFile.get(e.srcId);
-    if (!fromPkg) continue;
-    const toPkg = resolveDestinationBucket(
-      e.dstId,
-      pkgByFile,
-      externalIds,
-      includeExternal,
-    );
-    if (!toPkg || toPkg === fromPkg) continue;
-    bump(counts, fromPkg, toPkg);
-  }
-  return counts;
-}
-
-function resolveDestinationBucket(
-  dstId: string,
-  pkgByFile: ReadonlyMap<string, string>,
-  externalIds: ReadonlySet<string>,
-  includeExternal: boolean,
-): string | null {
-  const pkg = pkgByFile.get(dstId);
-  if (pkg !== undefined) return pkg;
-  if (externalIds.has(dstId) && includeExternal) return EXTERNAL_BUCKET;
-  return null;
-}
-
-function bump(
-  counts: Map<string, Map<string, number>>,
-  from: string,
-  to: string,
-): void {
-  let row = counts.get(from);
-  if (!row) {
-    row = new Map();
-    counts.set(from, row);
-  }
-  row.set(to, (row.get(to) ?? 0) + 1);
-}
-
-function toSortedEdges(
-  counts: ReadonlyMap<string, ReadonlyMap<string, number>>,
-  minEdges: number,
-): ArchEdge[] {
-  const out: ArchEdge[] = [];
-  for (const [from, row] of counts) {
-    for (const [to, count] of row) {
-      if (count < minEdges) continue;
-      out.push({ from, to, count });
-    }
-  }
-  out.sort(compareArchEdges);
-  return out;
-}
-
-function compareArchEdges(a: ArchEdge, b: ArchEdge): number {
-  if (a.from !== b.from) return a.from < b.from ? -1 : 1;
-  return a.to < b.to ? -1 : 1;
-}
-
-function activePackages(
-  all: readonly PackageRoot[],
-  fileByPackage: ReadonlyMap<string, ReadonlyArray<string>>,
-  includeExternal: boolean,
-  counts: ReadonlyMap<string, ReadonlyMap<string, number>>,
-): ArchPackage[] {
-  const referenced = packagesReferencedByEdges(counts);
-  const out: ArchPackage[] = [];
-  for (const p of all) {
-    const files = fileByPackage.get(p.id)?.length ?? 0;
-    if (files === 0 && !referenced.has(p.id)) continue;
-    out.push({ id: p.id, name: p.name, files });
-  }
-  if (includeExternal && referenced.has(EXTERNAL_BUCKET)) {
-    out.push({ id: EXTERNAL_BUCKET, name: EXTERNAL_BUCKET, files: 0 });
-  }
-  return out;
-}
-
-function packagesReferencedByEdges(
-  counts: ReadonlyMap<string, ReadonlyMap<string, number>>,
-): Set<string> {
-  const referenced = new Set<string>();
-  for (const [from, row] of counts) {
-    referenced.add(from);
-    for (const to of row.keys()) referenced.add(to);
-  }
-  return referenced;
 }
 
 export function formatArchMermaid(result: ArchResult): string {
@@ -276,6 +142,7 @@ interface ArchCliOptions {
   excludeRole?: string[];
   includeExternal?: boolean;
   minEdges?: string;
+  health?: boolean;
 }
 
 async function runArchAction(options: ArchCliOptions): Promise<void> {
@@ -289,8 +156,12 @@ async function runArchAction(options: ArchCliOptions): Promise<void> {
       excludeRole: options.excludeRole,
       includeExternal: options.includeExternal,
       minEdges: asNumber(options.minEdges),
+      health: options.health,
     });
-    await emitArchOutput(formatArchMermaid(result), options.out, result);
+    const output = options.health
+      ? (await import("./graph-arch-format.js")).formatArchHealth(result)
+      : formatArchMermaid(result);
+    await emitArchOutput(output, options.out, result, Boolean(options.health));
   } catch (err) {
     console.error(
       formatError(err instanceof Error ? err.message : String(err)),
@@ -300,21 +171,24 @@ async function runArchAction(options: ArchCliOptions): Promise<void> {
 }
 
 async function emitArchOutput(
-  mermaid: string,
+  content: string,
   out: string | undefined,
   result: ArchResult,
+  isHealth: boolean,
 ): Promise<void> {
   if (!out) {
-    console.log(mermaid);
+    console.log(content);
     return;
   }
-  const content = out.endsWith(".md")
-    ? "```mermaid\n" + mermaid + "\n```\n"
-    : mermaid + "\n";
-  await fs.writeFile(out, content, "utf-8");
-  console.log(
-    `Wrote ${result.packages.length} package(s), ${result.edges.length} edge(s) to ${out}.`,
-  );
+  const fenced =
+    !isHealth && out.endsWith(".md")
+      ? "```mermaid\n" + content + "\n```\n"
+      : content + "\n";
+  await fs.writeFile(out, fenced, "utf-8");
+  const summary = isHealth
+    ? `partition-quality analysis (${result.quality?.flagsCount ?? 0} flag(s))`
+    : `${result.packages.length} package(s), ${result.edges.length} edge(s)`;
+  console.log(`Wrote ${summary} to ${out}.`);
 }
 
 export function registerGraphArch(graphCmd: Command): void {
@@ -345,6 +219,10 @@ export function registerGraphArch(graphCmd: Command): void {
     .option(
       "--min-edges <n>",
       "Hide edges with fewer than n underlying file deps (default 1)",
+    )
+    .option(
+      "--health",
+      "Augment output with partition-quality analysis (Newman-Girvan Q, per-package cohesion/instability/layer, pair coupling)",
     )
     .action(runArchAction);
 }

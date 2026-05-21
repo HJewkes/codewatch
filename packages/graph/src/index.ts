@@ -82,6 +82,16 @@ export {
   type PageRankResult,
   type PageRankRow,
 } from "./pagerank.js";
+export {
+  computePartitionQuality,
+  type PartitionQualityInput,
+  type PartitionQualityResult,
+  type PackageStats,
+  type PairCoupling,
+  type PackageFlag,
+  type PairFlag,
+  type PackageLayer,
+} from "./partition-quality.js";
 export { runChecks, validateRules, type RunChecksOptions } from "./check.js";
 export {
   diffCheckResults,
