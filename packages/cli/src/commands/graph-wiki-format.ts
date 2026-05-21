@@ -1,3 +1,4 @@
+import { formatArchMermaid } from "./graph-arch.js";
 import type {
   CrossPkgDepRow,
   PackageWiki,
@@ -44,10 +45,13 @@ function formatIndex(result: WikiResult): string {
       `Generated ${new Date().toISOString().slice(0, 10)}.`,
   );
   lines.push("");
+  pushArchitecture(lines, result);
   if (result.packages.length === 0) {
     lines.push("_No packages found._");
     return lines.join("\n");
   }
+  lines.push("## Packages");
+  lines.push("");
   lines.push("| Package | Files | Churn | Hotspots | Silos |");
   lines.push("|---|--:|--:|--:|--:|");
   for (const p of result.packages) {
@@ -58,6 +62,16 @@ function formatIndex(result: WikiResult): string {
     );
   }
   return lines.join("\n");
+}
+
+function pushArchitecture(lines: string[], result: WikiResult): void {
+  if (result.arch.packages.length === 0) return;
+  lines.push("## Architecture");
+  lines.push("");
+  lines.push("```mermaid");
+  lines.push(formatArchMermaid(result.arch));
+  lines.push("```");
+  lines.push("");
 }
 
 function formatPackagePage(pkg: PackageWiki, result: WikiResult): string {
