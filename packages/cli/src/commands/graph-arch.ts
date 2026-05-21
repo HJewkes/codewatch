@@ -194,11 +194,13 @@ function toSortedEdges(
       out.push({ from, to, count });
     }
   }
-  out.sort((a, b) => {
-    if (a.from !== b.from) return a.from < b.from ? -1 : 1;
-    return a.to < b.to ? -1 : 1;
-  });
+  out.sort(compareArchEdges);
   return out;
+}
+
+function compareArchEdges(a: ArchEdge, b: ArchEdge): number {
+  if (a.from !== b.from) return a.from < b.from ? -1 : 1;
+  return a.to < b.to ? -1 : 1;
 }
 
 function activePackages(
@@ -265,6 +267,56 @@ function asNumber(s: string | undefined): number | undefined {
   return s !== undefined ? Number(s) : undefined;
 }
 
+interface ArchCliOptions {
+  db: string;
+  repoRoot: string;
+  snapshot?: string;
+  out?: string;
+  exclude?: string[];
+  excludeRole?: string[];
+  includeExternal?: boolean;
+  minEdges?: string;
+}
+
+async function runArchAction(options: ArchCliOptions): Promise<void> {
+  try {
+    const result = runGraphArchCommand({
+      db: options.db,
+      repoRoot: options.repoRoot,
+      snapshot: asNumber(options.snapshot),
+      out: options.out,
+      exclude: options.exclude,
+      excludeRole: options.excludeRole,
+      includeExternal: options.includeExternal,
+      minEdges: asNumber(options.minEdges),
+    });
+    await emitArchOutput(formatArchMermaid(result), options.out, result);
+  } catch (err) {
+    console.error(
+      formatError(err instanceof Error ? err.message : String(err)),
+    );
+    process.exitCode = 1;
+  }
+}
+
+async function emitArchOutput(
+  mermaid: string,
+  out: string | undefined,
+  result: ArchResult,
+): Promise<void> {
+  if (!out) {
+    console.log(mermaid);
+    return;
+  }
+  const content = out.endsWith(".md")
+    ? "```mermaid\n" + mermaid + "\n```\n"
+    : mermaid + "\n";
+  await fs.writeFile(out, content, "utf-8");
+  console.log(
+    `Wrote ${result.packages.length} package(s), ${result.edges.length} edge(s) to ${out}.`,
+  );
+}
+
 export function registerGraphArch(graphCmd: Command): void {
   graphCmd
     .command("arch")
@@ -294,46 +346,5 @@ export function registerGraphArch(graphCmd: Command): void {
       "--min-edges <n>",
       "Hide edges with fewer than n underlying file deps (default 1)",
     )
-    .action(
-      async (options: {
-        db: string;
-        repoRoot: string;
-        snapshot?: string;
-        out?: string;
-        exclude?: string[];
-        excludeRole?: string[];
-        includeExternal?: boolean;
-        minEdges?: string;
-      }) => {
-        try {
-          const result = runGraphArchCommand({
-            db: options.db,
-            repoRoot: options.repoRoot,
-            snapshot: asNumber(options.snapshot),
-            out: options.out,
-            exclude: options.exclude,
-            excludeRole: options.excludeRole,
-            includeExternal: options.includeExternal,
-            minEdges: asNumber(options.minEdges),
-          });
-          const mermaid = formatArchMermaid(result);
-          if (options.out) {
-            const content = options.out.endsWith(".md")
-              ? "```mermaid\n" + mermaid + "\n```\n"
-              : mermaid + "\n";
-            await fs.writeFile(options.out, content, "utf-8");
-            console.log(
-              `Wrote ${result.packages.length} package(s), ${result.edges.length} edge(s) to ${options.out}.`,
-            );
-          } else {
-            console.log(mermaid);
-          }
-        } catch (err) {
-          console.error(
-            formatError(err instanceof Error ? err.message : String(err)),
-          );
-          process.exitCode = 1;
-        }
-      },
-    );
+    .action(runArchAction);
 }
