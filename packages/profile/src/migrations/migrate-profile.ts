@@ -1,4 +1,4 @@
-import { SCHEMA_VERSION } from "../schema/index.js";
+import { SCHEMA_VERSION } from "../schema/profile.js";
 import { getMigrations, registerMigration, clearMigrations } from "./registry.js";
 
 export { registerMigration, clearMigrations };

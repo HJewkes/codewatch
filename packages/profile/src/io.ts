@@ -1,5 +1,5 @@
 import * as fs from "node:fs/promises";
-import { ProfileSchema, type Profile } from "./schema/index.js";
+import { ProfileSchema, type Profile } from "./schema/profile.js";
 
 export async function readProfile(filePath: string): Promise<Profile> {
   const raw = await fs.readFile(filePath, "utf-8");

@@ -1,36 +1,37 @@
+export type {
+  IngestConfig,
+  CodeCorpus,
+  CodeFile,
+  ReviewComment,
+  PullRequest,
+  PullRequestFile,
+  IngestMetadata,
+} from "@code-style/core";
 export {
-  type IngestConfig,
-  type CodeCorpus,
-  type CodeFile,
-  type ReviewComment,
-  type PullRequest,
-  type PullRequestFile,
-  type IngestMetadata,
   GitHubService,
   shouldIncludeFile,
   getLanguageFromPath,
   FileCache,
-} from "./ingest/index.js";
+} from "@code-style/core";
 
 // Extractors
-export {
-  type StyleExtractor,
-  type Extractor,
-  type Observation,
-  type ObservationCategory,
-  type ParsedFile,
-  parseFile,
-  getSupportedLanguages,
-  NamingExtractor,
-  StructureExtractor,
-  ControlFlowExtractor,
-  DocumentationExtractor,
-  ErrorHandlingExtractor,
-  FormattingExtractor,
-  ComplexityExtractor,
-  IdiomsExtractor,
-  ReviewVoiceExtractor,
-} from "./extractors/index.js";
+export type {
+  StyleExtractor,
+  Extractor,
+  Observation,
+  ObservationCategory,
+  ParsedFile,
+} from "./extractors/types.js";
+export { parseFile, getSupportedLanguages } from "@code-style/core";
+export { NamingExtractor } from "./extractors/naming.js";
+export { StructureExtractor } from "./extractors/structure.js";
+export { ControlFlowExtractor } from "./extractors/control-flow.js";
+export { DocumentationExtractor } from "./extractors/documentation.js";
+export { ErrorHandlingExtractor } from "./extractors/error-handling.js";
+export { FormattingExtractor } from "./extractors/formatting.js";
+export { ComplexityExtractor } from "./extractors/complexity.js";
+export { IdiomsExtractor } from "./extractors/idioms.js";
+export { ReviewVoiceExtractor } from "./extractors/review-voice.js";
 
 export { createStyleExtractors } from "./extractors/factory.js";
 
@@ -48,7 +49,7 @@ export {
   type Stability,
   type StabilityWeights,
   type SeverityThresholds,
-} from "./aggregator/index.js";
+} from "./aggregator/aggregator.js";
 
 // Enricher
 export {
@@ -65,4 +66,4 @@ export {
   type EnrichmentError,
   type EnrichmentResult,
   type EnricherConfig,
-} from "./enricher/index.js";
+} from "./enricher/enricher.js";

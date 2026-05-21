@@ -8,7 +8,7 @@ import {
   StructureExtractor,
   DocumentationExtractor,
   ErrorHandlingExtractor,
-} from "../../../packages/analyzer/src/extractors/index.js"
+} from "../../../packages/analyzer/src/index.js"
 import type { Observation, ParsedFile } from "../../../packages/analyzer/src/extractors/types.js"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))

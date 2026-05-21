@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { generateEslintExport } from "../exporters/eslint.js";
-import type { Profile } from "../schema/index.js";
+import type { Profile } from "../schema/profile.js";
 
 function makeProfile(overrides: Partial<Profile> = {}): Profile {
   return {

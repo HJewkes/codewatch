@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { Aggregator } from "../aggregator/index.js";
+import { Aggregator } from "../aggregator/aggregator.js";
 import type { Observation, ObservationCategory } from "../extractors/types.js";
 
 function makeObservation(

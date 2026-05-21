@@ -1,5 +1,4 @@
-import { PROFILE_CATEGORIES } from "../schema/index.js";
-import type { Profile } from "../schema/index.js";
+import { PROFILE_CATEGORIES, type Profile } from "../schema/profile.js";
 import type { GeneratedFile } from "./types.js";
 import {
   toEslintSeverity,

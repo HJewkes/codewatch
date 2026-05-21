@@ -1,4 +1,4 @@
-import type { Profile } from "../schema/index.js";
+import type { Profile } from "../schema/profile.js";
 import type { GeneratedFile } from "./types.js";
 import { generateSkillFiles } from "./skill.js";
 import { generateClaudeRules } from "./claude-rules.js";
