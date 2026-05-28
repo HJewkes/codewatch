@@ -8,6 +8,7 @@ import type {
   MetricMaxRule,
   MetricMinRule,
   MetricProductMaxRule,
+  NoInternalOnlyBarrelsRule,
   Severity,
 } from "./types.js";
 
@@ -23,6 +24,8 @@ export function runRule(rule: CheckRule, ctx: RuleContext): CheckViolation[] {
       return runForbidImportRule(rule, ctx);
     case "layered-deps":
       return runLayeredDepsRule(rule, ctx);
+    case "no-internal-only-barrels":
+      return runNoInternalOnlyBarrelsRule(rule, ctx);
   }
 }
 
@@ -189,4 +192,54 @@ function runForbidImportRule(
 function formatNumber(n: number): string {
   if (Number.isInteger(n)) return String(n);
   return n.toFixed(3).replace(/\.?0+$/, "");
+}
+
+function runNoInternalOnlyBarrelsRule(
+  rule: NoInternalOnlyBarrelsRule,
+  ctx: RuleContext,
+): CheckViolation[] {
+  const rootsByLength = [...rule.packageRoots].sort((a, b) => b.length - a.length);
+  const packageOf = (id: string): string | null => {
+    for (const root of rootsByLength) {
+      if (id === root || id.startsWith(`${root}/`)) return root;
+    }
+    return null;
+  };
+  const excluders = compilePatterns(rule.exclude);
+
+  const importersByDst = new Map<string, string[]>();
+  for (const edge of ctx.edges) {
+    if (edge.kind !== "imports" && edge.kind !== "re-exports") continue;
+    let list = importersByDst.get(edge.dstId);
+    if (!list) {
+      list = [];
+      importersByDst.set(edge.dstId, list);
+    }
+    list.push(edge.srcId);
+  }
+
+  const out: CheckViolation[] = [];
+  for (const node of ctx.nodes) {
+    if (node.kind !== "file") continue;
+    if (node.role !== "barrel") continue;
+    if (matchesAny(node.id, excluders)) continue;
+    const barrelPkg = packageOf(node.id);
+    if (barrelPkg === null) continue;
+    const importers = importersByDst.get(node.id) ?? [];
+    const externalCount = importers.reduce(
+      (n, src) => (packageOf(src) !== barrelPkg ? n + 1 : n),
+      0,
+    );
+    if (externalCount > 0) continue;
+    out.push({
+      ruleId: rule.id,
+      severity: severityOf(rule),
+      nodeId: node.id,
+      message:
+        importers.length === 0
+          ? `barrel in package "${barrelPkg}" has no importers`
+          : `barrel in package "${barrelPkg}" has ${importers.length} internal importer(s) but zero external`,
+    });
+  }
+  return out;
 }

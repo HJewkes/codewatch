@@ -21,6 +21,7 @@ export type {
   MetricProductMaxRule,
   ForbidImportRule,
   LayeredDepsRule,
+  NoInternalOnlyBarrelsRule,
   CheckRulesFile,
   CheckViolation,
   CheckResult,
