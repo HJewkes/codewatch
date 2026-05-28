@@ -1,4 +1,4 @@
-import type { Profile, SeverityThresholds, Severity } from "../schema/index.js";
+import type { Profile, SeverityThresholds, Severity } from "../schema/profile.js";
 
 export function toEslintSeverity(
   confidence: number,

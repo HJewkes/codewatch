@@ -1,4 +1,4 @@
-import type { AggregatedFeature } from "../aggregator/index.js";
+import type { AggregatedFeature } from "../aggregator/aggregator.js";
 import {
   LlmRunner,
   type LlmJob,
@@ -21,7 +21,7 @@ export {
   type LlmResponse,
 } from "@code-style/core";
 
-export type { AggregatedFeature } from "../aggregator/index.js";
+export type { AggregatedFeature } from "../aggregator/aggregator.js";
 
 export interface EnrichmentEntry {
   featureType: string;

@@ -1,4 +1,4 @@
-export { orchestrate } from "./orchestrator/index.js";
+export { orchestrate } from "./orchestrator/orchestrate.js";
 export { generateEslintConfig } from "./generators/eslint.js";
 export type { EslintFlatConfigEntry } from "./generators/eslint.js";
 export { generateRuffConfig } from "./generators/ruff.js";

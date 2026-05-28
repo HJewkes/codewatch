@@ -1,4 +1,5 @@
-import type { Profile, StyleRule } from "../schema/index.js";
+import type { Profile } from "../schema/profile.js";
+import type { StyleRule } from "../schema/style-rule.js";
 import type { GeneratedFile } from "./types.js";
 
 interface RuffConfig {

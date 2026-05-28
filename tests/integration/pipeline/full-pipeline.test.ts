@@ -9,14 +9,14 @@ import {
   ControlFlowExtractor,
   DocumentationExtractor,
   ErrorHandlingExtractor,
-} from "../../../packages/analyzer/src/extractors/index.js"
-import { Aggregator } from "../../../packages/analyzer/src/aggregator/index.js"
+  Aggregator,
+  type AggregatorResult,
+} from "../../../packages/analyzer/src/index.js"
 import type {
   Observation,
   ParsedFile,
   Extractor,
 } from "../../../packages/analyzer/src/extractors/types.js"
-import type { AggregatorResult } from "../../../packages/analyzer/src/aggregator/index.js"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const CORPUS_DIR = join(__dirname, "../fixtures/corpus/typescript")

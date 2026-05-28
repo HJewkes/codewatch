@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { generateMarkdownExport } from "../exporters/markdown.js";
-import type { Profile } from "../schema/index.js";
+import type { Profile } from "../schema/profile.js";
 
 function makeProfile(overrides: Partial<Profile> = {}): Profile {
   return {

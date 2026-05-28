@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { migrateProfile, registerMigration, clearMigrations } from "../migrations/index.js";
+import { migrateProfile, registerMigration, clearMigrations } from "../migrations/migrate-profile.js";
 
 describe("Migration framework", () => {
   beforeEach(() => {
