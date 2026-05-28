@@ -55,10 +55,9 @@
       "excludeRoles": ["test", "fixture"]
     },
     {
-      "$comment": "Flags internal sub-package barrels (role=barrel files with zero importers from outside their package). Internal barrels add an indirection without abstraction value and obscure the partition-quality picture by re-attributing edges. Public-API barrels (one per package, imported across package boundaries) are kept. Warning severity until C-13 lands the cleanup — the existing 13 internal barrels surface as carryover, only new ones fail. packages/cli/src/index.ts is excluded because it's the CLI executable entry (shebang-prefixed) — the role classifier labels it `barrel` based on filename but it isn't re-export plumbing.",
+      "$comment": "Flags internal sub-package barrels (role=barrel files with zero importers from outside their package). Internal barrels add an indirection without abstraction value and obscure the partition-quality picture by re-attributing edges. Public-API barrels (one per package, imported across package boundaries) are kept. Promoted from warning to error after #24 cleared all 13 carryover violations — only the public-API barrels remain, so any new internal barrel fails CI immediately. packages/cli/src/index.ts is excluded because it's the CLI executable entry (shebang-prefixed) — the role classifier labels it `barrel` based on filename but it isn't re-export plumbing.",
       "id": "no-internal-only-barrels",
       "type": "no-internal-only-barrels",
-      "severity": "warning",
       "packageRoots": [
         "packages/analyzer",
         "packages/checker",
