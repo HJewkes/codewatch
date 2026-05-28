@@ -536,6 +536,56 @@ describe("runChecks — layered-deps", () => {
       db.close();
     }
   });
+
+  it("matches real monorepo node ids via longest-prefix (packages/X/...)", async () => {
+    // Regression test for the bug where packageHead() returned the first
+    // path segment — for ids like "packages/cli/src/foo.ts" that was
+    // always "packages", so layer matching silently failed and the
+    // production package-layers rule was a no-op on real codewatch ids.
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        { id: "packages/core/src/foo.ts", kind: "file", name: "" },
+        { id: "packages/cli/src/bar.ts", kind: "file", name: "" },
+        { id: "packages/cli/src/sibling.ts", kind: "file", name: "" },
+      ]);
+      db.insertEdges(snapshotId, [
+        // forbidden: low layer importing high layer
+        {
+          srcId: "packages/core/src/foo.ts",
+          dstId: "packages/cli/src/bar.ts",
+          kind: "imports",
+        },
+        // allowed: same package
+        {
+          srcId: "packages/cli/src/bar.ts",
+          dstId: "packages/cli/src/sibling.ts",
+          kind: "imports",
+        },
+      ]);
+    });
+    const db = openDatabase(fixture.dbPath);
+    try {
+      const result = runChecks(db, {
+        snapshotId: fixture.snapshotId,
+        rules: [
+          {
+            id: "package-layers",
+            type: "layered-deps",
+            layers: [["packages/core"], ["packages/cli"]],
+          },
+        ],
+      });
+      expect(result.violations).toHaveLength(1);
+      expect(result.violations[0]!.nodeId).toBe("packages/core/src/foo.ts");
+      expect(result.violations[0]!.destinationId).toBe(
+        "packages/cli/src/bar.ts",
+      );
+      expect(result.violations[0]!.message).toContain("packages/core");
+      expect(result.violations[0]!.message).toContain("packages/cli");
+    } finally {
+      db.close();
+    }
+  });
 });
 
 describe("runChecks — no-internal-only-barrels", () => {

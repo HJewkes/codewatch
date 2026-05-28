@@ -138,18 +138,32 @@ function runLayeredDepsRule(
   rule: LayeredDepsRule,
   ctx: RuleContext,
 ): CheckViolation[] {
+  // Layer strings are path prefixes (e.g. "packages/cli"). Longest-prefix
+  // wins so nested packages can override their parent's layer if needed.
+  const allPrefixes: string[] = [];
   const packageLayer = new Map<string, number>();
   for (let i = 0; i < rule.layers.length; i++) {
-    for (const pkg of rule.layers[i]!) packageLayer.set(pkg, i);
+    for (const pkg of rule.layers[i]!) {
+      packageLayer.set(pkg, i);
+      allPrefixes.push(pkg);
+    }
   }
+  allPrefixes.sort((a, b) => b.length - a.length);
+  const packageOf = (id: string): string | null => {
+    for (const p of allPrefixes) {
+      if (id === p || id.startsWith(`${p}/`)) return p;
+    }
+    return null;
+  };
+
   const out: CheckViolation[] = [];
   for (const edge of ctx.edges) {
     if (edge.kind !== "imports" && edge.kind !== "re-exports") continue;
-    const srcPkg = packageHead(edge.srcId);
-    const dstPkg = packageHead(edge.dstId);
-    const srcLayer = packageLayer.get(srcPkg);
-    const dstLayer = packageLayer.get(dstPkg);
-    if (srcLayer === undefined || dstLayer === undefined) continue;
+    const srcPkg = packageOf(edge.srcId);
+    const dstPkg = packageOf(edge.dstId);
+    if (srcPkg === null || dstPkg === null) continue;
+    const srcLayer = packageLayer.get(srcPkg)!;
+    const dstLayer = packageLayer.get(dstPkg)!;
     if (srcLayer >= dstLayer) continue;
     out.push({
       ruleId: rule.id,
@@ -160,11 +174,6 @@ function runLayeredDepsRule(
     });
   }
   return out;
-}
-
-function packageHead(id: string): string {
-  const slash = id.indexOf("/");
-  return slash < 0 ? id : id.slice(0, slash);
 }
 
 function runForbidImportRule(
