@@ -39,8 +39,10 @@ export function registerGraphCommands(program: Command): void {
 
 function registerIndex(graphCmd: Command): void {
   graphCmd
-    .command("index <path>")
-    .description("Build a code graph snapshot for a directory")
+    .command("index <paths...>")
+    .description(
+      "Build a code graph snapshot. Pass one or more directories to walk; node ids are rooted at the git toplevel so importers across subtrees share the same id space (e.g. `graph index packages tests`).",
+    )
     .option("--db <path>", "Database path (default: <path>/.codewatch/graph.db)")
     .option("--ref <ref>", "Snapshot ref label", "wd")
     .option("--ts-config <path>", "Path to tsconfig.json for ts-morph")
@@ -63,7 +65,7 @@ function registerIndex(graphCmd: Command): void {
     .option("--json", "Output structured JSON")
     .action(
       async (
-        rootDir: string,
+        rootDirs: string[],
         options: {
           db?: string;
           ref?: string;
@@ -78,7 +80,7 @@ function registerIndex(graphCmd: Command): void {
         try {
           const { runGraphIndexCommand } = await import("./graph-index.js");
           const { output } = await runGraphIndexCommand({
-            rootDir,
+            rootDirs,
             dbPath: options.db,
             ref: options.ref,
             tsConfigPath: options.tsConfig,
