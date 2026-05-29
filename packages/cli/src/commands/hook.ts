@@ -8,7 +8,12 @@ const TS_GLOB = "\\.(ts|tsx|js|jsx|mts|cts|mjs|cjs)$";
 export interface InstallHookOptions {
   withGraphCheck?: boolean;
   withStyleCheck?: boolean;
-  graphPath?: string;
+  /**
+   * One or more directories the indexer should walk. Accepts a single
+   * path (back-compat) or an array. Multiple paths get joined with
+   * spaces; the indexer treats them as additional roots.
+   */
+  graphPath?: string | string[];
   dbPath?: string;
   bin?: string;
 }
@@ -66,6 +71,13 @@ export function stripBlock(content: string): string {
 
 const DEFAULT_DB_PATH = ".codewatch/graph.db";
 
+function normalizeGraphPaths(value: string | string[] | undefined): string {
+  if (value === undefined) return ".";
+  if (typeof value === "string") return value;
+  if (value.length === 0) return ".";
+  return value.join(" ");
+}
+
 function renderBlock(options: InstallHookOptions): string {
   const bin = options.bin ?? DEFAULT_BIN;
   const styleCheck = options.withStyleCheck !== false;
@@ -80,11 +92,11 @@ function renderBlock(options: InstallHookOptions): string {
     lines.push(`${bin} diff --fix || exit 1`);
   }
   if (graphCheck) {
-    const target = options.graphPath ?? ".";
+    const targets = normalizeGraphPaths(options.graphPath);
     const db = options.dbPath ?? DEFAULT_DB_PATH;
     lines.push(
       `if git diff --cached --name-only | grep -qE '${TS_GLOB}'; then`,
-      `  ${bin} graph index ${target} --db ${db} >/dev/null || exit 1`,
+      `  ${bin} graph index ${targets} --db ${db} >/dev/null || exit 1`,
       `  ${bin} graph check --db ${db} --baseline previous || exit 1`,
       "fi",
     );

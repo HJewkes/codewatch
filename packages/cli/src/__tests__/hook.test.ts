@@ -75,6 +75,15 @@ describe("installHook", () => {
     expect(content).toContain("code-style graph index packages");
   });
 
+  it("joins multiple graph paths with spaces (variadic indexer arg)", async () => {
+    await installHook(testDir, {
+      withGraphCheck: true,
+      graphPath: ["packages", "tests"],
+    });
+    const content = await fs.readFile(hookPath, "utf-8");
+    expect(content).toContain("code-style graph index packages tests");
+  });
+
   it("passes --db to both index and check so they share a snapshot", async () => {
     await installHook(testDir, { withGraphCheck: true, graphPath: "packages" });
     const content = await fs.readFile(hookPath, "utf-8");

@@ -259,8 +259,8 @@ hookCmd
     "Skip the `code-style diff --fix` line (use when no profile is configured)",
   )
   .option(
-    "--graph-path <path>",
-    "Directory to index for the graph check (default: .)",
+    "--graph-path <paths...>",
+    "One or more directories to index for the graph check (default: .)",
   )
   .option(
     "--db-path <path>",
@@ -274,7 +274,7 @@ hookCmd
     async (options: {
       withGraphCheck?: boolean;
       styleCheck?: boolean;
-      graphPath?: string;
+      graphPath?: string[];
       dbPath?: string;
       bin?: string;
     }) => {

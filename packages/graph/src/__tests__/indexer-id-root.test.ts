@@ -174,6 +174,61 @@ describe("runGraphIndex id-root behavior", () => {
       restoreEnv("GIT_WORK_TREE", prevGitWork);
     }
   });
+  it("walks every entry in rootDirs and produces a single unified snapshot", async () => {
+    // git toplevel = scratch. Two sibling subtrees the caller wants in one
+    // snapshot: pkg-a/src/ and tests/integration/.
+    await writeFile(scratch, "pkg-a/src/a.ts", "export const a = 1;\n");
+    await writeFile(
+      scratch,
+      "tests/integration/sample.test.ts",
+      "import { a } from '../../pkg-a/src/a.js';\nexport const used = a;\n",
+    );
+    git(scratch, ["init", "-q", "-b", "main"]);
+    git(scratch, ["add", "."]);
+    git(scratch, ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "init"]);
+
+    const result = await runGraphIndex({
+      rootDirs: [
+        path.join(scratch, "pkg-a"),
+        path.join(scratch, "tests"),
+      ],
+      ref: "test",
+      computeChurn: false,
+      detectRenames: false,
+    });
+    const db = openDatabase(path.join(scratch, "pkg-a", ".codewatch", "graph.db"));
+    try {
+      const fileIds = db
+        .listNodes(result.snapshotId)
+        .filter((n) => n.kind === "file")
+        .map((n) => n.id)
+        .sort();
+      // Both subtrees indexed; ids rooted at git toplevel so the importer
+      // in tests/ resolves into pkg-a/.
+      expect(fileIds).toContain("pkg-a/src/a.ts");
+      expect(fileIds).toContain("tests/integration/sample.test.ts");
+    } finally {
+      db.close();
+    }
+  });
+
+  it("dedupes a file that appears under two overlapping rootDirs", async () => {
+    await writeFile(scratch, "pkg-a/src/a.ts", "export const a = 1;\n");
+    git(scratch, ["init", "-q", "-b", "main"]);
+    git(scratch, ["add", "."]);
+    git(scratch, ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "init"]);
+
+    const result = await runGraphIndex({
+      rootDirs: [
+        path.join(scratch, "pkg-a"),
+        path.join(scratch, "pkg-a/src"),
+      ],
+      ref: "test",
+      computeChurn: false,
+      detectRenames: false,
+    });
+    expect(result.files).toBe(1);
+  });
 });
 
 function restoreEnv(key: string, value: string | undefined): void {
