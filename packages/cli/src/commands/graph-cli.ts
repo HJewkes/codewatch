@@ -62,6 +62,10 @@ function registerIndex(graphCmd: Command): void {
       "--churn-window <days>",
       "Days of git history to count churn over (default 30)",
     )
+    .option(
+      "--incremental",
+      "Reuse the prior snapshot for byte-identical files (skips re-parsing unchanged files; falls back to a full index if files were added or removed)",
+    )
     .option("--json", "Output structured JSON")
     .action(
       async (
@@ -74,6 +78,7 @@ function registerIndex(graphCmd: Command): void {
           computeMetrics?: boolean;
           churn?: boolean;
           churnWindow?: string;
+          incremental?: boolean;
           json?: boolean;
         },
       ) => {
@@ -88,6 +93,7 @@ function registerIndex(graphCmd: Command): void {
             computeMetrics: options.computeMetrics,
             computeChurn: options.churn,
             churnWindowDays: asNumber(options.churnWindow),
+            incremental: options.incremental,
             json: options.json,
           });
           console.log(output);

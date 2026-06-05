@@ -74,6 +74,11 @@ export interface IdAlias {
   reason: IdAliasReason;
 }
 
+export interface FileFingerprint {
+  fileId: string;
+  contentHash: string;
+}
+
 export interface MetricDelta {
   nodeId: string;
   name: string;

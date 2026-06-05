@@ -32,6 +32,19 @@ const migrations: Migration[] = [
       }
     },
   },
+  {
+    version: 3,
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS file_fingerprint (
+          snapshot_id   INTEGER NOT NULL REFERENCES snapshot(id) ON DELETE CASCADE,
+          file_id       TEXT NOT NULL,
+          content_hash  TEXT NOT NULL,
+          PRIMARY KEY (snapshot_id, file_id)
+        );
+      `);
+    },
+  },
 ];
 
 function ensureMigrationTable(db: Database.Database): void {

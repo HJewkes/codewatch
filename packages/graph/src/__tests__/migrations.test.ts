@@ -13,6 +13,7 @@ const EXPECTED_TABLES = [
   "id_alias",
   "boundary",
   "entry_point",
+  "file_fingerprint",
 ];
 
 describe("runMigrations", () => {
@@ -29,7 +30,7 @@ describe("runMigrations", () => {
     await fs.rm(dbDir, { recursive: true, force: true });
   });
 
-  it("creates all seven tables on a fresh DB", () => {
+  it("creates all expected tables on a fresh DB", () => {
     const db = new Database(dbPath);
     try {
       runMigrations(db);
@@ -54,7 +55,7 @@ describe("runMigrations", () => {
       const rows = db
         .prepare("SELECT version FROM _migration ORDER BY version")
         .all() as Array<{ version: number }>;
-      expect(rows.map((r) => r.version)).toEqual([1, 2]);
+      expect(rows.map((r) => r.version)).toEqual([1, 2, 3]);
     } finally {
       db.close();
     }
@@ -110,6 +111,32 @@ describe("runMigrations", () => {
         .prepare("PRAGMA table_info(node)")
         .all() as Array<{ name: string }>;
       expect(after.some((c) => c.name === "role")).toBe(true);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("v3 adds the file_fingerprint table when upgrading a pre-fingerprint database", () => {
+    const db = new Database(dbPath);
+    try {
+      // Simulate a v2 database (no file_fingerprint table).
+      db.exec(`
+        CREATE TABLE _migration (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL);
+        INSERT INTO _migration (version, applied_at) VALUES (1, '2020-01-01'), (2, '2020-01-02');
+      `);
+      const hasTable = (): boolean =>
+        (
+          db
+            .prepare(
+              "SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='file_fingerprint'",
+            )
+            .get() as { n: number }
+        ).n > 0;
+      expect(hasTable()).toBe(false);
+
+      runMigrations(db);
+
+      expect(hasTable()).toBe(true);
     } finally {
       db.close();
     }

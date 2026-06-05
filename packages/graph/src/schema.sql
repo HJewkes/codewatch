@@ -74,3 +74,10 @@ CREATE TABLE entry_point (
   attrs         JSON NOT NULL DEFAULT '{}',
   PRIMARY KEY (snapshot_id, node_id, kind)
 );
+
+CREATE TABLE file_fingerprint (
+  snapshot_id   INTEGER NOT NULL REFERENCES snapshot(id) ON DELETE CASCADE,
+  file_id       TEXT NOT NULL,
+  content_hash  TEXT NOT NULL,
+  PRIMARY KEY (snapshot_id, file_id)
+);

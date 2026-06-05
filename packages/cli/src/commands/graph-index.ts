@@ -52,11 +52,19 @@ export function formatGraphIndexText(result: GraphIndexResult): string {
       `${chalk.bold("Metrics:")} ${result.metrics} ${chalk.dim("(degree + source-content + churn + ownership)")}`,
     );
   }
+  if (result.reusedFiles > 0) {
+    lines.push(
+      `${chalk.bold("Reused:")}  ${result.reusedFiles} ${chalk.dim(
+        `(unchanged; ${result.reparsedFiles} re-parsed)`,
+      )}`,
+    );
+  }
   lines.push("");
   const d = result.durationMs;
   lines.push(
     chalk.dim(
       `walk ${d.walk.toFixed(0)}ms  ` +
+        `read ${d.read.toFixed(0)}ms  ` +
         `parse ${d.parse.toFixed(0)}ms  ` +
         `extract ${d.extract.toFixed(0)}ms  ` +
         `metrics ${d.metrics.toFixed(0)}ms  ` +
