@@ -3,7 +3,7 @@ import { runRule } from "./check-rules.js";
 import type { GraphDatabase } from "./database.js";
 import type { CheckResult, CheckRule, CheckViolation } from "./types.js";
 
-export { validateRules } from "./check-validate.js";
+export { validateRules, type ValidateRulesOptions } from "./check-validate.js";
 
 export interface RunChecksOptions {
   snapshotId: number;

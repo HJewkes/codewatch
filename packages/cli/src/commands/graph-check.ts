@@ -111,7 +111,9 @@ async function loadRules(path: string): Promise<readonly CheckRule[]> {
     const msg = err instanceof Error ? err.message : String(err);
     throw new Error(`Invalid JSON in ${path}: ${msg}`);
   }
-  return validateRules(parsed);
+  return validateRules(parsed, {
+    onWarn: (m) => console.warn(`${path}: ${m}`),
+  });
 }
 
 function severityIcon(severity: string, isCarryover: boolean): string {

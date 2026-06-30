@@ -112,7 +112,9 @@ export async function runGraphRenderCheckDiffCommand(
 
 async function loadRulesFile(path: string): Promise<readonly CheckRule[]> {
   const raw = await readFile(resolve(path), "utf8");
-  return validateRules(JSON.parse(raw));
+  return validateRules(JSON.parse(raw), {
+    onWarn: (m) => console.warn(`${path}: ${m}`),
+  });
 }
 
 function resolveSnapshot(
