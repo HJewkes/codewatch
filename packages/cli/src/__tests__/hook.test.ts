@@ -2,15 +2,23 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { tmpdir } from "node:os";
-import { installHook, removeHook, stripBlock } from "../commands/hook.js";
+import {
+  installHook,
+  removeHook,
+  stripBlock,
+  installAutoUpdateHook,
+  removeAutoUpdateHook,
+} from "../commands/hook.js";
 
 let testDir: string;
 let hookPath: string;
+let postHookPath: string;
 
 beforeEach(async () => {
   testDir = path.join(tmpdir(), `code-style-hook-test-${Date.now()}-${Math.random()}`);
   await fs.mkdir(path.join(testDir, ".git", "hooks"), { recursive: true });
   hookPath = path.join(testDir, ".git", "hooks", "pre-commit");
+  postHookPath = path.join(testDir, ".git", "hooks", "post-commit");
 });
 
 afterEach(async () => {
@@ -176,6 +184,64 @@ describe("removeHook", () => {
 
   it("is a no-op when no hook file exists", async () => {
     await expect(removeHook(testDir)).resolves.not.toThrow();
+  });
+});
+
+describe("installAutoUpdateHook", () => {
+  it("writes a post-commit hook calling graph auto-update", async () => {
+    await installAutoUpdateHook(testDir, { graphPath: "packages" });
+    const content = await fs.readFile(postHookPath, "utf-8");
+    expect(content).toContain("code-style post-commit hook (begin)");
+    expect(content).toContain("code-style post-commit hook (end)");
+    expect(content).toContain(
+      "code-style graph auto-update packages --db .codewatch/graph.db --config .codewatch/check.json >/dev/null 2>&1 || true",
+    );
+  });
+
+  it("makes the post-commit hook executable", async () => {
+    await installAutoUpdateHook(testDir);
+    const stat = await fs.stat(postHookPath);
+    expect(stat.mode & 0o100).toBeTruthy();
+  });
+
+  it("threads custom db, config, paths, and bin", async () => {
+    await installAutoUpdateHook(testDir, {
+      graphPath: ["packages", "tests"],
+      dbPath: "tmp/graph.db",
+      configPath: "cfg/check.json",
+      bin: "pnpm exec code-style",
+    });
+    const content = await fs.readFile(postHookPath, "utf-8");
+    expect(content).toContain(
+      "pnpm exec code-style graph auto-update packages tests --db tmp/graph.db --config cfg/check.json",
+    );
+  });
+
+  it("does not duplicate the block on re-run and preserves user lines", async () => {
+    await fs.writeFile(postHookPath, "#!/bin/sh\necho mine\n");
+    await installAutoUpdateHook(testDir);
+    await installAutoUpdateHook(testDir);
+    const content = await fs.readFile(postHookPath, "utf-8");
+    expect(content).toContain("echo mine");
+    expect(
+      content.match(/code-style post-commit hook \(begin\)/g),
+    ).toHaveLength(1);
+  });
+});
+
+describe("removeAutoUpdateHook", () => {
+  it("strips the post-commit block, leaving user lines", async () => {
+    await fs.writeFile(postHookPath, "#!/bin/sh\necho keep\n");
+    await installAutoUpdateHook(testDir);
+    await removeAutoUpdateHook(testDir);
+    const content = await fs.readFile(postHookPath, "utf-8");
+    expect(content).toContain("echo keep");
+    expect(content).not.toContain("graph auto-update");
+    expect(content).not.toContain("post-commit hook (begin)");
+  });
+
+  it("is a no-op when no post-commit hook exists", async () => {
+    await expect(removeAutoUpdateHook(testDir)).resolves.not.toThrow();
   });
 });
 
