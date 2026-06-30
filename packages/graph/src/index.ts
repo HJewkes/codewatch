@@ -72,9 +72,18 @@ export {
 } from "./change-coupling.js";
 export {
   computeOwnershipMetrics,
+  computeTestCoverageOwnership,
   type ComputeOwnershipOptions,
   type OwnershipForFile,
 } from "./ownership.js";
+export {
+  linkTestsToSources,
+  testCoverageCountMetrics,
+  groupTestsBySource,
+  type TestSourceLink,
+  type LinkMethod,
+  type LinkTestsOptions,
+} from "./test-linker.js";
 export { patternToRegex, compilePatterns, matchesAny } from "./patterns.js";
 export {
   computePageRank,

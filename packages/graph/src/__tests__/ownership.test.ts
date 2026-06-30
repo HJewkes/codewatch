@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { computeOwnershipMetrics } from "../ownership.js";
+import {
+  computeOwnershipMetrics,
+  computeTestCoverageOwnership,
+} from "../ownership.js";
+import type { TestSourceLink } from "../test-linker.js";
 import type { ChurnEntry } from "../churn.js";
 
 function entry(
@@ -125,5 +129,75 @@ describe("computeOwnershipMetrics", () => {
       entry("c3", "carol", "a.ts", 1),
     ]);
     expect(findMetric(metrics, "a.ts", "top_author_share_30d")).toBe(0.333);
+  });
+});
+
+function pathLink(testId: string, sourceId: string): TestSourceLink {
+  return { testId, sourceId, method: "path" };
+}
+
+describe("computeTestCoverageOwnership", () => {
+  it("keys test-coverage bus-factor on the source node", () => {
+    // a.ts is production code; a.test.ts is its single-author test.
+    const metrics = computeTestCoverageOwnership(
+      [entry("c1", "alice", "a.test.ts", 30)],
+      [pathLink("a.test.ts", "a.ts")],
+    );
+    expect(findMetric(metrics, "a.ts", "test_bus_factor_30d")).toBe(1);
+    expect(findMetric(metrics, "a.ts", "test_top_author_share_30d")).toBe(1);
+    // It does NOT key on the test file itself.
+    expect(metrics.some((m) => m.nodeId === "a.test.ts")).toBe(false);
+  });
+
+  it("splits production-spread from test-silo for the same source", () => {
+    // Production churn spread three ways (top author 0.4 < 0.5 → bus factor 2).
+    // But the tests are alice-only — a single-author test silo despite the
+    // well-spread prod code.
+    const churn = [
+      entry("p1", "alice", "svc.ts", 40),
+      entry("p2", "bob", "svc.ts", 30),
+      entry("p3", "carol", "svc.ts", 30),
+      entry("t1", "alice", "svc.test.ts", 40),
+    ];
+    const prod = computeOwnershipMetrics(churn, {
+      knownFileIds: new Set(["svc.ts"]),
+    });
+    const cover = computeTestCoverageOwnership(churn, [
+      pathLink("svc.test.ts", "svc.ts"),
+    ]);
+    expect(findMetric(prod, "svc.ts", "bus_factor_30d")).toBe(2);
+    expect(findMetric(cover, "svc.ts", "test_bus_factor_30d")).toBe(1);
+  });
+
+  it("aggregates authorship across all tests linked to one source", () => {
+    // Two test files cover svc.ts: alice owns one, bob the other → spread.
+    const churn = [
+      entry("t1", "alice", "svc.a.test.ts", 40),
+      entry("t2", "bob", "svc.b.test.ts", 40),
+    ];
+    const metrics = computeTestCoverageOwnership(
+      churn,
+      [pathLink("svc.a.test.ts", "svc.ts"), pathLink("svc.b.test.ts", "svc.ts")],
+      { busFactorThreshold: 0.5 },
+    );
+    // alice 40, bob 40 → top author alone is 0.5 → bus factor 1 at threshold.
+    expect(findMetric(metrics, "svc.ts", "test_top_author_share_30d")).toBe(0.5);
+  });
+
+  it("emits nothing for a source whose linked tests have no churn", () => {
+    const metrics = computeTestCoverageOwnership(
+      [entry("c1", "alice", "unrelated.ts", 10)],
+      [pathLink("a.test.ts", "a.ts")],
+    );
+    expect(metrics).toEqual([]);
+  });
+
+  it("respects the configured windowDays in metric names", () => {
+    const metrics = computeTestCoverageOwnership(
+      [entry("c1", "alice", "a.test.ts", 10)],
+      [pathLink("a.test.ts", "a.ts")],
+      { windowDays: 90 },
+    );
+    expect(findMetric(metrics, "a.ts", "test_bus_factor_90d")).toBe(1);
   });
 });

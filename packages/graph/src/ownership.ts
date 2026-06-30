@@ -1,4 +1,5 @@
 import type { ChurnEntry } from "./churn.js";
+import { groupTestsBySource, type TestSourceLink } from "./test-linker.js";
 import type { GraphMetric } from "./types.js";
 
 export interface OwnershipForFile {
@@ -49,6 +50,68 @@ export function computeOwnershipMetrics(
     );
   }
   return out;
+}
+
+/**
+ * Bus-factor / top-author-share of the *test coverage* for each source, keyed
+ * on the source node. Aggregates churn authorship across all test files linked
+ * to a source (via the two-pass linker) and summarises it the same way as
+ * production ownership — so a file can read as well-spread on production code
+ * yet a single-author silo on its tests (or vice versa). Emitted only for
+ * sources with at least one linked test that has churn in the window.
+ */
+export function computeTestCoverageOwnership(
+  entries: readonly ChurnEntry[],
+  links: readonly TestSourceLink[],
+  options: ComputeOwnershipOptions = {},
+): GraphMetric[] {
+  const windowDays = options.windowDays ?? DEFAULT_WINDOW_DAYS;
+  const threshold =
+    options.busFactorThreshold ?? DEFAULT_BUS_FACTOR_THRESHOLD;
+  const testsBySource = groupTestsBySource(links);
+  const testIds = new Set<string>();
+  for (const tests of testsBySource.values()) {
+    for (const t of tests) testIds.add(t);
+  }
+  const linesByTest = groupByFileAndAuthor(entries, testIds);
+  const suffix = `${windowDays}d`;
+  const out: GraphMetric[] = [];
+  for (const [sourceId, tests] of testsBySource) {
+    const byAuthor = mergeAuthorChurn(tests, linesByTest);
+    const summary = summarizeFile(byAuthor, threshold);
+    if (summary === null) continue;
+    out.push(
+      {
+        nodeId: sourceId,
+        name: `test_bus_factor_${suffix}`,
+        value: summary.busFactor,
+        unit: "count",
+      },
+      {
+        nodeId: sourceId,
+        name: `test_top_author_share_${suffix}`,
+        value: round3(summary.topAuthorShare),
+        unit: "ratio",
+      },
+    );
+  }
+  return out;
+}
+
+/** Sum per-author churn across a set of test files into one author tally. */
+function mergeAuthorChurn(
+  tests: ReadonlySet<string>,
+  linesByTest: ReadonlyMap<string, Map<string, number>>,
+): Map<string, number> {
+  const byAuthor = new Map<string, number>();
+  for (const testId of tests) {
+    const fileAuthors = linesByTest.get(testId);
+    if (!fileAuthors) continue;
+    for (const [author, lines] of fileAuthors) {
+      byAuthor.set(author, (byAuthor.get(author) ?? 0) + lines);
+    }
+  }
+  return byAuthor;
 }
 
 function groupByFileAndAuthor(
