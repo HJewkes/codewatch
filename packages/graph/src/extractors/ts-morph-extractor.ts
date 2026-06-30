@@ -16,6 +16,38 @@ import {
   parentModuleId,
 } from "./ids.js";
 
+/**
+ * Build the `file` + `module` nodes for a source file from its path alone.
+ * Path-derived and deterministic, so the incremental indexer can reconstruct
+ * an unchanged file's nodes without re-parsing it — they are byte-for-byte the
+ * same nodes the extractor would emit. Keep this the single source of truth for
+ * file/module node shape.
+ */
+export function buildFileModuleNodes(
+  repoRoot: string,
+  absPath: string,
+): GraphNode[] {
+  const fId = fileId(repoRoot, absPath);
+  const mId = moduleId(repoRoot, absPath);
+  const parentId = parentModuleId(mId) ?? undefined;
+  return [
+    {
+      id: fId,
+      kind: "file",
+      name: path.basename(fId),
+      parentId: mId,
+      language: "typescript",
+    },
+    {
+      id: mId,
+      kind: "module",
+      name: path.basename(mId),
+      parentId,
+      language: "typescript",
+    },
+  ];
+}
+
 export interface TsMorphGraphExtractorOptions {
   repoRoot: string;
   tsConfigPath?: string;
@@ -73,26 +105,7 @@ export class TsMorphGraphExtractor implements Extractor<GraphFragment> {
   }
 
   private buildFileAndModuleNodes(sourceFile: SourceFile): GraphNode[] {
-    const abs = sourceFile.getFilePath();
-    const fId = fileId(this.repoRoot, abs);
-    const mId = moduleId(this.repoRoot, abs);
-    const parentId = parentModuleId(mId) ?? undefined;
-    return [
-      {
-        id: fId,
-        kind: "file",
-        name: path.basename(fId),
-        parentId: mId,
-        language: "typescript",
-      },
-      {
-        id: mId,
-        kind: "module",
-        name: path.basename(mId),
-        parentId,
-        language: "typescript",
-      },
-    ];
+    return buildFileModuleNodes(this.repoRoot, sourceFile.getFilePath());
   }
 
   private collectEdges(sourceFile: SourceFile): {

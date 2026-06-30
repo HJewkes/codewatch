@@ -54,6 +54,25 @@ interface FunctionStats {
   nestingDepth: number;
 }
 
+/**
+ * Names of every metric `computeSourceMetrics` can emit. These are pure
+ * functions of a file's content, so the incremental indexer can carry them
+ * forward unchanged for a byte-identical file instead of re-parsing it. If a
+ * new source metric is added above, add its name here — the incremental
+ * round-trip test will fail loudly if this set drifts out of sync.
+ */
+export const SOURCE_METRIC_NAMES: ReadonlySet<string> = new Set([
+  "loc",
+  "function_count",
+  "cyclomatic_max",
+  "cyclomatic_sum",
+  "cognitive_max",
+  "cognitive_sum",
+  "max_nesting_depth",
+  "class_count",
+  "lcom4_max",
+]);
+
 export function computeSourceMetrics(
   files: readonly ParsedFile[],
   fileIdOf: (filePath: string) => string,

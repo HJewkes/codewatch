@@ -1,0 +1,9 @@
+# Force textual diffs for source files. Guards against a stray NUL byte in a
+# tracked blob flipping the whole file to a "binary" diff (which hides real
+# changes in review). See the edgeKey NUL-separator fix in packages/graph.
+*.ts    diff
+*.tsx   diff
+*.js    diff
+*.json  diff
+*.md    diff
+*.sql   diff

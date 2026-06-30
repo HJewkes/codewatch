@@ -1,11 +1,25 @@
 import Database from "better-sqlite3";
 import { runMigrations } from "./migrations.js";
+import {
+  rowToAlias,
+  rowToEdge,
+  rowToFingerprint,
+  rowToMetric,
+  rowToNode,
+  rowToSnapshot,
+  type AliasDbRow,
+  type EdgeDbRow,
+  type FingerprintDbRow,
+  type MetricDbRow,
+  type NodeDbRow,
+  type SnapshotDbRow,
+} from "./db-rows.js";
 import type {
+  FileFingerprint,
   GraphEdge,
   GraphMetric,
   GraphNode,
   IdAlias,
-  IdAliasReason,
   SnapshotRow,
 } from "./types.js";
 
@@ -16,100 +30,13 @@ interface SnapshotInsert {
   attrs?: Record<string, unknown>;
 }
 
-interface SnapshotDbRow {
-  id: number;
-  ref: string;
-  commit_hash: string | null;
-  taken_at: string;
-  index_version: string;
-  attrs: string;
-}
-
-interface NodeDbRow {
-  id: string;
-  kind: string;
-  name: string;
-  parent_id: string | null;
-  language: string | null;
-  role: string | null;
-  attrs: string;
-}
-
-interface EdgeDbRow {
-  src_id: string;
-  dst_id: string;
-  kind: string;
-  attrs: string;
-}
-
-interface MetricDbRow {
-  node_id: string;
-  name: string;
-  value: number | null;
-  unit: string | null;
-}
-
-interface AliasDbRow {
-  old_id: string;
-  new_id: string;
-  reason: string;
-}
-
-function rowToSnapshot(row: SnapshotDbRow): SnapshotRow {
-  return {
-    id: row.id,
-    ref: row.ref,
-    commitHash: row.commit_hash,
-    takenAt: row.taken_at,
-    indexVersion: row.index_version,
-    attrs: JSON.parse(row.attrs) as Record<string, unknown>,
-  };
-}
-
-function rowToNode(row: NodeDbRow): GraphNode {
-  return {
-    id: row.id,
-    kind: row.kind as GraphNode["kind"],
-    name: row.name,
-    parentId: row.parent_id ?? undefined,
-    language: row.language ?? undefined,
-    role: (row.role ?? undefined) as GraphNode["role"],
-    attrs: JSON.parse(row.attrs) as Record<string, unknown>,
-  };
-}
-
-function rowToEdge(row: EdgeDbRow): GraphEdge {
-  return {
-    srcId: row.src_id,
-    dstId: row.dst_id,
-    kind: row.kind as GraphEdge["kind"],
-    attrs: JSON.parse(row.attrs) as Record<string, unknown>,
-  };
-}
-
-function rowToMetric(row: MetricDbRow): GraphMetric {
-  return {
-    nodeId: row.node_id,
-    name: row.name,
-    value: row.value,
-    unit: row.unit ?? undefined,
-  };
-}
-
-function rowToAlias(row: AliasDbRow): IdAlias {
-  return {
-    oldId: row.old_id,
-    newId: row.new_id,
-    reason: row.reason as IdAliasReason,
-  };
-}
-
 export class GraphDatabase {
   private readonly insertSnapshotStmt;
   private readonly insertNodeStmt;
   private readonly insertEdgeStmt;
   private readonly insertMetricStmt;
   private readonly insertAliasStmt;
+  private readonly insertFingerprintStmt;
   private readonly getSnapshotStmt;
   private readonly listSnapshotsAllStmt;
   private readonly listSnapshotsByRefStmt;
@@ -118,6 +45,7 @@ export class GraphDatabase {
   private readonly listEdgesStmt;
   private readonly listMetricsStmt;
   private readonly listAliasesStmt;
+  private readonly listFingerprintsStmt;
 
   constructor(private readonly db: Database.Database) {
     this.insertSnapshotStmt = db.prepare(
@@ -139,6 +67,10 @@ export class GraphDatabase {
     this.insertAliasStmt = db.prepare(
       `INSERT INTO id_alias (snapshot_id, old_id, new_id, reason)
        VALUES (@snapshotId, @oldId, @newId, @reason)`,
+    );
+    this.insertFingerprintStmt = db.prepare(
+      `INSERT INTO file_fingerprint (snapshot_id, file_id, content_hash)
+       VALUES (@snapshotId, @fileId, @contentHash)`,
     );
     this.getSnapshotStmt = db.prepare(
       "SELECT * FROM snapshot WHERE id = ?",
@@ -163,6 +95,9 @@ export class GraphDatabase {
     );
     this.listAliasesStmt = db.prepare(
       "SELECT old_id, new_id, reason FROM id_alias WHERE snapshot_id = ?",
+    );
+    this.listFingerprintsStmt = db.prepare(
+      "SELECT file_id, content_hash FROM file_fingerprint WHERE snapshot_id = ?",
     );
   }
 
@@ -245,6 +180,22 @@ export class GraphDatabase {
       for (const a of rows) this.insertAlias(snapshotId, a);
     });
     tx(aliases);
+  }
+
+  insertFingerprints(
+    snapshotId: number,
+    fingerprints: readonly FileFingerprint[],
+  ): void {
+    const tx = this.db.transaction((rows: readonly FileFingerprint[]) => {
+      for (const f of rows) {
+        this.insertFingerprintStmt.run({
+          snapshotId,
+          fileId: f.fileId,
+          contentHash: f.contentHash,
+        });
+      }
+    });
+    tx(fingerprints);
   }
 
   getSnapshot(id: number): SnapshotRow | null {
@@ -336,6 +287,11 @@ export class GraphDatabase {
   listAliases(snapshotId: number): IdAlias[] {
     const rows = this.listAliasesStmt.all(snapshotId) as AliasDbRow[];
     return rows.map(rowToAlias);
+  }
+
+  listFingerprints(snapshotId: number): FileFingerprint[] {
+    const rows = this.listFingerprintsStmt.all(snapshotId) as FingerprintDbRow[];
+    return rows.map(rowToFingerprint);
   }
 
   getLatestSnapshotByRef(ref: string): SnapshotRow | null {
