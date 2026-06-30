@@ -25,11 +25,23 @@ export interface CentralRow {
   score: number;
 }
 
+export interface TestCoverageRow {
+  /** Source (non-test) file whose test coverage is owner-concentrated. */
+  nodeId: string;
+  /** Bus factor of the linked test files' authorship (1 = single owner). */
+  testBusFactor: number;
+  /** Share of test churn from the single largest test author (0..1). */
+  testTopAuthorShare: number;
+  /** How many distinct test files link to this source. */
+  linkedTests: number;
+}
+
 export interface GraphReportResult {
   snapshot: SnapshotRow;
   windowDays: number;
   hotspots: HotspotRow[];
   busFactorRisks: BusFactorRow[];
+  testCoverageRisks: TestCoverageRow[];
   couplingClusters: CouplingRow[];
   centralFiles: CentralRow[];
   drift?: ReportDrift;

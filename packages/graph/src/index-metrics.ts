@@ -1,8 +1,10 @@
 import type { ParsedFile } from "@code-style/core";
 import { computeMetrics } from "./metrics.js";
 import { computeSourceMetrics } from "./source-metrics.js";
-import { aggregateChurn, loadChurnEntries } from "./churn.js";
-import { computeOwnershipMetrics } from "./ownership.js";
+import { aggregateChurn, loadChurnEntries, type ChurnEntry } from "./churn.js";
+import { computeChangeCoupling } from "./change-coupling.js";
+import { computeOwnershipMetrics, computeTestCoverageOwnership } from "./ownership.js";
+import { linkTestsToSources, testCoverageCountMetrics } from "./test-linker.js";
 import { fileId } from "./extractors/ids.js";
 import type { GraphEdge, GraphMetric, GraphNode } from "./types.js";
 
@@ -41,9 +43,11 @@ export function buildIndexerMetrics(input: IndexerMetricsInput): GraphMetric[] {
     ...computeSourceMetrics(input.parsedFiles, (p) => fileId(input.idRoot, p)),
     ...input.reusedSourceMetrics,
   ];
+  let entries: readonly ChurnEntry[] | null = null;
+  let knownFileIds: Set<string> | undefined;
   if (input.computeChurn) {
-    const knownFileIds = collectFileIds(input.nodes.values());
-    const entries = loadChurnEntries({
+    knownFileIds = collectFileIds(input.nodes.values());
+    entries = loadChurnEntries({
       repoRoot: input.idRoot,
       windowDays: input.churnWindowDays,
       knownFileIds,
@@ -57,6 +61,33 @@ export function buildIndexerMetrics(input: IndexerMetricsInput): GraphMetric[] {
         }),
       );
     }
+  }
+  out.push(
+    ...computeTestCoverage(nodeList, entries, input.churnWindowDays, knownFileIds),
+  );
+  return out;
+}
+
+/**
+ * Two-pass test↔source linker outputs: per-source coverage counts (always) and,
+ * when churn is available, the bus-factor / top-author-share of each source's
+ * test coverage. Path-convention links need no churn; co-edit supplementation
+ * and the ownership split reuse the already-loaded churn entries.
+ */
+function computeTestCoverage(
+  nodes: readonly GraphNode[],
+  entries: readonly ChurnEntry[] | null,
+  windowDays: number | undefined,
+  knownFileIds: ReadonlySet<string> | undefined,
+): GraphMetric[] {
+  const coEditPairs = entries
+    ? computeChangeCoupling(entries, { knownFileIds }).pairs
+    : [];
+  const links = linkTestsToSources(nodes, coEditPairs);
+  if (links.length === 0) return [];
+  const out = testCoverageCountMetrics(links);
+  if (entries) {
+    out.push(...computeTestCoverageOwnership(entries, links, { windowDays }));
   }
   return out;
 }

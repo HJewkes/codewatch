@@ -22,6 +22,7 @@ import {
   topCentralFiles,
   topCouplingClusters,
   topHotspots,
+  topTestCoverageRisks,
   type ReportContext,
 } from "./graph-report-sections.js";
 import type {
@@ -85,6 +86,7 @@ export function runGraphReportCommand(
       windowDays,
       hotspots: topHotspots(ctx, limit),
       busFactorRisks: topBusFactorRisks(ctx, limit),
+      testCoverageRisks: topTestCoverageRisks(ctx, limit),
       couplingClusters: topCouplingClusters(ctx, options.repoRoot, windowDays, limit),
       centralFiles: topCentralFiles(nodes, edges, ctx, limit),
     };

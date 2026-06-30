@@ -13,6 +13,7 @@ import type {
   CentralRow,
   CouplingRow,
   HotspotRow,
+  TestCoverageRow,
 } from "./graph-report-types.js";
 
 const COMPLEXITY_METRICS = ["cognitive_max", "cyclomatic_max"] as const;
@@ -131,6 +132,33 @@ export function topBusFactorRisks(
     });
   }
   rows.sort((a, b) => b.churn - a.churn);
+  return rows.slice(0, limit);
+}
+
+/**
+ * Sources whose *test coverage* is a single-author silo (test bus factor = 1)
+ * — the honest, role-split view: production code can be well-spread while the
+ * tests that guard it are owned by one person (or vice versa).
+ */
+export function topTestCoverageRisks(
+  ctx: ReportContext,
+  limit: number,
+): TestCoverageRow[] {
+  const bfName = `test_bus_factor_${ctx.windowDays}d`;
+  const shareName = `test_top_author_share_${ctx.windowDays}d`;
+  const rows: TestCoverageRow[] = [];
+  for (const node of ctx.nodes) {
+    if (!keepNode(ctx, node.id)) continue;
+    const bf = lookupMetric(ctx, bfName, node.id);
+    if (bf === undefined || bf > 1) continue;
+    rows.push({
+      nodeId: node.id,
+      testBusFactor: bf,
+      testTopAuthorShare: lookupMetric(ctx, shareName, node.id) ?? 1,
+      linkedTests: lookupMetric(ctx, "linked_test_count", node.id) ?? 0,
+    });
+  }
+  rows.sort((a, b) => b.linkedTests - a.linkedTests);
   return rows.slice(0, limit);
 }
 

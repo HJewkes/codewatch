@@ -102,6 +102,46 @@ describe("runGraphIndex with metric computation", () => {
     }
   });
 
+  it("links a co-located test to its source (linked_test_count)", async () => {
+    // A standalone project so the extra test file doesn't perturb the shared
+    // fixture's fan-in/out assertions.
+    const rootDir = await fs.mkdtemp(path.join(tmpdir(), "code-style-link-"));
+    try {
+      await fs.mkdir(path.join(rootDir, "src"), { recursive: true });
+      await fs.writeFile(
+        path.join(rootDir, "src", "calc.ts"),
+        "export const add = (a: number, b: number) => a + b;\n",
+      );
+      await fs.writeFile(
+        path.join(rootDir, "src", "calc.test.ts"),
+        'import { add } from "./calc.js";\nadd(1, 2);\n',
+      );
+      const result = await runGraphIndex({ rootDir });
+      const db = openDatabase(path.join(rootDir, ".codewatch", "graph.db"));
+      try {
+        const count = db
+          .listMetrics(result.snapshotId)
+          .find(
+            (m) => m.nodeId === "src/calc.ts" && m.name === "linked_test_count",
+          );
+        expect(count?.value).toBe(1);
+        // The metric is keyed on the source, never the test file itself.
+        const onTest = db
+          .listMetrics(result.snapshotId)
+          .some(
+            (m) =>
+              m.nodeId === "src/calc.test.ts" &&
+              m.name === "linked_test_count",
+          );
+        expect(onTest).toBe(false);
+      } finally {
+        db.close();
+      }
+    } finally {
+      await fs.rm(rootDir, { recursive: true, force: true });
+    }
+  });
+
   it("populates source-content metrics on file nodes", async () => {
     const result = await runGraphIndex({ rootDir: project.rootDir });
     const db = openDatabase(project.dbPath);
