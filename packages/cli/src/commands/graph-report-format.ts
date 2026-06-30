@@ -8,6 +8,7 @@ import type {
   HotspotDelta,
   HotspotRow,
   ReportDrift,
+  TestCoverageRow,
 } from "./graph-report-types.js";
 
 export function formatGraphReportMarkdown(result: GraphReportResult): string {
@@ -21,6 +22,7 @@ export function formatGraphReportMarkdown(result: GraphReportResult): string {
   lines.push("");
   pushHotspots(lines, result.hotspots);
   pushBusFactor(lines, result.busFactorRisks);
+  pushTestCoverage(lines, result.testCoverageRisks);
   pushCoupling(lines, result.couplingClusters);
   pushCentral(lines, result.centralFiles);
   if (result.drift) pushDrift(lines, result.drift);
@@ -60,6 +62,28 @@ function pushBusFactor(lines: string[], rows: readonly BusFactorRow[]): void {
   for (const r of rows) {
     lines.push(
       `| ${r.nodeId} | ${(r.topAuthorShare * 100).toFixed(0)}% | ${r.churn} |`,
+    );
+  }
+  lines.push("");
+}
+
+function pushTestCoverage(
+  lines: string[],
+  rows: readonly TestCoverageRow[],
+): void {
+  lines.push("## Test-coverage silos (test bus factor = 1)");
+  lines.push("");
+  if (rows.length === 0) {
+    lines.push("_No single-author test coverage in the window._");
+    lines.push("");
+    return;
+  }
+  lines.push("| Source | Test top-author share | Linked tests |");
+  lines.push("|---|--:|--:|");
+  for (const r of rows) {
+    lines.push(
+      `| ${r.nodeId} | ${(r.testTopAuthorShare * 100).toFixed(0)}% | ` +
+        `${r.linkedTests} |`,
     );
   }
   lines.push("");
