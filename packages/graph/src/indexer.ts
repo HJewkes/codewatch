@@ -64,6 +64,10 @@ export interface GraphIndexOptions {
    * `membershipUnchanged`); otherwise this run silently falls back to a full
    * index. Fingerprints are written on every run regardless, so the next run
    * has a basis to diff against.
+   *
+   * Defaults to `true` — set `false` to force a full index. The reuse path is
+   * provably equivalent to a full index, so the only reason to disable it is to
+   * rebuild from scratch.
    */
   incremental?: boolean;
 }
@@ -265,7 +269,7 @@ export async function runGraphIndex(
       readFiles.map((rf) => fileId(idRoot, rf.filePath)),
     );
     const basis =
-      options.incremental === true ? loadReuseBasis(db, INDEX_VERSION) : null;
+      options.incremental !== false ? loadReuseBasis(db, INDEX_VERSION) : null;
     const reuse =
       basis && membershipUnchanged(basis, currentFileIds) ? basis : null;
     const { toParse, reusedFileIds } = classifyForReuse(

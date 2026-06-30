@@ -113,6 +113,33 @@ describe("runGraphIndexCommand", () => {
     }
   });
 
+  it("reuses byte-identical files by default on re-index (incremental on)", async () => {
+    const { runGraphIndexCommand } = await import(
+      "../commands/graph-index.js"
+    );
+    const tmpRoot = await fs.mkdtemp(
+      path.join(tmpdir(), "code-style-graph-index-reuse-"),
+    );
+    try {
+      await fs.writeFile(
+        path.join(tmpRoot, "only.ts"),
+        "export const x = 1;\n",
+      );
+      const { result: first } = await runGraphIndexCommand({ rootDir: tmpRoot });
+      const { result: second } = await runGraphIndexCommand({ rootDir: tmpRoot });
+      expect(second.reusedFiles).toBe(first.files);
+      expect(second.reparsedFiles).toBe(0);
+
+      const { result: forced } = await runGraphIndexCommand({
+        rootDir: tmpRoot,
+        incremental: false,
+      });
+      expect(forced.reusedFiles).toBe(0);
+    } finally {
+      await fs.rm(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
   it("emits JSON output when --json is set", async () => {
     const { runGraphIndexCommand } = await import(
       "../commands/graph-index.js"

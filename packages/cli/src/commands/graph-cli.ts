@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import { formatError } from "../utils/output.js";
 import { registerGraphArch } from "./graph-arch.js";
+import { registerGraphAutoUpdate } from "./graph-auto-update.js";
 import { registerGraphCoupled } from "./graph-coupled.js";
 import { registerGraphPrune } from "./graph-prune.js";
 import { registerGraphRelevant } from "./graph-relevant.js";
@@ -22,6 +23,7 @@ export function registerGraphCommands(program: Command): void {
     .description("Code graph commands (index, query, render, check)");
 
   registerIndex(graphCmd);
+  registerGraphAutoUpdate(graphCmd);
   registerDiff(graphCmd);
   registerCheck(graphCmd);
   registerCheckDiff(graphCmd);
@@ -63,8 +65,8 @@ function registerIndex(graphCmd: Command): void {
       "Days of git history to count churn over (default 30)",
     )
     .option(
-      "--incremental",
-      "Reuse the prior snapshot for byte-identical files (skips re-parsing unchanged files; falls back to a full index if files were added or removed)",
+      "--no-incremental",
+      "Force a full index — disable byte-identical file reuse (default: reuse the prior snapshot for unchanged files, falling back to a full index when files are added or removed)",
     )
     .option("--json", "Output structured JSON")
     .action(

@@ -196,9 +196,19 @@ describe("fingerprint-based incremental indexing", () => {
     }
   });
 
-  it("does not reuse anything without the incremental flag", async () => {
-    await runGraphIndex({ rootDir: project.rootDir });
+  it("reuses byte-identical files by default (no flag)", async () => {
+    const first = await runGraphIndex({ rootDir: project.rootDir });
     const second = await runGraphIndex({ rootDir: project.rootDir });
+    expect(second.reusedFiles).toBe(first.files);
+    expect(second.reparsedFiles).toBe(0);
+  });
+
+  it("does not reuse anything when incremental is disabled", async () => {
+    await runGraphIndex({ rootDir: project.rootDir });
+    const second = await runGraphIndex({
+      rootDir: project.rootDir,
+      incremental: false,
+    });
     expect(second.reusedFiles).toBe(0);
     expect(second.reparsedFiles).toBe(second.files);
   });

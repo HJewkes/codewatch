@@ -3,6 +3,8 @@ import * as path from "node:path";
 
 const MARKER_BEGIN = "# code-style pre-commit hook (begin)";
 const MARKER_END = "# code-style pre-commit hook (end)";
+const POST_MARKER_BEGIN = "# code-style post-commit hook (begin)";
+const POST_MARKER_END = "# code-style post-commit hook (end)";
 const TS_GLOB = "\\.(ts|tsx|js|jsx|mts|cts|mjs|cjs)$";
 
 export interface InstallHookOptions {
@@ -39,27 +41,35 @@ export async function removeHook(projectDir: string): Promise<void> {
   await fs.writeFile(hookPath, stripped);
 }
 
-async function readWithoutBlock(hookPath: string): Promise<string | null> {
+async function readWithoutBlock(
+  hookPath: string,
+  begin = MARKER_BEGIN,
+  end = MARKER_END,
+): Promise<string | null> {
   let content: string;
   try {
     content = await fs.readFile(hookPath, "utf-8");
   } catch {
     return null;
   }
-  return stripBlock(content);
+  return stripBlock(content, begin, end);
 }
 
-export function stripBlock(content: string): string {
+export function stripBlock(
+  content: string,
+  begin = MARKER_BEGIN,
+  end = MARKER_END,
+): string {
   const lines = content.split("\n");
   const out: string[] = [];
   let inside = false;
   for (const line of lines) {
     const trimmed = line.trim();
-    if (!inside && trimmed === MARKER_BEGIN) {
+    if (!inside && trimmed === begin) {
       inside = true;
       continue;
     }
-    if (inside && trimmed === MARKER_END) {
+    if (inside && trimmed === end) {
       inside = false;
       continue;
     }
@@ -70,6 +80,7 @@ export function stripBlock(content: string): string {
 }
 
 const DEFAULT_DB_PATH = ".codewatch/graph.db";
+const DEFAULT_CONFIG_PATH = ".codewatch/check.json";
 
 function normalizeGraphPaths(value: string | string[] | undefined): string {
   if (value === undefined) return ".";
@@ -103,4 +114,59 @@ function renderBlock(options: InstallHookOptions): string {
   }
   lines.push(MARKER_END, "");
   return lines.join("\n");
+}
+
+export interface InstallAutoUpdateHookOptions {
+  graphPath?: string | string[];
+  dbPath?: string;
+  configPath?: string;
+  bin?: string;
+}
+
+/**
+ * Install a post-commit hook that runs `graph auto-update`, keeping the snapshot
+ * fresh after each commit. The block is harmless until `autoUpdate: true` is set
+ * in the check.json config — `graph auto-update` self-gates on it — so the hook
+ * can be installed eagerly and toggled purely through config.
+ */
+export async function installAutoUpdateHook(
+  projectDir: string,
+  options: InstallAutoUpdateHookOptions = {},
+): Promise<void> {
+  const hookPath = path.join(projectDir, ".git", "hooks", "post-commit");
+  const stripped = await readWithoutBlock(
+    hookPath,
+    POST_MARKER_BEGIN,
+    POST_MARKER_END,
+  );
+  const base = stripped ?? "#!/bin/sh\n";
+  const block = renderAutoUpdateBlock(options);
+  await fs.writeFile(hookPath, base.trimEnd() + "\n" + block);
+  await fs.chmod(hookPath, 0o755);
+}
+
+export async function removeAutoUpdateHook(projectDir: string): Promise<void> {
+  const hookPath = path.join(projectDir, ".git", "hooks", "post-commit");
+  const stripped = await readWithoutBlock(
+    hookPath,
+    POST_MARKER_BEGIN,
+    POST_MARKER_END,
+  );
+  if (stripped === null) return;
+  await fs.writeFile(hookPath, stripped);
+}
+
+function renderAutoUpdateBlock(options: InstallAutoUpdateHookOptions): string {
+  const bin = options.bin ?? DEFAULT_BIN;
+  const targets = normalizeGraphPaths(options.graphPath);
+  const db = options.dbPath ?? DEFAULT_DB_PATH;
+  const config = options.configPath ?? DEFAULT_CONFIG_PATH;
+  // `|| true` so a failed re-index never disrupts a workflow — the commit has
+  // already landed by the time post-commit runs.
+  return [
+    POST_MARKER_BEGIN,
+    `${bin} graph auto-update ${targets} --db ${db} --config ${config} >/dev/null 2>&1 || true`,
+    POST_MARKER_END,
+    "",
+  ].join("\n");
 }

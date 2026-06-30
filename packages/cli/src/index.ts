@@ -12,9 +12,10 @@ import {
   getChangedFiles,
 } from "./commands/diff.js";
 import { getDefaultProfilePath } from "./utils/config.js";
-import { formatError, formatSuccess } from "./utils/output.js";
+import { formatError } from "./utils/output.js";
 import { extractFromFiles } from "./utils/pipeline.js";
 import { registerGraphCommands } from "./commands/graph-cli.js";
+import { registerHookCommands } from "./commands/hook-cli.js";
 
 const program = new Command();
 
@@ -243,83 +244,7 @@ program
     }
   });
 
-const hookCmd = program
-  .command("hook")
-  .description("Manage git pre-commit hooks");
-
-hookCmd
-  .command("install")
-  .description("Install code-style pre-commit hook")
-  .option(
-    "--with-graph-check",
-    "Also run `graph index <path> && graph check` when staged changes touch source files",
-  )
-  .option(
-    "--no-style-check",
-    "Skip the `code-style diff --fix` line (use when no profile is configured)",
-  )
-  .option(
-    "--graph-path <paths...>",
-    "One or more directories to index for the graph check (default: .)",
-  )
-  .option(
-    "--db-path <path>",
-    "Shared db path for `graph index` and `graph check` (default: .codewatch/graph.db)",
-  )
-  .option(
-    "--bin <command>",
-    "CLI binary to invoke from the hook (default: code-style)",
-  )
-  .action(
-    async (options: {
-      withGraphCheck?: boolean;
-      styleCheck?: boolean;
-      graphPath?: string[];
-      dbPath?: string;
-      bin?: string;
-    }) => {
-      try {
-        const { installHook } = await import("./commands/hook.js");
-        await installHook(process.cwd(), {
-          withGraphCheck: options.withGraphCheck,
-          withStyleCheck: options.styleCheck,
-          graphPath: options.graphPath,
-          dbPath: options.dbPath,
-          bin: options.bin,
-        });
-        console.log(
-          formatSuccess(describeInstalled(options)),
-        );
-      } catch (err) {
-        console.error(formatError(err instanceof Error ? err.message : String(err)));
-        process.exitCode = 1;
-      }
-    },
-  );
-
-function describeInstalled(options: {
-  withGraphCheck?: boolean;
-  styleCheck?: boolean;
-}): string {
-  const parts: string[] = [];
-  if (options.styleCheck !== false) parts.push("style");
-  if (options.withGraphCheck) parts.push("graph check");
-  return `Pre-commit hook installed (${parts.join(" + ")}).`;
-}
-
-hookCmd
-  .command("remove")
-  .description("Remove code-style pre-commit hook")
-  .action(async () => {
-    try {
-      const { removeHook } = await import("./commands/hook.js");
-      await removeHook(process.cwd());
-      console.log(formatSuccess("Pre-commit hook removed."));
-    } catch (err) {
-      console.error(formatError(err instanceof Error ? err.message : String(err)));
-      process.exitCode = 1;
-    }
-  });
+registerHookCommands(program);
 
 program
   .command("export")
