@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import * as fs from "node:fs/promises";
 import {
+  canonicalMetricName,
   compilePatterns,
   openDatabase,
   type GraphDatabase,
@@ -96,6 +97,17 @@ export function runGraphReportCommand(
   }
 }
 
+/**
+ * Heal deprecated metric names read back from an older snapshot so a baseline
+ * indexed before a metric rename still resolves against current report lookups.
+ */
+function canonicalizeMetricNames(metrics: GraphMetric[]): GraphMetric[] {
+  return metrics.map((m) => {
+    const name = canonicalMetricName(m.name);
+    return name === m.name ? m : { ...m, name };
+  });
+}
+
 function computeDrift(
   db: GraphDatabase,
   options: GraphReportCommandOptions,
@@ -114,7 +126,7 @@ function computeDrift(
   if (warning) console.warn(warning);
 
   const baseNodes = db.listNodes(baselineSnapshot.id);
-  const baseMetrics = db.listMetrics(baselineSnapshot.id);
+  const baseMetrics = canonicalizeMetricNames(db.listMetrics(baselineSnapshot.id));
   const baseWindow = resolveWindowDays(baseMetrics, current.windowDays);
   const baseCtx = buildReportContext({
     nodes: baseNodes,

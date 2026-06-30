@@ -1,3 +1,4 @@
+import { metricAliasTarget, roleAliasTarget } from "./aliases.js";
 import type {
   CheckRule,
   ForbidImportRule,
@@ -10,7 +11,17 @@ import type {
   Severity,
 } from "./types.js";
 
-export function validateRules(input: unknown): readonly CheckRule[] {
+export interface ValidateRulesOptions {
+  /** Called with a human-readable message when a deprecated alias is healed. */
+  onWarn?: (message: string) => void;
+}
+
+type Warn = (message: string) => void;
+
+export function validateRules(
+  input: unknown,
+  options: ValidateRulesOptions = {},
+): readonly CheckRule[] {
   if (!input || typeof input !== "object") {
     throw new Error("rules file must be an object with a `rules` array");
   }
@@ -18,10 +29,21 @@ export function validateRules(input: unknown): readonly CheckRule[] {
   if (!Array.isArray(obj.rules)) {
     throw new Error("rules file must have a `rules` array");
   }
-  return obj.rules.map((r, i) => validateRule(r, i));
+  const warn: Warn = options.onWarn ?? (() => {});
+  return obj.rules.map((r, i) => validateRule(r, i, warn));
 }
 
-function validateRule(raw: unknown, index: number): CheckRule {
+/** Heal a deprecated metric name to its canonical form, warning if renamed. */
+function healMetricName(name: string, ruleId: string, warn: Warn): string {
+  const target = metricAliasTarget(name);
+  if (target) {
+    warn(`${ruleId}: metric "${name}" is deprecated — using "${target}"`);
+    return target;
+  }
+  return name;
+}
+
+function validateRule(raw: unknown, index: number, warn: Warn): CheckRule {
   if (!raw || typeof raw !== "object") {
     throw new Error(`rule[${index}] must be an object`);
   }
@@ -34,11 +56,11 @@ function validateRule(raw: unknown, index: number): CheckRule {
   }
   switch (r.type) {
     case "metric-max":
-      return assertMetricMax(r);
+      return assertMetricMax(r, warn);
     case "metric-min":
-      return assertMetricMin(r);
+      return assertMetricMin(r, warn);
     case "metric-product-max":
-      return assertMetricProductMax(r);
+      return assertMetricProductMax(r, warn);
     case "forbid-import":
       return assertForbidImport(r);
     case "layered-deps":
@@ -101,7 +123,10 @@ function assertLayeredDeps(r: Record<string, unknown>): LayeredDepsRule {
   };
 }
 
-function assertMetricProductMax(r: Record<string, unknown>): MetricProductMaxRule {
+function assertMetricProductMax(
+  r: Record<string, unknown>,
+  warn: Warn,
+): MetricProductMaxRule {
   if (!Array.isArray(r.metrics) || r.metrics.length < 2) {
     throw new Error(`${r.id}: metrics must be an array of 2+ metric names`);
   }
@@ -111,45 +136,48 @@ function assertMetricProductMax(r: Record<string, unknown>): MetricProductMaxRul
   if (typeof r.max !== "number") {
     throw new Error(`${r.id}: max must be a number`);
   }
+  const ruleId = r.id as string;
   return {
     type: "metric-product-max",
-    id: r.id as string,
-    metrics: r.metrics,
+    id: ruleId,
+    metrics: r.metrics.map((m) => healMetricName(m, ruleId, warn)),
     max: r.max,
     kind: r.kind as MetricProductMaxRule["kind"],
     severity: r.severity as Severity | undefined,
     exclude: parseStringArray(r.exclude),
-    excludeRoles: parseRoleArray(r.id as string, r.excludeRoles),
+    excludeRoles: parseRoleArray(ruleId, r.excludeRoles, warn),
   };
 }
 
-function assertMetricMax(r: Record<string, unknown>): MetricMaxRule {
+function assertMetricMax(r: Record<string, unknown>, warn: Warn): MetricMaxRule {
   if (typeof r.metric !== "string") throw new Error(`${r.id}: metric must be a string`);
   if (typeof r.max !== "number") throw new Error(`${r.id}: max must be a number`);
+  const ruleId = r.id as string;
   return {
     type: "metric-max",
-    id: r.id as string,
-    metric: r.metric,
+    id: ruleId,
+    metric: healMetricName(r.metric, ruleId, warn),
     max: r.max,
     kind: r.kind as MetricMaxRule["kind"],
     severity: r.severity as Severity | undefined,
     exclude: parseStringArray(r.exclude),
-    excludeRoles: parseRoleArray(r.id as string, r.excludeRoles),
+    excludeRoles: parseRoleArray(ruleId, r.excludeRoles, warn),
   };
 }
 
-function assertMetricMin(r: Record<string, unknown>): MetricMinRule {
+function assertMetricMin(r: Record<string, unknown>, warn: Warn): MetricMinRule {
   if (typeof r.metric !== "string") throw new Error(`${r.id}: metric must be a string`);
   if (typeof r.min !== "number") throw new Error(`${r.id}: min must be a number`);
+  const ruleId = r.id as string;
   return {
     type: "metric-min",
-    id: r.id as string,
-    metric: r.metric,
+    id: ruleId,
+    metric: healMetricName(r.metric, ruleId, warn),
     min: r.min,
     kind: r.kind as MetricMinRule["kind"],
     severity: r.severity as Severity | undefined,
     exclude: parseStringArray(r.exclude),
-    excludeRoles: parseRoleArray(r.id as string, r.excludeRoles),
+    excludeRoles: parseRoleArray(ruleId, r.excludeRoles, warn),
   };
 }
 
@@ -178,17 +206,31 @@ const ROLE_VALUES: ReadonlySet<NodeRole> = new Set([
   "source",
 ]);
 
-function parseRoleArray(ruleId: string, value: unknown): NodeRole[] | undefined {
+function parseRoleArray(
+  ruleId: string,
+  value: unknown,
+  warn: Warn,
+): NodeRole[] | undefined {
   if (value === undefined) return undefined;
   if (!Array.isArray(value)) {
     throw new Error(`${ruleId}: excludeRoles must be an array`);
   }
-  for (const entry of value) {
-    if (typeof entry !== "string" || !ROLE_VALUES.has(entry as NodeRole)) {
-      throw new Error(
-        `${ruleId}: unknown role "${entry}" — valid: ${[...ROLE_VALUES].join(", ")}`,
-      );
+  return value.map((entry) => healRole(entry, ruleId, warn));
+}
+
+/** Heal a deprecated role alias to canonical; throw only on genuinely-unknown. */
+function healRole(entry: unknown, ruleId: string, warn: Warn): NodeRole {
+  if (typeof entry === "string" && ROLE_VALUES.has(entry as NodeRole)) {
+    return entry as NodeRole;
+  }
+  if (typeof entry === "string") {
+    const target = roleAliasTarget(entry);
+    if (target) {
+      warn(`${ruleId}: role "${entry}" is deprecated — using "${target}"`);
+      return target;
     }
   }
-  return value as NodeRole[];
+  throw new Error(
+    `${ruleId}: unknown role "${entry}" — valid: ${[...ROLE_VALUES].join(", ")}`,
+  );
 }

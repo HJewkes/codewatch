@@ -4,7 +4,11 @@ import * as path from "node:path";
 import { tmpdir } from "node:os";
 import { openDatabase, type GraphDatabase } from "../database.js";
 import { runChecks, validateRules } from "../check.js";
-import type { CheckRule } from "../types.js";
+import type {
+  CheckRule,
+  MetricMaxRule,
+  MetricProductMaxRule,
+} from "../types.js";
 
 interface Fixture {
   dir: string;
@@ -1226,5 +1230,94 @@ describe("validateRules", () => {
       severity: undefined,
       exclude: ["__tests__"],
     });
+  });
+});
+
+describe("validateRules — schema healing", () => {
+  it("heals a deprecated metric name and warns instead of erroring", () => {
+    const warnings: string[] = [];
+    const [rule] = validateRules(
+      {
+        rules: [{ id: "r", type: "metric-max", metric: "fan-in", max: 10 }],
+      },
+      { onWarn: (m) => warnings.push(m) },
+    ) as MetricMaxRule[];
+    expect(rule!.metric).toBe("fan_in");
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatch(/fan-in.*deprecated.*fan_in/);
+  });
+
+  it("heals deprecated metric names inside metric-product-max", () => {
+    const warnings: string[] = [];
+    const [rule] = validateRules(
+      {
+        rules: [
+          {
+            id: "r",
+            type: "metric-product-max",
+            metrics: ["lines", "cognitive_max"],
+            max: 1000,
+          },
+        ],
+      },
+      { onWarn: (m) => warnings.push(m) },
+    ) as MetricProductMaxRule[];
+    expect(rule!.metrics).toEqual(["loc", "cognitive_max"]);
+    expect(warnings).toHaveLength(1);
+  });
+
+  it("heals a deprecated role alias and warns instead of erroring", () => {
+    const warnings: string[] = [];
+    const [rule] = validateRules(
+      {
+        rules: [
+          {
+            id: "r",
+            type: "metric-max",
+            metric: "loc",
+            max: 1,
+            excludeRoles: ["tests", "fixtures"],
+          },
+        ],
+      },
+      { onWarn: (m) => warnings.push(m) },
+    ) as MetricMaxRule[];
+    expect(rule!.excludeRoles).toEqual(["test", "fixture"]);
+    expect(warnings).toHaveLength(2);
+  });
+
+  it("still throws on a genuinely-unknown role", () => {
+    expect(() =>
+      validateRules({
+        rules: [
+          {
+            id: "r",
+            type: "metric-max",
+            metric: "loc",
+            max: 1,
+            excludeRoles: ["banana"],
+          },
+        ],
+      }),
+    ).toThrow(/unknown role/);
+  });
+
+  it("does not warn when every name is already canonical", () => {
+    const warnings: string[] = [];
+    validateRules(
+      {
+        rules: [
+          {
+            id: "r",
+            type: "metric-max",
+            metric: "loc",
+            max: 1,
+            excludeRoles: ["test"],
+          },
+        ],
+      },
+      { onWarn: (m) => warnings.push(m) },
+    );
+    expect(warnings).toEqual([]);
   });
 });

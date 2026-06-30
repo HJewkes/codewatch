@@ -93,7 +93,12 @@ export {
   type PairFlag,
   type PackageLayer,
 } from "./partition-quality.js";
-export { runChecks, validateRules, type RunChecksOptions } from "./check.js";
+export {
+  runChecks,
+  validateRules,
+  type RunChecksOptions,
+  type ValidateRulesOptions,
+} from "./check.js";
 export {
   diffCheckResults,
   type CheckDiff,
@@ -101,6 +106,13 @@ export {
   type UnchangedViolation,
 } from "./check-diff.js";
 export { classifyRole, annotateRoles, ALL_ROLES } from "./roles.js";
+export {
+  canonicalMetricName,
+  canonicalRole,
+  canonicalEdgeKind,
+  metricAliasTarget,
+  roleAliasTarget,
+} from "./aliases.js";
 export {
   planPrune,
   runPrune,

@@ -158,4 +158,35 @@ describe("diffSnapshots", () => {
 
     expect(result.metricDeltas).toEqual([]);
   });
+
+  it("reconciles a deprecated metric name across snapshots", () => {
+    const a = db.createSnapshot({ ref: "old", indexVersion: "0.1.0" });
+    const b = db.createSnapshot({ ref: "new", indexVersion: "0.2.0" });
+    db.insertNodes(a, [fileNode("a.ts")]);
+    db.insertNodes(b, [fileNode("a.ts")]);
+    // Same metric, spelled with a deprecated alias in the old snapshot.
+    db.insertMetrics(a, [{ nodeId: "a.ts", name: "fan-in", value: 3 }]);
+    db.insertMetrics(b, [{ nodeId: "a.ts", name: "fan_in", value: 5 }]);
+
+    const result = diffSnapshots(db, { fromSnapshotId: a, toSnapshotId: b });
+
+    // Lines up as a single canonical delta, not a removed+added pair.
+    expect(result.metricDeltas).toEqual([
+      { nodeId: "a.ts", name: "fan_in", before: 3, after: 5, delta: 2 },
+    ]);
+  });
+
+  it("does not report drift when only the metric spelling changed", () => {
+    const a = db.createSnapshot({ ref: "old", indexVersion: "0.1.0" });
+    const b = db.createSnapshot({ ref: "new", indexVersion: "0.2.0" });
+    db.insertNodes(a, [fileNode("a.ts")]);
+    db.insertNodes(b, [fileNode("a.ts")]);
+    db.insertMetrics(a, [{ nodeId: "a.ts", name: "lines", value: 100 }]);
+    db.insertMetrics(b, [{ nodeId: "a.ts", name: "loc", value: 100 }]);
+
+    const result = diffSnapshots(db, { fromSnapshotId: a, toSnapshotId: b });
+
+    expect(result.metricDeltas).toEqual([]);
+  });
+
 });
