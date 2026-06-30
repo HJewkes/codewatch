@@ -274,15 +274,19 @@ function buildPairCoupling(
   pairs: ReadonlyArray<{ from: string; to: string }>,
   filesByPkg: ReadonlyMap<string, number>,
 ): PairCoupling[] {
-  const counts = new Map<string, number>();
+  const counts = new Map<string, { from: string; to: string; edges: number }>();
   for (const p of pairs) {
     if (p.from === p.to) continue;
-    const key = `${p.from} ${p.to}`;
-    counts.set(key, (counts.get(key) ?? 0) + 1);
+    // Collision-safe key: a JSON tuple, not a raw separator that a real
+    // package id could contain (a raw NUL also made git treat this file
+    // as binary and hid its diffs).
+    const key = JSON.stringify([p.from, p.to]);
+    const entry = counts.get(key);
+    if (entry) entry.edges += 1;
+    else counts.set(key, { from: p.from, to: p.to, edges: 1 });
   }
   const out: PairCoupling[] = [];
-  for (const [key, edges] of counts) {
-    const [from, to] = key.split(" ") as [string, string];
+  for (const { from, to, edges } of counts.values()) {
     const filesFrom = filesByPkg.get(from) ?? 0;
     const intensity = filesFrom === 0 ? 0 : edges / filesFrom;
     const flag = classifyPairIntensity(intensity);
