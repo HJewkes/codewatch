@@ -278,6 +278,30 @@ describe("computePartitionQuality — pair coupling", () => {
     expect(pair.flag).toBe("tight");
   });
 
+  it("keeps distinct pairs distinct regardless of id contents (collision-safe key)", () => {
+    // C-21 replaced an in-band separator key (`${from}<sep>${to}` split back on
+    // <sep>) with a JSON tuple. This locks in the collision-safety invariant so
+    // nobody reintroduces a char separator: with one, ("a b"→"c") and
+    // ("a"→"b c") collapse to the same delimited string and mis-split into one
+    // wrong pair. The JSON-tuple key keeps them distinct and recovers from/to.
+    const result = computePartitionQuality({
+      packages: pkgs(["a b", "c", "a", "b c"]),
+      fileByPackage: fbp({
+        "a b": ["x.ts"],
+        c: ["y.ts"],
+        a: ["p.ts"],
+        "b c": ["q.ts"],
+      }),
+      nodes: [file("x.ts"), file("y.ts"), file("p.ts"), file("q.ts")],
+      edges: [imports("x.ts", "y.ts"), imports("p.ts", "q.ts")],
+    });
+    const labels = result.pairCoupling.map((p) => `${p.from}→${p.to}`).sort();
+    expect(labels).toEqual(["a b→c", "a→b c"]);
+    const abc = result.pairCoupling.find((p) => p.from === "a b")!;
+    expect(abc.to).toBe("c");
+    expect(abc.edges).toBe(1);
+  });
+
   it("sorts pair coupling deterministically by (from, to)", () => {
     const result = computePartitionQuality({
       packages: pkgs(["a", "b", "c"]),
