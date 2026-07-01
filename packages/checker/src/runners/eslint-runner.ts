@@ -11,7 +11,7 @@ export async function runEslint(
   files: string[],
   options?: { fix?: boolean },
 ): Promise<{ diagnostics: CheckDiagnostic[]; exitCode: number }> {
-  const tempDir = mkdtempSync(join(tmpdir(), "code-style-eslint-"));
+  const tempDir = mkdtempSync(join(tmpdir(), "codewatch-eslint-"));
   const configPath = join(tempDir, "eslint.config.js");
 
   try {

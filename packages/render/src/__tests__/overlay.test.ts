@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { computeOverlays, buildMetricMap, rampColor } from "../overlay.js";
-import type { GraphMetric, GraphNode } from "@code-style/graph";
+import type { GraphMetric, GraphNode } from "@codewatch/graph";
 
 const file = (id: string): GraphNode => ({ id, kind: "file", name: id });
 

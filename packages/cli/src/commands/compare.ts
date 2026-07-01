@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import type { Profile, StyleRule } from "@code-style/profile";
+import type { Profile, StyleRule } from "@codewatch/profile";
 
 export interface ProfileDiff {
   type: "added" | "removed" | "changed";

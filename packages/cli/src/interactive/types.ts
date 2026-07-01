@@ -1,4 +1,4 @@
-import type { StyleRule } from "@code-style/profile";
+import type { StyleRule } from "@codewatch/profile";
 
 export type ReviewAction = "confirm" | "reject" | "adjust";
 

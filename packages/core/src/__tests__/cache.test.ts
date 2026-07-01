@@ -9,7 +9,7 @@ describe("FileCache", () => {
   let cache: FileCache;
 
   beforeEach(async () => {
-    cacheDir = path.join(tmpdir(), `code-style-cache-${Date.now()}`);
+    cacheDir = path.join(tmpdir(), `codewatch-cache-${Date.now()}`);
     cache = new FileCache(cacheDir);
   });
 

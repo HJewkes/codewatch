@@ -2,7 +2,7 @@ import type {
   PackageStats,
   PairCoupling,
   PartitionQualityResult,
-} from "@code-style/graph";
+} from "@codewatch/graph";
 import type { ArchResult } from "./graph-arch.js";
 import { formatArchMermaid } from "./graph-arch.js";
 

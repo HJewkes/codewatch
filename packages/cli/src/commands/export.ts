@@ -1,6 +1,6 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import type { ExportFormat } from "@code-style/profile";
+import type { ExportFormat } from "@codewatch/profile";
 import { formatSuccess } from "../utils/output.js";
 
 export interface ExportCommandOptions {
@@ -10,7 +10,7 @@ export interface ExportCommandOptions {
 }
 
 export async function runExport(options: ExportCommandOptions): Promise<void> {
-  const { readProfile, exportProfile } = await import("@code-style/profile");
+  const { readProfile, exportProfile } = await import("@codewatch/profile");
   const { getDefaultProfilePath } = await import("../utils/config.js");
 
   const profilePath = options.profile ?? getDefaultProfilePath();

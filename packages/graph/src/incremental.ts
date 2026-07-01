@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import * as fs from "node:fs/promises";
-import { getLanguageFromPath, type ParsedFile } from "@code-style/core";
+import { getLanguageFromPath, type ParsedFile } from "@codewatch/core";
 import type { GraphDatabase } from "./database.js";
 import {
   buildFileModuleNodes,

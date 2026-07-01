@@ -1,7 +1,7 @@
-import type { Extractor as CoreExtractor } from "@code-style/core";
-import type { ProfileCategory } from "@code-style/profile";
+import type { Extractor as CoreExtractor } from "@codewatch/core";
+import type { ProfileCategory } from "@codewatch/profile";
 
-export type { ParsedFile } from "@code-style/core";
+export type { ParsedFile } from "@codewatch/core";
 
 /**
  * Categories that extractors emit. Includes all ProfileCategory values

@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { tmpdir } from "node:os";
-import { openDatabase, type GraphDatabase } from "@code-style/graph";
+import { openDatabase, type GraphDatabase } from "@codewatch/graph";
 import {
   runGraphWikiCommand,
   writeWikiFiles,
@@ -20,7 +20,7 @@ interface Fixture {
 }
 
 async function makeRepo(): Promise<string> {
-  const dir = await fs.mkdtemp(path.join(tmpdir(), "code-style-wiki-"));
+  const dir = await fs.mkdtemp(path.join(tmpdir(), "codewatch-wiki-"));
   await fs.mkdir(path.join(dir, "packages", "cli"), { recursive: true });
   await fs.mkdir(path.join(dir, "packages", "graph"), { recursive: true });
   await fs.writeFile(
@@ -67,7 +67,7 @@ describe("detectPackages", () => {
   });
 
   it("falls back to top-level directories when no package.json found", async () => {
-    const dir = await fs.mkdtemp(path.join(tmpdir(), "code-style-wiki-bare-"));
+    const dir = await fs.mkdtemp(path.join(tmpdir(), "codewatch-wiki-bare-"));
     try {
       await fs.mkdir(path.join(dir, "src"));
       await fs.mkdir(path.join(dir, "tests"));

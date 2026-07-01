@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseFile, type ParsedFile } from "@code-style/core";
+import { parseFile, type ParsedFile } from "@codewatch/core";
 import { computeLcomMetrics } from "../lcom.js";
 
 const idOf = (p: string): string => p;

@@ -1,11 +1,11 @@
 {
-  "name": "@code-style/cli",
+  "name": "@codewatch/cli",
   "version": "0.0.1",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "code-style": "./dist/index.js"
+    "codewatch": "./dist/index.js"
   },
   "exports": {
     ".": {
@@ -22,11 +22,11 @@
     "dist"
   ],
   "dependencies": {
-    "@code-style/analyzer": "workspace:*",
-    "@code-style/checker": "workspace:*",
-    "@code-style/graph": "workspace:*",
-    "@code-style/profile": "workspace:*",
-    "@code-style/render": "workspace:*",
+    "@codewatch/analyzer": "workspace:*",
+    "@codewatch/checker": "workspace:*",
+    "@codewatch/graph": "workspace:*",
+    "@codewatch/profile": "workspace:*",
+    "@codewatch/render": "workspace:*",
     "@inquirer/prompts": "^8.3.0",
     "chalk": "^5.6.2",
     "commander": "^14.0.3"

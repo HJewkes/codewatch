@@ -1,5 +1,5 @@
 {
-  "name": "@code-style/graph",
+  "name": "@codewatch/graph",
   "version": "0.0.1",
   "type": "module",
   "main": "./dist/index.js",
@@ -20,7 +20,7 @@
     "dist"
   ],
   "dependencies": {
-    "@code-style/core": "workspace:*",
+    "@codewatch/core": "workspace:*",
     "better-sqlite3": "^11.7.0",
     "ts-morph": "^25.0.0"
   },

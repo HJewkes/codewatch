@@ -19,7 +19,7 @@ interface Fixture {
 async function createFixture(
   populate: (db: GraphDatabase, snapshotId: number) => void,
 ): Promise<Fixture> {
-  const dir = await fs.mkdtemp(path.join(tmpdir(), "code-style-check-"));
+  const dir = await fs.mkdtemp(path.join(tmpdir(), "codewatch-check-"));
   const dbPath = path.join(dir, "graph.db");
   const db = openDatabase(dbPath);
   const snapshotId = db.createSnapshot({
@@ -943,7 +943,7 @@ describe("runChecks — baseline", () => {
     populateBaseline: (db: GraphDatabase, snapshotId: number) => void,
     populateHead: (db: GraphDatabase, snapshotId: number) => void,
   ): Promise<{ fixture: Fixture; baselineId: number; headId: number }> {
-    const dir = await fs.mkdtemp(path.join(tmpdir(), "code-style-baseline-"));
+    const dir = await fs.mkdtemp(path.join(tmpdir(), "codewatch-baseline-"));
     const dbPath = path.join(dir, "graph.db");
     const db = openDatabase(dbPath);
     const baselineId = db.createSnapshot({ ref: "baseline", indexVersion: "0.1.0" });

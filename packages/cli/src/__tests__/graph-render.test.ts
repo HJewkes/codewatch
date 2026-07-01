@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { tmpdir } from "node:os";
-import { openDatabase } from "@code-style/graph";
+import { openDatabase } from "@codewatch/graph";
 
 interface Project {
   rootDir: string;
@@ -12,7 +12,7 @@ interface Project {
 
 async function createFixtureProject(): Promise<Project> {
   const rootDir = await fs.mkdtemp(
-    path.join(tmpdir(), "code-style-graph-render-"),
+    path.join(tmpdir(), "codewatch-graph-render-"),
   );
   await fs.mkdir(path.join(rootDir, "src"), { recursive: true });
   await fs.writeFile(

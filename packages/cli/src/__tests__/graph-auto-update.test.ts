@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { tmpdir } from "node:os";
-import { openDatabase } from "@code-style/graph";
+import { openDatabase } from "@codewatch/graph";
 import { runGraphAutoUpdate } from "../commands/graph-auto-update.js";
 
 let rootDir: string;
@@ -23,7 +23,7 @@ function snapshotCount(): number {
 }
 
 beforeEach(async () => {
-  rootDir = await fs.mkdtemp(path.join(tmpdir(), "code-style-auto-update-"));
+  rootDir = await fs.mkdtemp(path.join(tmpdir(), "codewatch-auto-update-"));
   dbPath = path.join(rootDir, ".codewatch", "graph.db");
   configPath = path.join(rootDir, "check.json");
   await fs.writeFile(path.join(rootDir, "a.ts"), "export const x = 1;\n");

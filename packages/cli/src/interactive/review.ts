@@ -1,5 +1,5 @@
 import { select, input, number } from "@inquirer/prompts";
-import type { StyleRule, Profile } from "@code-style/profile";
+import type { StyleRule, Profile } from "@codewatch/profile";
 import type {
   ReviewAction,
   ReviewPromptDeps,

@@ -1,4 +1,4 @@
-import type { GraphMetric, GraphNode } from "@code-style/graph";
+import type { GraphMetric, GraphNode } from "@codewatch/graph";
 
 const NODE_WIDTH = 180;
 const NODE_HEIGHT = 48;

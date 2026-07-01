@@ -3,7 +3,7 @@ import type { Command } from "commander";
 import {
   runGraphIndex,
   type GraphIndexResult,
-} from "@code-style/graph";
+} from "@codewatch/graph";
 import { formatError } from "../utils/output.js";
 
 export const DEFAULT_CONFIG_PATH = "./.codewatch/check.json";

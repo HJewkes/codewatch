@@ -6,13 +6,13 @@ export type {
   PullRequest,
   PullRequestFile,
   IngestMetadata,
-} from "@code-style/core";
+} from "@codewatch/core";
 export {
   GitHubService,
   shouldIncludeFile,
   getLanguageFromPath,
   FileCache,
-} from "@code-style/core";
+} from "@codewatch/core";
 
 // Extractors
 export type {
@@ -22,7 +22,7 @@ export type {
   ObservationCategory,
   ParsedFile,
 } from "./extractors/types.js";
-export { parseFile, getSupportedLanguages } from "@code-style/core";
+export { parseFile, getSupportedLanguages } from "@codewatch/core";
 export { NamingExtractor } from "./extractors/naming.js";
 export { StructureExtractor } from "./extractors/structure.js";
 export { ControlFlowExtractor } from "./extractors/control-flow.js";

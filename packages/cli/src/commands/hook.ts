@@ -1,10 +1,10 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
-const MARKER_BEGIN = "# code-style pre-commit hook (begin)";
-const MARKER_END = "# code-style pre-commit hook (end)";
-const POST_MARKER_BEGIN = "# code-style post-commit hook (begin)";
-const POST_MARKER_END = "# code-style post-commit hook (end)";
+const MARKER_BEGIN = "# codewatch pre-commit hook (begin)";
+const MARKER_END = "# codewatch pre-commit hook (end)";
+const POST_MARKER_BEGIN = "# codewatch post-commit hook (begin)";
+const POST_MARKER_END = "# codewatch post-commit hook (end)";
 const TS_GLOB = "\\.(ts|tsx|js|jsx|mts|cts|mjs|cjs)$";
 
 export interface InstallHookOptions {
@@ -20,7 +20,7 @@ export interface InstallHookOptions {
   bin?: string;
 }
 
-const DEFAULT_BIN = "code-style";
+const DEFAULT_BIN = "codewatch";
 
 export async function installHook(
   projectDir: string,

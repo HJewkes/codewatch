@@ -9,7 +9,7 @@ import {
   type CheckRule,
   type GraphDatabase,
   type SnapshotRow,
-} from "@code-style/graph";
+} from "@codewatch/graph";
 import { snapshotVersionMismatchWarning } from "../utils/output.js";
 
 export interface GraphCheckCommandOptions {
@@ -76,7 +76,7 @@ function resolveSnapshot(
     if (!previous) {
       throw new Error(
         `${flag}: "previous" requires at least one prior snapshot — ` +
-          "this is the first run. Bootstrap with `code-style graph index <path>` and try again.",
+          "this is the first run. Bootstrap with `codewatch graph index <path>` and try again.",
       );
     }
     return previous;
@@ -90,7 +90,7 @@ function resolveSnapshot(
   if (!snap) {
     throw new Error(
       `${flag}: no snapshot found for ref "${spec}". ` +
-        `Run \`code-style graph index --ref ${spec} <path>\` against this DB first.`,
+        `Run \`codewatch graph index --ref ${spec} <path>\` against this DB first.`,
     );
   }
   return snap;

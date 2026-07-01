@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { tmpdir } from "node:os";
-import { openDatabase } from "@code-style/graph";
+import { openDatabase } from "@codewatch/graph";
 import { loadSnapshot } from "../snapshot.js";
 
 describe("loadSnapshot", () => {
@@ -12,7 +12,7 @@ describe("loadSnapshot", () => {
   beforeEach(async () => {
     dbDir = path.join(
       tmpdir(),
-      `code-style-render-${Date.now()}-${Math.random()}`,
+      `codewatch-render-${Date.now()}-${Math.random()}`,
     );
     await fs.mkdir(dbDir, { recursive: true });
     dbPath = path.join(dbDir, "graph.db");

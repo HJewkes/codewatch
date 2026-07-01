@@ -1,5 +1,5 @@
 {
-  "name": "@code-style/render",
+  "name": "@codewatch/render",
   "version": "0.0.1",
   "type": "module",
   "main": "./dist/index.js",
@@ -20,7 +20,7 @@
     "dist"
   ],
   "dependencies": {
-    "@code-style/graph": "workspace:*",
+    "@codewatch/graph": "workspace:*",
     "cose-base": "^1.0.3",
     "cytoscape": "^3.30.0",
     "cytoscape-cose-bilkent": "^4.1.0",

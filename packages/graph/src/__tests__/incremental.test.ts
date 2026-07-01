@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { tmpdir } from "node:os";
-import { parseFile } from "@code-style/core";
+import { parseFile } from "@codewatch/core";
 import { openDatabase, GraphDatabase } from "../database.js";
 import { runGraphIndex } from "../indexer.js";
 import { computeSourceMetrics, SOURCE_METRIC_NAMES } from "../source-metrics.js";
@@ -47,7 +47,7 @@ async function writeBaseFiles(rootDir: string): Promise<void> {
 }
 
 async function createProject(): Promise<Project> {
-  const rootDir = await fs.mkdtemp(path.join(tmpdir(), "code-style-incr-"));
+  const rootDir = await fs.mkdtemp(path.join(tmpdir(), "codewatch-incr-"));
   await writeBaseFiles(rootDir);
   return { rootDir, dbPath: path.join(rootDir, ".codewatch", "graph.db") };
 }
@@ -101,7 +101,7 @@ function readSnapshot(db: GraphDatabase, snapshotId: number): Snapshot {
 /** Index `rootDir` from scratch into a throwaway db and return its snapshot. */
 async function fullIndexSnapshot(rootDir: string): Promise<Snapshot> {
   const dbPath = path.join(
-    await fs.mkdtemp(path.join(tmpdir(), "code-style-truth-")),
+    await fs.mkdtemp(path.join(tmpdir(), "codewatch-truth-")),
     "graph.db",
   );
   const result = await runGraphIndex({ rootDir, dbPath });

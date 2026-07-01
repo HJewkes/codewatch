@@ -1,7 +1,7 @@
 import { mkdir, stat, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import chalk from "chalk";
-import { loadDiff, renderHtml } from "@code-style/render";
+import { loadDiff, renderHtml } from "@codewatch/render";
 
 export interface GraphRenderDiffCommandOptions {
   db: string;

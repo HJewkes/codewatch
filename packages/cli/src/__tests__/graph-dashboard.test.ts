@@ -3,7 +3,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
-import { openDatabase } from "@code-style/graph";
+import { openDatabase } from "@codewatch/graph";
 import { runGraphDashboardCommand } from "../commands/graph-dashboard.js";
 
 /** Parse the `window.__CODEWATCH__ = {...};` payload out of the generated HTML. */
@@ -14,7 +14,7 @@ function extractPayload(html: string): Record<string, any> {
 }
 
 async function fixture(): Promise<{ dir: string; dbPath: string; out: string }> {
-  const dir = await fs.mkdtemp(path.join(tmpdir(), "code-style-dashboard-"));
+  const dir = await fs.mkdtemp(path.join(tmpdir(), "codewatch-dashboard-"));
   const dbPath = path.join(dir, "graph.db");
   const db = openDatabase(dbPath);
   const snapshotId = db.createSnapshot({ ref: "main", indexVersion: "0.2.0" });
@@ -104,7 +104,7 @@ describe("runGraphDashboardCommand", () => {
   // dashboard's flagship "hidden coupling" signal never fired. It must now be
   // computed as "co-changed but NOT joined by an imports/re-exports edge".
   it("marks co-changed pairs hidden iff they have no import edge", async () => {
-    const dirLocal = await fs.mkdtemp(path.join(tmpdir(), "code-style-coupling-"));
+    const dirLocal = await fs.mkdtemp(path.join(tmpdir(), "codewatch-coupling-"));
     dir = dirLocal;
     const git = (...args: string[]) =>
       execFileSync("git", args, {

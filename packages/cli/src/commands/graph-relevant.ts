@@ -7,7 +7,7 @@ import {
   type GraphNode,
   type NodeRole,
   type SnapshotRow,
-} from "@code-style/graph";
+} from "@codewatch/graph";
 import { formatError } from "../utils/output.js";
 import {
   buildExplanations,

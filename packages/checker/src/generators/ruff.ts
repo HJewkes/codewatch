@@ -1,4 +1,4 @@
-import type { Profile } from "@code-style/profile";
+import type { Profile } from "@codewatch/profile";
 
 export interface RuffConfig {
   lint?: {

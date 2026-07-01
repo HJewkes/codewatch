@@ -1,4 +1,4 @@
-import { loadChurnEntries, openDatabase, computePageRank } from "@code-style/graph";
+import { loadChurnEntries, openDatabase, computePageRank } from "@codewatch/graph";
 import { runGraphReportCommand } from "./graph-report.js";
 import { runGraphCheckCommand } from "./graph-check.js";
 import { runGraphArchCommand } from "./graph-arch.js";

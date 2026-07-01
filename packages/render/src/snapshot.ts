@@ -1,4 +1,4 @@
-import { openDatabase } from "@code-style/graph";
+import { openDatabase } from "@codewatch/graph";
 import type { RenderInput } from "./types.js";
 
 export async function loadSnapshot(

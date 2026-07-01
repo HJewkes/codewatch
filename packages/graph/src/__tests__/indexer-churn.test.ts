@@ -16,7 +16,7 @@ function git(repoDir: string, args: string[]): void {
 }
 
 async function createRepo(): Promise<Repo> {
-  const dir = await fs.mkdtemp(path.join(tmpdir(), "code-style-churn-"));
+  const dir = await fs.mkdtemp(path.join(tmpdir(), "codewatch-churn-"));
   git(dir, ["init", "-q", "-b", "main"]);
   git(dir, ["config", "user.email", "alice@example.com"]);
   git(dir, ["config", "user.name", "alice"]);

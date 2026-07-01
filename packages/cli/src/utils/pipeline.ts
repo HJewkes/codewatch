@@ -2,7 +2,7 @@ import type {
   Extractor,
   Observation,
   ParsedFile,
-} from "@code-style/analyzer";
+} from "@codewatch/analyzer";
 
 type ParseFn = (
   content: string,

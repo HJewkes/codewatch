@@ -9,7 +9,7 @@ describe("Profile I/O", () => {
   let testDir: string;
 
   beforeEach(async () => {
-    testDir = path.join(tmpdir(), `code-style-test-${Date.now()}`);
+    testDir = path.join(tmpdir(), `codewatch-test-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
   });
 

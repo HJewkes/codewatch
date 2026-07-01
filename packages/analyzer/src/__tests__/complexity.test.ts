@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { ComplexityExtractor } from "../extractors/complexity.js";
-import { parseFile } from "@code-style/core";
+import { parseFile } from "@codewatch/core";
 import type { ParsedFile, Observation } from "../extractors/types.js";
 import * as fs from "node:fs";
 import * as path from "node:path";

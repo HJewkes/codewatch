@@ -1,5 +1,5 @@
 {
-  "name": "@code-style/analyzer",
+  "name": "@codewatch/analyzer",
   "version": "0.0.1",
   "type": "module",
   "main": "./dist/index.js",
@@ -19,8 +19,8 @@
     "dist"
   ],
   "dependencies": {
-    "@code-style/core": "workspace:*",
-    "@code-style/profile": "workspace:*",
+    "@codewatch/core": "workspace:*",
+    "@codewatch/profile": "workspace:*",
     "@jscpd/core": "3.5.10",
     "@jscpd/tokenizer": "3.5.4",
     "web-tree-sitter": "^0.26.6"

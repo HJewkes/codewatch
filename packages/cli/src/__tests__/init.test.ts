@@ -7,7 +7,7 @@ describe("Config utilities", () => {
   let testDir: string;
 
   beforeEach(async () => {
-    testDir = path.join(tmpdir(), `code-style-cli-test-${Date.now()}`);
+    testDir = path.join(tmpdir(), `codewatch-cli-test-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
   });
 

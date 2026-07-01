@@ -24,7 +24,7 @@ describe("runGraphIndex id-root behavior", () => {
   let scratch: string;
 
   beforeEach(async () => {
-    scratch = await makeTempDir("code-style-id-root-");
+    scratch = await makeTempDir("codewatch-id-root-");
   });
 
   afterEach(async () => {

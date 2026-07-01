@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { LlmProvider, LlmResponse } from "@code-style/core";
+import type { LlmProvider, LlmResponse } from "@codewatch/core";
 import { Enricher, type AggregatedFeature } from "../enricher/enricher.js";
 import type { ObservationCategory } from "../extractors/types.js";
 

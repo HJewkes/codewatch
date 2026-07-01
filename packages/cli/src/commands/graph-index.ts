@@ -3,7 +3,7 @@ import {
   runGraphIndex,
   type GraphIndexOptions,
   type GraphIndexResult,
-} from "@code-style/graph";
+} from "@codewatch/graph";
 
 export interface GraphIndexCommandOptions extends GraphIndexOptions {
   json?: boolean;

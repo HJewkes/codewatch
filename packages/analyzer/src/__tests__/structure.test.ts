@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { StructureExtractor } from "../extractors/structure.js";
-import { parseFile } from "@code-style/core";
+import { parseFile } from "@codewatch/core";
 import type { ParsedFile } from "../extractors/types.js";
 import type { Observation } from "../extractors/types.js";
 import * as fs from "node:fs";
