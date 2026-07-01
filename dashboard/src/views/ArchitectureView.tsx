@@ -7,18 +7,17 @@ import { Panel, Pillet } from "../components/primitives";
 import { loadGraphHtml } from "../data";
 import { cw } from "../theme";
 
-/** Distance from the main sequence |I + A − 1|; 0 = ideally balanced. */
-function distance(p: PackageStat): number {
-  return Math.abs(p.instability + p.abstractness - 1);
-}
-
-function zone(p: PackageStat): { label: string; color: string } {
-  const sum = p.instability + p.abstractness;
-  // Wide "balanced" band — the abstractness proxy is coarse (type-file share),
-  // so only flag genuinely extreme corners to avoid false alarms.
-  if (distance(p) <= 0.45) return { label: "balanced", color: cw.success };
-  if (sum < 0.55) return { label: "rigid (stable + concrete)", color: cw.warning };
-  return { label: "unstable + abstract", color: cw.warning };
+/**
+ * Cohesion band. Cohesion (LCOM-derived, 0..1, higher = more focused) is the
+ * real signal — a low-cohesion package is doing too much. Replaces the old
+ * abstractness proxy, which was pinned in a narrow range and made the scatter
+ * 1-D. A "doing too much" verdict is only meaningful with cross-package reach,
+ * so we lean on crossEdges to corroborate it.
+ */
+function cohesionBand(p: PackageStat): { label: string; color: string } {
+  if (p.cohesion >= 0.85) return { label: "focused", color: cw.success };
+  if (p.cohesion >= 0.7) return { label: "moderate", color: cw.info };
+  return { label: "doing too much", color: cw.warning };
 }
 
 type ArchTab = "sequence" | "graph";
@@ -61,11 +60,11 @@ export function ArchitectureView({ data, onSelect, width }: { data: CodewatchDat
       );
     }
     return (
-      <Panel title="Architecture" subtitle="package main sequence (instability × abstractness)">
+      <Panel title="Architecture" subtitle="package structure map (instability × cohesion)">
         <EmptyState
           icon={Network as any}
           title="No package structure"
-          description="This repo has no connected multi-package boundaries to plot (a flat src/ tree). The main sequence needs ≥2 packages with cross-package dependencies."
+          description="This repo has no connected multi-package boundaries to plot (a flat src/ tree). The structure map needs ≥2 packages with cross-package dependencies."
         />
       </Panel>
     );
@@ -75,50 +74,55 @@ export function ArchitectureView({ data, onSelect, width }: { data: CodewatchDat
   const points = pkgs.map((p) => ({
     id: p.pkgId,
     x: p.instability,
-    y: p.abstractness,
+    y: p.cohesion,
     r: 6 + Math.sqrt(p.fileCount / maxFiles) * 16,
-    color: zone(p).color,
+    color: cohesionBand(p).color,
     label: p.pkgId.replace(/^packages\//, ""),
   }));
   const plotW = Math.max(360, Math.min(width - 360, 620));
-  const ranked = [...pkgs].sort((a, b) => distance(b) - distance(a));
+  // Lowest cohesion first — the packages doing too much are the ones to look at.
+  const ranked = [...pkgs].sort((a, b) => a.cohesion - b.cohesion);
 
   return (
     <View style={{ gap: 12 }}>
       {graphB64 ? <ArchTabs tab={tab} setTab={setTab} hasGraph /> : null}
       <View style={{ flexDirection: "row", gap: 16, flexWrap: "wrap" }}>
-      <Panel title="Main sequence" subtitle="instability I × abstractness A; diagonal I+A=1 is balanced. A = type-file share (proxy)">
+      <Panel title="Structure map" subtitle="instability I × cohesion; low + wide-reaching = doing too much">
         <Scatter
           data={points}
           width={plotW}
           height={Math.min(plotW, 420)}
-          diagonal
-          axis={{ xLabel: "Instability →", yLabel: "Abstractness →", xMin: 0, xMax: 1, yMin: 0, yMax: 1 }}
+          axis={{ xLabel: "Instability →", yLabel: "Cohesion →", xMin: 0, xMax: 1, yMin: 0, yMax: 1 }}
           onPress={onSelect}
         />
         <View style={{ flexDirection: "row", gap: 12, marginTop: 8 }}>
-          <Legend color={cw.success} label="balanced" />
-          <Legend color={cw.warning} label="far from sequence" />
+          <Legend color={cw.success} label="focused (≥0.85)" />
+          <Legend color={cw.info} label="moderate (≥0.70)" />
+          <Legend color={cw.warning} label="doing too much" />
         </View>
       </Panel>
 
-      <Panel title="Packages" subtitle="ranked by distance from the main sequence" flex={1}>
+      <Panel title="Packages" subtitle="ranked by lowest cohesion" flex={1}>
         <View style={{ gap: 8 }}>
           {ranked.map((p) => {
-            const z = zone(p);
+            const z = cohesionBand(p);
+            // "rigid" was an abstractness artefact that libelled healthy
+            // foundation packages; foundation being stable is by design.
+            const foundation = p.layer === "foundation";
             return (
               <Pressable key={p.pkgId} onPress={() => onSelect(p.pkgId)} style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: cw.text, fontSize: 13 }}>{p.pkgId.replace(/^packages\//, "")}</Text>
                   <View style={{ flexDirection: "row", gap: 6, marginTop: 3 }}>
-                    <Pillet text={p.layer} color={cw.info} />
+                    <Pillet text={p.layer} color={foundation ? cw.success : cw.info} />
                     <Pillet text={z.label} color={z.color} />
+                    {p.crossEdges ? <Pillet text={`${p.crossEdges} cross-edges`} color={cw.textFaint} /> : null}
                   </View>
                 </View>
                 <Text style={{ color: cw.textDim, fontSize: 12, width: 96, textAlign: "right" }}>
-                  I {p.instability.toFixed(2)} · A {p.abstractness.toFixed(2)}
+                  I {p.instability.toFixed(2)}
                 </Text>
-                <Text style={{ color: z.color, fontSize: 12, width: 40, textAlign: "right" }}>D {distance(p).toFixed(2)}</Text>
+                <Text style={{ color: z.color, fontSize: 12, width: 52, textAlign: "right" }}>coh {p.cohesion.toFixed(2)}</Text>
               </Pressable>
             );
           })}
