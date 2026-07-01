@@ -20,7 +20,6 @@ function baselineLabel(baseline: { ref: string; snapshotId: number }): string {
 
 export function OverviewView({ data, onSelect, width }: { data: CodewatchData; onSelect: (id: string) => void; width: number }) {
   const { kpis, meta } = data;
-  const singleAuthor = meta.authorCount === 1;
   const tmWidth = Math.max(280, Math.min(520, width - 340));
   const drift = buildDriftIndex(data.drift);
 
@@ -31,7 +30,6 @@ export function OverviewView({ data, onSelect, width }: { data: CodewatchData; o
   const whereToLook = data.hotspots.slice(0, 8).map((h) => {
     const reasons: string[] = [];
     if (h.score >= 3000) reasons.push("scary hotspot");
-    if (data.busFactorRisks.some((b) => b.nodeId === h.nodeId)) reasons.push("bus factor 1");
     if (data.violations.some((v) => v.file === h.nodeId)) reasons.push("violation");
     return { ...h, reasons: reasons.length ? reasons : ["high churn×complexity"] };
   });
@@ -60,7 +58,6 @@ export function OverviewView({ data, onSelect, width }: { data: CodewatchData; o
           trend={kpis.healthTrend !== undefined ? { direction: trendDir(kpis.healthTrend), value: `${kpis.healthTrend > 0 ? "+" : ""}${kpis.healthTrend}` } : undefined}
           accent={healthColor(kpis.health)} />
         <KpiTile label="scary hotspots" value={String(kpis.scaryHotspots)} accent={cw.warning} />
-        <KpiTile label="knowledge silos" value={String(kpis.knowledgeSilos)} accent={cw.error} />
         <KpiTile label="modularity"
           value={kpis.boundaryHealth != null ? kpis.boundaryHealth.toFixed(2) : "—"}
           accent={kpis.boundaryHealth != null ? modularityColor(kpis.boundaryHealth) : cw.info} />
@@ -113,7 +110,7 @@ export function OverviewView({ data, onSelect, width }: { data: CodewatchData; o
                   </View>
                   <View style={{ flexDirection: "row", gap: 6, marginTop: 3 }}>
                     {h.reasons.map((r) => (
-                      <Pillet key={r} text={r} color={r === "violation" || r === "scary hotspot" ? cw.error : r === "bus factor 1" ? cw.warning : cw.info} />
+                      <Pillet key={r} text={r} color={r === "violation" || r === "scary hotspot" ? cw.error : cw.info} />
                     ))}
                   </View>
                 </View>
@@ -141,9 +138,6 @@ export function OverviewView({ data, onSelect, width }: { data: CodewatchData; o
           <Stat label="violations fixed" value={kpis.openViolations.fixed} color={cw.success} />
           <Stat label="new violations" value={kpis.openViolations.new} color={cw.error} />
           <Stat label="carryover" value={kpis.openViolations.carry} color={cw.warning} />
-          {singleAuthor ? (
-            <Stat label="authors" value="single" color={cw.textFaint} note="ownership widgets N/A" />
-          ) : null}
         </View>
       </Panel>
     </View>
@@ -163,12 +157,11 @@ function HealthRow({ c }: { c: HealthComponent }) {
   );
 }
 
-function Stat({ label, value, color, note }: { label: string; value: number | string; color: string; note?: string }) {
+function Stat({ label, value, color }: { label: string; value: number | string; color: string }) {
   return (
     <View>
       <Text style={{ color, fontSize: 22, fontWeight: "700" }}>{value}</Text>
       <Text style={{ color: cw.textDim, fontSize: 12 }}>{label}</Text>
-      {note ? <Text style={{ color: cw.textFaint, fontSize: 11 }}>{note}</Text> : null}
     </View>
   );
 }
