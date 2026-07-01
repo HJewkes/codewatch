@@ -14,7 +14,7 @@ function trendDir(n?: number): "up" | "down" | "flat" {
 export function OverviewView({ data, onSelect, width }: { data: CodewatchData; onSelect: (id: string) => void; width: number }) {
   const { kpis, meta } = data;
   const singleAuthor = meta.authorCount === 1;
-  const tmWidth = Math.min(520, width - 340);
+  const tmWidth = Math.max(280, Math.min(520, width - 340));
 
   const whereToLook = data.hotspots.slice(0, 8).map((h) => {
     const reasons: string[] = [];

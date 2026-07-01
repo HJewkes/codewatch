@@ -90,15 +90,17 @@ export function SeverityBadge({ status }: { status: "error" | "warning" }) {
 }
 
 export function Pillet({ text, color }: { text: string; color: string }) {
+  // color-mix accepts CSS-var inputs (our tokens are `var(--…, #hex)`), unlike
+  // hex-alpha string concat which produces invalid values the browser drops.
   return (
     <View
       style={{
         paddingHorizontal: 8,
         paddingVertical: 2,
         borderRadius: 999,
-        backgroundColor: color + "22",
+        backgroundColor: `color-mix(in srgb, ${color} 14%, transparent)`,
         borderWidth: 1,
-        borderColor: color + "55",
+        borderColor: `color-mix(in srgb, ${color} 34%, transparent)`,
       }}
     >
       <Text style={{ color, fontSize: 11, fontWeight: "600" }}>{text}</Text>

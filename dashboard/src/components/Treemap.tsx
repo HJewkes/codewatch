@@ -125,7 +125,7 @@ export function Treemap({
   selectedId,
   scale = "sqrt",
 }: TreemapProps) {
-  const clean = data.filter((d) => d.value > 0).sort((a, b) => b.value - a.value);
+  const clean = data.filter((d) => Number.isFinite(d.value) && d.value > 0).sort((a, b) => b.value - a.value);
   let tiles = clean;
   if (clean.length > maxTiles) {
     const head = clean.slice(0, maxTiles - 1);

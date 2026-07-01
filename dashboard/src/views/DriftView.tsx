@@ -55,6 +55,26 @@ export function DriftView({ data, onSelect }: { data: CodewatchData; onSelect: (
         </Panel>
       ) : null}
 
+      {drift.resolved.length ? (
+        <Panel title="Resolved" subtitle="no longer a hotspot vs baseline">
+          <View style={{ gap: 6 }}>
+            {drift.resolved.map((d) => (
+              <Row key={d.nodeId} id={d.nodeId} onSelect={onSelect} right={`${d.before} → ${d.after}`} rightColor={cw.success} badge="resolved" badgeColor={cw.success} />
+            ))}
+          </View>
+        </Panel>
+      ) : null}
+
+      {drift.newSilos.length ? (
+        <Panel title="New knowledge silos" subtitle="became single-owner since baseline">
+          <View style={{ gap: 6 }}>
+            {drift.newSilos.map((id) => (
+              <Row key={id} id={id} onSelect={onSelect} right="bus factor 1" rightColor={cw.error} badge="new" badgeColor={cw.error} />
+            ))}
+          </View>
+        </Panel>
+      ) : null}
+
       {drift.newCoupling.length ? (
         <Panel title="New coupling" subtitle="pairs that started co-changing">
           <View style={{ gap: 6 }}>

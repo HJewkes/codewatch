@@ -60,7 +60,11 @@ function writeHash(loc: Loc) {
   if (loc.q) params.set("q", loc.q);
   const qs = params.toString();
   const next = `#${loc.view}${qs ? "?" + qs : ""}`;
-  if (next !== window.location.hash) window.history.replaceState(null, "", next);
+  if (next === window.location.hash) return;
+  // Push on a view change so Back works; replace for search/selection churn.
+  const prevView = window.location.hash.replace(/^#/, "").split("?")[0];
+  if (prevView !== loc.view) window.history.pushState(null, "", next);
+  else window.history.replaceState(null, "", next);
 }
 
 /** Narrow the row-heavy sections by a path substring; KPIs stay whole. */
@@ -112,13 +116,14 @@ export function App({ data }: { data: CodewatchData }) {
         (e.target as HTMLElement)?.blur?.();
         return;
       }
-      if (typing) return;
+      if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key === "/") { e.preventDefault(); searchRef.current?.focus(); return; }
       const n = Number(e.key);
       if (n >= 1 && n <= NAV.length) setView(NAV[n - 1].id);
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    // Capture phase so Escape reaches us before the focused TextInput swallows it.
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, []);
 
   const view = applyQuery(data, loc.q);
@@ -142,11 +147,11 @@ export function App({ data }: { data: CodewatchData }) {
         <TopBar data={data} view={loc.view} q={loc.q} onQuery={(q) => update({ q })} searchRef={searchRef} />
         <View style={{ flexDirection: "row", flex: 1 }}>
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }}>
-            {loc.view === "overview" && <OverviewView data={data} onSelect={setSelected} width={contentW} />}
+            {loc.view === "overview" && <OverviewView data={view} onSelect={setSelected} width={contentW} />}
             {loc.view === "hotspots" && <HotspotsView data={view} onSelect={setSelected} width={contentW} />}
             {loc.view === "coupling" && <CouplingView data={view} onSelect={setSelected} />}
             {loc.view === "ownership" && <OwnershipView data={view} onSelect={setSelected} />}
-            {loc.view === "fitness" && <FitnessView data={view} onSelect={setSelected} />}
+            {loc.view === "fitness" && <FitnessView data={view} onSelect={setSelected} query={loc.q} />}
             {loc.view === "drift" && <DriftView data={view} onSelect={setSelected} />}
           </ScrollView>
           {loc.node ? (
