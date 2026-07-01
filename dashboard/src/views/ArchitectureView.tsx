@@ -20,6 +20,30 @@ function cohesionBand(p: PackageStat): { label: string; color: string } {
   return { label: "doing too much", color: cw.warning };
 }
 
+// Minimum separation, in the normalized 0..1 instability × cohesion plot space,
+// below which two point labels would overlap into unreadable text.
+const LABEL_MIN_SEP = 0.12;
+
+/**
+ * Greedily choose which scatter points get a text label so clustered packages
+ * don't garble. Lowest cohesion wins first — the "doing too much" packages are
+ * the ones worth naming when a cluster can only legibly show one label; every
+ * package is still named in the ranked table. (C-42)
+ */
+function pickLegibleLabels(pkgs: readonly PackageStat[]): Set<string> {
+  const shown = new Set<string>();
+  const placed: Array<{ x: number; y: number }> = [];
+  for (const p of [...pkgs].sort((a, b) => a.cohesion - b.cohesion)) {
+    const x = p.instability;
+    const y = p.cohesion;
+    if (placed.every((q) => Math.hypot(q.x - x, q.y - y) >= LABEL_MIN_SEP)) {
+      shown.add(p.pkgId);
+      placed.push({ x, y });
+    }
+  }
+  return shown;
+}
+
 type ArchTab = "sequence" | "graph";
 
 export function ArchitectureView({ data, onSelect, width }: { data: CodewatchData; onSelect: (id: string) => void; width: number }) {
@@ -71,13 +95,21 @@ export function ArchitectureView({ data, onSelect, width }: { data: CodewatchDat
   }
 
   const maxFiles = Math.max(...pkgs.map((p) => p.fileCount));
+  // The Scatter anchors every large point's label to its right with no collision
+  // handling, so clustered packages (on codewatch core & profile sit at exactly
+  // instability 0 / cohesion 1) garble their labels together. Thin the labels so
+  // only well-separated points are named; the ranked table beside the plot still
+  // lists every package. (C-42)
+  const labelled = pickLegibleLabels(pkgs);
   const points = pkgs.map((p) => ({
     id: p.pkgId,
     x: p.instability,
     y: p.cohesion,
     r: 6 + Math.sqrt(p.fileCount / maxFiles) * 16,
     color: cohesionBand(p).color,
-    label: p.pkgId.replace(/^packages\//, ""),
+    label: labelled.has(p.pkgId)
+      ? p.pkgId.replace(/^packages\//, "")
+      : undefined,
   }));
   const plotW = Math.max(360, Math.min(width - 360, 620));
   // Lowest cohesion first — the packages doing too much are the ones to look at.

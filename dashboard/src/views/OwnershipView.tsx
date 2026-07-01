@@ -61,7 +61,24 @@ export function OwnershipView({ data, onSelect }: { data: CodewatchData; onSelec
  */
 function TestCoverageBreadth({ risks, onSelect }: { risks: TestCoverageRisk[]; onSelect: (id: string) => void }) {
   const byBreadth = [...risks].sort((a, b) => a.linkedTests - b.linkedTests);
+  const minTests = byBreadth.length ? byBreadth[0].linkedTests : 0;
   const maxTests = byBreadth.reduce((m, r) => Math.max(m, r.linkedTests), 1);
+
+  // Every source has the same linked-test count (typically all 1): ranking is
+  // meaningless and N identical full-width bars under a "fewer = thinner"
+  // caption is self-contradictory. Collapse to a single honest note. (C-43)
+  if (byBreadth.length > 0 && minTests === maxTests) {
+    return (
+      <Panel title="Test-coverage breadth" subtitle="linked test files per source">
+        <Text style={{ color: cw.textDim, fontSize: 13 }}>
+          All {byBreadth.length} tracked source{byBreadth.length === 1 ? "" : "s"} have the
+          same coverage breadth ({minTests} linked test file{minTests === 1 ? "" : "s"} each) —
+          nothing to rank.
+        </Text>
+      </Panel>
+    );
+  }
+
   return (
     <Panel title="Test-coverage breadth" subtitle="linked test files per source — fewer = thinner coverage">
       {byBreadth.length === 0 ? (
