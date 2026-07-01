@@ -99,4 +99,47 @@ describe("runGraphDashboardCommand", () => {
     const payload = extractPayload(await fs.readFile(fx.out, "utf8"));
     expect(payload.meta.authorCount).toBe(1);
   });
+
+  // Regression: `hidden` on a coupling pair was hardcoded false, so the
+  // dashboard's flagship "hidden coupling" signal never fired. It must now be
+  // computed as "co-changed but NOT joined by an imports/re-exports edge".
+  it("marks co-changed pairs hidden iff they have no import edge", async () => {
+    const dirLocal = await fs.mkdtemp(path.join(tmpdir(), "code-style-coupling-"));
+    dir = dirLocal;
+    const git = (...args: string[]) =>
+      execFileSync("git", args, {
+        cwd: dirLocal,
+        env: {
+          ...process.env,
+          GIT_AUTHOR_NAME: "Dev", GIT_AUTHOR_EMAIL: "dev@example.com",
+          GIT_COMMITTER_NAME: "Dev", GIT_COMMITTER_EMAIL: "dev@example.com",
+        },
+      });
+    git("init", "-q");
+    const write = (name: string, body: string) => fs.writeFile(path.join(dirLocal, name), body);
+    // a↔b co-change twice (and a imports b → expected); c↔d co-change twice with
+    // no edge between them → hidden.
+    await Promise.all([write("a.ts", "1\n"), write("b.ts", "1\n"), write("c.ts", "1\n"), write("d.ts", "1\n")]);
+    git("add", "a.ts", "b.ts"); git("commit", "-qm", "ab1");
+    await Promise.all([write("a.ts", "2\n"), write("b.ts", "2\n")]);
+    git("add", "a.ts", "b.ts"); git("commit", "-qm", "ab2");
+    git("add", "c.ts", "d.ts"); git("commit", "-qm", "cd1");
+    await Promise.all([write("c.ts", "2\n"), write("d.ts", "2\n")]);
+    git("add", "c.ts", "d.ts"); git("commit", "-qm", "cd2");
+
+    const dbPath = path.join(dirLocal, "graph.db");
+    const db = openDatabase(dbPath);
+    const sid = db.createSnapshot({ ref: "main", indexVersion: "0.2.0" });
+    db.insertNodes(sid, ["a.ts", "b.ts", "c.ts", "d.ts"].map((id) => ({ id, kind: "file" as const, name: id, role: "source" as const })));
+    db.insertEdges(sid, [{ srcId: "a.ts", dstId: "b.ts", kind: "imports" as const }]);
+    db.close();
+
+    const out = path.join(dirLocal, "out.html");
+    await runGraphDashboardCommand({ db: dbPath, config: "/nope/check.json", out, repoRoot: dirLocal, repo: "fx" });
+    const payload = extractPayload(await fs.readFile(out, "utf8"));
+    const find = (x: string, y: string) =>
+      payload.couplingClusters.find((c: any) => (c.a === x && c.b === y) || (c.a === y && c.b === x));
+    expect(find("a.ts", "b.ts")?.hidden).toBe(false); // import-backed → expected
+    expect(find("c.ts", "d.ts")?.hidden).toBe(true); // no edge → hidden
+  });
 });
