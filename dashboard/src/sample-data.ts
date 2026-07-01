@@ -19,7 +19,7 @@ export const SAMPLE_DATA: CodewatchData = {
   kpis: {
     health: 72,
     healthTrend: -4,
-    newHotspots: 3,
+    scaryHotspots: 3,
     knowledgeSilos: 10,
     boundaryHealth: 0.71,
     openViolations: { total: 2, new: 0, carry: 2, fixed: 1 },

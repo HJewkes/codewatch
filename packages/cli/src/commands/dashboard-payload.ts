@@ -1,4 +1,4 @@
-import { loadChurnEntries, openDatabase } from "@code-style/graph";
+import { loadChurnEntries, openDatabase, computePageRank } from "@code-style/graph";
 import { runGraphReportCommand } from "./graph-report.js";
 import { runGraphCheckCommand } from "./graph-check.js";
 import { runGraphArchCommand } from "./graph-arch.js";
@@ -26,16 +26,27 @@ export interface ArchInfo {
   packages: { pkgId: string; instability: number; abstractness: number; fileCount: number; layer: string; cohesion: number; crossEdges: number }[];
 }
 
+/**
+ * Snapshot-level (window-independent) derived data: which file pairs are joined
+ * by a static import edge, and each node's PageRank centrality. Computed once
+ * per snapshot from a single db open, shared across all window payloads.
+ */
+export interface SnapshotContext {
+  linkedPairs: ReadonlySet<string>;
+  centrality: ReadonlyMap<string, number>;
+}
+
 export function buildPayload(
   report: ReturnType<typeof runGraphReportCommand>,
   violations: { rule: string; severity: "error" | "warning"; file: string; detail: string; status: "new" | "carry" | "fixed" }[],
   arch: ArchInfo,
   opts: DashboardCommandOptions,
   authorCount: number | undefined,
-  linkedPairs: ReadonlySet<string>,
+  snapCtx: SnapshotContext,
 ) {
   const boundaryHealth = arch.boundaryHealth;
   const snap = report.snapshot;
+  const linkedPairs = snapCtx.linkedPairs;
   const scary = report.hotspots.filter((h) => h.score >= 3000).length;
   const openNew = violations.filter((v) => v.status === "new").length;
   const carry = violations.filter((v) => v.status === "carry").length;
@@ -54,11 +65,13 @@ export function buildPayload(
       authorCount,
       emptyWindow: report.emptyWindow ?? false,
       hint: report.hint,
-      baseline: vs ? { ref: vs, snapshotId: 0 } : null,
+      // Resolve the baseline snapshot id from the drift comparison (0 only when
+      // no drift was computed, e.g. baseline == current) instead of hardcoding 0.
+      baseline: vs ? { ref: vs, snapshotId: report.drift?.baselineSnapshot.id ?? 0 } : null,
     },
     kpis: {
       health,
-      newHotspots: scary,
+      scaryHotspots: scary,
       knowledgeSilos: report.busFactorRisks.length,
       boundaryHealth,
       openViolations: { total: openNew + carry, new: openNew, carry, fixed: 0 },
@@ -77,7 +90,7 @@ export function buildPayload(
     couplingClusters: report.couplingClusters.map((c) => ({
       a: c.fileA, b: c.fileB, coEdits: c.count, hidden: !linkedPairs.has(pairKey(c.fileA, c.fileB)),
     })),
-    centralFiles: report.centralFiles.map((c) => ({ nodeId: c.nodeId, score: c.score })),
+    centralFiles: buildCentralFiles(report, snapCtx.centrality),
     packages: arch.packages,
     violations,
     drift: report.drift && {
@@ -114,16 +127,16 @@ export function computeWindowPayloads(
   const sigToKey = new Map<string, string>();
   let snapshotId = 0;
   let primaryKey = String(primaryWindow);
-  // Import-linkage is snapshot-level (same for every window); compute lazily once
-  // the first report resolves the snapshot id.
-  let linkedPairs: ReadonlySet<string> = new Set();
+  // Import-linkage + centrality are snapshot-level (same for every window);
+  // compute lazily once the first report resolves the snapshot id.
+  let snapCtx: SnapshotContext = { linkedPairs: new Set(), centrality: new Map() };
   for (const w of windowsList) {
     const report = runGraphReportCommand({
       db: opts.db, repoRoot, windowDays: w, vs: opts.vs, includeScripts: opts.includeScripts,
     });
-    if (report.snapshot.id !== snapshotId) linkedPairs = importLinkedPairs(opts.db, report.snapshot.id);
+    if (report.snapshot.id !== snapshotId) snapCtx = snapshotContext(opts.db, report.snapshot.id);
     snapshotId = report.snapshot.id;
-    const payload = buildPayload(report, violations, arch, opts, windowAuthorCount(repoRoot, w), linkedPairs);
+    const payload = buildPayload(report, violations, arch, opts, windowAuthorCount(repoRoot, w), snapCtx);
     const sig = windowSignature(payload);
     const existing = sigToKey.get(sig);
     if (existing) {
@@ -201,21 +214,46 @@ function pairKey(a: string, b: string): string {
 }
 
 /**
- * The set of file pairs joined by a static `imports`/`re-exports` edge (either
- * direction). A change-coupled pair NOT in this set is "hidden" coupling —
- * co-change with no import to explain it (the actionable signal). Conversely a
- * test↔source or generated↔generator pair *does* import and is not hidden, so
- * this same check demotes those tautologies. Snapshot-level (window-independent).
+ * Reading-order centrality (top-N central files) PLUS the centrality of every
+ * node referenced elsewhere in the payload (hotspots, silos, coupling), so the
+ * Dossier can always show a PageRank score instead of "—" for a hotspot that
+ * falls outside the top-N central list. Sorted descending, so the Overview
+ * "reading order" (top-6 slice) is unaffected.
  */
-export function importLinkedPairs(dbPath: string, snapshotId: number): Set<string> {
-  const set = new Set<string>();
+function buildCentralFiles(
+  report: ReturnType<typeof runGraphReportCommand>,
+  centrality: ReadonlyMap<string, number>,
+): { nodeId: string; score: number }[] {
+  const byId = new Map<string, number>();
+  for (const c of report.centralFiles) byId.set(c.nodeId, c.score);
+  const referenced = new Set<string>();
+  for (const h of report.hotspots) referenced.add(h.nodeId);
+  for (const b of report.busFactorRisks) referenced.add(b.nodeId);
+  for (const c of report.couplingClusters) { referenced.add(c.fileA); referenced.add(c.fileB); }
+  for (const id of referenced) if (!byId.has(id)) byId.set(id, centrality.get(id) ?? 0);
+  return [...byId].map(([nodeId, score]) => ({ nodeId, score })).sort((a, b) => b.score - a.score);
+}
+
+/**
+ * Snapshot-level derived data from a single db open: the set of file pairs
+ * joined by a static `imports`/`re-exports` edge (a co-changed pair NOT in it is
+ * "hidden" coupling — the actionable signal; test↔source and generated↔generator
+ * pairs *do* import, so this demotes those tautologies), plus each node's
+ * PageRank centrality. Window-independent — computed once per snapshot.
+ */
+export function snapshotContext(dbPath: string, snapshotId: number): SnapshotContext {
+  const linkedPairs = new Set<string>();
+  const centrality = new Map<string, number>();
   const db = openDatabase(dbPath);
   try {
-    for (const e of db.listEdges(snapshotId)) {
-      if (e.kind === "imports" || e.kind === "re-exports") set.add(pairKey(e.srcId, e.dstId));
+    const nodes = db.listNodes(snapshotId);
+    const edges = db.listEdges(snapshotId);
+    for (const e of edges) {
+      if (e.kind === "imports" || e.kind === "re-exports") linkedPairs.add(pairKey(e.srcId, e.dstId));
     }
+    for (const r of computePageRank(nodes, edges).rows) centrality.set(r.nodeId, r.score);
   } finally {
     db.close();
   }
-  return set;
+  return { linkedPairs, centrality };
 }

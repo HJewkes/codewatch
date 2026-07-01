@@ -14,6 +14,12 @@ function trendDir(n?: number): "up" | "down" | "flat" {
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
 
+/** "vs <ref>", appending "(snap N)" only when it adds info (resolved and ≠ ref). */
+function baselineLabel(baseline: { ref: string; snapshotId: number }): string {
+  const showSnap = baseline.snapshotId > 0 && String(baseline.snapshotId) !== baseline.ref;
+  return `vs ${baseline.ref}${showSnap ? ` (snap ${baseline.snapshotId})` : ""}`;
+}
+
 export function OverviewView({ data, onSelect, width }: { data: CodewatchData; onSelect: (id: string) => void; width: number }) {
   const { kpis, meta } = data;
   const singleAuthor = meta.authorCount === 1;
@@ -63,7 +69,7 @@ export function OverviewView({ data, onSelect, width }: { data: CodewatchData; o
         <KpiTile label="health" value={String(kpis.health)} unit="/100"
           trend={kpis.healthTrend !== undefined ? { direction: trendDir(kpis.healthTrend), value: `${kpis.healthTrend > 0 ? "+" : ""}${kpis.healthTrend}` } : undefined}
           accent={healthColor(kpis.health)} />
-        <KpiTile label="new hotspots" value={String(kpis.newHotspots)} accent={cw.warning} />
+        <KpiTile label="scary hotspots" value={String(kpis.scaryHotspots)} accent={cw.warning} />
         <KpiTile label="knowledge silos" value={String(kpis.knowledgeSilos)} accent={cw.error} />
         <KpiTile label="boundary Q" value={kpis.boundaryHealth != null ? kpis.boundaryHealth.toFixed(2) : "—"} accent={cw.info} />
         <KpiTile label="open violations" value={String(kpis.openViolations.total)}
@@ -130,7 +136,7 @@ export function OverviewView({ data, onSelect, width }: { data: CodewatchData; o
 
       {/* What changed */}
       <Panel title="What changed since baseline"
-        subtitle={meta.baseline ? `vs ${meta.baseline.ref} (snap ${meta.baseline.snapshotId})` : "no baseline selected"}>
+        subtitle={meta.baseline ? baselineLabel(meta.baseline) : "no baseline selected"}>
         <View style={{ flexDirection: "row", gap: 20, flexWrap: "wrap" }}>
           <Stat label="violations fixed" value={kpis.openViolations.fixed} color={cw.success} />
           <Stat label="new violations" value={kpis.openViolations.new} color={cw.error} />
