@@ -1,19 +1,16 @@
 import React from "react";
 import { View, Text, Pressable } from "react-native";
 import { Alert, AlertTitle, AlertDescription, Gauge } from "@titan-design/react-ui";
-import type { CodewatchData } from "../types";
+import type { CodewatchData, HealthComponent } from "../types";
 import { Panel, KpiTile, Bar, Pillet } from "../components/primitives";
 import { Treemap } from "../components/Treemap";
-import { RiskRadar } from "../components/RiskRadar";
 import { buildDriftIndex, DriftBadge } from "../components/driftBadge";
-import { cw, healthColor, hotspotColor, shortId, pkgOf, pct, SCARY_SCORE } from "../theme";
+import { cw, healthColor, hotspotColor, shortId, pkgOf, SCARY_SCORE, modularityColor, modularityVerdict } from "../theme";
 
 function trendDir(n?: number): "up" | "down" | "flat" {
   if (n === undefined || n === 0) return "flat";
   return n > 0 ? "up" : "down";
 }
-
-const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
 
 /** "vs <ref>", appending "(snap N)" only when it adds info (resolved and ≠ ref). */
 function baselineLabel(baseline: { ref: string; snapshotId: number }): string {
@@ -27,15 +24,6 @@ export function OverviewView({ data, onSelect, width }: { data: CodewatchData; o
   const tmWidth = Math.max(280, Math.min(520, width - 340));
   const drift = buildDriftIndex(data.drift);
 
-  // Novel: normalized multi-axis risk profile (higher = worse).
-  const riskAxes = [
-    { label: "hotspots", value: clamp01((data.hotspots[0]?.score ?? 0) / 5000) },
-    { label: "silos", value: clamp01(kpis.knowledgeSilos / 15) },
-    { label: "coupling", value: clamp01(data.couplingClusters.length / 10) },
-    { label: "complexity", value: clamp01(kpis.maxComplexity / 30) },
-    { label: "violations", value: clamp01(kpis.openViolations.total / 8) },
-    { label: "boundaries", value: clamp01(1 - (kpis.boundaryHealth ?? 0.5)) },
-  ];
   // Novel: "reading order" — the smallest starting set to understand the repo,
   // approximated by PageRank centrality (most-depended-upon files first).
   const readingOrder = data.centralFiles.slice(0, 6);
@@ -73,22 +61,29 @@ export function OverviewView({ data, onSelect, width }: { data: CodewatchData; o
           accent={healthColor(kpis.health)} />
         <KpiTile label="scary hotspots" value={String(kpis.scaryHotspots)} accent={cw.warning} />
         <KpiTile label="knowledge silos" value={String(kpis.knowledgeSilos)} accent={cw.error} />
-        <KpiTile label="boundary Q" value={kpis.boundaryHealth != null ? kpis.boundaryHealth.toFixed(2) : "—"} accent={cw.info} />
+        <KpiTile label="modularity"
+          value={kpis.boundaryHealth != null ? kpis.boundaryHealth.toFixed(2) : "—"}
+          accent={kpis.boundaryHealth != null ? modularityColor(kpis.boundaryHealth) : cw.info} />
         <KpiTile label="open violations" value={String(kpis.openViolations.total)}
           unit={kpis.openViolations.new ? `+${kpis.openViolations.new}` : undefined} accent={cw.error} />
         <KpiTile label="max complexity" value={String(kpis.maxComplexity)} accent={cw.brand} />
       </View>
 
-      {/* Hero row: health gauge · risk radar · reading order */}
+      {/* Hero row: health breakdown · reading order */}
       <View style={{ flexDirection: "row", gap: 16, flexWrap: "wrap" }}>
-        <Panel title="Health">
-          <View style={{ alignItems: "center" }}>
-            <Gauge value={kpis.health} size={150} label="composite" unit="/100" />
-          </View>
-        </Panel>
-        <Panel title="Risk radar" subtitle="normalized risk across 6 axes">
-          <View style={{ alignItems: "center" }}>
-            <RiskRadar axes={riskAxes} size={230} />
+        <Panel title="Health" subtitle="100 − penalties; each component is capped and independent">
+          <View style={{ flexDirection: "row", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
+            <Gauge value={kpis.health} size={130} label="composite" unit="/100" />
+            <View style={{ gap: 7, flex: 1, minWidth: 220 }}>
+              {(kpis.healthBreakdown ?? []).map((c) => (
+                <HealthRow key={c.label} c={c} />
+              ))}
+              {kpis.boundaryHealth != null ? (
+                <Text style={{ color: cw.textFaint, fontSize: 11, marginTop: 2 }}>
+                  modularity {kpis.boundaryHealth.toFixed(2)} — {modularityVerdict(kpis.boundaryHealth)}
+                </Text>
+              ) : null}
+            </View>
           </View>
         </Panel>
         <Panel title="Reading order" subtitle="smallest set to grok the repo (by centrality)" flex={1}>
@@ -151,6 +146,19 @@ export function OverviewView({ data, onSelect, width }: { data: CodewatchData; o
           ) : null}
         </View>
       </Panel>
+    </View>
+  );
+}
+
+/** One health-penalty component: label, magnitude bar, and the "−N" it costs. */
+function HealthRow({ c }: { c: HealthComponent }) {
+  const active = c.penalty > 0;
+  const color = active ? cw.warning : cw.textFaint;
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+      <Text style={{ color: active ? cw.textDim : cw.textFaint, fontSize: 12, flex: 1 }} numberOfLines={1}>{c.label}</Text>
+      <Bar frac={c.penalty / 30} color={color} width={50} />
+      <Text style={{ color, fontSize: 12, width: 30, textAlign: "right" }}>{active ? `−${c.penalty}` : "0"}</Text>
     </View>
   );
 }

@@ -41,6 +41,19 @@ export function severityColor(sev: "error" | "warning"): string {
   return sev === "error" ? cw.error : cw.warning;
 }
 
+/** Modularity Q band (0..1, higher = cleaner package boundaries). */
+export function modularityColor(q: number): string {
+  if (q >= 0.6) return cw.success;
+  if (q >= 0.4) return cw.warning;
+  return cw.error;
+}
+
+export function modularityVerdict(q: number): string {
+  if (q >= 0.6) return "clean boundaries";
+  if (q >= 0.4) return "some cross-package leakage";
+  return "tangled boundaries";
+}
+
 /**
  * Translucent tint of a token color. react-native-web's color normalizer drops
  * `color-mix()` (→ transparent), so derive rgba from the token's fallback hex.

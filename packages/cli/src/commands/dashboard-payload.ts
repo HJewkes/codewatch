@@ -51,7 +51,19 @@ export function buildPayload(
   const openNew = violations.filter((v) => v.status === "new").length;
   const carry = violations.filter((v) => v.status === "carry").length;
   const maxComplexity = report.hotspots.reduce((m, h) => Math.max(m, h.complexity), 0);
-  const health = Math.max(0, Math.min(100, 100 - scary * 6 - (openNew + carry) * 5));
+  const hiddenCoupling = report.couplingClusters.filter(
+    (c) => !linkedPairs.has(pairKey(c.fileA, c.fileB)),
+  ).length;
+  const { health, healthBreakdown } = computeHealth({
+    scary,
+    // Exclude the scary-hotspots rule so a scary carryover isn't double-counted
+    // (it's already penalized under the hotspots component).
+    newViolations: violations.filter((v) => v.status === "new" && v.rule !== "scary-hotspots").length,
+    carryViolations: violations.filter((v) => v.status === "carry" && v.rule !== "scary-hotspots").length,
+    silos: report.busFactorRisks.length,
+    maxComplexity,
+    hiddenCoupling,
+  });
   const vs = opts.vs;
 
   return {
@@ -71,6 +83,7 @@ export function buildPayload(
     },
     kpis: {
       health,
+      healthBreakdown,
       scaryHotspots: scary,
       knowledgeSilos: report.busFactorRisks.length,
       boundaryHealth,
@@ -106,6 +119,32 @@ export function buildPayload(
 }
 
 export type DashboardPayload = ReturnType<typeof buildPayload>;
+
+/**
+ * Composite health as a transparent sum of independent penalty components, so
+ * the UI can show *why* the score is what it is instead of a black-box number.
+ * Each component is capped and drawn from a distinct dimension — the hotspots
+ * component owns scary files, so the violations component excludes the
+ * scary-hotspots rule (no double-count).
+ */
+export function computeHealth(x: {
+  scary: number;
+  newViolations: number;
+  carryViolations: number;
+  silos: number;
+  maxComplexity: number;
+  hiddenCoupling: number;
+}): { health: number; healthBreakdown: { label: string; penalty: number; detail: string }[] } {
+  const breakdown = [
+    { label: "scary hotspots", penalty: Math.min(30, x.scary * 10), detail: `${x.scary} file(s) ≥ 3000` },
+    { label: "fitness violations", penalty: Math.min(20, x.newViolations * 8 + x.carryViolations * 3), detail: `${x.newViolations} new, ${x.carryViolations} parked (non-hotspot rules)` },
+    { label: "knowledge silos", penalty: Math.min(15, x.silos * 3), detail: `${x.silos} single-owner file(s)` },
+    { label: "complexity over budget", penalty: Math.min(15, Math.max(0, x.maxComplexity - 30)), detail: `max ${x.maxComplexity} vs budget 30` },
+    { label: "hidden coupling", penalty: Math.min(10, x.hiddenCoupling * 2), detail: `${x.hiddenCoupling} pair(s) co-change without an import` },
+  ];
+  const total = breakdown.reduce((s, c) => s + c.penalty, 0);
+  return { health: Math.max(0, 100 - total), healthBreakdown: breakdown };
+}
 
 const DEFAULT_WINDOWS = [30, 90, 180];
 
