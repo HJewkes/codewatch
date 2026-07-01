@@ -54,7 +54,7 @@ export function ArchitectureView({ data, onSelect, width }: { data: CodewatchDat
             <EmptyState
               icon={Network as any}
               title="No package structure"
-              description="This repo has no connected multi-package boundaries for a main sequence, but the file-level dependency graph is available above."
+              description="This repo has no connected multi-package boundaries for a main sequence, but the file-level dependency graph is available in the Dependency graph tab."
             />
           </Panel>
         </View>
