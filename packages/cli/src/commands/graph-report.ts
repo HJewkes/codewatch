@@ -51,12 +51,45 @@ export interface GraphReportCommandOptions {
   limit?: number;
   exclude?: string[];
   excludeRole?: string[];
+  includeScripts?: boolean;
   out?: string;
   json?: boolean;
 }
 
 const DEFAULT_WINDOW_DAYS = 30;
 const DEFAULT_LIMIT = 10;
+
+/**
+ * `script` role (scripts/, archive/) is report noise by default; `--exclude-role`
+ * is additive on top, and `--include-scripts` opts scripts back in.
+ */
+function resolveExcludedRoles(options: GraphReportCommandOptions): Set<string> {
+  const roles = new Set(options.excludeRole ?? []);
+  if (!options.includeScripts) roles.add("script");
+  return roles;
+}
+
+function hasChurnSignal(
+  metrics: readonly GraphMetric[],
+  windowDays: number,
+): boolean {
+  const name = `churn_${windowDays}d`;
+  return metrics.some((m) => m.name === name && (m.value ?? 0) > 0);
+}
+
+function suggestWiderWindow(windowDays: number): number {
+  if (windowDays < 90) return 90;
+  if (windowDays < 180) return 180;
+  return windowDays * 2;
+}
+
+function emptyWindowHint(windowDays: number): string {
+  const wider = suggestWiderWindow(windowDays);
+  return (
+    `No commits in the last ${windowDays}d — churn-based sections are ` +
+    `empty. Try a wider window: \`--window-days ${wider}\`.`
+  );
+}
 
 export function runGraphReportCommand(
   options: GraphReportCommandOptions,
@@ -67,7 +100,7 @@ export function runGraphReportCommand(
     const limit = options.limit ?? DEFAULT_LIMIT;
     const requestedWindow = options.windowDays ?? DEFAULT_WINDOW_DAYS;
     const excluders = compilePatterns(options.exclude);
-    const excludedRoles = new Set(options.excludeRole ?? []);
+    const excludedRoles = resolveExcludedRoles(options);
 
     const nodes = db.listNodes(snapshot.id);
     const edges = db.listEdges(snapshot.id);
@@ -90,6 +123,10 @@ export function runGraphReportCommand(
       couplingClusters: topCouplingClusters(ctx, options.repoRoot, windowDays, limit),
       centralFiles: topCentralFiles(nodes, edges, ctx, limit),
     };
+    if (!hasChurnSignal(metrics, windowDays)) {
+      result.emptyWindow = true;
+      result.hint = emptyWindowHint(windowDays);
+    }
     if (options.vs) {
       result.drift = computeDrift(db, options, ctx, result, limit);
     }
@@ -134,7 +171,7 @@ function computeDrift(
     nodes: baseNodes,
     metrics: baseMetrics,
     excluders: compilePatterns(options.exclude),
-    excludedRoles: new Set(options.excludeRole ?? []),
+    excludedRoles: resolveExcludedRoles(options),
     windowDays: baseWindow,
   });
   return computeReportDrift({
@@ -206,7 +243,11 @@ export function registerGraphReport(graphCmd: Command): void {
     )
     .option(
       "--exclude-role <role...>",
-      "Exclude files with this role (test, fixture, …; repeatable)",
+      "Additionally exclude files with this role (test, fixture, …; repeatable)",
+    )
+    .option(
+      "--include-scripts",
+      "Include scripts/ and archive/ files (role=script), suppressed by default",
     )
     .option("--out <path>", "Write markdown to this file instead of stdout")
     .option("--json", "Output structured JSON instead of markdown")
@@ -220,6 +261,7 @@ export function registerGraphReport(graphCmd: Command): void {
         limit?: string;
         exclude?: string[];
         excludeRole?: string[];
+        includeScripts?: boolean;
         out?: string;
         json?: boolean;
       }) => {
@@ -233,6 +275,7 @@ export function registerGraphReport(graphCmd: Command): void {
             limit: asNumber(options.limit),
             exclude: options.exclude,
             excludeRole: options.excludeRole,
+            includeScripts: options.includeScripts,
             out: options.out,
           });
           const text = options.json
