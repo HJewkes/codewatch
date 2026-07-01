@@ -17,3 +17,8 @@ export function loadData(): CodewatchData {
 export function loadWindows(): Record<string, CodewatchData> | null {
   return window.__CODEWATCH_WINDOWS__ ?? null;
 }
+
+/** Base64 of the embedded Cytoscape dependency graph (for a data-URI iframe). */
+export function loadGraphHtml(): string | null {
+  return window.__CODEWATCH_GRAPH__ ?? null;
+}
