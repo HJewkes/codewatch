@@ -66,18 +66,20 @@ export function tint(color: string, alpha: number): string {
 }
 
 /**
- * Trim a repo-rooted id to its leaf + one parent for compact display. Barrel
- * files (index.*) get their package prefixed so a monorepo's many index.ts
- * don't all collapse to the same label.
+ * Trim a repo-rooted id to its package + leaf for compact display. Prefixing the
+ * package (not the immediate parent dir) is what disambiguates a monorepo: many
+ * packages have a src/indexer.ts, so "…/src/indexer.ts" collapses them, whereas
+ * "graph/…/indexer.ts" stays distinct. Barrels keep the same package prefix.
  */
 export function shortId(id: string): string {
   const parts = id.split("/");
   const leaf = parts[parts.length - 1] ?? id;
-  if (/^index\.[a-z]+$/i.test(leaf) && parts.length > 2) {
-    return `${pkgOf(id)}/${leaf}`;
-  }
   if (parts.length <= 2) return id;
-  return "…/" + parts.slice(-2).join("/");
+  const pkg = pkgOf(id);
+  if (/^index\.[a-z]+$/i.test(leaf)) {
+    return `${pkg}/${leaf}`;
+  }
+  return `${pkg}/…/${leaf}`;
 }
 
 export function pkgOf(id: string): string {
