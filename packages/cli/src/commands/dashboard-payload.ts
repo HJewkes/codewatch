@@ -120,7 +120,7 @@ export function buildPayload(
       maxComplexity,
     },
     hotspots: report.hotspots.map((h) => ({
-      nodeId: h.nodeId, churn: h.churn, complexity: h.complexity, score: h.score,
+      nodeId: h.nodeId, churn: h.churn, complexity: h.complexity, score: h.score, recency: h.recency,
     })),
     busFactorRisks: report.busFactorRisks.map((b) => ({
       nodeId: b.nodeId, topAuthorShare: b.topAuthorShare, churn: b.churn,

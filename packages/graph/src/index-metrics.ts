@@ -1,7 +1,13 @@
 import type { ParsedFile } from "@codewatch/core";
 import { computeMetrics } from "./metrics.js";
 import { computeSourceMetrics } from "./source-metrics.js";
-import { aggregateChurn, loadChurnEntries, type ChurnEntry } from "./churn.js";
+import {
+  aggregateChurn,
+  computeRecencyMetrics,
+  loadChurnEntries,
+  loadFileFirstSeen,
+  type ChurnEntry,
+} from "./churn.js";
 import { computeChangeCoupling } from "./change-coupling.js";
 import { computeOwnershipMetrics, computeTestCoverageOwnership } from "./ownership.js";
 import { linkTestsToSources, testCoverageCountMetrics } from "./test-linker.js";
@@ -18,6 +24,27 @@ export interface IndexerMetricsInput {
   idRoot: string;
   computeChurn: boolean;
   churnWindowDays?: number;
+}
+
+/**
+ * Age-discount metrics for the files that have churn this window, from their
+ * first-commit dates. Skipped silently when git can't supply first-seen dates
+ * (the hotspot score then falls back to an undiscounted churn × complexity).
+ */
+function recencyMetrics(
+  idRoot: string,
+  churnMetrics: readonly GraphMetric[],
+  windowDays: number,
+  knownFileIds: ReadonlySet<string> | undefined,
+): GraphMetric[] {
+  const churnedFileIds = churnMetrics
+    .filter((m) => m.name === `churn_${windowDays}d`)
+    .map((m) => m.nodeId);
+  if (churnedFileIds.length === 0) return [];
+  // Fall back to an empty map when git can't supply first-seen dates: recency
+  // still emits (=1) for every churned file, so scary-hotspots keeps firing.
+  const firstSeen = loadFileFirstSeen({ repoRoot: idRoot, knownFileIds }) ?? new Map<string, number>();
+  return computeRecencyMetrics(firstSeen, churnedFileIds, windowDays, Math.floor(Date.now() / 1000));
 }
 
 function collectFileIds(nodes: Iterable<GraphNode>): Set<string> {
@@ -53,12 +80,15 @@ export function buildIndexerMetrics(input: IndexerMetricsInput): GraphMetric[] {
       knownFileIds,
     });
     if (entries !== null) {
+      const windowDays = input.churnWindowDays ?? 30;
+      const churnMetrics = aggregateChurn(entries, windowDays, knownFileIds);
       out.push(
-        ...aggregateChurn(entries, input.churnWindowDays ?? 30, knownFileIds),
+        ...churnMetrics,
         ...computeOwnershipMetrics(entries, {
           windowDays: input.churnWindowDays,
           knownFileIds,
         }),
+        ...recencyMetrics(input.idRoot, churnMetrics, windowDays, knownFileIds),
       );
     }
   }

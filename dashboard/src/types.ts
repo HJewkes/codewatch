@@ -52,6 +52,8 @@ export interface Hotspot {
   churn: number;
   complexity: number;
   score: number;
+  /** Age-recency factor applied to the score (1 = no discount, <1 = new-file discount). */
+  recency?: number;
   role?: string;
 }
 

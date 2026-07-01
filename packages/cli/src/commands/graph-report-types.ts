@@ -5,6 +5,8 @@ export interface HotspotRow {
   churn: number;
   complexity: number;
   score: number;
+  /** Age-recency factor applied to the score (1 = no discount); see recency_{window}d. */
+  recency: number;
 }
 
 export interface NewHotspot extends HotspotRow {

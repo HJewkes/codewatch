@@ -46,10 +46,10 @@
       ]
     },
     {
-      "$comment": "Textbook scary-hotspot signal: high churn × high cognitive load = the riskiest file to touch. Promoted to error in M27 — baseline mode means existing hotspots are carryover, so this only fails PRs that *worsen* the count. Switched from cyclomatic_max to cognitive_max (Sonarsource canon, M39) — cognitive scores nesting and branching realistically and tends higher than cyclomatic, so the threshold tracks alongside. Run with --baseline main in CI; without baseline this rule will fail on existing files.",
+      "$comment": "Textbook scary-hotspot signal: high churn × high cognitive load = the riskiest file to touch. Promoted to error in M27 — baseline mode means existing hotspots are carryover, so this only fails PRs that *worsen* the count. Switched from cyclomatic_max to cognitive_max (Sonarsource canon, M39) — cognitive scores nesting and branching realistically and tends higher than cyclomatic, so the threshold tracks alongside. The recency_30d factor (min(1, file_age_days/30), C-41) discounts freshly-authored files whose churn is initial authoring, not decay — a file younger than the window scales down proportionally, an older one is unaffected (factor 1). Run with --baseline main in CI; without baseline this rule will fail on existing files.",
       "id": "scary-hotspots",
       "type": "metric-product-max",
-      "metrics": ["churn_30d", "cognitive_max"],
+      "metrics": ["churn_30d", "cognitive_max", "recency_30d"],
       "max": 3000,
       "kind": "file",
       "excludeRoles": ["test", "fixture"]

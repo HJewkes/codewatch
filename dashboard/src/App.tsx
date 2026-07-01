@@ -240,7 +240,7 @@ function Dossier({ id, data, violations, onClose }: { id: string; data: Codewatc
         <Pressable onPress={onClose}><Text style={{ color: cw.textDim, fontSize: 18 }}>×</Text></Pressable>
       </View>
       <Text style={{ color: cw.textFaint, fontSize: 11 }} numberOfLines={2}>{id}</Text>
-      <DossierRow label="Churn × complexity" value={hotspot ? `${hotspot.churn} × ${hotspot.complexity} = ${hotspot.score}` : "—"} />
+      <DossierRow label="Hotspot score" value={hotspot ? hotspotBreakdown(hotspot) : "—"} />
       <DossierRow label="Centrality (PageRank)" value={central ? central.score.toFixed(4) : "—"} />
       {coupled.length ? (
         <View style={{ gap: 6 }}>
@@ -266,6 +266,13 @@ function Dossier({ id, data, violations, onClose }: { id: string; data: Codewatc
       ) : null}
     </View>
   );
+}
+
+/** "churn × complexity = score", inserting the recency factor only when it discounts. */
+function hotspotBreakdown(h: { churn: number; complexity: number; score: number; recency?: number }): string {
+  const discounted = h.recency !== undefined && h.recency < 1;
+  const factors = discounted ? `${h.churn} × ${h.complexity} × ${h.recency}` : `${h.churn} × ${h.complexity}`;
+  return `${factors} = ${h.score}`;
 }
 
 function DossierRow({ label, value }: { label: string; value: string }) {

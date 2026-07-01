@@ -1,10 +1,43 @@
 import { describe, it, expect } from "vitest";
 import {
   aggregateChurn,
+  computeRecencyMetrics,
   parseChurnLog,
   resolveRenamedPath,
   type ChurnEntry,
 } from "../churn.js";
+
+describe("computeRecencyMetrics", () => {
+  const DAY = 86400;
+  const now = 1_000_000 * DAY; // arbitrary fixed "now" in epoch seconds
+
+  const recency = (metrics: ReturnType<typeof computeRecencyMetrics>, id: string) =>
+    metrics.find((m) => m.nodeId === id && m.name === "recency_30d")?.value;
+  const age = (metrics: ReturnType<typeof computeRecencyMetrics>, id: string) =>
+    metrics.find((m) => m.nodeId === id && m.name === "file_age_days")?.value;
+
+  it("discounts a file younger than the window proportionally", () => {
+    const seen = new Map([["new.ts", now - 6 * DAY]]); // 6 days old, window 30
+    const m = computeRecencyMetrics(seen, ["new.ts"], 30, now);
+    expect(recency(m, "new.ts")).toBeCloseTo(0.2, 5); // 6/30
+    expect(age(m, "new.ts")).toBe(6);
+  });
+
+  it("does not discount a file older than the window (recency = 1)", () => {
+    const seen = new Map([["old.ts", now - 200 * DAY]]);
+    const m = computeRecencyMetrics(seen, ["old.ts"], 30, now);
+    expect(recency(m, "old.ts")).toBe(1);
+    expect(age(m, "old.ts")).toBe(200);
+  });
+
+  it("emits recency=1 (no age) for a churned file with an unknown first-seen date", () => {
+    // Guarantees the scary-hotspots rule, which requires all factors, never goes
+    // silent when git can't supply an age.
+    const m = computeRecencyMetrics(new Map(), ["ghost.ts"], 30, now);
+    expect(recency(m, "ghost.ts")).toBe(1);
+    expect(age(m, "ghost.ts")).toBeUndefined();
+  });
+});
 
 describe("parseChurnLog", () => {
   it("returns empty for empty input", () => {
