@@ -19,6 +19,16 @@ function asNumber(s: string | undefined): number | undefined {
   return s !== undefined ? Number(s) : undefined;
 }
 
+/** Parse `--churn-windows` (variadic and/or comma-separated) into positive days. */
+function asNumberList(values: string[] | undefined): number[] | undefined {
+  if (values === undefined) return undefined;
+  const out = values
+    .flatMap((v) => v.split(","))
+    .map((v) => Number(v.trim()))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  return out.length > 0 ? out : undefined;
+}
+
 export function registerGraphCommands(program: Command): void {
   const graphCmd = program
     .command("graph")
@@ -68,7 +78,11 @@ function registerIndex(graphCmd: Command): void {
     )
     .option(
       "--churn-window <days>",
-      "Days of git history to count churn over (default 30)",
+      "Primary window (days) for churn/ownership/coupling metrics (default 30)",
+    )
+    .option(
+      "--churn-windows <days...>",
+      "Comma- or space-separated windows to store churn for so the dashboard switcher can resolve each (default 30,90,180)",
     )
     .option(
       "--no-incremental",
@@ -86,6 +100,7 @@ function registerIndex(graphCmd: Command): void {
           computeMetrics?: boolean;
           churn?: boolean;
           churnWindow?: string;
+          churnWindows?: string[];
           incremental?: boolean;
           json?: boolean;
         },
@@ -101,6 +116,7 @@ function registerIndex(graphCmd: Command): void {
             computeMetrics: options.computeMetrics,
             computeChurn: options.churn,
             churnWindowDays: asNumber(options.churnWindow),
+            churnWindows: asNumberList(options.churnWindows),
             incremental: options.incremental,
             json: options.json,
           });

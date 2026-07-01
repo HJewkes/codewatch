@@ -2,8 +2,9 @@ import type { ParsedFile } from "@codewatch/core";
 import { computeMetrics } from "./metrics.js";
 import { computeSourceMetrics } from "./source-metrics.js";
 import {
-  aggregateChurn,
-  computeRecencyMetrics,
+  aggregateChurnWindows,
+  computeRecencyWindows,
+  entriesWithin,
   loadChurnEntries,
   loadFileFirstSeen,
   type ChurnEntry,
@@ -23,28 +24,54 @@ export interface IndexerMetricsInput {
   reusedSourceMetrics: GraphMetric[];
   idRoot: string;
   computeChurn: boolean;
+  /** Primary window: scopes ownership, coupling, coverage, and fitness recency. */
   churnWindowDays?: number;
+  /**
+   * Windows to store churn (and per-window recency) for. Defaults to
+   * {@link DEFAULT_CHURN_WINDOWS}; the primary window is always included. Lets
+   * the dashboard switcher resolve 30/90/180 instead of snapping to one window.
+   */
+  churnWindows?: number[];
+}
+
+/** Windows the dashboard switcher offers; churn is stored for each by default. */
+export const DEFAULT_CHURN_WINDOWS = [30, 90, 180];
+
+/** Effective, de-duped, sorted window set — always includes the primary window. */
+function resolveChurnWindows(
+  requested: number[] | undefined,
+  primaryWindow: number,
+): number[] {
+  const base = requested && requested.length > 0 ? requested : DEFAULT_CHURN_WINDOWS;
+  return [...new Set([primaryWindow, ...base])]
+    .filter((w) => w > 0)
+    .sort((a, b) => a - b);
 }
 
 /**
- * Age-discount metrics for the files that have churn this window, from their
+ * Age-discount metrics for the files that churned in each window, from their
  * first-commit dates. Skipped silently when git can't supply first-seen dates
  * (the hotspot score then falls back to an undiscounted churn × complexity).
  */
 function recencyMetrics(
   idRoot: string,
   churnMetrics: readonly GraphMetric[],
-  windowDays: number,
+  windows: readonly number[],
   knownFileIds: ReadonlySet<string> | undefined,
+  nowEpoch: number,
 ): GraphMetric[] {
-  const churnedFileIds = churnMetrics
-    .filter((m) => m.name === `churn_${windowDays}d`)
-    .map((m) => m.nodeId);
-  if (churnedFileIds.length === 0) return [];
+  const churnedByWindow = new Map<number, ReadonlySet<string>>();
+  for (const w of windows) {
+    const ids = new Set(
+      churnMetrics.filter((m) => m.name === `churn_${w}d`).map((m) => m.nodeId),
+    );
+    if (ids.size > 0) churnedByWindow.set(w, ids);
+  }
+  if (churnedByWindow.size === 0) return [];
   // Fall back to an empty map when git can't supply first-seen dates: recency
   // still emits (=1) for every churned file, so scary-hotspots keeps firing.
   const firstSeen = loadFileFirstSeen({ repoRoot: idRoot, knownFileIds }) ?? new Map<string, number>();
-  return computeRecencyMetrics(firstSeen, churnedFileIds, windowDays, Math.floor(Date.now() / 1000));
+  return computeRecencyWindows(firstSeen, churnedByWindow, nowEpoch);
 }
 
 function collectFileIds(nodes: Iterable<GraphNode>): Set<string> {
@@ -74,21 +101,28 @@ export function buildIndexerMetrics(input: IndexerMetricsInput): GraphMetric[] {
   let knownFileIds: Set<string> | undefined;
   if (input.computeChurn) {
     knownFileIds = collectFileIds(input.nodes.values());
-    entries = loadChurnEntries({
+    const primaryWindow = input.churnWindowDays ?? 30;
+    const windows = resolveChurnWindows(input.churnWindows, primaryWindow);
+    const maxWindow = windows[windows.length - 1]!;
+    // Load the widest window once; slice it per window for churn/recency.
+    const wide = loadChurnEntries({
       repoRoot: input.idRoot,
-      windowDays: input.churnWindowDays,
+      windowDays: maxWindow,
       knownFileIds,
     });
-    if (entries !== null) {
-      const windowDays = input.churnWindowDays ?? 30;
-      const churnMetrics = aggregateChurn(entries, windowDays, knownFileIds);
+    if (wide !== null) {
+      const nowEpoch = Math.floor(Date.now() / 1000);
+      const churnMetrics = aggregateChurnWindows(wide, windows, nowEpoch, knownFileIds);
+      // Ownership, coupling, and coverage stay scoped to the primary window.
+      entries =
+        primaryWindow === maxWindow ? wide : entriesWithin(wide, primaryWindow, nowEpoch);
       out.push(
         ...churnMetrics,
         ...computeOwnershipMetrics(entries, {
           windowDays: input.churnWindowDays,
           knownFileIds,
         }),
-        ...recencyMetrics(input.idRoot, churnMetrics, windowDays, knownFileIds),
+        ...recencyMetrics(input.idRoot, churnMetrics, windows, knownFileIds, nowEpoch),
       );
     }
   }

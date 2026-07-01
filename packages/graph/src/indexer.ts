@@ -57,6 +57,9 @@ export interface GraphIndexOptions {
   computeMetrics?: boolean;
   computeChurn?: boolean;
   churnWindowDays?: number;
+  /** Churn windows to store so the dashboard switcher can resolve each (default
+   * 30/90/180; the primary `churnWindowDays` is always included). */
+  churnWindows?: number[];
   /**
    * Reuse the prior snapshot for byte-identical files: skip their tree-sitter
    * parse + ts-morph extract and carry their nodes/edges/source-metrics
@@ -324,6 +327,7 @@ export async function runGraphIndex(
             idRoot,
             computeChurn: options.computeChurn !== false,
             churnWindowDays: options.churnWindowDays,
+            churnWindows: options.churnWindows,
           });
     const tMetrics = performance.now() - tMetrics0;
 

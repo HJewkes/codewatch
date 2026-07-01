@@ -6,7 +6,7 @@ import {
 import type { ChurnEntry } from "../churn.js";
 
 function entry(commit: string, filePath: string): ChurnEntry {
-  return { commit, author: "alice", filePath, added: 1, deleted: 0 };
+  return { commit, author: "alice", epoch: 0, filePath, added: 1, deleted: 0 };
 }
 
 describe("computeChangeCoupling", () => {

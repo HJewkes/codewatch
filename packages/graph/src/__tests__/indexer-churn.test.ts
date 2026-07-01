@@ -95,7 +95,7 @@ describe("runGraphIndex with churn metrics", () => {
     }
   });
 
-  it("honours --churn-window via the option key in metric names", async () => {
+  it("honours --churn-window as the primary window alongside the default dashboard windows", async () => {
     await writeFile(repo.dir, "src/a.ts", "export const a = 1;\n");
     await commit(repo.dir, "init");
 
@@ -108,10 +108,35 @@ describe("runGraphIndex with churn metrics", () => {
     try {
       const all = db.listMetrics(result.snapshotId);
       const names = new Set(all.map((m) => m.name));
+      // Primary window is stored with its own suffix ...
       expect(names.has("churn_7d")).toBe(true);
       expect(names.has("churn_7d_commits")).toBe(true);
       expect(names.has("churn_7d_authors")).toBe(true);
-      expect(names.has("churn_30d")).toBe(false);
+      // ... and the default dashboard windows are stored too, so the switcher
+      // can resolve each without re-indexing.
+      expect(names.has("churn_30d")).toBe(true);
+      expect(names.has("churn_90d")).toBe(true);
+      expect(names.has("churn_180d")).toBe(true);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("stores exactly the requested churn windows when --churn-windows is given", async () => {
+    await writeFile(repo.dir, "src/a.ts", "export const a = 1;\n");
+    await commit(repo.dir, "init");
+
+    const result = await runGraphIndex({
+      rootDir: repo.dir,
+      ref: "head",
+      churnWindows: [30],
+    });
+    const db = openDatabase(repo.dbPath);
+    try {
+      const names = new Set(db.listMetrics(result.snapshotId).map((m) => m.name));
+      expect(names.has("churn_30d")).toBe(true);
+      expect(names.has("churn_90d")).toBe(false);
+      expect(names.has("churn_180d")).toBe(false);
     } finally {
       db.close();
     }
