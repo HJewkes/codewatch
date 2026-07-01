@@ -166,6 +166,28 @@ describe("runGraphReportCommand", () => {
     expect(typeof parsed.hint).toBe("string");
   });
 
+  it("suppresses churn-derived sections on an empty window, keeping centrality", async () => {
+    fx = await fixture((db, snapshotId) => {
+      db.insertNode(snapshotId, fileNode("a.ts"));
+      db.insertMetrics(snapshotId, [
+        { nodeId: "a.ts", name: "cognitive_max", value: 40 }, // no churn signal
+      ]);
+    });
+    const result = runGraphReportCommand({ db: fx.dbPath, repoRoot: fx.dir });
+    const md = formatGraphReportMarkdown(result);
+    // The four churn-derived section headers are gone (no "_No …_" stubs)...
+    expect(md).not.toContain("## Hotspots");
+    expect(md).not.toContain("## Knowledge-silo risks");
+    expect(md).not.toContain("## Test-coverage silos");
+    expect(md).not.toContain("## Tight coupling clusters");
+    // ...but the structural Centrality section still renders.
+    expect(md).toContain("## Most central files");
+    // JSON keeps the full structured payload for programmatic consumers.
+    const parsed = JSON.parse(formatGraphReportJson(result));
+    expect(parsed).toHaveProperty("hotspots");
+    expect(parsed).toHaveProperty("couplingClusters");
+  });
+
   it("omits the empty-window hint when there is churn signal", async () => {
     fx = await fixture((db, snapshotId) => {
       db.insertNode(snapshotId, fileNode("a.ts"));
@@ -199,6 +221,9 @@ describe("runGraphReportCommand", () => {
   it("emits markdown with all four sections", async () => {
     fx = await fixture((db, snapshotId) => {
       db.insertNode(snapshotId, fileNode("a.ts"));
+      db.insertMetrics(snapshotId, [
+        { nodeId: "a.ts", name: "churn_30d", value: 5 }, // non-empty window
+      ]);
     });
     const result = runGraphReportCommand({ db: fx.dbPath, repoRoot: fx.dir });
     const md = formatGraphReportMarkdown(result);

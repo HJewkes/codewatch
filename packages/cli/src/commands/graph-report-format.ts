@@ -24,10 +24,16 @@ export function formatGraphReportMarkdown(result: GraphReportResult): string {
     lines.push(`> ⚠️ ${result.hint}`);
     lines.push("");
   }
-  pushHotspots(lines, result.hotspots);
-  pushBusFactor(lines, result.busFactorRisks);
-  pushTestCoverage(lines, result.testCoverageRisks);
-  pushCoupling(lines, result.couplingClusters);
+  // With no churn in the window, Hotspots / Knowledge-silos / Test-coverage /
+  // Coupling are all churn-derived and definitionally empty — rendering four
+  // "_No …_" stubs reads as a broken report. Show the hint plus the structural
+  // (churn-independent) Centrality signal instead (C-23).
+  if (!result.emptyWindow) {
+    pushHotspots(lines, result.hotspots);
+    pushBusFactor(lines, result.busFactorRisks);
+    pushTestCoverage(lines, result.testCoverageRisks);
+    pushCoupling(lines, result.couplingClusters);
+  }
   pushCentral(lines, result.centralFiles);
   if (result.drift) pushDrift(lines, result.drift);
   return lines.join("\n");
