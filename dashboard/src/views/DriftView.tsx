@@ -47,7 +47,6 @@ export function DriftView({ data, onSelect }: { data: CodewatchData; onSelect: (
         <Stat n={worsened.length} label="worsened" color={cw.warning} />
         <Stat n={improved.length} label="improved" color={cw.success} />
         <Stat n={drift.resolved.length} label="resolved" color={cw.success} />
-        <Stat n={drift.newSilos.length} label="new silos" color={cw.error} />
       </View>
 
       {risen.length ? (
@@ -98,16 +97,6 @@ export function DriftView({ data, onSelect }: { data: CodewatchData; onSelect: (
           <View style={{ gap: 6 }}>
             {drift.resolved.map((d) => (
               <Row key={d.nodeId} id={d.nodeId} onSelect={onSelect} right={`${d.before} → ${d.after}`} rightColor={cw.success} badge="resolved" badgeColor={cw.success} />
-            ))}
-          </View>
-        </Panel>
-      ) : null}
-
-      {drift.newSilos.length ? (
-        <Panel title="New knowledge silos" subtitle="became single-owner since baseline">
-          <View style={{ gap: 6 }}>
-            {drift.newSilos.map((id) => (
-              <Row key={id} id={id} onSelect={onSelect} right="bus factor 1" rightColor={cw.error} badge="new" badgeColor={cw.error} />
             ))}
           </View>
         </Panel>

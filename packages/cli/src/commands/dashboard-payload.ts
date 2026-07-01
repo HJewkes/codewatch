@@ -62,7 +62,6 @@ export function buildPayload(
     // (it's already penalized under the hotspots component).
     newViolations: violations.filter((v) => v.status === "new" && v.rule !== "scary-hotspots").length,
     carryViolations: violations.filter((v) => v.status === "carry" && v.rule !== "scary-hotspots").length,
-    silos: report.busFactorRisks.length,
     maxComplexity,
     hiddenCoupling,
   });
@@ -127,20 +126,20 @@ export type DashboardPayload = ReturnType<typeof buildPayload>;
  * the UI can show *why* the score is what it is instead of a black-box number.
  * Each component is capped and drawn from a distinct dimension — the hotspots
  * component owns scary files, so the violations component excludes the
- * scary-hotspots rule (no double-count).
+ * scary-hotspots rule (no double-count). Ownership (knowledge-silo / bus-factor)
+ * signal is deliberately NOT a health component: it saturates on single-author
+ * repos and lives on the Ownership tab, not in the cross-cutting score.
  */
 export function computeHealth(x: {
   scary: number;
   newViolations: number;
   carryViolations: number;
-  silos: number;
   maxComplexity: number;
   hiddenCoupling: number;
 }): { health: number; healthBreakdown: { label: string; penalty: number; detail: string }[] } {
   const breakdown = [
     { label: "scary hotspots", penalty: Math.min(30, x.scary * 10), detail: `${x.scary} file(s) ≥ 3000` },
     { label: "fitness violations", penalty: Math.min(20, x.newViolations * 8 + x.carryViolations * 3), detail: `${x.newViolations} new, ${x.carryViolations} parked (non-hotspot rules)` },
-    { label: "knowledge silos", penalty: Math.min(15, x.silos * 3), detail: `${x.silos} single-owner file(s)` },
     { label: "complexity over budget", penalty: Math.min(15, Math.max(0, x.maxComplexity - 30)), detail: `max ${x.maxComplexity} vs budget 30` },
     { label: "hidden coupling", penalty: Math.min(10, x.hiddenCoupling * 2), detail: `${x.hiddenCoupling} pair(s) co-change without an import` },
   ];

@@ -23,13 +23,13 @@ Seven views, each a lens on the same object model (click any file → shared Dos
 
 | View | Answers | Key widgets |
 |---|---|---|
-| **Overview** | where to look first | 6 KPI tiles, health **Gauge**, **Risk radar** (6 axes), **Reading order** (smallest set to grok the repo), ranked "where to look" list, hotspot **treemap**, "what changed" |
+| **Overview** | where to look first | 5 KPI tiles, health **Gauge** with a transparent penalty **breakdown**, **Reading order** (smallest set to grok the repo), ranked "where to look" list, hotspot **treemap**, "what changed" |
 | **Hotspots** | which files are risky | package filter, treemap, sortable table (churn/complexity/score) |
-| **Architecture** | which packages are structurally off | package **main-sequence** scatter (instability I × abstractness A) with the zone-of-pain/uselessness diagonal; packages ranked by distance |
+| **Architecture** | which packages are structurally off | package **structure-map** scatter (instability × cohesion) ranked by lowest cohesion |
 | **Coupling** | what changes together | co-edit pairs ranked; **hidden-coupling** highlighter (co-changed, no import edge) |
-| **Ownership** | who's the bus factor | single-owner list; explicit **N/A** on single-author repos |
+| **Ownership** | who's the bus factor | single-owner list; explicit **N/A** on single-author repos. Bus-factor / knowledge-silo signal lives here only — it is deliberately kept off the other views (it saturates on single-author repos). |
 | **Fitness** | are the rules holding | new/carry/fixed tallies, violations grouped by rule, empty-state when clean |
-| **Drift** | what moved since baseline | new/worsened/improved/resolved hotspots, new silos, new coupling |
+| **Drift** | what moved since baseline | new/worsened/improved/resolved hotspots, new coupling |
 
 Global: **file-filter search** (`/`), **keyboard nav** (1–7 switch views, Esc clears), **URL deep-linking** (`#view?node=…&q=…`), **window switcher** (30/90/180d, pre-computed), and **Copy JSON** for agents.
 

@@ -9,7 +9,7 @@ import {
 } from "@titan-design/react-ui";
 import { LayoutDashboard, Flame, Network, ShieldAlert, Users, GitFork, GitCompareArrows } from "lucide-react";
 import type { CodewatchData } from "./types";
-import { cw, shortId, pkgOf, pct } from "./theme";
+import { cw, shortId, pkgOf } from "./theme";
 import { Pillet } from "./components/primitives";
 import { loadWindows } from "./data";
 import { OverviewView } from "./views/OverviewView";
@@ -228,7 +228,6 @@ function TopBar({ data, view, q, onQuery, searchRef, windowKeys, windowKey, onWi
 
 function Dossier({ id, data, violations, onClose }: { id: string; data: CodewatchData; violations: CodewatchData["violations"]; onClose: () => void }) {
   const hotspot = data.hotspots.find((h) => h.nodeId === id);
-  const bus = data.busFactorRisks.find((b) => b.nodeId === id);
   const central = data.centralFiles.find((c) => c.nodeId === id);
   const coupled = data.couplingClusters.filter((c) => c.a === id || c.b === id);
   return (
@@ -242,7 +241,6 @@ function Dossier({ id, data, violations, onClose }: { id: string; data: Codewatc
       </View>
       <Text style={{ color: cw.textFaint, fontSize: 11 }} numberOfLines={2}>{id}</Text>
       <DossierRow label="Churn × complexity" value={hotspot ? `${hotspot.churn} × ${hotspot.complexity} = ${hotspot.score}` : "—"} />
-      <DossierRow label="Bus factor" value={bus ? `1 (${pct(bus.topAuthorShare)} top author)` : "—"} />
       <DossierRow label="Centrality (PageRank)" value={central ? central.score.toFixed(4) : "—"} />
       {coupled.length ? (
         <View style={{ gap: 6 }}>
