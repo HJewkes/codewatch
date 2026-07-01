@@ -62,7 +62,10 @@ export function registerGraphAutoUpdate(graphCmd: Command): void {
     .description(
       "Config-gated incremental re-index for a post-commit hook. No-ops unless `autoUpdate: true` is set in the check.json config; otherwise refreshes the snapshot by reusing byte-identical files.",
     )
-    .option("--db <path>", "Database path (default: <path>/.codewatch/graph.db)")
+    .option(
+      "--db <path>",
+      "Database path (default: <git-toplevel>/.codewatch/graph.db)",
+    )
     .option(
       "--config <path>",
       "check.json holding the autoUpdate opt-in flag",

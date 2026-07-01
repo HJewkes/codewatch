@@ -155,7 +155,8 @@ describe("runGraphIndex with churn metrics", () => {
       rootDir: path.join(repo.dir, "packages"),
       ref: "head",
     });
-    const db = openDatabase(path.join(repo.dir, "packages", ".codewatch", "graph.db"));
+    // Default db lands at the git toplevel, not the indexed subdir (C-22).
+    const db = openDatabase(path.join(repo.dir, ".codewatch", "graph.db"));
     try {
       const all = db.listMetrics(result.snapshotId);
       const inside = all.find(
