@@ -63,6 +63,17 @@ export interface CentralFile {
   score: number;
 }
 
+export interface TestCoverageRisk {
+  /** Source (non-test) file whose test coverage is owner-concentrated. */
+  nodeId: string;
+  /** Bus factor of the linked test files' authorship (1 = single test owner). */
+  testBusFactor: number;
+  /** Share of test churn from the single largest test author (0..1). */
+  testTopAuthorShare: number;
+  /** How many distinct test files link to this source. */
+  linkedTests: number;
+}
+
 export interface Violation {
   rule: string;
   severity: Severity;
@@ -106,6 +117,8 @@ export interface CodewatchData {
   kpis: Kpis;
   hotspots: Hotspot[];
   busFactorRisks: BusFactorRisk[];
+  /** Test-coverage ownership (C-4): meaningful even on a single-author repo. */
+  testCoverageRisks?: TestCoverageRisk[];
   couplingClusters: CouplingPair[];
   centralFiles: CentralFile[];
   packages?: PackageStat[];

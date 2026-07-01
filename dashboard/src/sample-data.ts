@@ -44,6 +44,11 @@ export const SAMPLE_DATA: CodewatchData = {
     { nodeId: "packages/graph/src/test-linker.ts", topAuthorShare: 1, churn: 113 },
     { nodeId: "packages/cli/src/commands/hook-cli.ts", topAuthorShare: 1, churn: 105 },
   ],
+  testCoverageRisks: [
+    { nodeId: "packages/graph/src/indexer.ts", testBusFactor: 1, testTopAuthorShare: 1, linkedTests: 1 },
+    { nodeId: "packages/graph/src/test-linker.ts", testBusFactor: 1, testTopAuthorShare: 1, linkedTests: 2 },
+    { nodeId: "packages/graph/src/incremental.ts", testBusFactor: 1, testTopAuthorShare: 1, linkedTests: 3 },
+  ],
   couplingClusters: [
     { a: "packages/graph/src/indexer.ts", b: "packages/graph/src/index-metrics.ts", coEdits: 8, hidden: false },
     { a: "packages/graph/src/diff.ts", b: "packages/graph/src/aliases.ts", coEdits: 5, hidden: true },
