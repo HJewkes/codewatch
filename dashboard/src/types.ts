@@ -24,9 +24,18 @@ export interface DashboardMeta {
   baseline?: { ref: string; snapshotId: number } | null;
 }
 
+/** One penalty component of the composite health score (higher penalty = worse). */
+export interface HealthComponent {
+  label: string;
+  penalty: number;
+  detail: string;
+}
+
 export interface Kpis {
   /** Composite health 0–100, higher = healthier. */
   health: number;
+  /** Transparent breakdown of the penalties subtracted from 100. */
+  healthBreakdown?: HealthComponent[];
   healthTrend?: number;
   /** Count of files over the scary-hotspots threshold (score ≥ 3000). NOT the
    * count of hotspots new since baseline — that lives in `drift.newHotspots`. */
