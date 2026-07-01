@@ -174,11 +174,13 @@ function computeDrift(
     excludedRoles: resolveExcludedRoles(options),
     windowDays: baseWindow,
   });
+  const baseNodeIds = new Set(baseNodes.map((n) => n.id));
   return computeReportDrift({
     baselineSnapshot,
     currentHotspots: current.hotspots,
     baselineHotspots: topHotspots(baseCtx, limit),
     currentHotspotScore: (id) => hotspotScoreOf(currentCtx, id),
+    baselineHotspotScore: (id) => (baseNodeIds.has(id) ? hotspotScoreOf(baseCtx, id) : undefined),
     currentSilos: current.busFactorRisks,
     baselineSilos: topBusFactorRisks(baseCtx, limit),
     currentBusFactor: (id) => busFactorOf(currentCtx, id),

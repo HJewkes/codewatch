@@ -26,9 +26,13 @@ export function healthColor(score: number): string {
   return cw.error;
 }
 
+/** The "scary hotspot" fitness threshold (churn × complexity). Files at or above
+ * trip the `scary-hotspots` rule; the dashboard draws this as an iso-line. */
+export const SCARY_SCORE = 3000;
+
 /** Severity heat for a hotspot score (churn × complexity). */
 export function hotspotColor(score: number): string {
-  if (score >= 3000) return cw.error;
+  if (score >= SCARY_SCORE) return cw.error;
   if (score >= 1000) return cw.warning;
   return cw.info;
 }

@@ -2,9 +2,9 @@ import React from "react";
 import { View, Text, Pressable } from "react-native";
 import { EmptyState } from "@titan-design/react-ui";
 import { GitCompareArrows } from "lucide-react";
-import type { CodewatchData, HotspotDelta } from "../types";
+import type { CodewatchData, HotspotDelta, Violation } from "../types";
 import { Panel, Pillet } from "../components/primitives";
-import { cw, shortId } from "../theme";
+import { cw, shortId, tint, SCARY_SCORE } from "../theme";
 
 export function DriftView({ data, onSelect }: { data: CodewatchData; onSelect: (id: string) => void }) {
   const drift = data.drift;
@@ -23,28 +23,66 @@ export function DriftView({ data, onSelect }: { data: CodewatchData; onSelect: (
   const worsened = [...drift.worsened].sort((a, b) => b.delta - a.delta);
   const improved = [...drift.improved].sort((a, b) => a.delta - b.delta);
 
+  // Split "new hotspots" into newborn files (neutral — a fresh file being busy
+  // is expected) and existing files that climbed into the ranking (the real
+  // signal; alarming when they cross the scary cutoff). Sort risen scary-first.
+  const newborn = drift.newHotspots.filter((h) => h.before === undefined);
+  const risen = drift.newHotspots
+    .filter((h) => h.before !== undefined)
+    .sort((a, b) => b.score - a.score);
+
+  // Lead with a regression that already trips a fitness rule: a worsened file
+  // that also has an open violation is the single most actionable thing here.
+  const violationByFile = new Map(data.violations.map((v) => [v.file, v] as const));
+  const lead = worsened.find((d) => violationByFile.has(d.nodeId));
+
   return (
     <View style={{ gap: 16 }}>
+      {lead ? <RegressionLead d={lead} violation={violationByFile.get(lead.nodeId)!} onSelect={onSelect} /> : null}
+
       <View style={{ flexDirection: "row", gap: 12, flexWrap: "wrap" }}>
-        <Stat n={drift.newHotspots.length} label="new hotspots" color={cw.error} />
+        <Stat n={risen.filter((h) => h.score >= SCARY_SCORE).length} label="crossed scary" color={cw.error} />
+        <Stat n={risen.length} label="rose into list" color={cw.warning} />
+        <Stat n={newborn.length} label="new files" color={cw.info} />
         <Stat n={worsened.length} label="worsened" color={cw.warning} />
         <Stat n={improved.length} label="improved" color={cw.success} />
         <Stat n={drift.resolved.length} label="resolved" color={cw.success} />
         <Stat n={drift.newSilos.length} label="new silos" color={cw.error} />
       </View>
 
-      {drift.newHotspots.length ? (
-        <Panel title="New hotspots" subtitle={`appeared since snapshot ${drift.baselineSnapshotId}`}>
+      {risen.length ? (
+        <Panel title="Rose into the hotspot list" subtitle="existing files whose churn × complexity climbed since baseline — the real regressions">
           <View style={{ gap: 6 }}>
-            {drift.newHotspots.map((h) => (
-              <Row key={h.nodeId} id={h.nodeId} onSelect={onSelect} right={`${h.score}`} rightColor={cw.error} badge="new" badgeColor={cw.error} />
+            {risen.map((h) => {
+              const scary = h.score >= SCARY_SCORE;
+              return (
+                <Row
+                  key={h.nodeId}
+                  id={h.nodeId}
+                  onSelect={onSelect}
+                  right={`${h.before} → ${h.score}`}
+                  rightColor={scary ? cw.error : cw.warning}
+                  badge={scary ? "crossed scary" : "entered"}
+                  badgeColor={scary ? cw.error : cw.warning}
+                />
+              );
+            })}
+          </View>
+        </Panel>
+      ) : null}
+
+      {newborn.length ? (
+        <Panel title="New files" subtitle={`added since snapshot ${drift.baselineSnapshotId} — expected to show churn, not inherently a regression`}>
+          <View style={{ gap: 6 }}>
+            {newborn.map((h) => (
+              <Row key={h.nodeId} id={h.nodeId} onSelect={onSelect} right={`${h.score}`} rightColor={cw.textDim} badge="new" badgeColor={cw.info} />
             ))}
           </View>
         </Panel>
       ) : null}
 
       {worsened.length ? (
-        <Panel title="Worsened" subtitle="score went up vs baseline">
+        <Panel title="Worsened" subtitle="already in the list; score went up vs baseline">
           <View style={{ gap: 6 }}>{worsened.map((d) => <DeltaRow key={d.nodeId} d={d} onSelect={onSelect} up />)}</View>
         </Panel>
       ) : null}
@@ -79,15 +117,45 @@ export function DriftView({ data, onSelect }: { data: CodewatchData; onSelect: (
         <Panel title="New coupling" subtitle="pairs that started co-changing">
           <View style={{ gap: 6 }}>
             {drift.newCoupling.map((c) => (
-              <View key={c.a + c.b} style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                <Text style={{ color: cw.text, fontSize: 13 }} numberOfLines={1}>{shortId(c.a)} ↔ {shortId(c.b)}</Text>
-                <Text style={{ color: cw.textFaint, fontSize: 12 }}>×{c.coEdits}</Text>
+              <View key={c.a + c.b} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                <Text style={{ color: cw.text, fontSize: 13, flexShrink: 1, minWidth: 0 }} numberOfLines={1}>{shortId(c.a)} ↔ {shortId(c.b)}</Text>
+                <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+                  {c.hidden ? <Pillet text="hidden" color={cw.error} /> : null}
+                  <Text style={{ color: cw.textFaint, fontSize: 12 }}>×{c.coEdits}</Text>
+                </View>
               </View>
             ))}
           </View>
         </Panel>
       ) : null}
     </View>
+  );
+}
+
+/** The headline: a regression that already trips a fitness rule. */
+function RegressionLead({ d, violation, onSelect }: { d: HotspotDelta; violation: Violation; onSelect: (id: string) => void }) {
+  return (
+    <Pressable
+      onPress={() => onSelect(d.nodeId)}
+      style={{
+        backgroundColor: tint(cw.error, 0.1),
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: tint(cw.error, 0.4),
+        padding: 16,
+        gap: 8,
+      }}
+    >
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <Pillet text="regression" color={cw.error} />
+        <Pillet text={violation.rule} color={cw.error} />
+        <Text style={{ color: cw.text, fontSize: 15, fontWeight: "700", flexShrink: 1, minWidth: 0 }} numberOfLines={1}>{shortId(d.nodeId)}</Text>
+      </View>
+      <Text style={{ color: cw.textDim, fontSize: 13 }}>
+        Worsened {d.before} → {d.after} (▲{d.delta}) since baseline and now trips {violation.rule}.
+      </Text>
+      <Text style={{ color: cw.textFaint, fontSize: 12 }}>{violation.detail}</Text>
+    </Pressable>
   );
 }
 

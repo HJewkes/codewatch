@@ -88,6 +88,41 @@ describe("computeReportDrift — hotspots", () => {
     expect(drift.displacedHotspots.map((r) => r.nodeId)).toEqual(["c"]);
   });
 
+  it("tags a new hotspot with its baseline score (risen) vs undefined (newborn)", () => {
+    // "risen" existed at baseline (score 40, below top-N) and climbed into the
+    // list; "newborn" is absent from the baseline snapshot entirely.
+    const drift = computeReportDrift({
+      baselineSnapshot: SNAP,
+      currentHotspots: [hot("risen", 120), hot("newborn", 90)],
+      baselineHotspots: [hot("a", 200)],
+      currentHotspotScore: NO_HOTSPOT_SCORES,
+      baselineHotspotScore: (id) => (id === "risen" ? 40 : undefined),
+      currentSilos: [],
+      baselineSilos: [],
+      currentBusFactor: NO_BUS_FACTOR,
+      currentCoupling: [],
+      baselineCoupling: [],
+    });
+    const byId = new Map(drift.newHotspots.map((h) => [h.nodeId, h] as const));
+    expect(byId.get("risen")!.before).toBe(40);
+    expect(byId.get("newborn")!.before).toBeUndefined();
+  });
+
+  it("leaves new-hotspot `before` undefined when no baselineHotspotScore is supplied", () => {
+    const drift = computeReportDrift({
+      baselineSnapshot: SNAP,
+      currentHotspots: [hot("d", 50)],
+      baselineHotspots: [hot("a", 90)],
+      currentHotspotScore: NO_HOTSPOT_SCORES,
+      currentSilos: [],
+      baselineSilos: [],
+      currentBusFactor: NO_BUS_FACTOR,
+      currentCoupling: [],
+      baselineCoupling: [],
+    });
+    expect(drift.newHotspots[0]!.before).toBeUndefined();
+  });
+
   it("sorts worsened by absolute delta desc", () => {
     const drift = computeReportDrift({
       baselineSnapshot: SNAP,

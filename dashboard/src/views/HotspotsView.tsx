@@ -11,13 +11,16 @@ import {
 import type { CodewatchData } from "../types";
 import { Panel, Bar, Pillet } from "../components/primitives";
 import { Treemap } from "../components/Treemap";
-import { cw, hotspotColor, shortId, pkgOf } from "../theme";
+import { cw, hotspotColor, shortId, pkgOf, SCARY_SCORE } from "../theme";
+import { buildDriftIndex, DriftBadge } from "../components/driftBadge";
 
 type SortKey = "score" | "churn" | "complexity";
 
 export function HotspotsView({ data, onSelect, width }: { data: CodewatchData; onSelect: (id: string) => void; width: number }) {
   const [sort, setSort] = useState<SortKey>("score");
   const [pkg, setPkg] = useState<string>("all");
+
+  const drift = useMemo(() => buildDriftIndex(data.drift), [data.drift]);
 
   const packages = useMemo(
     () => ["all", ...Array.from(new Set(data.hotspots.map((h) => pkgOf(h.nodeId)))).sort()],
@@ -32,6 +35,7 @@ export function HotspotsView({ data, onSelect, width }: { data: CodewatchData; o
 
   const tmData = rows.map((h) => ({ id: h.nodeId, value: h.score, color: hotspotColor(h.score), label: h.nodeId.split("/").pop() }));
   const maxScore = Math.max(1, ...rows.map((r) => r.score));
+  const scaryFrac = SCARY_SCORE / maxScore;
 
   return (
     <View style={{ gap: 16 }}>
@@ -46,13 +50,16 @@ export function HotspotsView({ data, onSelect, width }: { data: CodewatchData; o
 
       <Panel title="Hotspot map" subtitle={`${rows.length} files · area = severity`}>
         {tmData.length ? (
-          <Treemap data={tmData} width={Math.max(280, Math.min(width - 80, 900))} height={200} onSelect={onSelect} maxTiles={60} />
+          <>
+            <Treemap data={tmData} width={Math.max(280, Math.min(width - 80, 900))} height={200} onSelect={onSelect} maxTiles={60} />
+            <ScaryLegend />
+          </>
         ) : (
           <Text style={{ color: cw.textFaint }}>No hotspots for this filter.</Text>
         )}
       </Panel>
 
-      <Panel title="Hotspots" subtitle="churn × complexity — click a column to sort">
+      <Panel title="Hotspots" subtitle={`score = churn × complexity · white line marks the scary cutoff (${SCARY_SCORE}) · click a column to sort`}>
         <Table>
           <TableHeader>
             <TableRow>
@@ -66,7 +73,10 @@ export function HotspotsView({ data, onSelect, width }: { data: CodewatchData; o
             {rows.map((h) => (
               <TableRow key={h.nodeId} isHoverable>
                 <TableCell>
-                  <Pressable onPress={() => onSelect(h.nodeId)}>
+                  {/* Badge leads so it stays legible even when a long filename
+                      overruns the column (that overrun is the C-37 layout bug). */}
+                  <Pressable onPress={() => onSelect(h.nodeId)} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <DriftBadge mark={drift.get(h.nodeId)} />
                     <Text style={{ color: cw.text, fontSize: 13 }} numberOfLines={1}>{shortId(h.nodeId)}</Text>
                   </Pressable>
                 </TableCell>
@@ -74,7 +84,7 @@ export function HotspotsView({ data, onSelect, width }: { data: CodewatchData; o
                 <TableCell align="right"><Text style={{ color: cw.textDim, fontSize: 13 }}>{h.complexity}</Text></TableCell>
                 <TableCell align="right">
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 8, justifyContent: "flex-end" }}>
-                    <Bar frac={h.score / maxScore} color={hotspotColor(h.score)} width={70} />
+                    <Bar frac={h.score / maxScore} color={hotspotColor(h.score)} width={70} threshold={scaryFrac} />
                     <Text style={{ color: cw.text, fontSize: 13, width: 46, textAlign: "right" }}>{h.score}</Text>
                   </View>
                 </TableCell>
@@ -83,6 +93,25 @@ export function HotspotsView({ data, onSelect, width }: { data: CodewatchData; o
           </TableBody>
         </Table>
       </Panel>
+    </View>
+  );
+}
+
+function ScaryLegend() {
+  const swatch = (color: string) => (
+    <View style={{ width: 9, height: 9, borderRadius: 2, backgroundColor: color }} />
+  );
+  return (
+    <View style={{ flexDirection: "row", gap: 14, flexWrap: "wrap", marginTop: 8, alignItems: "center" }}>
+      <View style={{ flexDirection: "row", gap: 5, alignItems: "center" }}>
+        {swatch(cw.error)}<Text style={{ color: cw.textFaint, fontSize: 11 }}>scary (≥{SCARY_SCORE})</Text>
+      </View>
+      <View style={{ flexDirection: "row", gap: 5, alignItems: "center" }}>
+        {swatch(cw.warning)}<Text style={{ color: cw.textFaint, fontSize: 11 }}>elevated (≥1000)</Text>
+      </View>
+      <View style={{ flexDirection: "row", gap: 5, alignItems: "center" }}>
+        {swatch(cw.info)}<Text style={{ color: cw.textFaint, fontSize: 11 }}>watch</Text>
+      </View>
     </View>
   );
 }

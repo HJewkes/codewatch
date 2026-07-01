@@ -95,7 +95,7 @@ export function buildPayload(
     violations,
     drift: report.drift && {
       baselineSnapshotId: report.drift.baselineSnapshot.id,
-      newHotspots: report.drift.newHotspots.map((h) => ({ nodeId: h.nodeId, score: h.score })),
+      newHotspots: report.drift.newHotspots.map((h) => ({ nodeId: h.nodeId, score: h.score, before: h.before })),
       worsened: report.drift.worsenedHotspots.map((d) => ({ nodeId: d.nodeId, before: d.before, after: d.after, delta: d.delta })),
       improved: report.drift.improvedHotspots.map((d) => ({ nodeId: d.nodeId, before: d.before, after: d.after, delta: d.delta })),
       resolved: report.drift.resolvedHotspots.map((d) => ({ nodeId: d.nodeId, before: d.before, after: d.after, delta: d.delta })),
