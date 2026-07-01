@@ -437,4 +437,25 @@ describe("computePartitionQuality — flag counting", () => {
     expect(result.pairCoupling.find((p) => p.from === "a")!.flag).toBe("tight");
     expect(result.flagsCount).toBeGreaterThanOrEqual(1);
   });
+
+  it("abstractness = share of role=types files per package", () => {
+    const result = computePartitionQuality({
+      packages: pkgs(["a", "b"]),
+      fileByPackage: fbp({
+        a: ["a/x.ts", "a/types.ts"], // 1 of 2 files is a type module
+        b: ["b/p.ts", "b/q.ts"], // 0 abstract
+      }),
+      nodes: [
+        file("a/x.ts", "source"),
+        file("a/types.ts", "types"),
+        file("b/p.ts", "source"),
+        file("b/q.ts", "source"),
+      ],
+      edges: [],
+    });
+    const a = result.perPackage.find((p) => p.pkgId === "a")!;
+    const b = result.perPackage.find((p) => p.pkgId === "b")!;
+    expect(a.abstractness).toBe(0.5);
+    expect(b.abstractness).toBe(0);
+  });
 });

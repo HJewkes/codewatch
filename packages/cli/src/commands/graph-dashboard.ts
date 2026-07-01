@@ -28,9 +28,10 @@ interface DashboardCommandOptions {
 function buildPayload(
   report: ReturnType<typeof runGraphReportCommand>,
   violations: { rule: string; severity: "error" | "warning"; file: string; detail: string; status: "new" | "carry" | "fixed" }[],
-  boundaryHealth: number | undefined,
+  arch: ArchInfo,
   opts: DashboardCommandOptions,
 ) {
+  const boundaryHealth = arch.boundaryHealth;
   const snap = report.snapshot;
   const scary = report.hotspots.filter((h) => h.score >= 3000).length;
   const openNew = violations.filter((v) => v.status === "new").length;
@@ -69,6 +70,7 @@ function buildPayload(
       a: c.fileA, b: c.fileB, coEdits: c.count, hidden: false,
     })),
     centralFiles: report.centralFiles.map((c) => ({ nodeId: c.nodeId, score: c.score })),
+    packages: arch.packages,
     violations,
     drift: report.drift && {
       baselineSnapshotId: report.drift.baselineSnapshot.id,
@@ -82,12 +84,31 @@ function buildPayload(
   };
 }
 
-function boundaryQ(db: string, repoRoot: string): number | undefined {
+interface ArchInfo {
+  boundaryHealth?: number;
+  packages: { pkgId: string; instability: number; abstractness: number; fileCount: number; layer: string; cohesion: number; crossEdges: number }[];
+}
+
+function archInfo(db: string, repoRoot: string): ArchInfo {
   try {
     const arch = runGraphArchCommand({ db, repoRoot, health: true });
-    return arch.quality?.modularityQ;
+    const q = arch.quality;
+    return {
+      boundaryHealth: q?.modularityQ,
+      packages: (q?.perPackage ?? []).map((p) => ({
+        pkgId: p.pkgId,
+        instability: p.instability,
+        abstractness: p.abstractness,
+        fileCount: p.fileCount,
+        layer: p.layer,
+        cohesion: p.cohesion,
+        // Cross-package edges: 0 ⇒ an isolated dir, not a real package (its
+        // instability is a meaningless 0/0). The Architecture view drops these.
+        crossEdges: p.outgoingEdges + p.incomingEdges,
+      })),
+    };
   } catch {
-    return undefined; // Q is a nice-to-have; never fail the dashboard over it.
+    return { packages: [] }; // arch is a nice-to-have; never fail the dashboard.
   }
 }
 
@@ -110,27 +131,60 @@ async function collectViolations(opts: DashboardCommandOptions) {
   }
 }
 
+const DEFAULT_WINDOWS = [30, 90, 180];
+
+/** Signature over all window-dependent fields, to collapse identical windows. */
+function windowSignature(p: ReturnType<typeof buildPayload>): string {
+  return JSON.stringify([p.hotspots, p.busFactorRisks, p.couplingClusters, p.violations, p.centralFiles, p.kpis]);
+}
+
 export async function runGraphDashboardCommand(opts: DashboardCommandOptions): Promise<{ out: string; snapshotId: number }> {
   const repoRoot = opts.repoRoot ?? process.cwd();
-  const report = runGraphReportCommand({
-    db: opts.db,
-    repoRoot,
-    windowDays: opts.windowDays,
-    vs: opts.vs,
-    includeScripts: opts.includeScripts,
-  });
+  // arch (structural) and violations are window-independent — compute once.
   const violations = await collectViolations(opts);
-  const bq = boundaryQ(opts.db, repoRoot);
-  const payload = buildPayload(report, violations, bq, opts);
+  const arch = archInfo(opts.db, repoRoot);
 
-  const json = JSON.stringify(payload).replace(/<\//g, "<\\/");
-  const html = dashboardTemplate().replace(
-    "</head>",
-    `<script>window.__CODEWATCH__ = ${json};</script></head>`,
-  );
+  // Pre-compute a payload per window so the client can switch without a re-run.
+  // A requested window that isn't stored resolves (silently) to an available
+  // one; key by the RESOLVED window and drop duplicates so the switcher only
+  // appears when the data genuinely differs — never fake pills.
+  const primaryWindow = opts.windowDays ?? 30;
+  const windowsList = Array.from(new Set([primaryWindow, ...DEFAULT_WINDOWS])).sort((a, b) => a - b);
+  const windows: Record<string, ReturnType<typeof buildPayload>> = {};
+  const sigToKey = new Map<string, string>();
+  let snapshotId = 0;
+  let primaryKey = String(primaryWindow);
+  for (const w of windowsList) {
+    const report = runGraphReportCommand({
+      db: opts.db, repoRoot, windowDays: w, vs: opts.vs, includeScripts: opts.includeScripts,
+    });
+    snapshotId = report.snapshot.id;
+    const payload = buildPayload(report, violations, arch, opts);
+    // Dedup by CONTENT, not just resolved window: a repo with no stored
+    // churn_{w}d silently reuses one window's data for all, and a repo with no
+    // churn at all produces identical (empty) payloads. Only keep windows whose
+    // data genuinely differs, so the switcher never lies. Sign on every
+    // window-dependent field, not just hotspots.
+    const sig = windowSignature(payload);
+    const existing = sigToKey.get(sig);
+    if (existing) {
+      if (w === primaryWindow) primaryKey = existing; // point primary at the kept key
+      continue;
+    }
+    sigToKey.set(sig, String(w));
+    windows[String(w)] = payload;
+    if (w === primaryWindow) primaryKey = String(w);
+  }
+
+  const primary = windows[primaryKey] ?? Object.values(windows)[0];
+  const enc = (v: unknown) => JSON.stringify(v).replace(/<\//g, "<\\/");
+  // Only emit the multi-window map when there's real choice.
+  const multi = Object.keys(windows).length > 1 ? `window.__CODEWATCH_WINDOWS__ = ${enc(windows)};` : "";
+  const inject = `<script>window.__CODEWATCH__ = ${enc(primary)};${multi}</script>`;
+  const html = dashboardTemplate().replace("</head>", `${inject}</head>`);
   await mkdir(dirname(opts.out), { recursive: true });
   await writeFile(opts.out, html);
-  return { out: opts.out, snapshotId: report.snapshot.id };
+  return { out: opts.out, snapshotId };
 }
 
 export function registerGraphDashboard(graphCmd: Command): void {

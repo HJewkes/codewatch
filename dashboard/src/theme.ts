@@ -37,9 +37,28 @@ export function severityColor(sev: "error" | "warning"): string {
   return sev === "error" ? cw.error : cw.warning;
 }
 
-/** Trim a repo-rooted id to its leaf + one parent for compact display. */
+/**
+ * Translucent tint of a token color. react-native-web's color normalizer drops
+ * `color-mix()` (→ transparent), so derive rgba from the token's fallback hex.
+ */
+export function tint(color: string, alpha: number): string {
+  const m = color.match(/#([0-9a-fA-F]{6})/);
+  if (!m) return color;
+  const n = parseInt(m[1], 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}
+
+/**
+ * Trim a repo-rooted id to its leaf + one parent for compact display. Barrel
+ * files (index.*) get their package prefixed so a monorepo's many index.ts
+ * don't all collapse to the same label.
+ */
 export function shortId(id: string): string {
   const parts = id.split("/");
+  const leaf = parts[parts.length - 1] ?? id;
+  if (/^index\.[a-z]+$/i.test(leaf) && parts.length > 2) {
+    return `${pkgOf(id)}/${leaf}`;
+  }
   if (parts.length <= 2) return id;
   return "…/" + parts.slice(-2).join("/");
 }

@@ -88,6 +88,19 @@ export interface Drift {
   newCoupling: CouplingPair[];
 }
 
+export interface PackageStat {
+  pkgId: string;
+  /** Martin's instability I = fan-out / (fan-in + fan-out), 0..1. */
+  instability: number;
+  /** Abstractness proxy A = share of type-definition files, 0..1. */
+  abstractness: number;
+  fileCount: number;
+  layer: string;
+  cohesion: number;
+  /** Cross-package edges; 0 ⇒ isolated dir (instability is a meaningless 0/0). */
+  crossEdges?: number;
+}
+
 export interface CodewatchData {
   meta: DashboardMeta;
   kpis: Kpis;
@@ -95,6 +108,7 @@ export interface CodewatchData {
   busFactorRisks: BusFactorRisk[];
   couplingClusters: CouplingPair[];
   centralFiles: CentralFile[];
+  packages?: PackageStat[];
   violations: Violation[];
   drift?: Drift;
 }
@@ -102,5 +116,7 @@ export interface CodewatchData {
 declare global {
   interface Window {
     __CODEWATCH__?: CodewatchData;
+    /** Per-window payloads (keyed by window-days) for client-side switching. */
+    __CODEWATCH_WINDOWS__?: Record<string, CodewatchData>;
   }
 }

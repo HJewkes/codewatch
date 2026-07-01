@@ -9,3 +9,11 @@ import { SAMPLE_DATA } from "./sample-data";
 export function loadData(): CodewatchData {
   return window.__CODEWATCH__ ?? SAMPLE_DATA;
 }
+
+/**
+ * Per-window payloads for client-side window switching. `graph dashboard`
+ * pre-computes 30/90/180-day windows; null when only a single payload exists.
+ */
+export function loadWindows(): Record<string, CodewatchData> | null {
+  return window.__CODEWATCH_WINDOWS__ ?? null;
+}

@@ -7,22 +7,25 @@ import {
   Button,
   ButtonText,
 } from "@titan-design/react-ui";
-import { LayoutDashboard, Flame, ShieldAlert, Users, GitFork, GitCompareArrows } from "lucide-react";
+import { LayoutDashboard, Flame, Network, ShieldAlert, Users, GitFork, GitCompareArrows } from "lucide-react";
 import type { CodewatchData } from "./types";
 import { cw, shortId, pkgOf, pct } from "./theme";
 import { Pillet } from "./components/primitives";
+import { loadWindows } from "./data";
 import { OverviewView } from "./views/OverviewView";
 import { HotspotsView } from "./views/HotspotsView";
+import { ArchitectureView } from "./views/ArchitectureView";
 import { FitnessView } from "./views/FitnessView";
 import { OwnershipView } from "./views/OwnershipView";
 import { CouplingView } from "./views/CouplingView";
 import { DriftView } from "./views/DriftView";
 
-type ViewId = "overview" | "hotspots" | "coupling" | "ownership" | "fitness" | "drift";
+type ViewId = "overview" | "hotspots" | "architecture" | "coupling" | "ownership" | "fitness" | "drift";
 
 const NAV: { id: ViewId; label: string; icon: any }[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "hotspots", label: "Hotspots", icon: Flame },
+  { id: "architecture", label: "Architecture", icon: Network },
   { id: "coupling", label: "Coupling", icon: GitFork },
   { id: "ownership", label: "Ownership", icon: Users },
   { id: "fitness", label: "Fitness", icon: ShieldAlert },
@@ -44,6 +47,7 @@ interface Loc {
   view: ViewId;
   node: string | null;
   q: string;
+  w: string | null;
 }
 
 function parseHash(): Loc {
@@ -51,13 +55,14 @@ function parseHash(): Loc {
   const [viewPart, queryPart] = raw.split("?");
   const params = new URLSearchParams(queryPart ?? "");
   const view = (VIEW_IDS as string[]).includes(viewPart) ? (viewPart as ViewId) : "overview";
-  return { view, node: params.get("node"), q: params.get("q") ?? "" };
+  return { view, node: params.get("node"), q: params.get("q") ?? "", w: params.get("w") };
 }
 
 function writeHash(loc: Loc) {
   const params = new URLSearchParams();
   if (loc.node) params.set("node", loc.node);
   if (loc.q) params.set("q", loc.q);
+  if (loc.w) params.set("w", loc.w);
   const qs = params.toString();
   const next = `#${loc.view}${qs ? "?" + qs : ""}`;
   if (next === window.location.hash) return;
@@ -92,6 +97,9 @@ function applyQuery(data: CodewatchData, q: string): CodewatchData {
 
 export function App({ data }: { data: CodewatchData }) {
   const [loc, setLoc] = useState<Loc>(() => parseHash());
+  const windows = useRef(loadWindows()).current;
+  const windowKey = (windows && loc.w && windows[loc.w] ? loc.w : String(data.meta.windowDays));
+  const active = (windows && windows[windowKey]) ?? data;
   const vw = useViewport();
   const searchRef = useRef<TextInput>(null);
   const contentW = vw - 240 - (loc.node ? 340 : 0);
@@ -126,8 +134,8 @@ export function App({ data }: { data: CodewatchData }) {
     return () => window.removeEventListener("keydown", onKey, true);
   }, []);
 
-  const view = applyQuery(data, loc.q);
-  const openViolationForNode = (id: string) => data.violations.filter((v) => v.file === id);
+  const view = applyQuery(active, loc.q);
+  const openViolationForNode = (id: string) => active.violations.filter((v) => v.file === id);
 
   return (
     <View style={{ flexDirection: "row", height: "100vh" as any, backgroundColor: cw.bg }}>
@@ -135,7 +143,7 @@ export function App({ data }: { data: CodewatchData }) {
         <SidebarHeader>
           <View style={{ paddingHorizontal: 8, paddingVertical: 4 }}>
             <Text style={{ color: cw.brand, fontWeight: "800", fontSize: 18 }}>codewatch</Text>
-            <Text style={{ color: cw.textFaint, fontSize: 11 }}>{data.meta.repo} · snap {data.meta.snapshotId}</Text>
+            <Text style={{ color: cw.textFaint, fontSize: 11 }}>{active.meta.repo} · snap {active.meta.snapshotId}</Text>
           </View>
         </SidebarHeader>
         {NAV.map((n) => (
@@ -144,18 +152,28 @@ export function App({ data }: { data: CodewatchData }) {
       </Sidebar>
 
       <View style={{ flex: 1 }}>
-        <TopBar data={data} view={loc.view} q={loc.q} onQuery={(q) => update({ q })} searchRef={searchRef} />
+        <TopBar
+          data={active}
+          view={loc.view}
+          q={loc.q}
+          onQuery={(q) => update({ q })}
+          searchRef={searchRef}
+          windowKeys={windows ? Object.keys(windows).sort((a, b) => Number(a) - Number(b)) : []}
+          windowKey={windowKey}
+          onWindow={(w) => update({ w })}
+        />
         <View style={{ flexDirection: "row", flex: 1 }}>
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }}>
             {loc.view === "overview" && <OverviewView data={view} onSelect={setSelected} width={contentW} />}
             {loc.view === "hotspots" && <HotspotsView data={view} onSelect={setSelected} width={contentW} />}
+            {loc.view === "architecture" && <ArchitectureView data={active} onSelect={setSelected} width={contentW} />}
             {loc.view === "coupling" && <CouplingView data={view} onSelect={setSelected} />}
             {loc.view === "ownership" && <OwnershipView data={view} onSelect={setSelected} />}
             {loc.view === "fitness" && <FitnessView data={view} onSelect={setSelected} query={loc.q} />}
             {loc.view === "drift" && <DriftView data={view} onSelect={setSelected} />}
           </ScrollView>
           {loc.node ? (
-            <Dossier id={loc.node} data={data} violations={openViolationForNode(loc.node)} onClose={() => setSelected(null)} />
+            <Dossier id={loc.node} data={active} violations={openViolationForNode(loc.node)} onClose={() => setSelected(null)} />
           ) : null}
         </View>
       </View>
@@ -163,7 +181,7 @@ export function App({ data }: { data: CodewatchData }) {
   );
 }
 
-function TopBar({ data, view, q, onQuery, searchRef }: { data: CodewatchData; view: string; q: string; onQuery: (q: string) => void; searchRef: React.RefObject<TextInput | null> }) {
+function TopBar({ data, view, q, onQuery, searchRef, windowKeys, windowKey, onWindow }: { data: CodewatchData; view: string; q: string; onQuery: (q: string) => void; searchRef: React.RefObject<TextInput | null>; windowKeys: string[]; windowKey: string; onWindow: (k: string) => void }) {
   const [copied, setCopied] = useState(false);
   const copyJson = () => {
     try {
@@ -172,11 +190,22 @@ function TopBar({ data, view, q, onQuery, searchRef }: { data: CodewatchData; vi
       setTimeout(() => setCopied(false), 1500);
     } catch { /* clipboard blocked under file:// */ }
   };
+  const multiWindow = windowKeys.length > 1;
   return (
     <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: cw.border, backgroundColor: cw.bg }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
         <Text style={{ color: cw.text, fontSize: 18, fontWeight: "700", textTransform: "capitalize" }}>{view}</Text>
-        <Pillet text={`${data.meta.windowDays}d window`} color={cw.info} />
+        {multiWindow ? (
+          <View style={{ flexDirection: "row", gap: 4 }}>
+            {windowKeys.map((k) => (
+              <Pressable key={k} onPress={() => onWindow(k)}>
+                <Pillet text={`${k}d`} color={k === windowKey ? cw.brand : cw.textFaint} />
+              </Pressable>
+            ))}
+          </View>
+        ) : (
+          <Pillet text={`${data.meta.windowDays}d window`} color={cw.info} />
+        )}
         <Pillet text={`v${data.meta.indexVersion ?? "?"}`} color={cw.textFaint} />
         {data.meta.baseline ? <Pillet text={`vs ${data.meta.baseline.ref}`} color={cw.textFaint} /> : null}
       </View>

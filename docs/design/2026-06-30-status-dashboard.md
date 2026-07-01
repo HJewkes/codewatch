@@ -91,14 +91,20 @@ priority order: **Treemap** (built here, to upstream), Scatter/bubble
 range-scrubber, Radar/spider, DSM/chord. `Sparkline` already exists in Titan and
 should be reused for per-file health trends.
 
-## Roadmap
+## Roadmap (status as of 2026-06-30)
 
-- **v0 (this):** static single-file app; Overview/Hotspots/Fitness/Ownership;
-  Dossier; Copy-JSON; treemap + edge-case resilience; real-data exporter seed.
-- **v1:** a `graph dashboard --out report.html` CLI command that inlines the
-  built bundle + data (like `graph render`); global window/baseline selectors
-  that actually re-query; upstream the Treemap to Titan.
-- **v1.1:** Architecture view (embed the Cytoscape graph + a main-sequence
-  scatter), Coupling (DSM/chord, hidden-coupling highlighter), Drift timeline
-  scrubber, Risk Radar, "Reading Order" (smallest set of files to understand
-  the repo).
+- **v0 ✅ shipped:** static single-file app; Overview/Hotspots/Fitness/Ownership;
+  Dossier; Copy-JSON; treemap + edge-case resilience.
+- **v1 ✅ shipped:** `graph dashboard --out report.html` inlines the built bundle
+  + data (gzip+base64 asset); Treemap upstreamed to Titan (#41).
+- **v1.1 ✅ shipped:** Coupling (hidden-coupling highlighter) + Drift views;
+  global search + keyboard + URL routing; `--vs previous` fix.
+- **v1.2 ✅ shipped:** **Architecture** main-sequence scatter (I×A + zone
+  diagonal, Titan Scatter #44); **Risk Radar** + **Reading Order** + health
+  **Gauge** on Overview; window switcher (30/90/180, content-deduped);
+  abstractness proxy (type-file share). All 7 designed views live.
+- **Still open (follow-ups):** real multi-window churn at index time (the
+  switcher is built + honest but only lights up when `churn_{90,180}d` exist —
+  today only `churn_30d` is stored); a real symbol-level abstractness (the A
+  proxy is coarse); embedding the existing Cytoscape dependency graph as an
+  Architecture sub-tab; Coupling DSM/chord; Drift timeline scrubber.

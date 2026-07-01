@@ -19,12 +19,21 @@ report answers, in a coordinated, navigable surface.
 
 ## Views
 
+Seven views, each a lens on the same object model (click any file → shared Dossier drawer):
+
 | View | Answers | Key widgets |
 |---|---|---|
-| **Overview** | where to look first | 6 KPI tiles, ranked "where to look" list w/ reason badges, hotspot **treemap**, "what changed vs baseline" |
+| **Overview** | where to look first | 6 KPI tiles, health **Gauge**, **Risk radar** (6 axes), **Reading order** (smallest set to grok the repo), ranked "where to look" list, hotspot **treemap**, "what changed" |
 | **Hotspots** | which files are risky | package filter, treemap, sortable table (churn/complexity/score) |
-| **Fitness** | are the rules holding | new/carry/fixed tallies, violations grouped by rule, empty-state when clean |
+| **Architecture** | which packages are structurally off | package **main-sequence** scatter (instability I × abstractness A) with the zone-of-pain/uselessness diagonal; packages ranked by distance |
+| **Coupling** | what changes together | co-edit pairs ranked; **hidden-coupling** highlighter (co-changed, no import edge) |
 | **Ownership** | who's the bus factor | single-owner list; explicit **N/A** on single-author repos |
+| **Fitness** | are the rules holding | new/carry/fixed tallies, violations grouped by rule, empty-state when clean |
+| **Drift** | what moved since baseline | new/worsened/improved/resolved hotspots, new silos, new coupling |
+
+Global: **file-filter search** (`/`), **keyboard nav** (1–7 switch views, Esc clears), **URL deep-linking** (`#view?node=…&q=…`), **window switcher** (30/90/180d, pre-computed), and **Copy JSON** for agents.
+
+The Architecture chart primitives (Treemap, Scatter, Gauge) live in `@titan-design/react-ui` (contributed upstream). Abstractness is a proxy — the share of `role=types` files per package — since codewatch has no symbol-level abstract/concrete counts.
 
 A shared **Dossier drawer** (click any file, anywhere) is the "one object, many
 lenses" spine: churn×complexity, bus factor, centrality, change-coupled
