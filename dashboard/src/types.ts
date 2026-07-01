@@ -97,6 +97,8 @@ export interface PackageStat {
   fileCount: number;
   layer: string;
   cohesion: number;
+  /** Cross-package edges; 0 ⇒ isolated dir (instability is a meaningless 0/0). */
+  crossEdges?: number;
 }
 
 export interface CodewatchData {

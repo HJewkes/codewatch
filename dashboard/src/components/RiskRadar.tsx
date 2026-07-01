@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text } from "react-native";
-import { cw } from "../theme";
+import { cw, tint } from "../theme";
 
 export interface RiskAxis {
   label: string;
@@ -47,7 +47,7 @@ export function RiskRadar({ axes, size = 240 }: { axes: RiskAxis[]; size?: numbe
             height: R * f * 2,
             borderRadius: R * f,
             borderWidth: 1,
-            borderColor: cw.border,
+            borderColor: tint(cw.textFaint, 0.45),
           }}
         />
       ))}
@@ -59,7 +59,7 @@ export function RiskRadar({ axes, size = 240 }: { axes: RiskAxis[]; size?: numbe
           top: 0,
           width: size,
           height: size,
-          backgroundColor: `color-mix(in srgb, ${cw.error} 62%, transparent)`,
+          backgroundColor: tint(cw.error, 0.35),
           borderWidth: 0,
           // @ts-expect-error web-only style passthrough
           clipPath: `polygon(${polygon})`,

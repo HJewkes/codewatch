@@ -8,7 +8,7 @@ import {
   Badge,
   BadgeText,
 } from "@titan-design/react-ui";
-import { cw } from "../theme";
+import { cw, tint } from "../theme";
 
 /** A titled surface panel. */
 export function Panel({
@@ -90,17 +90,17 @@ export function SeverityBadge({ status }: { status: "error" | "warning" }) {
 }
 
 export function Pillet({ text, color }: { text: string; color: string }) {
-  // color-mix accepts CSS-var inputs (our tokens are `var(--…, #hex)`), unlike
-  // hex-alpha string concat which produces invalid values the browser drops.
+  // tint() derives rgba from the token's fallback hex — react-native-web drops
+  // color-mix() (→ transparent) and mishandles hex-alpha concat.
   return (
     <View
       style={{
         paddingHorizontal: 8,
         paddingVertical: 2,
         borderRadius: 999,
-        backgroundColor: `color-mix(in srgb, ${color} 14%, transparent)`,
+        backgroundColor: tint(color, 0.14),
         borderWidth: 1,
-        borderColor: `color-mix(in srgb, ${color} 34%, transparent)`,
+        borderColor: tint(color, 0.4),
       }}
     >
       <Text style={{ color, fontSize: 11, fontWeight: "600" }}>{text}</Text>

@@ -86,7 +86,7 @@ function buildPayload(
 
 interface ArchInfo {
   boundaryHealth?: number;
-  packages: { pkgId: string; instability: number; abstractness: number; fileCount: number; layer: string; cohesion: number }[];
+  packages: { pkgId: string; instability: number; abstractness: number; fileCount: number; layer: string; cohesion: number; crossEdges: number }[];
 }
 
 function archInfo(db: string, repoRoot: string): ArchInfo {
@@ -102,6 +102,9 @@ function archInfo(db: string, repoRoot: string): ArchInfo {
         fileCount: p.fileCount,
         layer: p.layer,
         cohesion: p.cohesion,
+        // Cross-package edges: 0 ⇒ an isolated dir, not a real package (its
+        // instability is a meaningless 0/0). The Architecture view drops these.
+        crossEdges: p.outgoingEdges + p.incomingEdges,
       })),
     };
   } catch {
@@ -137,22 +140,37 @@ export async function runGraphDashboardCommand(opts: DashboardCommandOptions): P
   const arch = archInfo(opts.db, repoRoot);
 
   // Pre-compute a payload per window so the client can switch without a re-run.
+  // A requested window that isn't stored resolves (silently) to an available
+  // one; key by the RESOLVED window and drop duplicates so the switcher only
+  // appears when the data genuinely differs — never fake pills.
   const primaryWindow = opts.windowDays ?? 30;
   const windowsList = Array.from(new Set([primaryWindow, ...DEFAULT_WINDOWS])).sort((a, b) => a - b);
-  const windows: Record<string, unknown> = {};
+  const windows: Record<string, ReturnType<typeof buildPayload>> = {};
+  const seenSignatures = new Set<string>();
   let snapshotId = 0;
+  let primaryKey = String(primaryWindow);
   for (const w of windowsList) {
     const report = runGraphReportCommand({
       db: opts.db, repoRoot, windowDays: w, vs: opts.vs, includeScripts: opts.includeScripts,
     });
     snapshotId = report.snapshot.id;
-    windows[String(w)] = buildPayload(report, violations, arch, opts);
+    const payload = buildPayload(report, violations, arch, opts);
+    // Dedup by CONTENT, not just resolved window: a repo with no stored
+    // churn_{w}d silently reuses one window's data for all, and a repo with no
+    // churn at all produces identical (empty) payloads. Only keep windows whose
+    // data genuinely differs, so the switcher never lies.
+    const sig = JSON.stringify(payload.hotspots) + payload.kpis.health + payload.kpis.knowledgeSilos;
+    if (seenSignatures.has(sig)) continue;
+    seenSignatures.add(sig);
+    windows[String(w)] = payload;
+    if (w === primaryWindow) primaryKey = String(w);
   }
 
-  const primary = windows[String(primaryWindow)];
-  const inject =
-    `<script>window.__CODEWATCH__ = ${JSON.stringify(primary).replace(/<\//g, "<\\/")};` +
-    `window.__CODEWATCH_WINDOWS__ = ${JSON.stringify(windows).replace(/<\//g, "<\\/")};</script>`;
+  const primary = windows[primaryKey] ?? Object.values(windows)[0];
+  const enc = (v: unknown) => JSON.stringify(v).replace(/<\//g, "<\\/");
+  // Only emit the multi-window map when there's real choice.
+  const multi = Object.keys(windows).length > 1 ? `window.__CODEWATCH_WINDOWS__ = ${enc(windows)};` : "";
+  const inject = `<script>window.__CODEWATCH__ = ${enc(primary)};${multi}</script>`;
   const html = dashboardTemplate().replace("</head>", `${inject}</head>`);
   await mkdir(dirname(opts.out), { recursive: true });
   await writeFile(opts.out, html);

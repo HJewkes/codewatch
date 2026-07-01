@@ -47,6 +47,7 @@ interface Loc {
   view: ViewId;
   node: string | null;
   q: string;
+  w: string | null;
 }
 
 function parseHash(): Loc {
@@ -54,13 +55,14 @@ function parseHash(): Loc {
   const [viewPart, queryPart] = raw.split("?");
   const params = new URLSearchParams(queryPart ?? "");
   const view = (VIEW_IDS as string[]).includes(viewPart) ? (viewPart as ViewId) : "overview";
-  return { view, node: params.get("node"), q: params.get("q") ?? "" };
+  return { view, node: params.get("node"), q: params.get("q") ?? "", w: params.get("w") };
 }
 
 function writeHash(loc: Loc) {
   const params = new URLSearchParams();
   if (loc.node) params.set("node", loc.node);
   if (loc.q) params.set("q", loc.q);
+  if (loc.w) params.set("w", loc.w);
   const qs = params.toString();
   const next = `#${loc.view}${qs ? "?" + qs : ""}`;
   if (next === window.location.hash) return;
@@ -96,7 +98,7 @@ function applyQuery(data: CodewatchData, q: string): CodewatchData {
 export function App({ data }: { data: CodewatchData }) {
   const [loc, setLoc] = useState<Loc>(() => parseHash());
   const windows = useRef(loadWindows()).current;
-  const [windowKey, setWindowKey] = useState(() => String(data.meta.windowDays));
+  const windowKey = (windows && loc.w && windows[loc.w] ? loc.w : String(data.meta.windowDays));
   const active = (windows && windows[windowKey]) ?? data;
   const vw = useViewport();
   const searchRef = useRef<TextInput>(null);
@@ -158,7 +160,7 @@ export function App({ data }: { data: CodewatchData }) {
           searchRef={searchRef}
           windowKeys={windows ? Object.keys(windows).sort((a, b) => Number(a) - Number(b)) : []}
           windowKey={windowKey}
-          onWindow={setWindowKey}
+          onWindow={(w) => update({ w })}
         />
         <View style={{ flexDirection: "row", flex: 1 }}>
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }}>

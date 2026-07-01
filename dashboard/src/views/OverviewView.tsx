@@ -61,7 +61,7 @@ export function OverviewView({ data, onSelect, width }: { data: CodewatchData; o
       {/* KPI row */}
       <View style={{ flexDirection: "row", gap: 12, flexWrap: "wrap" }}>
         <KpiTile label="health" value={String(kpis.health)} unit="/100"
-          trend={{ direction: trendDir(kpis.healthTrend), value: kpis.healthTrend ? `${kpis.healthTrend > 0 ? "+" : ""}${kpis.healthTrend}` : "0" }}
+          trend={kpis.healthTrend !== undefined ? { direction: trendDir(kpis.healthTrend), value: `${kpis.healthTrend > 0 ? "+" : ""}${kpis.healthTrend}` } : undefined}
           accent={healthColor(kpis.health)} />
         <KpiTile label="new hotspots" value={String(kpis.newHotspots)} accent={cw.warning} />
         <KpiTile label="knowledge silos" value={String(kpis.knowledgeSilos)} accent={cw.error} />

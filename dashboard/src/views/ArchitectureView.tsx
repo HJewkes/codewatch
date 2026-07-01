@@ -13,21 +13,25 @@ function distance(p: PackageStat): number {
 
 function zone(p: PackageStat): { label: string; color: string } {
   const sum = p.instability + p.abstractness;
-  if (distance(p) <= 0.25) return { label: "on sequence", color: cw.success };
-  if (sum < 1) return { label: "zone of pain", color: cw.error };
-  return { label: "zone of uselessness", color: cw.warning };
+  // Wide "balanced" band — the abstractness proxy is coarse (type-file share),
+  // so only flag genuinely extreme corners to avoid false alarms.
+  if (distance(p) <= 0.45) return { label: "balanced", color: cw.success };
+  if (sum < 0.55) return { label: "rigid (stable + concrete)", color: cw.warning };
+  return { label: "unstable + abstract", color: cw.warning };
 }
 
 export function ArchitectureView({ data, onSelect, width }: { data: CodewatchData; onSelect: (id: string) => void; width: number }) {
-  const pkgs = (data.packages ?? []).filter((p) => p.fileCount > 0);
+  // Drop isolated dirs (no cross-package edges): their I=0/0 is meaningless and
+  // pollutes the plot on non-monorepos (spike/ dirs etc.).
+  const pkgs = (data.packages ?? []).filter((p) => p.fileCount > 0 && (p.crossEdges ?? 1) > 0);
 
-  if (pkgs.length === 0) {
+  if (pkgs.length < 2) {
     return (
       <Panel title="Architecture" subtitle="package main sequence (instability × abstractness)">
         <EmptyState
           icon={Network as any}
           title="No package structure"
-          description="This repo has no multi-package boundaries to plot (a flat src/ tree). The main sequence needs ≥2 packages."
+          description="This repo has no connected multi-package boundaries to plot (a flat src/ tree). The main sequence needs ≥2 packages with cross-package dependencies."
         />
       </Panel>
     );
@@ -47,7 +51,7 @@ export function ArchitectureView({ data, onSelect, width }: { data: CodewatchDat
 
   return (
     <View style={{ flexDirection: "row", gap: 16, flexWrap: "wrap" }}>
-      <Panel title="Main sequence" subtitle="instability (I) × abstractness (A); the diagonal I+A=1 is ideal">
+      <Panel title="Main sequence" subtitle="instability I × abstractness A; diagonal I+A=1 is balanced. A = type-file share (proxy)">
         <Scatter
           data={points}
           width={plotW}
@@ -57,9 +61,8 @@ export function ArchitectureView({ data, onSelect, width }: { data: CodewatchDat
           onPress={onSelect}
         />
         <View style={{ flexDirection: "row", gap: 12, marginTop: 8 }}>
-          <Legend color={cw.success} label="on sequence" />
-          <Legend color={cw.error} label="zone of pain (stable + concrete)" />
-          <Legend color={cw.warning} label="zone of uselessness (unstable + abstract)" />
+          <Legend color={cw.success} label="balanced" />
+          <Legend color={cw.warning} label="far from sequence" />
         </View>
       </Panel>
 
