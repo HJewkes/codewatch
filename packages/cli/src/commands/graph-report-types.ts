@@ -44,6 +44,10 @@ export interface GraphReportResult {
   testCoverageRisks: TestCoverageRow[];
   couplingClusters: CouplingRow[];
   centralFiles: CentralRow[];
+  /** True when no file has churn > 0 in the window (churn sections all empty). */
+  emptyWindow?: boolean;
+  /** User-facing guidance shown when emptyWindow is true. */
+  hint?: string;
   drift?: ReportDrift;
 }
 

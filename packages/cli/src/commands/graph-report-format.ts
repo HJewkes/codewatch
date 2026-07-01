@@ -20,6 +20,10 @@ export function formatGraphReportMarkdown(result: GraphReportResult): string {
       `${result.windowDays}-day window.`,
   );
   lines.push("");
+  if (result.emptyWindow && result.hint) {
+    lines.push(`> ⚠️ ${result.hint}`);
+    lines.push("");
+  }
   pushHotspots(lines, result.hotspots);
   pushBusFactor(lines, result.busFactorRisks);
   pushTestCoverage(lines, result.testCoverageRisks);
