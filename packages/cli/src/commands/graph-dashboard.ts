@@ -2,7 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, basename } from "node:path";
 import type { Command } from "commander";
 import chalk from "chalk";
-import { loadSnapshot, renderHtml } from "@code-style/render";
+import { loadSnapshot, renderHtml, collapseToPackages } from "@code-style/render";
 import { dashboardTemplate } from "./dashboard-template.js";
 import {
   type DashboardCommandOptions,
@@ -26,8 +26,12 @@ import {
 async function dependencyGraphHtml(opts: DashboardCommandOptions): Promise<string | null> {
   if (opts.graph === false) return null;
   try {
-    const input = await loadSnapshot(opts.db);
-    const html = await renderHtml(input, { title: `${opts.repo ?? "repo"} — dependency graph` });
+    const raw = await loadSnapshot(opts.db);
+    // Default to the package-level collapse — the file-level graph is a 500+ node
+    // hairball that answers no question on load. `--graph-scope file` opts back in.
+    const input = opts.graphScope === "file" ? raw : collapseToPackages(raw);
+    const scopeLabel = opts.graphScope === "file" ? "file dependencies" : "package dependencies";
+    const html = await renderHtml(input, { title: `${opts.repo ?? "repo"} — ${scopeLabel}` });
     return Buffer.from(html, "utf8").toString("base64");
   } catch {
     return null; // graph is optional; never fail the dashboard over it.
@@ -71,9 +75,11 @@ export function registerGraphDashboard(graphCmd: Command): void {
     .option("--repo <name>", "Repo display name")
     .option("--include-scripts", "Include scripts/ and archive/ files")
     .option("--no-graph", "Skip the embedded Cytoscape dependency graph (smaller output)")
+    .option("--graph-scope <scope>", "Embedded graph granularity: package (default) or file", "package")
     .action(async (options: {
       db: string; config: string; out: string; repoRoot?: string;
       windowDays?: string; vs?: string; repo?: string; includeScripts?: boolean; graph?: boolean;
+      graphScope?: string;
     }) => {
       const { out, snapshotId } = await runGraphDashboardCommand({
         db: options.db,
@@ -85,6 +91,7 @@ export function registerGraphDashboard(graphCmd: Command): void {
         repo: options.repo ?? basename(process.cwd()),
         includeScripts: options.includeScripts,
         graph: options.graph,
+        graphScope: options.graphScope === "file" ? "file" : "package",
       });
       console.log(chalk.green(`✓ wrote ${out}`) + chalk.dim(` (snapshot ${snapshotId})`));
     });
