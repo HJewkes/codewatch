@@ -120,6 +120,7 @@ export class TsMorphGraphExtractor implements Extractor<GraphFragment> {
 
     for (const decl of sourceFile.getImportDeclarations()) {
       this.handleSpecifier(
+        srcAbs,
         srcFileId,
         decl.getModuleSpecifierValue(),
         decl.getModuleSpecifierSourceFile(),
@@ -133,6 +134,7 @@ export class TsMorphGraphExtractor implements Extractor<GraphFragment> {
     for (const decl of sourceFile.getExportDeclarations()) {
       if (!decl.hasModuleSpecifier()) continue;
       this.handleSpecifier(
+        srcAbs,
         srcFileId,
         decl.getModuleSpecifierValue(),
         decl.getModuleSpecifierSourceFile(),
@@ -147,6 +149,7 @@ export class TsMorphGraphExtractor implements Extractor<GraphFragment> {
   }
 
   private handleSpecifier(
+    srcAbs: string,
     srcId: string,
     specifier: string | undefined,
     target: SourceFile | undefined,
@@ -156,9 +159,18 @@ export class TsMorphGraphExtractor implements Extractor<GraphFragment> {
     seenExternals: Set<string>,
   ): void {
     if (!specifier) return;
-    const internal = this.resolveInternal(target);
+    const internal =
+      this.resolveInternal(target) ??
+      this.resolveRelativeInternal(srcAbs, specifier);
     if (internal) {
       edges.push({ srcId, dstId: internal, kind, attrs: { specifier } });
+      return;
+    }
+    if (isRelativeSpecifier(specifier)) {
+      // A relative import ts-morph could not resolve and that does not point at
+      // a file on disk (e.g. an alias, or a genuinely missing target). Dropping
+      // it is correct: bucketing it as an npm external produced `npm:..` junk
+      // nodes and masked real internal edges for any out-of-project TS (C-44).
       return;
     }
     const extId = externalId(specifier);
@@ -175,12 +187,75 @@ export class TsMorphGraphExtractor implements Extractor<GraphFragment> {
 
   private resolveInternal(target: SourceFile | undefined): string | null {
     if (!target) return null;
-    const abs = remapDistToSrc(target.getFilePath());
+    return this.inRepoFileId(remapDistToSrc(target.getFilePath()));
+  }
+
+  /**
+   * Resolve a relative specifier ts-morph failed to link by walking the
+   * filesystem from the importing file. ts-morph's NodeNext resolution only
+   * links relative imports that carry an explicit `.js` extension, so
+   * extensionless bundler-style imports (`../types`, common in code outside the
+   * tsconfig project such as `dashboard/`) resolve to nothing and would
+   * otherwise fall through to the `npm:` external bucket (C-44). Resolves
+   * through the ts-morph filesystem host so it honours in-memory test fixtures.
+   */
+  private resolveRelativeInternal(
+    srcAbs: string,
+    specifier: string,
+  ): string | null {
+    if (!isRelativeSpecifier(specifier)) return null;
+    const fs = this.ensureProject().getFileSystem();
+    const base = path.resolve(path.dirname(srcAbs), specifier);
+    for (const candidate of relativeResolutionCandidates(base)) {
+      if (fs.fileExistsSync(candidate)) {
+        return this.inRepoFileId(candidate);
+      }
+    }
+    return null;
+  }
+
+  private inRepoFileId(abs: string): string | null {
     const relative = path.relative(this.repoRoot, abs);
     if (relative.startsWith("..") || path.isAbsolute(relative)) return null;
     if (relative.split(path.sep).includes("node_modules")) return null;
     return fileId(this.repoRoot, abs);
   }
+}
+
+const RESOLVABLE_EXTS = [
+  ".ts",
+  ".tsx",
+  ".mts",
+  ".cts",
+  ".js",
+  ".jsx",
+  ".mjs",
+  ".cjs",
+];
+
+function isRelativeSpecifier(specifier: string): boolean {
+  return (
+    specifier === "." ||
+    specifier === ".." ||
+    specifier.startsWith("./") ||
+    specifier.startsWith("../")
+  );
+}
+
+/**
+ * Candidate on-disk paths for a resolved relative import base, in priority
+ * order: an explicit extension already present, then the source extensions,
+ * then a NodeNext `.js`→`.ts` remap, then `index.*` for directory imports.
+ */
+function* relativeResolutionCandidates(base: string): Iterable<string> {
+  yield base;
+  for (const ext of RESOLVABLE_EXTS) yield base + ext;
+  const jsExt = /\.(?:jsx?|mjs|cjs)$/.exec(base);
+  if (jsExt) {
+    const stem = base.slice(0, base.length - jsExt[0].length);
+    for (const ext of RESOLVABLE_EXTS) yield stem + ext;
+  }
+  for (const ext of RESOLVABLE_EXTS) yield path.join(base, "index" + ext);
 }
 
 // ts-morph resolves workspace imports like `@codewatch/analyzer` to the

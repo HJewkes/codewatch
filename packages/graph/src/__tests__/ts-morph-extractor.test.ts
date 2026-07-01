@@ -26,6 +26,17 @@ const FILES: Record<string, string> = {
     `import { join } from "node:path";\n` +
     `import sub from "@scope/pkg/sub";\n` +
     `export const y = join("a", "b") + sub;\n`,
+  // A directory outside the tsconfig project using extensionless,
+  // bundler-style relative imports (like `dashboard/`). ts-morph's NodeNext
+  // resolution cannot link these; the filesystem fallback must (C-44).
+  "/repo/dashboard/src/types.ts": `export type T = number;\n`,
+  "/repo/dashboard/src/theme/index.ts": `export const color = "#000";\n`,
+  "/repo/dashboard/src/views/OverviewView.tsx":
+    `import type { T } from "../types";\n` +
+    `import { color } from "../theme";\n` +
+    `import { missing } from "../does-not-exist";\n` +
+    `import { useState } from "react";\n` +
+    `export const V: T = (useState ? 1 : 0) + (missing ?? 0) + color.length;\n`,
 };
 
 interface Fixture {
@@ -49,6 +60,10 @@ beforeAll(async () => {
   for (const [filePath, content] of Object.entries(FILES)) {
     project.createSourceFile(filePath, content, { overwrite: true });
   }
+  // Flush to the in-memory filesystem so the extractor's relative-import
+  // fallback (which probes `fileExistsSync`) sees the fixtures, mirroring how
+  // the files exist on disk in a real index run.
+  project.saveSync();
 
   const parsed: Record<string, ParsedFile> = {};
   for (const [filePath, content] of Object.entries(FILES)) {
@@ -149,5 +164,55 @@ describe("TsMorphGraphExtractor", () => {
     expect(reExports).toHaveLength(1);
     expect(reExports[0]!.srcId).toBe("src/index.ts");
     expect(reExports[0]!.dstId).toBe("src/a.ts");
+  });
+
+  describe("extensionless relative imports (C-44)", () => {
+    it("resolves an extensionless relative import to its file id", () => {
+      const [fragment] = fixture.extract(
+        "/repo/dashboard/src/views/OverviewView.tsx",
+      );
+      const dsts = fragment!.edges.map((e) => e.dstId);
+      expect(dsts).toContain("dashboard/src/types.ts");
+    });
+
+    it("resolves a directory import to its index file", () => {
+      const [fragment] = fixture.extract(
+        "/repo/dashboard/src/views/OverviewView.tsx",
+      );
+      const dsts = fragment!.edges.map((e) => e.dstId);
+      expect(dsts).toContain("dashboard/src/theme/index.ts");
+    });
+
+    it("never records a relative specifier as an npm external", () => {
+      const [fragment] = fixture.extract(
+        "/repo/dashboard/src/views/OverviewView.tsx",
+      );
+      const junk = fragment!.nodes.filter(
+        (n) => n.id === "npm:.." || n.id === "npm:.",
+      );
+      expect(junk).toEqual([]);
+      expect(fragment!.edges.some((e) => e.dstId.startsWith("npm:."))).toBe(
+        false,
+      );
+    });
+
+    it("drops an unresolvable relative import instead of bucketing it", () => {
+      const [fragment] = fixture.extract(
+        "/repo/dashboard/src/views/OverviewView.tsx",
+      );
+      const specifiers = fragment!.edges.map((e) => e.attrs?.specifier);
+      expect(specifiers).not.toContain("../does-not-exist");
+    });
+
+    it("still emits bare npm specifiers alongside relative imports", () => {
+      const [fragment] = fixture.extract(
+        "/repo/dashboard/src/views/OverviewView.tsx",
+      );
+      expect(
+        fragment!.nodes.some(
+          (n) => n.kind === "external" && n.id === "npm:react",
+        ),
+      ).toBe(true);
+    });
   });
 });
