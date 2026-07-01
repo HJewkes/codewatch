@@ -45,7 +45,10 @@ function registerIndex(graphCmd: Command): void {
     .description(
       "Build a code graph snapshot. Pass one or more directories to walk; node ids are rooted at the git toplevel so importers across subtrees share the same id space (e.g. `graph index packages tests`).",
     )
-    .option("--db <path>", "Database path (default: <path>/.codewatch/graph.db)")
+    .option(
+      "--db <path>",
+      "Database path (default: <git-toplevel>/.codewatch/graph.db)",
+    )
     .option("--ref <ref>", "Snapshot ref label", "wd")
     .option("--ts-config <path>", "Path to tsconfig.json for ts-morph")
     .option(

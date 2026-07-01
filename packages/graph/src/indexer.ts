@@ -243,14 +243,18 @@ export async function runGraphIndex(
   // anything else expecting the user's literal input still work.
   const rootDirs =
     gitToplevel !== null ? rawRoots.map(canonicalizePath) : rawRoots;
-  // primaryRoot is used for derived paths (default db location, git churn etc.)
-  // that historically operated on a single root. Mostly only the first root
-  // matters for these, and it's an ancestor of git toplevel or equal to it.
+  // primaryRoot is used for derived paths (git churn etc.) that historically
+  // operated on a single root. Mostly only the first root matters for these,
+  // and it's an ancestor of git toplevel or equal to it.
   const rootDir = rootDirs[0]!;
   const idRoot = gitToplevel ?? rootDir;
+  // Default the db to the git toplevel (idRoot), not the indexed subdir. Node
+  // ids are already rooted at idRoot (PR #10), so a db keyed off the subdir
+  // would silently diverge from `graph index .` — e.g. `graph index packages`
+  // writing to packages/.codewatch/graph.db (C-22). Outside git, idRoot === rootDir.
   const dbPath = options.dbPath
     ? path.resolve(options.dbPath)
-    : path.join(rootDir, ".codewatch", "graph.db");
+    : path.join(idRoot, ".codewatch", "graph.db");
   const ref = options.ref ?? "wd";
 
   const tStart = performance.now();

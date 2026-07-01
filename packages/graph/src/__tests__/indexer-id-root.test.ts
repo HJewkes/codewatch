@@ -69,7 +69,8 @@ describe("runGraphIndex id-root behavior", () => {
       computeChurn: false,
       detectRenames: false,
     });
-    const db = openDatabase(path.join(scratch, "pkg-a", ".codewatch", "graph.db"));
+    // Default db lands at the git toplevel, not the indexed subdir (C-22).
+    const db = openDatabase(path.join(scratch, ".codewatch", "graph.db"));
     try {
       const fileIds = db
         .listNodes(result.snapshotId)
@@ -106,27 +107,28 @@ describe("runGraphIndex id-root behavior", () => {
       detectRenames: false,
     });
 
-    const dbRoot = openDatabase(path.join(scratch, ".codewatch", "graph.db"));
-    const dbPkg = openDatabase(path.join(scratch, "pkg-a", ".codewatch", "graph.db"));
+    // Both runs default to the same git-toplevel db (C-22): the full-repo run
+    // and the subdir run share one snapshot store.
+    const db = openDatabase(path.join(scratch, ".codewatch", "graph.db"));
     try {
       const idsRoot = new Set(
-        dbRoot
+        db
           .listNodes(fromRoot.snapshotId)
           .filter((n) => n.kind === "file")
           .map((n) => n.id),
       );
       const idsPkg = new Set(
-        dbPkg
+        db
           .listNodes(fromPkg.snapshotId)
           .filter((n) => n.kind === "file")
           .map((n) => n.id),
       );
       // The subset-indexed run must agree with the full-repo run on every id
       // it captures — that's the property the rest of the system relies on.
+      expect(idsPkg.size).toBeGreaterThan(0);
       for (const id of idsPkg) expect(idsRoot.has(id)).toBe(true);
     } finally {
-      dbRoot.close();
-      dbPkg.close();
+      db.close();
     }
   });
 
@@ -156,7 +158,8 @@ describe("runGraphIndex id-root behavior", () => {
         computeChurn: false,
         detectRenames: false,
       });
-      const db = openDatabase(path.join(scratch, "pkg-a", ".codewatch", "graph.db"));
+      // Default db lands at the git toplevel, not the indexed subdir (C-22).
+      const db = openDatabase(path.join(scratch, ".codewatch", "graph.db"));
       try {
         const fileIds = db
           .listNodes(result.snapshotId)
@@ -196,7 +199,8 @@ describe("runGraphIndex id-root behavior", () => {
       computeChurn: false,
       detectRenames: false,
     });
-    const db = openDatabase(path.join(scratch, "pkg-a", ".codewatch", "graph.db"));
+    // Default db lands at the git toplevel, not the first indexed subdir (C-22).
+    const db = openDatabase(path.join(scratch, ".codewatch", "graph.db"));
     try {
       const fileIds = db
         .listNodes(result.snapshotId)
@@ -229,7 +233,40 @@ describe("runGraphIndex id-root behavior", () => {
     });
     expect(result.files).toBe(1);
   });
+
+  it("defaults the db to the git toplevel, not the indexed subdir (C-22)", async () => {
+    // Regression: `graph index <subdir>` without --db used to derive the db
+    // path from the indexed subdir, silently writing to
+    // <subdir>/.codewatch/graph.db instead of the canonical toplevel db — the
+    // footgun that kept resurrecting a second stray db.
+    git(scratch, ["init", "-q", "-b", "main"]);
+    git(scratch, ["config", "user.email", "t@e.test"]);
+    git(scratch, ["config", "user.name", "t"]);
+    git(scratch, ["config", "commit.gpgsign", "false"]);
+    await writeFile(scratch, "pkg-a/src/a.ts", "export const a = 1;\n");
+
+    await runGraphIndex({
+      rootDir: path.join(scratch, "pkg-a"),
+      ref: "test",
+      computeChurn: false,
+      detectRenames: false,
+    });
+
+    expect(await exists(path.join(scratch, ".codewatch", "graph.db"))).toBe(true);
+    expect(
+      await exists(path.join(scratch, "pkg-a", ".codewatch", "graph.db")),
+    ).toBe(false);
+  });
 });
+
+async function exists(p: string): Promise<boolean> {
+  try {
+    await fs.access(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function restoreEnv(key: string, value: string | undefined): void {
   if (value === undefined) delete process.env[key];
