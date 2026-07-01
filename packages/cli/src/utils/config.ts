@@ -34,7 +34,7 @@ export async function saveConfig(
 
 export function getDefaultConfigDir(): string {
   const home = process.env.HOME ?? process.env.USERPROFILE ?? "~";
-  return path.join(home, ".code-style");
+  return path.join(home, ".codewatch");
 }
 
 export function getDefaultConfigPath(): string {

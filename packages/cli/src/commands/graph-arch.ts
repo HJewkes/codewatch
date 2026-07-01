@@ -6,7 +6,7 @@ import {
   type GraphDatabase,
   type PartitionQualityResult,
   type SnapshotRow,
-} from "@code-style/graph";
+} from "@codewatch/graph";
 import { formatError } from "../utils/output.js";
 import {
   bucketFilesByPackage,

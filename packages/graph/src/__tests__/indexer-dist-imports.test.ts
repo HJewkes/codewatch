@@ -12,7 +12,7 @@ interface Workspace {
 }
 
 async function createWorkspace(): Promise<Workspace> {
-  const root = await fs.mkdtemp(path.join(tmpdir(), "code-style-dist-imports-"));
+  const root = await fs.mkdtemp(path.join(tmpdir(), "codewatch-dist-imports-"));
 
   await fs.mkdir(path.join(root, "pkg-a", "src"), { recursive: true });
   await fs.mkdir(path.join(root, "pkg-b", "src"), { recursive: true });

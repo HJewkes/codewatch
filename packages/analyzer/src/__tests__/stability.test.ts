@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import { parseFile } from "@code-style/core";
+import { parseFile } from "@codewatch/core";
 import { NamingExtractor } from "../extractors/naming.js";
 import { StructureExtractor } from "../extractors/structure.js";
 import { ControlFlowExtractor } from "../extractors/control-flow.js";

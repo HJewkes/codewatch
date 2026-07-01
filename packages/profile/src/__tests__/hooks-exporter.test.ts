@@ -40,10 +40,10 @@ describe("generateHooksConfig", () => {
     expect(writeHook).toBeDefined();
   });
 
-  it("hook command runs code-style diff on the written file", () => {
+  it("hook command runs codewatch diff on the written file", () => {
     const config = generateHooksConfig(sampleProfile);
     const writeHook = config.hooks.find((h) => h.event === "PostToolUse")!;
-    expect(writeHook.command).toContain("code-style");
+    expect(writeHook.command).toContain("codewatch");
     expect(writeHook.command).toContain("diff");
   });
 

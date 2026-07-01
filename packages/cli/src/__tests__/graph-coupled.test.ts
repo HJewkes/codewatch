@@ -118,9 +118,9 @@ describe("runGraphCoupledCommand", () => {
   });
 
   it("throws when run outside a git repo", async () => {
-    const { openDatabase } = await import("@code-style/graph");
+    const { openDatabase } = await import("@codewatch/graph");
     const { runGraphCoupledCommand } = await import("../commands/graph-coupled.js");
-    dir = await fs.mkdtemp(path.join(tmpdir(), "code-style-coupled-"));
+    dir = await fs.mkdtemp(path.join(tmpdir(), "codewatch-coupled-"));
     const dbPath = path.join(dir, "graph.db");
     const db = openDatabase(dbPath);
     db.createSnapshot({ ref: "main", indexVersion: "0.1.0" });

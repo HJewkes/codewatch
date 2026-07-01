@@ -11,7 +11,7 @@ interface Project {
 }
 
 async function createProject(): Promise<Project> {
-  const rootDir = await fs.mkdtemp(path.join(tmpdir(), "code-style-metrics-"));
+  const rootDir = await fs.mkdtemp(path.join(tmpdir(), "codewatch-metrics-"));
   await fs.mkdir(path.join(rootDir, "src"), { recursive: true });
   await fs.writeFile(
     path.join(rootDir, "src", "a.ts"),
@@ -105,7 +105,7 @@ describe("runGraphIndex with metric computation", () => {
   it("links a co-located test to its source (linked_test_count)", async () => {
     // A standalone project so the extra test file doesn't perturb the shared
     // fixture's fan-in/out assertions.
-    const rootDir = await fs.mkdtemp(path.join(tmpdir(), "code-style-link-"));
+    const rootDir = await fs.mkdtemp(path.join(tmpdir(), "codewatch-link-"));
     try {
       await fs.mkdir(path.join(rootDir, "src"), { recursive: true });
       await fs.writeFile(

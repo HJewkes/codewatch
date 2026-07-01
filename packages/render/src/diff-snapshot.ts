@@ -5,7 +5,7 @@ import {
   type GraphEdge,
   type GraphNode,
   type SnapshotRow,
-} from "@code-style/graph";
+} from "@codewatch/graph";
 import type {
   EdgeStatus,
   NodeStatus,

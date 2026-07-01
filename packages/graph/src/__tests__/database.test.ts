@@ -10,7 +10,7 @@ describe("GraphDatabase", () => {
   let db: GraphDatabase;
 
   beforeEach(async () => {
-    dbDir = path.join(tmpdir(), `code-style-graph-${Date.now()}-${Math.random()}`);
+    dbDir = path.join(tmpdir(), `codewatch-graph-${Date.now()}-${Math.random()}`);
     await fs.mkdir(dbDir, { recursive: true });
     dbPath = path.join(dbDir, "graph.db");
     db = openDatabase(dbPath);
@@ -47,7 +47,7 @@ describe("GraphDatabase", () => {
       id: "packages/graph/src/database",
       kind: "module",
       name: "database",
-      parentId: "@code-style/graph",
+      parentId: "@codewatch/graph",
       language: "typescript",
       attrs: { loc: 120 },
     });
@@ -56,7 +56,7 @@ describe("GraphDatabase", () => {
     expect(node).not.toBeNull();
     expect(node!.kind).toBe("module");
     expect(node!.name).toBe("database");
-    expect(node!.parentId).toBe("@code-style/graph");
+    expect(node!.parentId).toBe("@codewatch/graph");
     expect(node!.language).toBe("typescript");
     expect(node!.attrs).toEqual({ loc: 120 });
   });

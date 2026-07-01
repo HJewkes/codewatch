@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { tmpdir } from "node:os";
-import { openDatabase, type GraphDatabase } from "@code-style/graph";
+import { openDatabase, type GraphDatabase } from "@codewatch/graph";
 import { loadDiff } from "../diff-snapshot.js";
 import { renderHtml } from "../template.js";
 
@@ -14,7 +14,7 @@ interface Fixture {
 async function createFixture(
   populate: (db: GraphDatabase, fromId: number, toId: number) => void,
 ): Promise<Fixture> {
-  const dir = await fs.mkdtemp(path.join(tmpdir(), "code-style-render-diff-"));
+  const dir = await fs.mkdtemp(path.join(tmpdir(), "codewatch-render-diff-"));
   const dbPath = path.join(dir, "graph.db");
   const db = openDatabase(dbPath);
   const fromId = db.createSnapshot({

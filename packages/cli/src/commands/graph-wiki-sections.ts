@@ -3,7 +3,7 @@ import type {
   GraphNode,
   PageRankRow,
   SnapshotRow,
-} from "@code-style/graph";
+} from "@codewatch/graph";
 import {
   topBusFactorRisks,
   topCouplingClusters,

@@ -2,7 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, basename } from "node:path";
 import type { Command } from "commander";
 import chalk from "chalk";
-import { loadSnapshot, renderHtml, collapseToPackages } from "@code-style/render";
+import { loadSnapshot, renderHtml, collapseToPackages } from "@codewatch/render";
 import { dashboardTemplate } from "./dashboard-template.js";
 import {
   type DashboardCommandOptions,

@@ -1,11 +1,11 @@
-import type { Profile } from "@code-style/profile";
+import type { Profile } from "@codewatch/profile";
 import {
   buildNamingConventionRule,
   buildImportOrderRule,
   buildFunctionLengthRule,
   buildFileNamingRule,
   buildJsdocRules,
-} from "@code-style/profile";
+} from "@codewatch/profile";
 
 export interface EslintFlatConfigEntry {
   plugins?: Record<string, unknown>;

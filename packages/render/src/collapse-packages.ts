@@ -1,4 +1,4 @@
-import type { GraphEdge, GraphNode } from "@code-style/graph";
+import type { GraphEdge, GraphNode } from "@codewatch/graph";
 import type { RenderInput } from "./types.js";
 
 /**

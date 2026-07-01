@@ -1,4 +1,4 @@
-import type { Profile, Severity } from "@code-style/profile";
+import type { Profile, Severity } from "@codewatch/profile";
 
 export type { Severity };
 

@@ -10,7 +10,7 @@ import {
   type AggregatedFeature,
   type Extractor,
   type Observation,
-} from "@code-style/analyzer";
+} from "@codewatch/analyzer";
 
 export interface AnalyzeOptions {
   rootDir: string;

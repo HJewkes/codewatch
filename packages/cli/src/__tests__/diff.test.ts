@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { diffAgainstProfile } from "../commands/diff.js";
-import type { Profile } from "@code-style/profile";
-import type { Observation } from "@code-style/analyzer";
+import type { Profile } from "@codewatch/profile";
+import type { Observation } from "@codewatch/analyzer";
 
 const sampleProfile: Profile = {
   schemaVersion: "1.0.0",

@@ -2,10 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { tmpdir } from "node:os";
-import type { ExportFormat } from "@code-style/profile";
+import type { ExportFormat } from "@codewatch/profile";
 
-vi.mock("@code-style/profile", async () => {
-  const actual = await vi.importActual("@code-style/profile");
+vi.mock("@codewatch/profile", async () => {
+  const actual = await vi.importActual("@codewatch/profile");
   return {
     ...actual,
     readProfile: vi.fn().mockResolvedValue({
@@ -36,7 +36,7 @@ describe("runExport", () => {
   let testDir: string;
 
   beforeEach(async () => {
-    testDir = path.join(tmpdir(), `code-style-export-test-${Date.now()}`);
+    testDir = path.join(tmpdir(), `codewatch-export-test-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
   });
 
@@ -56,7 +56,7 @@ describe("runExport", () => {
   });
 
   it("creates nested directories for file paths with subdirs", async () => {
-    const { exportProfile } = await import("@code-style/profile");
+    const { exportProfile } = await import("@codewatch/profile");
     vi.mocked(exportProfile).mockReturnValue([
       { path: ".claude/rules/typescript.md", content: "# rules" },
     ]);

@@ -11,7 +11,7 @@ import {
   type GraphDatabase,
   type SnapshotRow,
   type UnchangedViolation,
-} from "@code-style/graph";
+} from "@codewatch/graph";
 
 export interface GraphCheckDiffCommandOptions {
   db: string;
@@ -83,7 +83,7 @@ function resolveSnapshot(
   if (!snap) {
     throw new Error(
       `${flag}: no snapshot found for ref "${spec}". ` +
-        `Run \`code-style graph index --ref ${spec} <path>\` against this DB first.`,
+        `Run \`codewatch graph index --ref ${spec} <path>\` against this DB first.`,
     );
   }
   return snap;

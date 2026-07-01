@@ -7,7 +7,7 @@ describe("analyze command", () => {
   let testDir: string;
 
   beforeEach(async () => {
-    testDir = await fs.mkdtemp(path.join(tmpdir(), "code-style-analyze-"));
+    testDir = await fs.mkdtemp(path.join(tmpdir(), "codewatch-analyze-"));
   });
 
   afterEach(async () => {
@@ -133,7 +133,7 @@ describe("analyze command", () => {
       });
 
       const parsed = JSON.parse(formatAnalyzeJson(result));
-      expect(parsed.rootDir).toContain("code-style-analyze-");
+      expect(parsed.rootDir).toContain("codewatch-analyze-");
       expect(parsed.files.total).toBe(1);
       expect(parsed.summary.totalFeatures).toBeGreaterThan(0);
       expect(Array.isArray(parsed.features)).toBe(true);

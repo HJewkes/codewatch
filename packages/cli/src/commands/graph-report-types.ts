@@ -1,4 +1,4 @@
-import type { SnapshotRow } from "@code-style/graph";
+import type { SnapshotRow } from "@codewatch/graph";
 
 export interface HotspotRow {
   nodeId: string;

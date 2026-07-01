@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { tmpdir } from "node:os";
-import { openDatabase, type GraphDatabase } from "@code-style/graph";
+import { openDatabase, type GraphDatabase } from "@codewatch/graph";
 import {
   runGraphReportCommand,
   formatGraphReportJson,
@@ -17,7 +17,7 @@ interface Fixture {
 async function fixture(
   populate: (db: GraphDatabase, snapshotId: number) => void,
 ): Promise<Fixture> {
-  const dir = await fs.mkdtemp(path.join(tmpdir(), "code-style-report-"));
+  const dir = await fs.mkdtemp(path.join(tmpdir(), "codewatch-report-"));
   const dbPath = path.join(dir, "graph.db");
   const db = openDatabase(dbPath);
   const snapshotId = db.createSnapshot({ ref: "main", indexVersion: "0.1.0" });
@@ -224,7 +224,7 @@ describe("runGraphReportCommand", () => {
     // Two snapshots: `--vs previous` must pick the older one, matching
     // `graph check --baseline previous`. Regression for the resolver that only
     // knew ids/refs and threw on the "previous" alias.
-    const dir = await fs.mkdtemp(path.join(tmpdir(), "code-style-report-vs-"));
+    const dir = await fs.mkdtemp(path.join(tmpdir(), "codewatch-report-vs-"));
     const dbPath = path.join(dir, "graph.db");
     const db = openDatabase(dbPath);
     const older = db.createSnapshot({ ref: "wd", indexVersion: "0.2.0" });

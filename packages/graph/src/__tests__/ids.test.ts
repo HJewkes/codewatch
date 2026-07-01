@@ -47,7 +47,7 @@ describe("parentModuleId", () => {
 
 describe("packageId", () => {
   it("returns the package name unchanged", () => {
-    expect(packageId("@code-style/graph")).toBe("@code-style/graph");
+    expect(packageId("@codewatch/graph")).toBe("@codewatch/graph");
     expect(packageId("better-sqlite3")).toBe("better-sqlite3");
   });
 });
@@ -67,6 +67,6 @@ describe("externalId", () => {
   it("preserves scope when stripping subpaths from scoped packages", () => {
     expect(externalId("@scope/pkg")).toBe("npm:@scope/pkg");
     expect(externalId("@scope/pkg/sub")).toBe("npm:@scope/pkg");
-    expect(externalId("@code-style/core/foo/bar")).toBe("npm:@code-style/core");
+    expect(externalId("@codewatch/core/foo/bar")).toBe("npm:@codewatch/core");
   });
 });

@@ -1,4 +1,4 @@
-import type { Severity } from "@code-style/profile";
+import type { Severity } from "@codewatch/profile";
 import type { CheckDiagnostic } from "../orchestrator/types.js";
 
 const RUFF_CODE_CATEGORY: Record<string, string> = {

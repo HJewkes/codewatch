@@ -4,7 +4,7 @@ import {
   loadChurnEntries,
   type EdgeKind,
   type GraphEdge,
-} from "@code-style/graph";
+} from "@codewatch/graph";
 
 export interface RelevantVia {
   nodeId: string;

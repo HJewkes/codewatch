@@ -17,14 +17,14 @@ export function registerHookCommands(program: Command): void {
 
   hookCmd
     .command("install")
-    .description("Install code-style pre-commit (and opt-in post-commit) hooks")
+    .description("Install codewatch pre-commit (and opt-in post-commit) hooks")
     .option(
       "--with-graph-check",
       "Also run `graph index <path> && graph check` when staged changes touch source files",
     )
     .option(
       "--no-style-check",
-      "Skip the `code-style diff --fix` line (use when no profile is configured)",
+      "Skip the `codewatch diff --fix` line (use when no profile is configured)",
     )
     .option(
       "--graph-path <paths...>",
@@ -40,7 +40,7 @@ export function registerHookCommands(program: Command): void {
     )
     .option(
       "--bin <command>",
-      "CLI binary to invoke from the hook (default: code-style)",
+      "CLI binary to invoke from the hook (default: codewatch)",
     )
     .action(async (options: InstallOptions) => {
       try {
@@ -54,7 +54,7 @@ export function registerHookCommands(program: Command): void {
 
   hookCmd
     .command("remove")
-    .description("Remove code-style pre-commit and post-commit hooks")
+    .description("Remove codewatch pre-commit and post-commit hooks")
     .action(async () => {
       try {
         const { removeHook, removeAutoUpdateHook } = await import("./hook.js");

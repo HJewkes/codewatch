@@ -5,7 +5,7 @@ import {
   openDatabase,
   type NodeRole,
   type SnapshotRow,
-} from "@code-style/graph";
+} from "@codewatch/graph";
 import { padLeft, padRight, visualWidth } from "../utils/table.js";
 
 export interface GraphTopCommandOptions {

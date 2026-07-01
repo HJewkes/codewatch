@@ -1,7 +1,7 @@
 import { execSync } from "node:child_process";
-import { PROFILE_CATEGORIES } from "@code-style/profile";
-import type { Profile, ProfileCategory } from "@code-style/profile";
-import type { Observation } from "@code-style/analyzer";
+import { PROFILE_CATEGORIES } from "@codewatch/profile";
+import type { Profile, ProfileCategory } from "@codewatch/profile";
+import type { Observation } from "@codewatch/analyzer";
 
 export interface Deviation {
   file: string;

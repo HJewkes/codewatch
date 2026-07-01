@@ -20,7 +20,7 @@ describe("diffSnapshots", () => {
   let db: GraphDatabase;
 
   beforeEach(async () => {
-    dbDir = path.join(tmpdir(), `code-style-diff-${Date.now()}-${Math.random()}`);
+    dbDir = path.join(tmpdir(), `codewatch-diff-${Date.now()}-${Math.random()}`);
     await fs.mkdir(dbDir, { recursive: true });
     dbPath = path.join(dbDir, "graph.db");
     db = openDatabase(dbPath);

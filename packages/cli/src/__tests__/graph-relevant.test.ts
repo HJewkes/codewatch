@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { tmpdir } from "node:os";
-import { openDatabase, type GraphDatabase } from "@code-style/graph";
+import { openDatabase, type GraphDatabase } from "@codewatch/graph";
 import {
   runGraphRelevantCommand,
   formatGraphRelevantText,
@@ -18,7 +18,7 @@ interface Fixture {
 async function createFixture(
   populate: (db: GraphDatabase, snapshotId: number) => void,
 ): Promise<Fixture> {
-  const dir = await fs.mkdtemp(path.join(tmpdir(), "code-style-relevant-"));
+  const dir = await fs.mkdtemp(path.join(tmpdir(), "codewatch-relevant-"));
   const dbPath = path.join(dir, "graph.db");
   const db = openDatabase(dbPath);
   const snapshotId = db.createSnapshot({

@@ -18,12 +18,12 @@ export function generateHooksConfig(
       {
         event: "PostToolUse",
         matcher: "Write",
-        command: "code-style diff --fix $TOOL_INPUT_FILE_PATH",
+        command: "codewatch diff --fix $TOOL_INPUT_FILE_PATH",
       },
       {
         event: "PostToolUse",
         matcher: "Edit",
-        command: "code-style diff --fix $TOOL_INPUT_FILE_PATH",
+        command: "codewatch diff --fix $TOOL_INPUT_FILE_PATH",
       },
     ],
   };

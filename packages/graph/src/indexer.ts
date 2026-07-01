@@ -5,7 +5,7 @@ import {
   parseFile,
   shouldIncludeFile,
   type ParsedFile,
-} from "@code-style/core";
+} from "@codewatch/core";
 import { openDatabase, GraphDatabase } from "./database.js";
 import { TsMorphGraphExtractor } from "./extractors/ts-morph-extractor.js";
 import {

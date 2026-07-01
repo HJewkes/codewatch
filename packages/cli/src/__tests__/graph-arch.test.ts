@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { tmpdir } from "node:os";
-import { openDatabase, type GraphDatabase } from "@code-style/graph";
+import { openDatabase, type GraphDatabase } from "@codewatch/graph";
 import {
   formatArchMermaid,
   runGraphArchCommand,
@@ -14,7 +14,7 @@ interface Fixture {
 }
 
 async function makeRepo(): Promise<string> {
-  const dir = await fs.mkdtemp(path.join(tmpdir(), "code-style-arch-"));
+  const dir = await fs.mkdtemp(path.join(tmpdir(), "codewatch-arch-"));
   await fs.mkdir(path.join(dir, "packages", "cli"), { recursive: true });
   await fs.mkdir(path.join(dir, "packages", "graph"), { recursive: true });
   await fs.mkdir(path.join(dir, "packages", "core"), { recursive: true });

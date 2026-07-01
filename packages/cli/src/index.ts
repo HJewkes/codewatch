@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 import { Command } from "commander";
-import { readProfile, writeProfile } from "@code-style/profile";
+import { readProfile, writeProfile } from "@codewatch/profile";
 import type {
   CodeCorpus,
   Observation,
-} from "@code-style/analyzer";
+} from "@codewatch/analyzer";
 import { promptForInitOptions, runInitPipeline } from "./commands/init.js";
 import { formatProfileText, formatProfileJson } from "./commands/show.js";
 import {
@@ -20,7 +20,7 @@ import { registerHookCommands } from "./commands/hook-cli.js";
 const program = new Command();
 
 program
-  .name("code-style")
+  .name("codewatch")
   .description(
     "Analyze GitHub contributions to create a personal coding style profile",
   )
@@ -44,7 +44,7 @@ program
         languages: options.languages,
       });
 
-      const analyzer = await import("@code-style/analyzer");
+      const analyzer = await import("@codewatch/analyzer");
 
       await runInitPipeline({
         githubToken: token,
@@ -157,7 +157,7 @@ program
         console.log("No changed files to check.");
         return;
       }
-      const analyzer = await import("@code-style/analyzer");
+      const analyzer = await import("@codewatch/analyzer");
       const fs = await import("node:fs/promises");
       const extractors = analyzer.createStyleExtractors();
       const fileInputs: { content: string; path: string; language: string }[] = [];
@@ -225,7 +225,7 @@ program
 program
   .command("compare <profilePath>")
   .description("Compare current profile with another profile")
-  .option("--profile <path>", "Path to your profile (default: ~/.code-style/profile.json)")
+  .option("--profile <path>", "Path to your profile (default: ~/.codewatch/profile.json)")
   .action(async (otherPath: string, options) => {
     try {
       const { compareProfiles, formatComparison } = await import("./commands/compare.js");

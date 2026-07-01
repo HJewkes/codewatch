@@ -21,7 +21,7 @@ describe("runMigrations", () => {
   let dbPath: string;
 
   beforeEach(async () => {
-    dbDir = path.join(tmpdir(), `code-style-graph-${Date.now()}-${Math.random()}`);
+    dbDir = path.join(tmpdir(), `codewatch-graph-${Date.now()}-${Math.random()}`);
     await fs.mkdir(dbDir, { recursive: true });
     dbPath = path.join(dbDir, "graph.db");
   });

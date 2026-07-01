@@ -1,14 +1,14 @@
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import chalk from "chalk";
-import { loadSnapshot, renderHtml } from "@code-style/render";
+import { loadSnapshot, renderHtml } from "@codewatch/render";
 import {
   openDatabase,
   runChecks,
   validateRules,
   type CheckResult,
   type CheckRule,
-} from "@code-style/graph";
+} from "@codewatch/graph";
 
 export interface GraphRenderCommandOptions {
   db: string;

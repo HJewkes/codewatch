@@ -15,7 +15,7 @@ let hookPath: string;
 let postHookPath: string;
 
 beforeEach(async () => {
-  testDir = path.join(tmpdir(), `code-style-hook-test-${Date.now()}-${Math.random()}`);
+  testDir = path.join(tmpdir(), `codewatch-hook-test-${Date.now()}-${Math.random()}`);
   await fs.mkdir(path.join(testDir, ".git", "hooks"), { recursive: true });
   hookPath = path.join(testDir, ".git", "hooks", "pre-commit");
   postHookPath = path.join(testDir, ".git", "hooks", "post-commit");
@@ -29,9 +29,9 @@ describe("installHook", () => {
   it("creates a pre-commit hook file containing the style diff line", async () => {
     await installHook(testDir);
     const content = await fs.readFile(hookPath, "utf-8");
-    expect(content).toContain("code-style diff --fix");
-    expect(content).toContain("code-style pre-commit hook (begin)");
-    expect(content).toContain("code-style pre-commit hook (end)");
+    expect(content).toContain("codewatch diff --fix");
+    expect(content).toContain("codewatch pre-commit hook (begin)");
+    expect(content).toContain("codewatch pre-commit hook (end)");
   });
 
   it("makes the hook executable", async () => {
@@ -45,15 +45,15 @@ describe("installHook", () => {
     await installHook(testDir);
     const content = await fs.readFile(hookPath, "utf-8");
     expect(content).toContain("echo existing");
-    expect(content).toContain("code-style diff --fix");
+    expect(content).toContain("codewatch diff --fix");
   });
 
   it("re-running install does not duplicate the block", async () => {
     await installHook(testDir);
     await installHook(testDir);
     const content = await fs.readFile(hookPath, "utf-8");
-    expect(content.match(/code-style diff --fix/g)).toHaveLength(1);
-    expect(content.match(/code-style pre-commit hook \(begin\)/g)).toHaveLength(1);
+    expect(content.match(/codewatch diff --fix/g)).toHaveLength(1);
+    expect(content.match(/codewatch pre-commit hook \(begin\)/g)).toHaveLength(1);
   });
 
   it("re-running install can swap to a new block (graph check on)", async () => {
@@ -62,7 +62,7 @@ describe("installHook", () => {
     const content = await fs.readFile(hookPath, "utf-8");
     expect(content).toContain("graph index");
     expect(content).toContain("graph check");
-    expect(content.match(/code-style diff --fix/g)).toHaveLength(1);
+    expect(content.match(/codewatch diff --fix/g)).toHaveLength(1);
   });
 
   it("includes the conditional graph check when --with-graph-check is set", async () => {
@@ -70,17 +70,17 @@ describe("installHook", () => {
     const content = await fs.readFile(hookPath, "utf-8");
     expect(content).toContain("git diff --cached --name-only");
     expect(content).toContain(
-      "code-style graph index . --db .codewatch/graph.db >/dev/null",
+      "codewatch graph index . --db .codewatch/graph.db >/dev/null",
     );
     expect(content).toContain(
-      "code-style graph check --db .codewatch/graph.db --baseline previous",
+      "codewatch graph check --db .codewatch/graph.db --baseline previous",
     );
   });
 
   it("uses a custom graph path when provided", async () => {
     await installHook(testDir, { withGraphCheck: true, graphPath: "packages" });
     const content = await fs.readFile(hookPath, "utf-8");
-    expect(content).toContain("code-style graph index packages");
+    expect(content).toContain("codewatch graph index packages");
   });
 
   it("joins multiple graph paths with spaces (variadic indexer arg)", async () => {
@@ -89,7 +89,7 @@ describe("installHook", () => {
       graphPath: ["packages", "tests"],
     });
     const content = await fs.readFile(hookPath, "utf-8");
-    expect(content).toContain("code-style graph index packages tests");
+    expect(content).toContain("codewatch graph index packages tests");
   });
 
   it("passes --db to both index and check so they share a snapshot", async () => {
@@ -122,8 +122,8 @@ describe("installHook", () => {
       graphPath: "packages",
     });
     const content = await fs.readFile(hookPath, "utf-8");
-    expect(content).not.toContain("code-style diff");
-    expect(content).toContain("code-style graph index packages");
+    expect(content).not.toContain("codewatch diff");
+    expect(content).toContain("codewatch graph index packages");
   });
 
   it("throws when both style and graph check are disabled", async () => {
@@ -136,28 +136,28 @@ describe("installHook", () => {
     await installHook(testDir, {
       withGraphCheck: true,
       graphPath: "packages",
-      bin: "pnpm exec code-style",
+      bin: "pnpm exec codewatch",
     });
     const content = await fs.readFile(hookPath, "utf-8");
-    expect(content).toContain("pnpm exec code-style diff --fix");
-    expect(content).toContain("pnpm exec code-style graph index packages");
-    expect(content).toContain("pnpm exec code-style graph check");
+    expect(content).toContain("pnpm exec codewatch diff --fix");
+    expect(content).toContain("pnpm exec codewatch graph index packages");
+    expect(content).toContain("pnpm exec codewatch graph check");
     const commandLines = content
       .split("\n")
-      .filter((line) => /code-style/.test(line) && !line.trim().startsWith("#"));
+      .filter((line) => /codewatch/.test(line) && !line.trim().startsWith("#"));
     expect(commandLines).not.toEqual([]);
     for (const line of commandLines) {
-      expect(line).toMatch(/pnpm exec code-style/);
+      expect(line).toMatch(/pnpm exec codewatch/);
     }
   });
 });
 
 describe("removeHook", () => {
-  it("removes the entire code-style block from the hook", async () => {
+  it("removes the entire codewatch block from the hook", async () => {
     await installHook(testDir, { withGraphCheck: true });
     await removeHook(testDir);
     const content = await fs.readFile(hookPath, "utf-8");
-    expect(content).not.toContain("code-style");
+    expect(content).not.toContain("codewatch");
     expect(content).not.toContain("pre-commit hook (begin)");
     expect(content).not.toContain("pre-commit hook (end)");
   });
@@ -168,9 +168,9 @@ describe("removeHook", () => {
       [
         "#!/bin/sh",
         "echo before",
-        "# code-style pre-commit hook (begin)",
-        "code-style diff --fix",
-        "# code-style pre-commit hook (end)",
+        "# codewatch pre-commit hook (begin)",
+        "codewatch diff --fix",
+        "# codewatch pre-commit hook (end)",
         "echo after",
         "",
       ].join("\n"),
@@ -179,7 +179,7 @@ describe("removeHook", () => {
     const content = await fs.readFile(hookPath, "utf-8");
     expect(content).toContain("echo before");
     expect(content).toContain("echo after");
-    expect(content).not.toContain("code-style");
+    expect(content).not.toContain("codewatch");
   });
 
   it("is a no-op when no hook file exists", async () => {
@@ -191,10 +191,10 @@ describe("installAutoUpdateHook", () => {
   it("writes a post-commit hook calling graph auto-update", async () => {
     await installAutoUpdateHook(testDir, { graphPath: "packages" });
     const content = await fs.readFile(postHookPath, "utf-8");
-    expect(content).toContain("code-style post-commit hook (begin)");
-    expect(content).toContain("code-style post-commit hook (end)");
+    expect(content).toContain("codewatch post-commit hook (begin)");
+    expect(content).toContain("codewatch post-commit hook (end)");
     expect(content).toContain(
-      "code-style graph auto-update packages --db .codewatch/graph.db --config .codewatch/check.json >/dev/null 2>&1 || true",
+      "codewatch graph auto-update packages --db .codewatch/graph.db --config .codewatch/check.json >/dev/null 2>&1 || true",
     );
   });
 
@@ -209,11 +209,11 @@ describe("installAutoUpdateHook", () => {
       graphPath: ["packages", "tests"],
       dbPath: "tmp/graph.db",
       configPath: "cfg/check.json",
-      bin: "pnpm exec code-style",
+      bin: "pnpm exec codewatch",
     });
     const content = await fs.readFile(postHookPath, "utf-8");
     expect(content).toContain(
-      "pnpm exec code-style graph auto-update packages tests --db tmp/graph.db --config cfg/check.json",
+      "pnpm exec codewatch graph auto-update packages tests --db tmp/graph.db --config cfg/check.json",
     );
   });
 
@@ -224,7 +224,7 @@ describe("installAutoUpdateHook", () => {
     const content = await fs.readFile(postHookPath, "utf-8");
     expect(content).toContain("echo mine");
     expect(
-      content.match(/code-style post-commit hook \(begin\)/g),
+      content.match(/codewatch post-commit hook \(begin\)/g),
     ).toHaveLength(1);
   });
 });
@@ -249,10 +249,10 @@ describe("stripBlock", () => {
   it("removes content between marker comments inclusive", () => {
     const before = [
       "before",
-      "  # code-style pre-commit hook (begin)",
-      "code-style diff",
-      "code-style graph check",
-      "  # code-style pre-commit hook (end)",
+      "  # codewatch pre-commit hook (begin)",
+      "codewatch diff",
+      "codewatch graph check",
+      "  # codewatch pre-commit hook (end)",
       "after",
     ].join("\n");
     expect(stripBlock(before)).toBe("before\nafter\n");

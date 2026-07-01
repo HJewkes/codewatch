@@ -6,7 +6,7 @@ import type {
   GraphMetric,
   GraphNode,
   SnapshotRow,
-} from "@code-style/graph";
+} from "@codewatch/graph";
 
 export type NodeStatus = "unchanged" | "added" | "removed" | "renamed";
 export type EdgeStatus = "unchanged" | "added" | "removed";

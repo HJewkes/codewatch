@@ -7,7 +7,7 @@ import {
   type GraphDatabase,
   type GraphMetric,
   type SnapshotRow,
-} from "@code-style/graph";
+} from "@codewatch/graph";
 import { formatError, snapshotVersionMismatchWarning } from "../utils/output.js";
 import { computeReportDrift } from "./graph-report-drift.js";
 import {

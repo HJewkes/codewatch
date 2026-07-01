@@ -26,10 +26,10 @@ importers:
 
   packages/analyzer:
     dependencies:
-      '@code-style/core':
+      '@codewatch/core':
         specifier: workspace:*
         version: link:../core
-      '@code-style/profile':
+      '@codewatch/profile':
         specifier: workspace:*
         version: link:../profile
       '@jscpd/core':
@@ -48,25 +48,25 @@ importers:
 
   packages/checker:
     dependencies:
-      '@code-style/profile':
+      '@codewatch/profile':
         specifier: workspace:*
         version: link:../profile
 
   packages/cli:
     dependencies:
-      '@code-style/analyzer':
+      '@codewatch/analyzer':
         specifier: workspace:*
         version: link:../analyzer
-      '@code-style/checker':
+      '@codewatch/checker':
         specifier: workspace:*
         version: link:../checker
-      '@code-style/graph':
+      '@codewatch/graph':
         specifier: workspace:*
         version: link:../graph
-      '@code-style/profile':
+      '@codewatch/profile':
         specifier: workspace:*
         version: link:../profile
-      '@code-style/render':
+      '@codewatch/render':
         specifier: workspace:*
         version: link:../render
       '@inquirer/prompts':
@@ -104,7 +104,7 @@ importers:
 
   packages/graph:
     dependencies:
-      '@code-style/core':
+      '@codewatch/core':
         specifier: workspace:*
         version: link:../core
       better-sqlite3:
@@ -136,7 +136,7 @@ importers:
 
   packages/render:
     dependencies:
-      '@code-style/graph':
+      '@codewatch/graph':
         specifier: workspace:*
         version: link:../graph
       cose-base:

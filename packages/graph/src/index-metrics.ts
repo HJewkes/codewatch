@@ -1,4 +1,4 @@
-import type { ParsedFile } from "@code-style/core";
+import type { ParsedFile } from "@codewatch/core";
 import { computeMetrics } from "./metrics.js";
 import { computeSourceMetrics } from "./source-metrics.js";
 import { aggregateChurn, loadChurnEntries, type ChurnEntry } from "./churn.js";

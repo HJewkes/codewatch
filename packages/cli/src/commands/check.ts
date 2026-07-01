@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import type { OrchestratorResult, CheckDiagnostic } from "@code-style/checker";
+import type { OrchestratorResult, CheckDiagnostic } from "@codewatch/checker";
 
 export type OutputFormat = "text" | "json" | "reviewdog";
 
@@ -87,8 +87,8 @@ export async function runCheck(
   paths: string[],
   options: CheckCommandOptions,
 ): Promise<{ output: string; exitCode: number }> {
-  const { readProfile } = await import("@code-style/profile");
-  const { orchestrate } = await import("@code-style/checker");
+  const { readProfile } = await import("@codewatch/profile");
+  const { orchestrate } = await import("@codewatch/checker");
   const { getDefaultProfilePath } = await import("../utils/config.js");
 
   const profilePath = options.profile ?? getDefaultProfilePath();

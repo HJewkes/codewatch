@@ -5,7 +5,7 @@ import {
   ModuleKind,
   ModuleResolutionKind,
 } from "ts-morph";
-import { parseFile, type ParsedFile } from "@code-style/core";
+import { parseFile, type ParsedFile } from "@codewatch/core";
 import { TsMorphGraphExtractor } from "../extractors/ts-morph-extractor.js";
 import type { GraphFragment } from "../types.js";
 

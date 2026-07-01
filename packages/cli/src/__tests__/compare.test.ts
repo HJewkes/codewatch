@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { Profile } from "@code-style/profile";
+import type { Profile } from "@codewatch/profile";
 
 const makeProfile = (overrides: Partial<Profile> = {}): Profile => ({
   schemaVersion: "1.0.0",

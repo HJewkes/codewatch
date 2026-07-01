@@ -4,7 +4,7 @@ import {
   type LlmJob,
   type LlmMessage,
   type LlmProvider,
-} from "@code-style/core";
+} from "@codewatch/core";
 import {
   getPromptForFeature,
   needsAiEnrichment,
@@ -19,7 +19,7 @@ export {
   type LlmProvider,
   type LlmMessage,
   type LlmResponse,
-} from "@code-style/core";
+} from "@codewatch/core";
 
 export type { AggregatedFeature } from "../aggregator/aggregator.js";
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { generateEslintConfig } from "../generators/eslint.js";
-import type { Profile } from "@code-style/profile";
+import type { Profile } from "@codewatch/profile";
 
 const baseProfile: Profile = {
   schemaVersion: "1.0.0",

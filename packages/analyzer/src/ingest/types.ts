@@ -6,4 +6,4 @@ export type {
   PullRequestFile,
   CodeCorpus,
   IngestMetadata,
-} from "@code-style/core";
+} from "@codewatch/core";

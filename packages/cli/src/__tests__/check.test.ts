@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { OrchestratorResult } from "@code-style/checker";
+import type { OrchestratorResult } from "@codewatch/checker";
 
 describe("formatCheckOutput", () => {
   it("formats text output with colored severity and unified format", async () => {

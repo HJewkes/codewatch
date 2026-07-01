@@ -7,7 +7,7 @@ import {
   type GraphEdge,
   type GraphMetric,
   type GraphNode,
-} from "@code-style/graph";
+} from "@codewatch/graph";
 import type {
   BusFactorRow,
   CentralRow,

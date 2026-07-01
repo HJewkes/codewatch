@@ -258,7 +258,7 @@ describe("FormattingExtractor", () => {
 
   describe("extract() with ParsedFile", () => {
     it("produces formatting observations from parsed file content", async () => {
-      const { parseFile } = await import("@code-style/core");
+      const { parseFile } = await import("@codewatch/core");
       const fs = await import("node:fs");
       const fixturePath = path.join(__dirname, "fixtures", "formatting-sample.ts");
       const content = fs.readFileSync(fixturePath, "utf-8");

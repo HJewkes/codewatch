@@ -26,7 +26,7 @@ const fixture: RenderInput = {
 
 beforeAll(async () => {
   browser = await chromium.launch();
-  workDir = await fs.mkdtemp(path.join(tmpdir(), "code-style-render-e2e-"));
+  workDir = await fs.mkdtemp(path.join(tmpdir(), "codewatch-render-e2e-"));
 }, 30_000);
 
 afterAll(async () => {

@@ -9,7 +9,7 @@ import {
   type GraphDatabase,
   type GraphMetric,
   type SnapshotRow,
-} from "@code-style/graph";
+} from "@codewatch/graph";
 import { formatError } from "../utils/output.js";
 import { computeArch } from "./graph-arch.js";
 import { buildReportContext } from "./graph-report-sections.js";

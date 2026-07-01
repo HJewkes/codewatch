@@ -1,6 +1,5 @@
 node_modules/
 dist/
-.code-style/cache/
 .codewatch/*
 !.codewatch/check.json
 *.tsbuildinfo

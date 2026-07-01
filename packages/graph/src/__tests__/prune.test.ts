@@ -11,7 +11,7 @@ interface Fixture {
 }
 
 async function createFixture(): Promise<Fixture> {
-  const dir = await fs.mkdtemp(path.join(tmpdir(), "code-style-prune-"));
+  const dir = await fs.mkdtemp(path.join(tmpdir(), "codewatch-prune-"));
   return { dir, dbPath: path.join(dir, "graph.db") };
 }
 

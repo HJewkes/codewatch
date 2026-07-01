@@ -9,7 +9,7 @@ import {
   openDatabase,
   type CoEditPair,
   type SnapshotRow,
-} from "@code-style/graph";
+} from "@codewatch/graph";
 import { formatError, formatWarning } from "../utils/output.js";
 import { padLeft, padRight } from "../utils/table.js";
 

@@ -7,7 +7,7 @@ import {
   type PruneResult,
   type PrunePlan,
   type SnapshotRow,
-} from "@code-style/graph";
+} from "@codewatch/graph";
 import { formatError } from "../utils/output.js";
 
 export interface GraphPruneCommandOptions {

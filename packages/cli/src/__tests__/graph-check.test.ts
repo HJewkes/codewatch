@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { tmpdir } from "node:os";
-import { openDatabase, type GraphDatabase } from "@code-style/graph";
+import { openDatabase, type GraphDatabase } from "@codewatch/graph";
 import {
   runGraphCheckCommand,
   formatGraphCheckText,
@@ -20,7 +20,7 @@ async function createFixture(
   populate: (db: GraphDatabase, snapshotId: number) => void,
   config: object,
 ): Promise<Fixture> {
-  const dir = await fs.mkdtemp(path.join(tmpdir(), "code-style-check-cli-"));
+  const dir = await fs.mkdtemp(path.join(tmpdir(), "codewatch-check-cli-"));
   const dbPath = path.join(dir, "graph.db");
   const configPath = path.join(dir, "check.json");
   const db = openDatabase(dbPath);
@@ -151,7 +151,7 @@ describe("runGraphCheckCommand", () => {
   });
 
   it("resolves --baseline by ref and marks shared violations as carryover", async () => {
-    const dir = await fs.mkdtemp(path.join(tmpdir(), "code-style-baseline-cli-"));
+    const dir = await fs.mkdtemp(path.join(tmpdir(), "codewatch-baseline-cli-"));
     const dbPath = path.join(dir, "graph.db");
     const configPath = path.join(dir, "check.json");
     const db = openDatabase(dbPath);
@@ -192,7 +192,7 @@ describe("runGraphCheckCommand", () => {
   });
 
   it("--baseline previous picks the second-to-latest snapshot", async () => {
-    const dir = await fs.mkdtemp(path.join(tmpdir(), "code-style-prev-cli-"));
+    const dir = await fs.mkdtemp(path.join(tmpdir(), "codewatch-prev-cli-"));
     const dbPath = path.join(dir, "graph.db");
     const configPath = path.join(dir, "check.json");
     const db = openDatabase(dbPath);

@@ -17,7 +17,7 @@ async function createFixture(
   populateFrom: (db: GraphDatabase, snapshotId: number) => void,
   populateTo: (db: GraphDatabase, snapshotId: number) => void,
 ): Promise<Fixture> {
-  const dir = await fs.mkdtemp(path.join(tmpdir(), "code-style-check-diff-"));
+  const dir = await fs.mkdtemp(path.join(tmpdir(), "codewatch-check-diff-"));
   const dbPath = path.join(dir, "graph.db");
   const db = openDatabase(dbPath);
   const fromId = db.createSnapshot({ ref: "from", indexVersion: "0.1.0" });

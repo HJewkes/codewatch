@@ -1,4 +1,4 @@
-import type { Profile, StyleRule } from "@code-style/profile";
+import type { Profile, StyleRule } from "@codewatch/profile";
 
 export interface MergeOptions {
   keepOverrides: boolean;
@@ -70,7 +70,7 @@ export interface UpdateCommandOptions {
 }
 
 export async function runUpdate(options: UpdateCommandOptions): Promise<void> {
-  const { readProfile, writeProfile } = await import("@code-style/profile");
+  const { readProfile, writeProfile } = await import("@codewatch/profile");
   const { getDefaultProfilePath, loadConfig, getDefaultConfigPath } = await import("../utils/config.js");
   const { formatStep, formatSuccess } = await import("../utils/output.js");
 
@@ -80,12 +80,12 @@ export async function runUpdate(options: UpdateCommandOptions): Promise<void> {
   const token = options.githubToken ?? config.githubToken;
 
   if (!token) {
-    throw new Error("GitHub token required. Set via --github-token or run code-style init.");
+    throw new Error("GitHub token required. Set via --github-token or run codewatch init.");
   }
 
   const repos = options.repos ?? existing.sources;
 
-  const analyzer = await import("@code-style/analyzer");
+  const analyzer = await import("@codewatch/analyzer");
   const { runReviewSession } = await import("../interactive/review.js");
 
   console.log(formatStep(1, 5, "Ingesting repositories..."));

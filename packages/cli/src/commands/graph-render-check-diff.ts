@@ -2,7 +2,7 @@ import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import type { Command } from "commander";
 import { dirname, resolve } from "node:path";
 import chalk from "chalk";
-import { renderHtml } from "@code-style/render";
+import { renderHtml } from "@codewatch/render";
 import {
   diffCheckResults,
   openDatabase,
@@ -11,7 +11,7 @@ import {
   type CheckRule,
   type GraphDatabase,
   type SnapshotRow,
-} from "@code-style/graph";
+} from "@codewatch/graph";
 import { formatError } from "../utils/output.js";
 
 export interface GraphRenderCheckDiffCommandOptions {

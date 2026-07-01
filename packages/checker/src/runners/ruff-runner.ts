@@ -57,7 +57,7 @@ export async function runRuff(
   files: string[],
   options?: { fix?: boolean },
 ): Promise<{ diagnostics: CheckDiagnostic[]; exitCode: number }> {
-  const tempDir = mkdtempSync(join(tmpdir(), "code-style-ruff-"));
+  const tempDir = mkdtempSync(join(tmpdir(), "codewatch-ruff-"));
   const configPath = join(tempDir, "ruff.toml");
 
   try {
