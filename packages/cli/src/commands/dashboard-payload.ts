@@ -36,6 +36,33 @@ export interface ArchInfo {
 export interface SnapshotContext {
   linkedPairs: ReadonlySet<string>;
   centrality: ReadonlyMap<string, number>;
+  /**
+   * Ids of files that participate in at least one *internal* (repo-to-repo)
+   * import/re-export edge. A file missing here has no resolved imports in the
+   * graph — either it isn't indexed, or its imports couldn't be resolved (e.g. a
+   * dir outside the tsconfig project, whose relative specifiers resolve to junk).
+   * Either way the import evidence is absent, so a co-change touching it can't be
+   * called hidden-vs-import-backed; it's "unverifiable", not "hidden".
+   */
+  connectedNodes: ReadonlySet<string>;
+}
+
+export type CouplingClass = { hidden: boolean; unindexed: boolean };
+
+/**
+ * Classify a co-changed pair against the static import graph:
+ * - unindexed: an endpoint has no resolved internal imports → can't tell (not hidden).
+ * - hidden: both connected, but no import/re-export edge joins them → the signal.
+ * - expected: both connected and import-backed → usually fine.
+ */
+export function classifyCoupling(
+  a: string,
+  b: string,
+  ctx: SnapshotContext,
+): CouplingClass {
+  const unindexed = !ctx.connectedNodes.has(a) || !ctx.connectedNodes.has(b);
+  if (unindexed) return { hidden: false, unindexed: true };
+  return { hidden: !ctx.linkedPairs.has(pairKey(a, b)), unindexed: false };
 }
 
 export function buildPayload(
@@ -48,13 +75,14 @@ export function buildPayload(
 ) {
   const boundaryHealth = arch.boundaryHealth;
   const snap = report.snapshot;
-  const linkedPairs = snapCtx.linkedPairs;
   const scary = report.hotspots.filter((h) => h.score >= 3000).length;
   const openNew = violations.filter((v) => v.status === "new").length;
   const carry = violations.filter((v) => v.status === "carry").length;
   const maxComplexity = report.hotspots.reduce((m, h) => Math.max(m, h.complexity), 0);
+  // Only genuinely-hidden pairs (both files indexed, no import edge) count —
+  // unindexed pairs would over-report the penalty (their edge is just invisible).
   const hiddenCoupling = report.couplingClusters.filter(
-    (c) => !linkedPairs.has(pairKey(c.fileA, c.fileB)),
+    (c) => classifyCoupling(c.fileA, c.fileB, snapCtx).hidden,
   ).length;
   const { health, healthBreakdown } = computeHealth({
     scary,
@@ -102,7 +130,7 @@ export function buildPayload(
       testTopAuthorShare: t.testTopAuthorShare, linkedTests: t.linkedTests,
     })),
     couplingClusters: report.couplingClusters.map((c) => ({
-      a: c.fileA, b: c.fileB, coEdits: c.count, hidden: !linkedPairs.has(pairKey(c.fileA, c.fileB)),
+      a: c.fileA, b: c.fileB, coEdits: c.count, ...classifyCoupling(c.fileA, c.fileB, snapCtx),
     })),
     centralFiles: buildCentralFiles(report, snapCtx.centrality),
     packages: arch.packages,
@@ -114,7 +142,7 @@ export function buildPayload(
       improved: report.drift.improvedHotspots.map((d) => ({ nodeId: d.nodeId, before: d.before, after: d.after, delta: d.delta })),
       resolved: report.drift.resolvedHotspots.map((d) => ({ nodeId: d.nodeId, before: d.before, after: d.after, delta: d.delta })),
       newSilos: report.drift.newSilos.map((s) => s.nodeId),
-      newCoupling: report.drift.newCoupling.map((c) => ({ a: c.fileA, b: c.fileB, coEdits: c.count, hidden: !linkedPairs.has(pairKey(c.fileA, c.fileB)) })),
+      newCoupling: report.drift.newCoupling.map((c) => ({ a: c.fileA, b: c.fileB, coEdits: c.count, ...classifyCoupling(c.fileA, c.fileB, snapCtx) })),
     },
   };
 }
@@ -169,7 +197,7 @@ export function computeWindowPayloads(
   let primaryKey = String(primaryWindow);
   // Import-linkage + centrality are snapshot-level (same for every window);
   // compute lazily once the first report resolves the snapshot id.
-  let snapCtx: SnapshotContext = { linkedPairs: new Set(), centrality: new Map() };
+  let snapCtx: SnapshotContext = { linkedPairs: new Set(), centrality: new Map(), connectedNodes: new Set() };
   for (const w of windowsList) {
     const report = runGraphReportCommand({
       db: opts.db, repoRoot, windowDays: w, vs: opts.vs, includeScripts: opts.includeScripts,
@@ -253,6 +281,11 @@ function pairKey(a: string, b: string): string {
   return a < b ? JSON.stringify([a, b]) : JSON.stringify([b, a]);
 }
 
+/** External import target (an npm package or an unresolved specifier), not a repo file. */
+function isExternal(id: string): boolean {
+  return id.startsWith("npm:");
+}
+
 /**
  * Reading-order centrality (top-N central files) PLUS the centrality of every
  * node referenced elsewhere in the payload (hotspots, silos, coupling), so the
@@ -284,16 +317,23 @@ function buildCentralFiles(
 export function snapshotContext(dbPath: string, snapshotId: number): SnapshotContext {
   const linkedPairs = new Set<string>();
   const centrality = new Map<string, number>();
+  const connectedNodes = new Set<string>();
   const db = openDatabase(dbPath);
   try {
     const nodes = db.listNodes(snapshotId);
     const edges = db.listEdges(snapshotId);
     for (const e of edges) {
-      if (e.kind === "imports" || e.kind === "re-exports") linkedPairs.add(pairKey(e.srcId, e.dstId));
+      if (e.kind !== "imports" && e.kind !== "re-exports") continue;
+      // Only repo-to-repo edges count as connectivity — an edge to an npm:*
+      // package (or an unresolved specifier) says nothing about internal coupling.
+      if (isExternal(e.srcId) || isExternal(e.dstId)) continue;
+      linkedPairs.add(pairKey(e.srcId, e.dstId));
+      connectedNodes.add(e.srcId);
+      connectedNodes.add(e.dstId);
     }
     for (const r of computePageRank(nodes, edges).rows) centrality.set(r.nodeId, r.score);
   } finally {
     db.close();
   }
-  return { linkedPairs, centrality };
+  return { linkedPairs, centrality, connectedNodes };
 }

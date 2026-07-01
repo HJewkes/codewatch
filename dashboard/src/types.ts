@@ -65,8 +65,14 @@ export interface CouplingPair {
   a: string;
   b: string;
   coEdits: number;
-  /** True when the pair is change-coupled but has NO import edge — hidden coupling. */
+  /** True when both files are indexed but NO import edge joins them — hidden coupling. */
   hidden?: boolean;
+  /**
+   * True when an endpoint has no node in the snapshot graph (e.g. a dir outside
+   * the indexed workspace) — the import edge, if any, is invisible, so the pair
+   * can't be called hidden or import-backed. Rendered as "unverifiable".
+   */
+  unindexed?: boolean;
 }
 
 export interface CentralFile {
