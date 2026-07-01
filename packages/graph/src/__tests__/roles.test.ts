@@ -33,6 +33,22 @@ describe("classifyRole", () => {
     expect(classifyRole("packages/foo/tsup.config.ts")).toBe("config");
   });
 
+  it("recognizes scripts/ and archive/ files as script role", () => {
+    expect(classifyRole("scripts/regenerate.ts")).toBe("script");
+    expect(classifyRole("packages/render/scripts/build.ts")).toBe("script");
+    expect(classifyRole("archive/old-thing.ts")).toBe("script");
+    expect(classifyRole("scripts/diagnostic/run.ts")).toBe("script");
+  });
+
+  it("does not treat a non-segment 'scripts' substring as script role", () => {
+    expect(classifyRole("src/scripts-utils.ts")).toBe("source");
+    expect(classifyRole("src/typescripts/foo.ts")).toBe("source");
+  });
+
+  it("test wins over script for a test file under scripts/", () => {
+    expect(classifyRole("scripts/foo.test.ts")).toBe("test");
+  });
+
   it("falls through to source for everything else", () => {
     expect(classifyRole("packages/cli/src/commands/graph-top.ts")).toBe("source");
     expect(classifyRole("packages/graph/src/database")).toBe("source");

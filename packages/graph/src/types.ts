@@ -22,6 +22,7 @@ export type NodeRole =
   | "barrel"
   | "types"
   | "config"
+  | "script"
   | "source";
 
 export interface GraphNode {

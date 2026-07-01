@@ -121,6 +121,64 @@ describe("runGraphReportCommand", () => {
     expect(result.hotspots.map((h) => h.nodeId)).toEqual(["src/a.ts"]);
   });
 
+  it("excludes script-role files by default, keeps them with --include-scripts", async () => {
+    const populate = (db: GraphDatabase, snapshotId: number) => {
+      db.insertNodes(snapshotId, [
+        { id: "src/a.ts", kind: "file", name: "a", role: "source" },
+        { id: "scripts/oneoff.ts", kind: "file", name: "oneoff", role: "script" },
+      ]);
+      db.insertMetrics(snapshotId, [
+        { nodeId: "src/a.ts", name: "churn_30d", value: 10 },
+        { nodeId: "src/a.ts", name: "cognitive_max", value: 5 },
+        { nodeId: "scripts/oneoff.ts", name: "churn_30d", value: 100 },
+        { nodeId: "scripts/oneoff.ts", name: "cognitive_max", value: 219 },
+      ]);
+    };
+    fx = await fixture(populate);
+    const defaultRun = runGraphReportCommand({ db: fx.dbPath, repoRoot: fx.dir });
+    expect(defaultRun.hotspots.map((h) => h.nodeId)).toEqual(["src/a.ts"]);
+
+    const withScripts = runGraphReportCommand({
+      db: fx.dbPath,
+      repoRoot: fx.dir,
+      includeScripts: true,
+    });
+    expect(withScripts.hotspots.map((h) => h.nodeId)).toEqual([
+      "scripts/oneoff.ts",
+      "src/a.ts",
+    ]);
+  });
+
+  it("flags an empty churn window with a hint (markdown + JSON)", async () => {
+    fx = await fixture((db, snapshotId) => {
+      db.insertNode(snapshotId, fileNode("a.ts"));
+      db.insertMetrics(snapshotId, [
+        { nodeId: "a.ts", name: "cognitive_max", value: 40 }, // no churn signal
+      ]);
+    });
+    const result = runGraphReportCommand({ db: fx.dbPath, repoRoot: fx.dir });
+    expect(result.emptyWindow).toBe(true);
+    const md = formatGraphReportMarkdown(result);
+    expect(md).toContain("> ⚠️ No commits in the last 30d");
+    expect(md).toContain("--window-days 90");
+    const parsed = JSON.parse(formatGraphReportJson(result));
+    expect(parsed.emptyWindow).toBe(true);
+    expect(typeof parsed.hint).toBe("string");
+  });
+
+  it("omits the empty-window hint when there is churn signal", async () => {
+    fx = await fixture((db, snapshotId) => {
+      db.insertNode(snapshotId, fileNode("a.ts"));
+      db.insertMetrics(snapshotId, [
+        { nodeId: "a.ts", name: "churn_30d", value: 12 },
+        { nodeId: "a.ts", name: "cognitive_max", value: 4 },
+      ]);
+    });
+    const result = runGraphReportCommand({ db: fx.dbPath, repoRoot: fx.dir });
+    expect(result.emptyWindow).toBeUndefined();
+    expect(formatGraphReportMarkdown(result)).not.toContain("No commits in the last");
+  });
+
   it("falls back to a single available churn window when requested doesn't match", async () => {
     fx = await fixture((db, snapshotId) => {
       db.insertNode(snapshotId, fileNode("a.ts"));
