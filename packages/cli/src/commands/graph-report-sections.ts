@@ -91,7 +91,8 @@ export function topHotspots(
     const churn = lookupMetric(ctx, churnName, node.id) ?? 0;
     const complexity = lookupMetric(ctx, complexityName, node.id) ?? 0;
     if (churn === 0 || complexity === 0) continue;
-    rows.push({ nodeId: node.id, churn, complexity, score: churn * complexity });
+    const recency = lookupMetric(ctx, `recency_${ctx.windowDays}d`, node.id) ?? 1;
+    rows.push({ nodeId: node.id, churn, complexity, recency, score: Math.round(churn * complexity * recency) });
   }
   rows.sort((a, b) => b.score - a.score);
   return rows.slice(0, limit);
@@ -102,7 +103,18 @@ export function hotspotScoreOf(ctx: ReportContext, nodeId: string): number {
   const churn = lookupMetric(ctx, `churn_${ctx.windowDays}d`, nodeId) ?? 0;
   const complexity = lookupMetric(ctx, pickComplexityMetric(ctx), nodeId) ?? 0;
   if (churn === 0 || complexity === 0) return 0;
-  return churn * complexity;
+  return hotspotScore(ctx, nodeId, churn, complexity);
+}
+
+/**
+ * churn × complexity, discounted by the file's recency so a freshly-authored
+ * file's initial churn burst doesn't read as decay (see recency_{window}d). The
+ * factor is 1 (no discount) for files older than the window or when git can't
+ * supply an age. Rounded to keep scores integer-friendly for display/thresholds.
+ */
+function hotspotScore(ctx: ReportContext, nodeId: string, churn: number, complexity: number): number {
+  const recency = lookupMetric(ctx, `recency_${ctx.windowDays}d`, nodeId) ?? 1;
+  return Math.round(churn * complexity * recency);
 }
 
 export function busFactorOf(

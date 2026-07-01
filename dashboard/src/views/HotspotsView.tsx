@@ -59,7 +59,7 @@ export function HotspotsView({ data, onSelect, width }: { data: CodewatchData; o
         )}
       </Panel>
 
-      <Panel title="Hotspots" subtitle={`score = churn × complexity · white line marks the scary cutoff (${SCARY_SCORE}) · click a column to sort`}>
+      <Panel title="Hotspots" subtitle={`score = churn × complexity × recency (new files discounted) · white line marks the scary cutoff (${SCARY_SCORE}) · click a column to sort`}>
         <Table>
           <TableHeader>
             <TableRow>

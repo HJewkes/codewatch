@@ -98,7 +98,7 @@ export function OverviewView({ data, onSelect, width }: { data: CodewatchData; o
 
       <View style={{ flexDirection: "row", gap: 16, flexWrap: "wrap" }}>
         {/* Where to look */}
-        <Panel title="Where to look first" subtitle="ranked by churn × complexity, with reasons" flex={1}>
+        <Panel title="Where to look first" subtitle="ranked by churn × complexity (new files discounted), with reasons" flex={1}>
           <View style={{ gap: 8 }}>
             {whereToLook.map((h, i) => (
               <View key={h.nodeId} style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>

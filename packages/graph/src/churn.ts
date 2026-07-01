@@ -142,6 +142,75 @@ export function aggregateChurn(
   return out;
 }
 
+/**
+ * Earliest commit time (epoch seconds) per path, from one reverse-ordered pass
+ * over full history — the first commit that touched a path ≈ its birth. Rebased
+ * onto `repoRoot` and filtered to `knownFileIds` when given. Renames slightly
+ * underestimate age (pre-rename history lives under the old path). Returns null
+ * when git is unavailable, so callers degrade to "no age discount".
+ */
+export function loadFileFirstSeen(
+  options: ComputeChurnOptions,
+): Map<string, number> | null {
+  const gitRoot = detectGitToplevel(options.repoRoot);
+  if (gitRoot === null) return null;
+  const log = runFirstSeenLog(options.repoRoot);
+  if (log === null) return null;
+  const canonicalRoot = canonicalize(options.repoRoot);
+  const firstSeen = new Map<string, number>();
+  let epoch = 0;
+  for (const rawLine of log.split("\n")) {
+    const line = rawLine.trimEnd();
+    if (!line) continue;
+    const parts = line.split("\t");
+    if (parts.length === 2 && COMMIT_HASH_RE.test(parts[0]!)) {
+      epoch = Number(parts[1]);
+      continue;
+    }
+    if (!epoch) continue;
+    const rel = path.relative(canonicalRoot, path.resolve(gitRoot, resolveRenamedPath(line)));
+    if (rel.startsWith("..") || path.isAbsolute(rel)) continue;
+    const id = toPosix(rel);
+    if (options.knownFileIds && !options.knownFileIds.has(id)) continue;
+    if (!firstSeen.has(id)) firstSeen.set(id, epoch); // --reverse ⇒ first wins
+  }
+  return firstSeen;
+}
+
+/**
+ * Age-discount metrics for each churned file: `file_age_days` (whole days since
+ * first commit) and `recency_{window}d` = min(1, age/window). Multiplying a
+ * hotspot score by recency stops a freshly-authored file's burst of churn from
+ * reading as decay — a file younger than the window is discounted proportionally,
+ * one older than it is unaffected (recency = 1).
+ *
+ * `recency_{window}d` is emitted for EVERY churned file (defaulting to 1 when its
+ * first-seen date is unknown) so the scary-hotspots rule, which requires all its
+ * factors present, is never silently disabled by a missing age. `file_age_days`
+ * is emitted only when the age is actually known. `nowEpoch` is passed in so the
+ * result is deterministic.
+ */
+export function computeRecencyMetrics(
+  firstSeen: ReadonlyMap<string, number>,
+  churnedFileIds: Iterable<string>,
+  windowDays: number,
+  nowEpoch: number,
+): GraphMetric[] {
+  const out: GraphMetric[] = [];
+  const suffix = `${windowDays}d`;
+  for (const id of churnedFileIds) {
+    const seen = firstSeen.get(id);
+    let recency = 1;
+    if (seen !== undefined) {
+      const ageDays = Math.max(0, (nowEpoch - seen) / 86400);
+      recency = Math.min(1, ageDays / windowDays);
+      out.push({ nodeId: id, name: "file_age_days", value: Math.round(ageDays), unit: "days" });
+    }
+    out.push({ nodeId: id, name: `recency_${suffix}`, value: Math.round(recency * 1000) / 1000, unit: "ratio" });
+  }
+  return out;
+}
+
 function setAdd(map: Map<string, Set<string>>, key: string, value: string): void {
   let set = map.get(key);
   if (!set) {
@@ -153,6 +222,36 @@ function setAdd(map: Map<string, Set<string>>, key: string, value: string): void
 
 function collapseSlashes(s: string): string {
   return s.replace(/\/+/g, "/");
+}
+
+/**
+ * Full-history, oldest-first log of (commit, epoch) + touched paths, used to
+ * find each path's first appearance. `--reverse` so the first time a path is
+ * seen is its birth; `--no-renames` keeps name lines as bare paths.
+ */
+function runFirstSeenLog(repoRoot: string): string | null {
+  try {
+    return execFileSync(
+      "git",
+      [
+        "log",
+        "--reverse",
+        "--no-merges",
+        "--no-renames",
+        "--name-only",
+        "--pretty=format:%H%x09%ct",
+      ],
+      {
+        cwd: repoRoot,
+        encoding: "utf-8",
+        maxBuffer: 128 * 1024 * 1024,
+        stdio: ["ignore", "pipe", "ignore"],
+        env: discoveryEnv(),
+      },
+    );
+  } catch {
+    return null;
+  }
 }
 
 function runGitLog(repoRoot: string, windowDays: number): string | null {
