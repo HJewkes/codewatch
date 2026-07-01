@@ -9,7 +9,8 @@ import { cw, shortId } from "../theme";
 export function CouplingView({ data, onSelect }: { data: CodewatchData; onSelect: (id: string) => void }) {
   const pairs = [...data.couplingClusters].sort((a, b) => b.coEdits - a.coEdits);
   const hidden = pairs.filter((p) => p.hidden);
-  const expected = pairs.filter((p) => !p.hidden);
+  const unverifiable = pairs.filter((p) => p.unindexed);
+  const expected = pairs.filter((p) => !p.hidden && !p.unindexed);
   const maxCoEdits = Math.max(1, ...pairs.map((p) => p.coEdits));
 
   if (pairs.length === 0) {
@@ -47,6 +48,16 @@ export function CouplingView({ data, onSelect }: { data: CodewatchData; onSelect
       {expected.length ? (
         <Panel title="Expected co-change" subtitle="import-backed pairs that change together — usually fine">
           <PairList pairs={expected} maxCoEdits={maxCoEdits} onSelect={onSelect} tone="expected" />
+        </Panel>
+      ) : null}
+
+      {/* Neither hidden nor expected: an endpoint has no resolved internal imports
+          in the graph (not indexed, or its imports didn't resolve), so its edges
+          are invisible. Kept out of "hidden" so such a file can't masquerade as an
+          undocumented dependency. */}
+      {unverifiable.length ? (
+        <Panel title="Unverifiable" subtitle="a file has no resolved imports in the graph, so whether an import backs this co-change can't be determined">
+          <PairList pairs={unverifiable} maxCoEdits={maxCoEdits} onSelect={onSelect} tone="expected" />
         </Panel>
       ) : null}
     </View>

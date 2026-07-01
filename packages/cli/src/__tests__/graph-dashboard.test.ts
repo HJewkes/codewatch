@@ -118,7 +118,8 @@ describe("runGraphDashboardCommand", () => {
     git("init", "-q");
     const write = (name: string, body: string) => fs.writeFile(path.join(dirLocal, name), body);
     // a↔b co-change twice (and a imports b → expected); c↔d co-change twice with
-    // no edge between them → hidden.
+    // no edge between them → hidden (both are connected to the graph via imports
+    // of a, so the pair is verifiable — just not import-backed to each other).
     await Promise.all([write("a.ts", "1\n"), write("b.ts", "1\n"), write("c.ts", "1\n"), write("d.ts", "1\n")]);
     git("add", "a.ts", "b.ts"); git("commit", "-qm", "ab1");
     await Promise.all([write("a.ts", "2\n"), write("b.ts", "2\n")]);
@@ -131,7 +132,14 @@ describe("runGraphDashboardCommand", () => {
     const db = openDatabase(dbPath);
     const sid = db.createSnapshot({ ref: "main", indexVersion: "0.2.0" });
     db.insertNodes(sid, ["a.ts", "b.ts", "c.ts", "d.ts"].map((id) => ({ id, kind: "file" as const, name: id, role: "source" as const })));
-    db.insertEdges(sid, [{ srcId: "a.ts", dstId: "b.ts", kind: "imports" as const }]);
+    db.insertEdges(sid, [
+      { srcId: "a.ts", dstId: "b.ts", kind: "imports" as const },
+      // c and d each import a → both are "connected" (have resolved internal
+      // imports), so their import-less co-change is genuinely hidden, not merely
+      // unverifiable.
+      { srcId: "c.ts", dstId: "a.ts", kind: "imports" as const },
+      { srcId: "d.ts", dstId: "a.ts", kind: "imports" as const },
+    ]);
     db.close();
 
     const out = path.join(dirLocal, "out.html");
