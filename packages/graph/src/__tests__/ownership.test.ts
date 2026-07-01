@@ -12,7 +12,7 @@ function entry(
   filePath: string,
   lines: number,
 ): ChurnEntry {
-  return { commit, author, filePath, added: lines, deleted: 0 };
+  return { commit, author, epoch: 0, filePath, added: lines, deleted: 0 };
 }
 
 function findMetric(
@@ -96,7 +96,7 @@ describe("computeOwnershipMetrics", () => {
 
   it("skips files with zero total churn", () => {
     const metrics = computeOwnershipMetrics([
-      { commit: "c1", author: "alice", filePath: "a.ts", added: 0, deleted: 0 },
+      { commit: "c1", author: "alice", epoch: 0, filePath: "a.ts", added: 0, deleted: 0 },
     ]);
     expect(metrics).toEqual([]);
   });

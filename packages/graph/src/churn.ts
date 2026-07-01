@@ -8,6 +8,8 @@ export interface ChurnEntry {
   commit: string;
   /** Author identity — git author email (%ae); stable across name spelling drift. */
   author: string;
+  /** Committer time (%ct), epoch seconds — lets one wide log be sliced per window. */
+  epoch: number;
   filePath: string;
   added: number;
   deleted: number;
@@ -78,20 +80,32 @@ export function parseChurnLog(text: string): ChurnEntry[] {
   const out: ChurnEntry[] = [];
   let commit = "";
   let author = "";
+  let epoch = 0;
   for (const rawLine of text.split("\n")) {
     const line = rawLine.trimEnd();
     if (!line) continue;
     const parts = line.split("\t");
-    if (parts.length === 2 && COMMIT_HASH_RE.test(parts[0]!)) {
-      commit = parts[0]!;
-      author = parts[1]!;
-      continue;
-    }
-    if (parts.length === 3 && commit && NUMSTAT_FIRST_RE.test(parts[0]!)) {
+    // A numstat row is `added<TAB>deleted<TAB>path`: both leading fields are a
+    // number-or-`-`. A commit header is `hash<TAB>email<TAB>ct` (or the legacy
+    // 2-field `hash<TAB>email`), whose second field is never numstat-shaped —
+    // so checking numstat first disambiguates the two 3-field line kinds.
+    if (
+      parts.length === 3 &&
+      commit &&
+      NUMSTAT_FIRST_RE.test(parts[0]!) &&
+      NUMSTAT_FIRST_RE.test(parts[1]!)
+    ) {
       const added = parts[0] === "-" ? 0 : Number(parts[0]);
       const deleted = parts[1] === "-" ? 0 : Number(parts[1]);
       const filePath = resolveRenamedPath(parts[2]!);
-      out.push({ commit, author, filePath, added, deleted });
+      out.push({ commit, author, epoch, filePath, added, deleted });
+      continue;
+    }
+    if (parts.length >= 2 && COMMIT_HASH_RE.test(parts[0]!)) {
+      commit = parts[0]!;
+      author = parts[1]!;
+      epoch = parts.length >= 3 ? Number(parts[2]) : 0;
+      continue;
     }
   }
   return out;
@@ -138,6 +152,36 @@ export function aggregateChurn(
       value: authors.get(filePath)!.size,
       unit: "count",
     });
+  }
+  return out;
+}
+
+/** Entries whose commit landed within the last `windowDays` of `nowEpoch`. */
+export function entriesWithin(
+  entries: readonly ChurnEntry[],
+  windowDays: number,
+  nowEpoch: number,
+): ChurnEntry[] {
+  const cutoff = nowEpoch - windowDays * 86400;
+  return entries.filter((e) => e.epoch >= cutoff);
+}
+
+/**
+ * Emit churn metrics for several windows from one wide log: slice `entries` by
+ * commit time per window and aggregate each slice independently. Storing
+ * churn_{30,90,180}d side by side is what lets the dashboard window switcher
+ * resolve a wider window instead of snapping back to the only stored one.
+ */
+export function aggregateChurnWindows(
+  entries: readonly ChurnEntry[],
+  windowsDays: readonly number[],
+  nowEpoch: number,
+  knownFileIds?: ReadonlySet<string>,
+): GraphMetric[] {
+  const out: GraphMetric[] = [];
+  for (const windowDays of windowsDays) {
+    const within = entriesWithin(entries, windowDays, nowEpoch);
+    out.push(...aggregateChurn(within, windowDays, knownFileIds));
   }
   return out;
 }
@@ -196,17 +240,42 @@ export function computeRecencyMetrics(
   windowDays: number,
   nowEpoch: number,
 ): GraphMetric[] {
+  return computeRecencyWindows(
+    firstSeen,
+    new Map([[windowDays, new Set(churnedFileIds)]]),
+    nowEpoch,
+  );
+}
+
+/**
+ * Multi-window recency: `recency_{w}d` for each file that churned in window `w`,
+ * plus a single `file_age_days` per file (window-independent). A file younger
+ * than a window is discounted proportionally in that window and undiscounted
+ * (recency = 1) in windows it predates, so the age-discount stays honest across
+ * every window the dashboard switcher can show.
+ */
+export function computeRecencyWindows(
+  firstSeen: ReadonlyMap<string, number>,
+  churnedIdsByWindow: ReadonlyMap<number, ReadonlySet<string>>,
+  nowEpoch: number,
+): GraphMetric[] {
   const out: GraphMetric[] = [];
-  const suffix = `${windowDays}d`;
-  for (const id of churnedFileIds) {
-    const seen = firstSeen.get(id);
-    let recency = 1;
-    if (seen !== undefined) {
-      const ageDays = Math.max(0, (nowEpoch - seen) / 86400);
-      recency = Math.min(1, ageDays / windowDays);
-      out.push({ nodeId: id, name: "file_age_days", value: Math.round(ageDays), unit: "days" });
+  const ageEmitted = new Set<string>();
+  for (const [windowDays, ids] of churnedIdsByWindow) {
+    const suffix = `${windowDays}d`;
+    for (const id of ids) {
+      const seen = firstSeen.get(id);
+      let recency = 1;
+      if (seen !== undefined) {
+        const ageDays = Math.max(0, (nowEpoch - seen) / 86400);
+        recency = Math.min(1, ageDays / windowDays);
+        if (!ageEmitted.has(id)) {
+          out.push({ nodeId: id, name: "file_age_days", value: Math.round(ageDays), unit: "days" });
+          ageEmitted.add(id);
+        }
+      }
+      out.push({ nodeId: id, name: `recency_${suffix}`, value: Math.round(recency * 1000) / 1000, unit: "ratio" });
     }
-    out.push({ nodeId: id, name: `recency_${suffix}`, value: Math.round(recency * 1000) / 1000, unit: "ratio" });
   }
   return out;
 }
@@ -267,7 +336,8 @@ function runGitLog(repoRoot: string, windowDays: number): string | null {
         // %ae (author email) is a more stable identity than %an (display name):
         // names drift across spelling variants ("Henry Jewkes" / "hjewkes" /
         // bot or squash-merge display names) and inflate distinct-author counts.
-        "--pretty=format:%H%x09%ae",
+        // %ct (committer time) lets one wide log be sliced into narrower windows.
+        "--pretty=format:%H%x09%ae%x09%ct",
       ],
       {
         cwd: repoRoot,
