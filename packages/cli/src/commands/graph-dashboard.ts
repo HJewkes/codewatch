@@ -133,6 +133,11 @@ async function collectViolations(opts: DashboardCommandOptions) {
 
 const DEFAULT_WINDOWS = [30, 90, 180];
 
+/** Signature over all window-dependent fields, to collapse identical windows. */
+function windowSignature(p: ReturnType<typeof buildPayload>): string {
+  return JSON.stringify([p.hotspots, p.busFactorRisks, p.couplingClusters, p.violations, p.centralFiles, p.kpis]);
+}
+
 export async function runGraphDashboardCommand(opts: DashboardCommandOptions): Promise<{ out: string; snapshotId: number }> {
   const repoRoot = opts.repoRoot ?? process.cwd();
   // arch (structural) and violations are window-independent — compute once.
@@ -146,7 +151,7 @@ export async function runGraphDashboardCommand(opts: DashboardCommandOptions): P
   const primaryWindow = opts.windowDays ?? 30;
   const windowsList = Array.from(new Set([primaryWindow, ...DEFAULT_WINDOWS])).sort((a, b) => a - b);
   const windows: Record<string, ReturnType<typeof buildPayload>> = {};
-  const seenSignatures = new Set<string>();
+  const sigToKey = new Map<string, string>();
   let snapshotId = 0;
   let primaryKey = String(primaryWindow);
   for (const w of windowsList) {
@@ -158,10 +163,15 @@ export async function runGraphDashboardCommand(opts: DashboardCommandOptions): P
     // Dedup by CONTENT, not just resolved window: a repo with no stored
     // churn_{w}d silently reuses one window's data for all, and a repo with no
     // churn at all produces identical (empty) payloads. Only keep windows whose
-    // data genuinely differs, so the switcher never lies.
-    const sig = JSON.stringify(payload.hotspots) + payload.kpis.health + payload.kpis.knowledgeSilos;
-    if (seenSignatures.has(sig)) continue;
-    seenSignatures.add(sig);
+    // data genuinely differs, so the switcher never lies. Sign on every
+    // window-dependent field, not just hotspots.
+    const sig = windowSignature(payload);
+    const existing = sigToKey.get(sig);
+    if (existing) {
+      if (w === primaryWindow) primaryKey = existing; // point primary at the kept key
+      continue;
+    }
+    sigToKey.set(sig, String(w));
     windows[String(w)] = payload;
     if (w === primaryWindow) primaryKey = String(w);
   }
