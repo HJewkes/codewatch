@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useState } from "react";
 import { View, Text, Pressable } from "react-native";
 import { Scatter, EmptyState } from "@titan-design/react-ui";
 import { Network } from "lucide-react";
 import type { CodewatchData, PackageStat } from "../types";
 import { Panel, Pillet } from "../components/primitives";
+import { loadGraphHtml } from "../data";
 import { cw } from "../theme";
 
 /** Distance from the main sequence |I + A − 1|; 0 = ideally balanced. */
@@ -20,12 +21,45 @@ function zone(p: PackageStat): { label: string; color: string } {
   return { label: "unstable + abstract", color: cw.warning };
 }
 
+type ArchTab = "sequence" | "graph";
+
 export function ArchitectureView({ data, onSelect, width }: { data: CodewatchData; onSelect: (id: string) => void; width: number }) {
+  const graphB64 = loadGraphHtml();
+  const [tab, setTab] = useState<ArchTab>("sequence");
+
   // Drop isolated dirs (no cross-package edges): their I=0/0 is meaningless and
   // pollutes the plot on non-monorepos (spike/ dirs etc.).
   const pkgs = (data.packages ?? []).filter((p) => p.fileCount > 0 && (p.crossEdges ?? 1) > 0);
 
+  // The dependency graph is a whole-repo view; show it even when there aren't
+  // ≥2 packages for the main sequence.
+  if (graphB64 && tab === "graph") {
+    return (
+      <View style={{ gap: 12 }}>
+        <ArchTabs tab={tab} setTab={setTab} hasGraph={!!graphB64} />
+        <Panel title="Dependency graph" subtitle="interactive — filter, search, click nodes (from `graph render`)">
+          <DependencyGraph b64={graphB64} width={Math.max(360, width - 60)} />
+        </Panel>
+      </View>
+    );
+  }
+
   if (pkgs.length < 2) {
+    if (graphB64) {
+      // No package structure, but we can still offer the file-level graph.
+      return (
+        <View style={{ gap: 12 }}>
+          <ArchTabs tab={tab} setTab={setTab} hasGraph={!!graphB64} />
+          <Panel title="Architecture" subtitle="no multi-package main sequence — see the Dependency graph tab">
+            <EmptyState
+              icon={Network as any}
+              title="No package structure"
+              description="This repo has no connected multi-package boundaries for a main sequence, but the file-level dependency graph is available in the Dependency graph tab."
+            />
+          </Panel>
+        </View>
+      );
+    }
     return (
       <Panel title="Architecture" subtitle="package main sequence (instability × abstractness)">
         <EmptyState
@@ -50,7 +84,9 @@ export function ArchitectureView({ data, onSelect, width }: { data: CodewatchDat
   const ranked = [...pkgs].sort((a, b) => distance(b) - distance(a));
 
   return (
-    <View style={{ flexDirection: "row", gap: 16, flexWrap: "wrap" }}>
+    <View style={{ gap: 12 }}>
+      {graphB64 ? <ArchTabs tab={tab} setTab={setTab} hasGraph /> : null}
+      <View style={{ flexDirection: "row", gap: 16, flexWrap: "wrap" }}>
       <Panel title="Main sequence" subtitle="instability I × abstractness A; diagonal I+A=1 is balanced. A = type-file share (proxy)">
         <Scatter
           data={points}
@@ -88,8 +124,34 @@ export function ArchitectureView({ data, onSelect, width }: { data: CodewatchDat
           })}
         </View>
       </Panel>
+      </View>
     </View>
   );
+}
+
+function ArchTabs({ tab, setTab, hasGraph }: { tab: ArchTab; setTab: (t: ArchTab) => void; hasGraph: boolean }) {
+  if (!hasGraph) return null;
+  const Tab = ({ id, label }: { id: ArchTab; label: string }) => (
+    <Pressable onPress={() => setTab(id)} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: tab === id ? cw.raised : "transparent", borderWidth: 1, borderColor: tab === id ? cw.border : "transparent" }}>
+      <Text style={{ color: tab === id ? cw.text : cw.textDim, fontSize: 13, fontWeight: "600" }}>{label}</Text>
+    </Pressable>
+  );
+  return (
+    <View style={{ flexDirection: "row", gap: 6 }}>
+      <Tab id="sequence" label="Main sequence" />
+      <Tab id="graph" label="Dependency graph" />
+    </View>
+  );
+}
+
+function DependencyGraph({ b64, width }: { b64: string; width: number }) {
+  // react-native-web renders to the DOM, so a raw <iframe> via createElement
+  // works; a data-URI carries the whole self-contained render HTML.
+  return React.createElement("iframe", {
+    src: `data:text/html;base64,${b64}`,
+    title: "dependency graph",
+    style: { width, height: 620, border: "0", borderRadius: 8, background: "#0f1419" },
+  });
 }
 
 function Legend({ color, label }: { color: string; label: string }) {

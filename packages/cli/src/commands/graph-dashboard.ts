@@ -2,6 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, basename } from "node:path";
 import type { Command } from "commander";
 import chalk from "chalk";
+import { loadSnapshot, renderHtml } from "@code-style/render";
 import { runGraphReportCommand } from "./graph-report.js";
 import { runGraphCheckCommand } from "./graph-check.js";
 import { runGraphArchCommand } from "./graph-arch.js";
@@ -14,10 +15,27 @@ import { dashboardTemplate } from "./dashboard-template.js";
  * so it stays consistent with the CLI's own numbers.
  */
 
+/**
+ * Render the interactive Cytoscape dependency graph (the `render` package) so
+ * the Architecture view can embed it. Snapshot-level, window-independent.
+ * Returns base64 HTML for a data-URI iframe, or null on failure / opt-out.
+ */
+async function dependencyGraphHtml(opts: DashboardCommandOptions): Promise<string | null> {
+  if (opts.graph === false) return null;
+  try {
+    const input = await loadSnapshot(opts.db);
+    const html = await renderHtml(input, { title: `${opts.repo ?? "repo"} — dependency graph` });
+    return Buffer.from(html, "utf8").toString("base64");
+  } catch {
+    return null; // graph is optional; never fail the dashboard over it.
+  }
+}
+
 interface DashboardCommandOptions {
   db: string;
   config: string;
   out: string;
+  graph?: boolean;
   repoRoot?: string;
   windowDays?: number;
   vs?: string;
@@ -143,6 +161,7 @@ export async function runGraphDashboardCommand(opts: DashboardCommandOptions): P
   // arch (structural) and violations are window-independent — compute once.
   const violations = await collectViolations(opts);
   const arch = archInfo(opts.db, repoRoot);
+  const graphB64 = await dependencyGraphHtml(opts);
 
   // Pre-compute a payload per window so the client can switch without a re-run.
   // A requested window that isn't stored resolves (silently) to an available
@@ -180,7 +199,8 @@ export async function runGraphDashboardCommand(opts: DashboardCommandOptions): P
   const enc = (v: unknown) => JSON.stringify(v).replace(/<\//g, "<\\/");
   // Only emit the multi-window map when there's real choice.
   const multi = Object.keys(windows).length > 1 ? `window.__CODEWATCH_WINDOWS__ = ${enc(windows)};` : "";
-  const inject = `<script>window.__CODEWATCH__ = ${enc(primary)};${multi}</script>`;
+  const graph = graphB64 ? `window.__CODEWATCH_GRAPH__ = ${JSON.stringify(graphB64)};` : "";
+  const inject = `<script>window.__CODEWATCH__ = ${enc(primary)};${multi}${graph}</script>`;
   const html = dashboardTemplate().replace("</head>", `${inject}</head>`);
   await mkdir(dirname(opts.out), { recursive: true });
   await writeFile(opts.out, html);
@@ -201,9 +221,10 @@ export function registerGraphDashboard(graphCmd: Command): void {
     .option("--vs <ref>", "Baseline snapshot ref for deltas")
     .option("--repo <name>", "Repo display name")
     .option("--include-scripts", "Include scripts/ and archive/ files")
+    .option("--no-graph", "Skip the embedded Cytoscape dependency graph (smaller output)")
     .action(async (options: {
       db: string; config: string; out: string; repoRoot?: string;
-      windowDays?: string; vs?: string; repo?: string; includeScripts?: boolean;
+      windowDays?: string; vs?: string; repo?: string; includeScripts?: boolean; graph?: boolean;
     }) => {
       const { out, snapshotId } = await runGraphDashboardCommand({
         db: options.db,
@@ -214,6 +235,7 @@ export function registerGraphDashboard(graphCmd: Command): void {
         vs: options.vs,
         repo: options.repo ?? basename(process.cwd()),
         includeScripts: options.includeScripts,
+        graph: options.graph,
       });
       console.log(chalk.green(`✓ wrote ${out}`) + chalk.dim(` (snapshot ${snapshotId})`));
     });

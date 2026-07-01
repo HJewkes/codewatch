@@ -118,5 +118,7 @@ declare global {
     __CODEWATCH__?: CodewatchData;
     /** Per-window payloads (keyed by window-days) for client-side switching. */
     __CODEWATCH_WINDOWS__?: Record<string, CodewatchData>;
+    /** Base64 of the render-package Cytoscape dependency-graph HTML (embed). */
+    __CODEWATCH_GRAPH__?: string;
   }
 }
