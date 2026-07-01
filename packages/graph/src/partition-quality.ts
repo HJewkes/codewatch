@@ -47,6 +47,13 @@ export interface PackageStats {
   cohesion: number;
   /** outgoing / (outgoing + incoming) — Martin's I metric at the package level. */
   instability: number;
+  /**
+   * Abstractness proxy A ∈ [0,1]: share of the package's files with role
+   * "types" (dedicated type/interface definitions). codewatch has no
+   * symbol-level abstract/concrete counts, so this file-role ratio stands in
+   * for Martin's A. Enables the instability×abstractness main-sequence plot.
+   */
+  abstractness: number;
   layer: PackageLayer;
   flags: PackageFlag[];
 }
@@ -97,8 +104,9 @@ export function computePartitionQuality(
   const totalEdges = resolvedPairs.length;
   const filesByPkg = filesPerPackage(input.fileByPackage);
 
+  const abstractByPkg = countAbstractFiles(input.nodes, pkgByFile);
   const perPackage = input.packages.map((p) =>
-    buildPackageStats(p.id, counts, filesByPkg),
+    buildPackageStats(p.id, counts, filesByPkg, abstractByPkg),
   );
   const pairCoupling = buildPairCoupling(resolvedPairs, filesByPkg);
   const modularityQ = computeModularity(perPackage, totalEdges);
@@ -238,10 +246,13 @@ function buildPackageStats(
   pkgId: string,
   counts: ReadonlyMap<string, PackageCounts>,
   filesByPkg: ReadonlyMap<string, number>,
+  abstractByPkg: ReadonlyMap<string, number>,
 ): PackageStats {
   const c = counts.get(pkgId) ?? { internal: 0, outgoing: 0, incoming: 0 };
   const cohesion = ratioOrZero(c.internal, c.internal + c.outgoing);
   const instability = ratioOrZero(c.outgoing, c.outgoing + c.incoming);
+  const fileCount = filesByPkg.get(pkgId) ?? 0;
+  const abstractness = ratioOrZero(abstractByPkg.get(pkgId) ?? 0, fileCount);
   const layer = classifyLayer(instability);
   const flags: PackageFlag[] = [];
   if (layer !== "top" && cohesion < WEAK_COHESION_MAX && c.internal + c.outgoing > 0) {
@@ -249,15 +260,30 @@ function buildPackageStats(
   }
   return {
     pkgId,
-    fileCount: filesByPkg.get(pkgId) ?? 0,
+    fileCount,
     internalEdges: c.internal,
     outgoingEdges: c.outgoing,
     incomingEdges: c.incoming,
     cohesion,
     instability,
+    abstractness,
     layer,
     flags,
   };
+}
+
+/** Count files with role "types" per package — the abstractness numerator. */
+function countAbstractFiles(
+  nodes: readonly GraphNode[],
+  pkgByFile: ReadonlyMap<string, string>,
+): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const n of nodes) {
+    if (n.kind !== "file" || n.role !== "types") continue;
+    const pkg = pkgByFile.get(n.id);
+    if (pkg) out.set(pkg, (out.get(pkg) ?? 0) + 1);
+  }
+  return out;
 }
 
 function ratioOrZero(num: number, denom: number): number {

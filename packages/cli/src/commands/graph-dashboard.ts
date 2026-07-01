@@ -28,9 +28,10 @@ interface DashboardCommandOptions {
 function buildPayload(
   report: ReturnType<typeof runGraphReportCommand>,
   violations: { rule: string; severity: "error" | "warning"; file: string; detail: string; status: "new" | "carry" | "fixed" }[],
-  boundaryHealth: number | undefined,
+  arch: ArchInfo,
   opts: DashboardCommandOptions,
 ) {
+  const boundaryHealth = arch.boundaryHealth;
   const snap = report.snapshot;
   const scary = report.hotspots.filter((h) => h.score >= 3000).length;
   const openNew = violations.filter((v) => v.status === "new").length;
@@ -69,6 +70,7 @@ function buildPayload(
       a: c.fileA, b: c.fileB, coEdits: c.count, hidden: false,
     })),
     centralFiles: report.centralFiles.map((c) => ({ nodeId: c.nodeId, score: c.score })),
+    packages: arch.packages,
     violations,
     drift: report.drift && {
       baselineSnapshotId: report.drift.baselineSnapshot.id,
@@ -82,12 +84,28 @@ function buildPayload(
   };
 }
 
-function boundaryQ(db: string, repoRoot: string): number | undefined {
+interface ArchInfo {
+  boundaryHealth?: number;
+  packages: { pkgId: string; instability: number; abstractness: number; fileCount: number; layer: string; cohesion: number }[];
+}
+
+function archInfo(db: string, repoRoot: string): ArchInfo {
   try {
     const arch = runGraphArchCommand({ db, repoRoot, health: true });
-    return arch.quality?.modularityQ;
+    const q = arch.quality;
+    return {
+      boundaryHealth: q?.modularityQ,
+      packages: (q?.perPackage ?? []).map((p) => ({
+        pkgId: p.pkgId,
+        instability: p.instability,
+        abstractness: p.abstractness,
+        fileCount: p.fileCount,
+        layer: p.layer,
+        cohesion: p.cohesion,
+      })),
+    };
   } catch {
-    return undefined; // Q is a nice-to-have; never fail the dashboard over it.
+    return { packages: [] }; // arch is a nice-to-have; never fail the dashboard.
   }
 }
 
@@ -110,27 +128,35 @@ async function collectViolations(opts: DashboardCommandOptions) {
   }
 }
 
+const DEFAULT_WINDOWS = [30, 90, 180];
+
 export async function runGraphDashboardCommand(opts: DashboardCommandOptions): Promise<{ out: string; snapshotId: number }> {
   const repoRoot = opts.repoRoot ?? process.cwd();
-  const report = runGraphReportCommand({
-    db: opts.db,
-    repoRoot,
-    windowDays: opts.windowDays,
-    vs: opts.vs,
-    includeScripts: opts.includeScripts,
-  });
+  // arch (structural) and violations are window-independent — compute once.
   const violations = await collectViolations(opts);
-  const bq = boundaryQ(opts.db, repoRoot);
-  const payload = buildPayload(report, violations, bq, opts);
+  const arch = archInfo(opts.db, repoRoot);
 
-  const json = JSON.stringify(payload).replace(/<\//g, "<\\/");
-  const html = dashboardTemplate().replace(
-    "</head>",
-    `<script>window.__CODEWATCH__ = ${json};</script></head>`,
-  );
+  // Pre-compute a payload per window so the client can switch without a re-run.
+  const primaryWindow = opts.windowDays ?? 30;
+  const windowsList = Array.from(new Set([primaryWindow, ...DEFAULT_WINDOWS])).sort((a, b) => a - b);
+  const windows: Record<string, unknown> = {};
+  let snapshotId = 0;
+  for (const w of windowsList) {
+    const report = runGraphReportCommand({
+      db: opts.db, repoRoot, windowDays: w, vs: opts.vs, includeScripts: opts.includeScripts,
+    });
+    snapshotId = report.snapshot.id;
+    windows[String(w)] = buildPayload(report, violations, arch, opts);
+  }
+
+  const primary = windows[String(primaryWindow)];
+  const inject =
+    `<script>window.__CODEWATCH__ = ${JSON.stringify(primary).replace(/<\//g, "<\\/")};` +
+    `window.__CODEWATCH_WINDOWS__ = ${JSON.stringify(windows).replace(/<\//g, "<\\/")};</script>`;
+  const html = dashboardTemplate().replace("</head>", `${inject}</head>`);
   await mkdir(dirname(opts.out), { recursive: true });
   await writeFile(opts.out, html);
-  return { out: opts.out, snapshotId: report.snapshot.id };
+  return { out: opts.out, snapshotId };
 }
 
 export function registerGraphDashboard(graphCmd: Command): void {

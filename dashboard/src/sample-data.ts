@@ -71,6 +71,15 @@ export const SAMPLE_DATA: CodewatchData = {
       status: "carry",
     },
   ],
+  packages: [
+    { pkgId: "packages/core", instability: 0.0, abstractness: 0.17, fileCount: 18, layer: "foundation", cohesion: 1.0 },
+    { pkgId: "packages/graph", instability: 0.22, abstractness: 0.02, fileCount: 60, layer: "foundation", cohesion: 0.78 },
+    { pkgId: "packages/analyzer", instability: 0.77, abstractness: 0.05, fileCount: 43, layer: "middle", cohesion: 0.44 },
+    { pkgId: "packages/checker", instability: 0.8, abstractness: 0.12, fileCount: 17, layer: "middle", cohesion: 0.5 },
+    { pkgId: "packages/render", instability: 0.7, abstractness: 0.04, fileCount: 25, layer: "middle", cohesion: 0.55 },
+    { pkgId: "packages/profile", instability: 0.0, abstractness: 0.03, fileCount: 30, layer: "foundation", cohesion: 1.0 },
+    { pkgId: "packages/cli", instability: 1.0, abstractness: 0.01, fileCount: 74, layer: "top", cohesion: 0.0 },
+  ],
   drift: {
     baselineSnapshotId: 97,
     newHotspots: [
