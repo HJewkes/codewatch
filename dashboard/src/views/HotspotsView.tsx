@@ -64,25 +64,27 @@ export function HotspotsView({ data, onSelect, width }: { data: CodewatchData; o
           <TableHeader>
             <TableRow>
               <TableHeaderCell>File</TableHeaderCell>
-              <SortCol label="Churn" active={sort === "churn"} onPress={() => setSort("churn")} />
-              <SortCol label="Complexity" active={sort === "complexity"} onPress={() => setSort("complexity")} />
-              <SortCol label="Score" active={sort === "score"} onPress={() => setSort("score")} />
+              <SortCol label="Churn" width={80} active={sort === "churn"} onPress={() => setSort("churn")} />
+              <SortCol label="Complexity" width={100} active={sort === "complexity"} onPress={() => setSort("complexity")} />
+              <SortCol label="Score" width={170} active={sort === "score"} onPress={() => setSort("score")} />
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.map((h) => (
               <TableRow key={h.nodeId} isHoverable>
-                <TableCell>
-                  {/* Badge leads so it stays legible even when a long filename
-                      overruns the column (that overrun is the C-37 layout bug). */}
-                  <Pressable onPress={() => onSelect(h.nodeId)} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                {/* Titan TableCell is a column flexbox with items-start, so the
+                    row child won't fill the cell unless it alignSelf:stretch;
+                    minWidth:0 down the chain is what lets the filename truncate
+                    instead of overrunning the churn column. */}
+                <TableCell style={{ flex: 1, minWidth: 0 }}>
+                  <Pressable onPress={() => onSelect(h.nodeId)} style={{ flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "stretch", minWidth: 0 }}>
                     <DriftBadge mark={drift.get(h.nodeId)} />
-                    <Text style={{ color: cw.text, fontSize: 13 }} numberOfLines={1}>{shortId(h.nodeId)}</Text>
+                    <Text style={{ color: cw.text, fontSize: 13, flexShrink: 1, minWidth: 0 }} numberOfLines={1}>{shortId(h.nodeId)}</Text>
                   </Pressable>
                 </TableCell>
-                <TableCell align="right"><Text style={{ color: cw.textDim, fontSize: 13 }}>{h.churn}</Text></TableCell>
-                <TableCell align="right"><Text style={{ color: cw.textDim, fontSize: 13 }}>{h.complexity}</Text></TableCell>
-                <TableCell align="right">
+                <TableCell align="right" width={80}><Text style={{ color: cw.textDim, fontSize: 13 }}>{h.churn}</Text></TableCell>
+                <TableCell align="right" width={100}><Text style={{ color: cw.textDim, fontSize: 13 }}>{h.complexity}</Text></TableCell>
+                <TableCell align="right" width={170}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 8, justifyContent: "flex-end" }}>
                     <Bar frac={h.score / maxScore} color={hotspotColor(h.score)} width={70} threshold={scaryFrac} />
                     <Text style={{ color: cw.text, fontSize: 13, width: 46, textAlign: "right" }}>{h.score}</Text>
@@ -116,9 +118,9 @@ function ScaryLegend() {
   );
 }
 
-function SortCol({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+function SortCol({ label, active, onPress, width }: { label: string; active: boolean; onPress: () => void; width: number }) {
   return (
-    <TableHeaderCell align="right" onPress={onPress}>
+    <TableHeaderCell align="right" onPress={onPress} width={width}>
       <Text style={{ color: active ? cw.brand : cw.textDim, fontSize: 12, fontWeight: "600" }}>
         {label}{active ? " ↓" : ""}
       </Text>
