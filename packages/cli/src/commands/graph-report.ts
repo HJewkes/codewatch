@@ -154,7 +154,7 @@ function computeDrift(
   current: GraphReportResult,
   limit: number,
 ): GraphReportResult["drift"] {
-  const baselineSnapshot = resolveSnapshot(db, options.vs!);
+  const baselineSnapshot = resolveSnapshot(db, options.vs!, current.snapshot.id);
   if (baselineSnapshot.id === current.snapshot.id) return undefined;
 
   const warning = snapshotVersionMismatchWarning(
@@ -194,7 +194,22 @@ function pickSnapshot(db: GraphDatabase, id: number | undefined): SnapshotRow {
   return snapshot;
 }
 
-function resolveSnapshot(db: GraphDatabase, refOrId: string): SnapshotRow {
+function resolveSnapshot(
+  db: GraphDatabase,
+  refOrId: string,
+  currentId?: number,
+): SnapshotRow {
+  // "previous" = the most recent snapshot other than the current one — matches
+  // `graph check --baseline previous`, so `--vs previous` works consistently.
+  if (refOrId === "previous") {
+    const previous = db.listSnapshots({ limit: 5 }).find((s) => s.id !== currentId);
+    if (!previous) {
+      throw new Error(
+        `--vs: "previous" requires at least one prior snapshot — this is the first run.`,
+      );
+    }
+    return previous;
+  }
   if (/^\d+$/.test(refOrId)) {
     const byId = db.getSnapshot(Number(refOrId));
     if (byId) return byId;

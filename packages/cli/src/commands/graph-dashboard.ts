@@ -70,6 +70,15 @@ function buildPayload(
     })),
     centralFiles: report.centralFiles.map((c) => ({ nodeId: c.nodeId, score: c.score })),
     violations,
+    drift: report.drift && {
+      baselineSnapshotId: report.drift.baselineSnapshot.id,
+      newHotspots: report.drift.newHotspots.map((h) => ({ nodeId: h.nodeId, score: h.score })),
+      worsened: report.drift.worsenedHotspots.map((d) => ({ nodeId: d.nodeId, before: d.before, after: d.after, delta: d.delta })),
+      improved: report.drift.improvedHotspots.map((d) => ({ nodeId: d.nodeId, before: d.before, after: d.after, delta: d.delta })),
+      resolved: report.drift.resolvedHotspots.map((d) => ({ nodeId: d.nodeId, before: d.before, after: d.after, delta: d.delta })),
+      newSilos: report.drift.newSilos.map((s) => s.nodeId),
+      newCoupling: report.drift.newCoupling.map((c) => ({ a: c.fileA, b: c.fileB, coEdits: c.count, hidden: false })),
+    },
   };
 }
 

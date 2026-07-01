@@ -46,7 +46,7 @@ export function HotspotsView({ data, onSelect, width }: { data: CodewatchData; o
 
       <Panel title="Hotspot map" subtitle={`${rows.length} files · area = severity`}>
         {tmData.length ? (
-          <Treemap data={tmData} width={Math.min(width - 80, 900)} height={200} onSelect={onSelect} maxTiles={60} />
+          <Treemap data={tmData} width={Math.max(280, Math.min(width - 80, 900))} height={200} onSelect={onSelect} maxTiles={60} />
         ) : (
           <Text style={{ color: cw.textFaint }}>No hotspots for this filter.</Text>
         )}

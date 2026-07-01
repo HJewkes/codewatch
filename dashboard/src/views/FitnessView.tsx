@@ -12,20 +12,31 @@ const STATUS_COLOR: Record<Violation["status"], string> = {
   fixed: cw.success,
 };
 
-export function FitnessView({ data, onSelect }: { data: CodewatchData; onSelect: (id: string) => void }) {
-  const { violations, kpis } = data;
+export function FitnessView({ data, onSelect, query }: { data: CodewatchData; onSelect: (id: string) => void; query?: string }) {
+  const { violations } = data;
 
   if (violations.length === 0) {
+    // Distinguish a filtered-out list from a genuinely clean repo.
+    const filtered = !!query;
     return (
       <Panel title="Fitness checks" subtitle="architectural rules vs baseline">
         <EmptyState
           icon={ShieldCheck as any}
-          title="All checks pass"
-          description="No rule violations in this snapshot. Baselines are holding."
+          title={filtered ? "No violations match the filter" : "All checks pass"}
+          description={filtered
+            ? `No rule violations on files matching “${query}”. Clear the filter to see all.`
+            : "No rule violations in this snapshot. Baselines are holding."}
         />
       </Panel>
     );
   }
+
+  // Tallies derived from the (possibly filtered) list so they match it.
+  const tally = {
+    new: violations.filter((v) => v.status === "new").length,
+    carry: violations.filter((v) => v.status === "carry").length,
+    fixed: violations.filter((v) => v.status === "fixed").length,
+  };
 
   const byRule = new Map<string, Violation[]>();
   for (const v of violations) {
@@ -37,9 +48,9 @@ export function FitnessView({ data, onSelect }: { data: CodewatchData; onSelect:
   return (
     <View style={{ gap: 16 }}>
       <View style={{ flexDirection: "row", gap: 12 }}>
-        <Tally label="new" n={kpis.openViolations.new} color={cw.error} />
-        <Tally label="carryover" n={kpis.openViolations.carry} color={cw.warning} />
-        <Tally label="fixed" n={kpis.openViolations.fixed} color={cw.success} />
+        <Tally label="new" n={tally.new} color={cw.error} />
+        <Tally label="carryover" n={tally.carry} color={cw.warning} />
+        <Tally label="fixed" n={tally.fixed} color={cw.success} />
       </View>
       {Array.from(byRule.entries()).map(([rule, vs]) => (
         <Panel key={rule} title={rule} subtitle={`${vs.length} violation${vs.length > 1 ? "s" : ""}`}>
