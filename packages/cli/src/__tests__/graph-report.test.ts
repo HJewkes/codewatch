@@ -219,4 +219,23 @@ describe("runGraphReportCommand", () => {
     expect(parsed.windowDays).toBe(30);
     expect(Array.isArray(parsed.hotspots)).toBe(true);
   });
+
+  it("resolves --vs previous to the prior snapshot (drift, not a throw)", async () => {
+    // Two snapshots: `--vs previous` must pick the older one, matching
+    // `graph check --baseline previous`. Regression for the resolver that only
+    // knew ids/refs and threw on the "previous" alias.
+    const dir = await fs.mkdtemp(path.join(tmpdir(), "code-style-report-vs-"));
+    const dbPath = path.join(dir, "graph.db");
+    const db = openDatabase(dbPath);
+    const older = db.createSnapshot({ ref: "wd", indexVersion: "0.2.0" });
+    db.insertNode(older, fileNode("a.ts"));
+    const head = db.createSnapshot({ ref: "wd", indexVersion: "0.2.0" });
+    db.insertNode(head, fileNode("a.ts"));
+    db.close();
+    fx = { dir, dbPath };
+
+    const result = runGraphReportCommand({ db: dbPath, repoRoot: dir, vs: "previous" });
+    expect(result.drift).toBeDefined();
+    expect(result.drift!.baselineSnapshot.id).toBe(older);
+  });
 });

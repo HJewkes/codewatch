@@ -71,6 +71,23 @@ export interface Violation {
   status: ViolationStatus;
 }
 
+export interface HotspotDelta {
+  nodeId: string;
+  before: number;
+  after: number;
+  delta: number;
+}
+
+export interface Drift {
+  baselineSnapshotId: number;
+  newHotspots: { nodeId: string; score: number }[];
+  worsened: HotspotDelta[];
+  improved: HotspotDelta[];
+  resolved: HotspotDelta[];
+  newSilos: string[];
+  newCoupling: CouplingPair[];
+}
+
 export interface CodewatchData {
   meta: DashboardMeta;
   kpis: Kpis;
@@ -79,6 +96,7 @@ export interface CodewatchData {
   couplingClusters: CouplingPair[];
   centralFiles: CentralFile[];
   violations: Violation[];
+  drift?: Drift;
 }
 
 declare global {

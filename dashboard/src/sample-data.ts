@@ -71,4 +71,25 @@ export const SAMPLE_DATA: CodewatchData = {
       status: "carry",
     },
   ],
+  drift: {
+    baselineSnapshotId: 97,
+    newHotspots: [
+      { nodeId: "packages/graph/src/test-linker.ts", score: 1695 },
+      { nodeId: "packages/cli/src/commands/hook-cli.ts", score: 1050 },
+    ],
+    worsened: [
+      { nodeId: "packages/graph/src/indexer.ts", before: 4693, after: 5035, delta: 342 },
+      { nodeId: "packages/graph/src/index-metrics.ts", before: 186, after: 303, delta: 117 },
+    ],
+    improved: [
+      { nodeId: "packages/cli/src/index.ts", before: 402, after: 0, delta: -402 },
+    ],
+    resolved: [
+      { nodeId: "packages/graph/src/diff.ts", before: 900, after: 120, delta: -780 },
+    ],
+    newSilos: ["packages/graph/src/db-rows.ts"],
+    newCoupling: [
+      { a: "packages/graph/src/diff.ts", b: "packages/graph/src/aliases.ts", coEdits: 5, hidden: true },
+    ],
+  },
 };

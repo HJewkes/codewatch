@@ -1,14 +1,13 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, Pressable, ScrollView } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { View, Text, Pressable, ScrollView, TextInput } from "react-native";
 import {
   Sidebar,
   SidebarHeader,
   SidebarItem,
   Button,
   ButtonText,
-  Typography,
 } from "@titan-design/react-ui";
-import { LayoutDashboard, Flame, ShieldAlert, Users, GitFork } from "lucide-react";
+import { LayoutDashboard, Flame, ShieldAlert, Users, GitFork, GitCompareArrows } from "lucide-react";
 import type { CodewatchData } from "./types";
 import { cw, shortId, pkgOf, pct } from "./theme";
 import { Pillet } from "./components/primitives";
@@ -16,15 +15,20 @@ import { OverviewView } from "./views/OverviewView";
 import { HotspotsView } from "./views/HotspotsView";
 import { FitnessView } from "./views/FitnessView";
 import { OwnershipView } from "./views/OwnershipView";
+import { CouplingView } from "./views/CouplingView";
+import { DriftView } from "./views/DriftView";
 
-type ViewId = "overview" | "hotspots" | "fitness" | "ownership";
+type ViewId = "overview" | "hotspots" | "coupling" | "ownership" | "fitness" | "drift";
 
 const NAV: { id: ViewId; label: string; icon: any }[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "hotspots", label: "Hotspots", icon: Flame },
-  { id: "fitness", label: "Fitness", icon: ShieldAlert },
+  { id: "coupling", label: "Coupling", icon: GitFork },
   { id: "ownership", label: "Ownership", icon: Users },
+  { id: "fitness", label: "Fitness", icon: ShieldAlert },
+  { id: "drift", label: "Drift", icon: GitCompareArrows },
 ];
+const VIEW_IDS = NAV.map((n) => n.id);
 
 function useViewport() {
   const [w, setW] = useState(typeof window !== "undefined" ? window.innerWidth : 1280);
@@ -36,17 +40,93 @@ function useViewport() {
   return w;
 }
 
-export function App({ data }: { data: CodewatchData }) {
-  const [view, setView] = useState<ViewId>("overview");
-  const [selected, setSelected] = useState<string | null>(null);
-  const vw = useViewport();
-  const contentW = vw - 240 - (selected ? 340 : 0);
+interface Loc {
+  view: ViewId;
+  node: string | null;
+  q: string;
+}
 
+function parseHash(): Loc {
+  const raw = window.location.hash.replace(/^#/, "");
+  const [viewPart, queryPart] = raw.split("?");
+  const params = new URLSearchParams(queryPart ?? "");
+  const view = (VIEW_IDS as string[]).includes(viewPart) ? (viewPart as ViewId) : "overview";
+  return { view, node: params.get("node"), q: params.get("q") ?? "" };
+}
+
+function writeHash(loc: Loc) {
+  const params = new URLSearchParams();
+  if (loc.node) params.set("node", loc.node);
+  if (loc.q) params.set("q", loc.q);
+  const qs = params.toString();
+  const next = `#${loc.view}${qs ? "?" + qs : ""}`;
+  if (next !== window.location.hash) window.history.replaceState(null, "", next);
+}
+
+/** Narrow the row-heavy sections by a path substring; KPIs stay whole. */
+function applyQuery(data: CodewatchData, q: string): CodewatchData {
+  if (!q) return data;
+  const m = (id: string) => id.toLowerCase().includes(q.toLowerCase());
+  return {
+    ...data,
+    hotspots: data.hotspots.filter((h) => m(h.nodeId)),
+    busFactorRisks: data.busFactorRisks.filter((b) => m(b.nodeId)),
+    couplingClusters: data.couplingClusters.filter((c) => m(c.a) || m(c.b)),
+    centralFiles: data.centralFiles.filter((c) => m(c.nodeId)),
+    violations: data.violations.filter((v) => m(v.file)),
+    drift: data.drift && {
+      ...data.drift,
+      newHotspots: data.drift.newHotspots.filter((h) => m(h.nodeId)),
+      worsened: data.drift.worsened.filter((d) => m(d.nodeId)),
+      improved: data.drift.improved.filter((d) => m(d.nodeId)),
+      resolved: data.drift.resolved.filter((d) => m(d.nodeId)),
+      newSilos: data.drift.newSilos.filter(m),
+      newCoupling: data.drift.newCoupling.filter((c) => m(c.a) || m(c.b)),
+    },
+  };
+}
+
+export function App({ data }: { data: CodewatchData }) {
+  const [loc, setLoc] = useState<Loc>(() => parseHash());
+  const vw = useViewport();
+  const searchRef = useRef<TextInput>(null);
+  const contentW = vw - 240 - (loc.node ? 340 : 0);
+
+  const update = (patch: Partial<Loc>) => setLoc((prev) => ({ ...prev, ...patch }));
+  const setView = (view: ViewId) => update({ view });
+  const setSelected = (node: string | null) => update({ node });
+
+  useEffect(() => writeHash(loc), [loc]);
+  useEffect(() => {
+    const onHash = () => setLoc(parseHash());
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  // Keyboard: 1-6 switch views, / focuses search, Esc clears selection/search.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const typing = (e.target as HTMLElement)?.tagName === "INPUT";
+      if (e.key === "Escape") {
+        setLoc((p) => ({ ...p, node: null, q: "" }));
+        (e.target as HTMLElement)?.blur?.();
+        return;
+      }
+      if (typing) return;
+      if (e.key === "/") { e.preventDefault(); searchRef.current?.focus(); return; }
+      const n = Number(e.key);
+      if (n >= 1 && n <= NAV.length) setView(NAV[n - 1].id);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const view = applyQuery(data, loc.q);
   const openViolationForNode = (id: string) => data.violations.filter((v) => v.file === id);
 
   return (
     <View style={{ flexDirection: "row", height: "100vh" as any, backgroundColor: cw.bg }}>
-      <Sidebar activeItem={view} onItemSelect={(id) => setView(id as ViewId)} width={240} style={{ backgroundColor: cw.surface, borderRightWidth: 1, borderRightColor: cw.border }}>
+      <Sidebar activeItem={loc.view} onItemSelect={(id) => setView(id as ViewId)} width={240} style={{ backgroundColor: cw.surface, borderRightWidth: 1, borderRightColor: cw.border }}>
         <SidebarHeader>
           <View style={{ paddingHorizontal: 8, paddingVertical: 4 }}>
             <Text style={{ color: cw.brand, fontWeight: "800", fontSize: 18 }}>codewatch</Text>
@@ -59,21 +139,18 @@ export function App({ data }: { data: CodewatchData }) {
       </Sidebar>
 
       <View style={{ flex: 1 }}>
-        <TopBar data={data} view={view} />
+        <TopBar data={data} view={loc.view} q={loc.q} onQuery={(q) => update({ q })} searchRef={searchRef} />
         <View style={{ flexDirection: "row", flex: 1 }}>
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }}>
-            {view === "overview" && <OverviewView data={data} onSelect={setSelected} width={contentW} />}
-            {view === "hotspots" && <HotspotsView data={data} onSelect={setSelected} width={contentW} />}
-            {view === "fitness" && <FitnessView data={data} onSelect={setSelected} />}
-            {view === "ownership" && <OwnershipView data={data} onSelect={setSelected} />}
+            {loc.view === "overview" && <OverviewView data={data} onSelect={setSelected} width={contentW} />}
+            {loc.view === "hotspots" && <HotspotsView data={view} onSelect={setSelected} width={contentW} />}
+            {loc.view === "coupling" && <CouplingView data={view} onSelect={setSelected} />}
+            {loc.view === "ownership" && <OwnershipView data={view} onSelect={setSelected} />}
+            {loc.view === "fitness" && <FitnessView data={view} onSelect={setSelected} />}
+            {loc.view === "drift" && <DriftView data={view} onSelect={setSelected} />}
           </ScrollView>
-          {selected ? (
-            <Dossier
-              id={selected}
-              data={data}
-              violations={openViolationForNode(selected)}
-              onClose={() => setSelected(null)}
-            />
+          {loc.node ? (
+            <Dossier id={loc.node} data={data} violations={openViolationForNode(loc.node)} onClose={() => setSelected(null)} />
           ) : null}
         </View>
       </View>
@@ -81,16 +158,14 @@ export function App({ data }: { data: CodewatchData }) {
   );
 }
 
-function TopBar({ data, view }: { data: CodewatchData; view: string }) {
+function TopBar({ data, view, q, onQuery, searchRef }: { data: CodewatchData; view: string; q: string; onQuery: (q: string) => void; searchRef: React.RefObject<TextInput | null> }) {
   const [copied, setCopied] = useState(false);
   const copyJson = () => {
     try {
       navigator.clipboard?.writeText(JSON.stringify(data, null, 2));
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
-    } catch {
-      /* clipboard may be blocked under file:// */
-    }
+    } catch { /* clipboard blocked under file:// */ }
   };
   return (
     <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: cw.border, backgroundColor: cw.bg }}>
@@ -101,7 +176,14 @@ function TopBar({ data, view }: { data: CodewatchData; view: string }) {
         {data.meta.baseline ? <Pillet text={`vs ${data.meta.baseline.ref}`} color={cw.textFaint} /> : null}
       </View>
       <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
-        <Text style={{ color: cw.textFaint, fontSize: 11 }}>{data.meta.fileCount ?? "?"} files</Text>
+        <TextInput
+          ref={searchRef}
+          value={q}
+          onChangeText={onQuery}
+          placeholder="Filter files  ( / )"
+          placeholderTextColor={cw.textFaint}
+          style={{ width: 220, height: 32, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: cw.border, backgroundColor: cw.surface, color: cw.text, fontSize: 13 } as any}
+        />
         <Button variant="outline" color="secondary" size="sm" onPress={copyJson}>
           <ButtonText>{copied ? "copied ✓" : "Copy JSON"}</ButtonText>
         </Button>
@@ -125,11 +207,9 @@ function Dossier({ id, data, violations, onClose }: { id: string; data: Codewatc
         <Pressable onPress={onClose}><Text style={{ color: cw.textDim, fontSize: 18 }}>×</Text></Pressable>
       </View>
       <Text style={{ color: cw.textFaint, fontSize: 11 }} numberOfLines={2}>{id}</Text>
-
       <DossierRow label="Churn × complexity" value={hotspot ? `${hotspot.churn} × ${hotspot.complexity} = ${hotspot.score}` : "—"} />
       <DossierRow label="Bus factor" value={bus ? `1 (${pct(bus.topAuthorShare)} top author)` : "—"} />
       <DossierRow label="Centrality (PageRank)" value={central ? central.score.toFixed(4) : "—"} />
-
       {coupled.length ? (
         <View style={{ gap: 6 }}>
           <Text style={{ color: cw.textDim, fontSize: 12, fontWeight: "600" }}>Change-coupled with</Text>
@@ -144,7 +224,6 @@ function Dossier({ id, data, violations, onClose }: { id: string; data: Codewatc
           })}
         </View>
       ) : null}
-
       {violations.length ? (
         <View style={{ gap: 4 }}>
           <Text style={{ color: cw.error, fontSize: 12, fontWeight: "600" }}>{violations.length} violation(s)</Text>
