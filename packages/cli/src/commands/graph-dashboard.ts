@@ -3,6 +3,7 @@ import { dirname, basename } from "node:path";
 import type { Command } from "commander";
 import chalk from "chalk";
 import { loadSnapshot, renderHtml } from "@code-style/render";
+import { loadChurnEntries } from "@code-style/graph";
 import { runGraphReportCommand } from "./graph-report.js";
 import { runGraphCheckCommand } from "./graph-check.js";
 import { runGraphArchCommand } from "./graph-arch.js";
@@ -48,6 +49,7 @@ function buildPayload(
   violations: { rule: string; severity: "error" | "warning"; file: string; detail: string; status: "new" | "carry" | "fixed" }[],
   arch: ArchInfo,
   opts: DashboardCommandOptions,
+  authorCount: number | undefined,
 ) {
   const boundaryHealth = arch.boundaryHealth;
   const snap = report.snapshot;
@@ -66,6 +68,7 @@ function buildPayload(
       windowDays: report.windowDays,
       generatedAt: new Date().toISOString(),
       indexVersion: snap.indexVersion,
+      authorCount,
       emptyWindow: report.emptyWindow ?? false,
       hint: report.hint,
       baseline: vs ? { ref: vs, snapshotId: 0 } : null,
@@ -83,6 +86,10 @@ function buildPayload(
     })),
     busFactorRisks: report.busFactorRisks.map((b) => ({
       nodeId: b.nodeId, topAuthorShare: b.topAuthorShare, churn: b.churn,
+    })),
+    testCoverageRisks: report.testCoverageRisks.map((t) => ({
+      nodeId: t.nodeId, testBusFactor: t.testBusFactor,
+      testTopAuthorShare: t.testTopAuthorShare, linkedTests: t.linkedTests,
     })),
     couplingClusters: report.couplingClusters.map((c) => ({
       a: c.fileA, b: c.fileB, coEdits: c.count, hidden: false,
@@ -153,7 +160,18 @@ const DEFAULT_WINDOWS = [30, 90, 180];
 
 /** Signature over all window-dependent fields, to collapse identical windows. */
 function windowSignature(p: ReturnType<typeof buildPayload>): string {
-  return JSON.stringify([p.hotspots, p.busFactorRisks, p.couplingClusters, p.violations, p.centralFiles, p.kpis]);
+  return JSON.stringify([p.hotspots, p.busFactorRisks, p.testCoverageRisks, p.couplingClusters, p.violations, p.centralFiles, p.kpis, p.meta.authorCount]);
+}
+
+/**
+ * Distinct commit authors (by email) in the window, for the single-author guard
+ * the dashboard uses to suppress degenerate bus-factor widgets. `undefined` when
+ * git is unavailable — the guard then stays off rather than falsely claiming solo.
+ */
+function windowAuthorCount(repoRoot: string, windowDays: number): number | undefined {
+  const entries = loadChurnEntries({ repoRoot, windowDays });
+  if (entries === null) return undefined;
+  return new Set(entries.map((e) => e.author)).size;
 }
 
 export async function runGraphDashboardCommand(opts: DashboardCommandOptions): Promise<{ out: string; snapshotId: number }> {
@@ -178,7 +196,7 @@ export async function runGraphDashboardCommand(opts: DashboardCommandOptions): P
       db: opts.db, repoRoot, windowDays: w, vs: opts.vs, includeScripts: opts.includeScripts,
     });
     snapshotId = report.snapshot.id;
-    const payload = buildPayload(report, violations, arch, opts);
+    const payload = buildPayload(report, violations, arch, opts, windowAuthorCount(repoRoot, w));
     // Dedup by CONTENT, not just resolved window: a repo with no stored
     // churn_{w}d silently reuses one window's data for all, and a repo with no
     // churn at all produces identical (empty) payloads. Only keep windows whose
