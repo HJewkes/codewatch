@@ -5,6 +5,7 @@ import type {
   CouplingRow,
   HotspotDelta,
   HotspotRow,
+  NewHotspot,
   ReportDrift,
 } from "./graph-report-types.js";
 import type { SnapshotRow } from "@code-style/graph";
@@ -15,6 +16,12 @@ export interface ComputeDriftInput {
   baselineHotspots: readonly HotspotRow[];
   /** Current churn × complexity for any nodeId. 0 when file is gone or no longer has churn/complexity. */
   currentHotspotScore: (nodeId: string) => number;
+  /**
+   * Baseline churn × complexity for a file that existed at baseline, or
+   * `undefined` when the file is newborn (absent from the baseline snapshot).
+   * Distinguishes a brand-new hotspot from an existing file that climbed in.
+   */
+  baselineHotspotScore?: (nodeId: string) => number | undefined;
   currentSilos: readonly BusFactorRow[];
   baselineSilos: readonly BusFactorRow[];
   /** Current bus_factor for any nodeId. undefined when file has no churn in window. */
@@ -28,6 +35,7 @@ export function computeReportDrift(input: ComputeDriftInput): ReportDrift {
     input.currentHotspots,
     input.baselineHotspots,
     input.currentHotspotScore,
+    input.baselineHotspotScore ?? (() => undefined),
   );
   const silos = diffSilos(
     input.currentSilos,
@@ -54,8 +62,9 @@ function diffHotspots(
   cur: readonly HotspotRow[],
   base: readonly HotspotRow[],
   currentScore: (nodeId: string) => number,
+  baselineScore: (nodeId: string) => number | undefined,
 ): {
-  added: HotspotRow[];
+  added: NewHotspot[];
   resolved: HotspotDelta[];
   displaced: HotspotDelta[];
   worsened: HotspotDelta[];
@@ -63,7 +72,7 @@ function diffHotspots(
 } {
   const baseById = new Map(base.map((r) => [r.nodeId, r] as const));
   const curById = new Map(cur.map((r) => [r.nodeId, r] as const));
-  const added: HotspotRow[] = [];
+  const added: NewHotspot[] = [];
   const resolved: HotspotDelta[] = [];
   const displaced: HotspotDelta[] = [];
   const worsened: HotspotDelta[] = [];
@@ -71,7 +80,7 @@ function diffHotspots(
   for (const r of cur) {
     const b = baseById.get(r.nodeId);
     if (!b) {
-      added.push(r);
+      added.push({ ...r, before: baselineScore(r.nodeId) });
       continue;
     }
     const delta = r.score - b.score;

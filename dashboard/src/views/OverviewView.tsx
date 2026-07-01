@@ -5,7 +5,8 @@ import type { CodewatchData } from "../types";
 import { Panel, KpiTile, Bar, Pillet } from "../components/primitives";
 import { Treemap } from "../components/Treemap";
 import { RiskRadar } from "../components/RiskRadar";
-import { cw, healthColor, hotspotColor, shortId, pkgOf, pct } from "../theme";
+import { buildDriftIndex, DriftBadge } from "../components/driftBadge";
+import { cw, healthColor, hotspotColor, shortId, pkgOf, pct, SCARY_SCORE } from "../theme";
 
 function trendDir(n?: number): "up" | "down" | "flat" {
   if (n === undefined || n === 0) return "flat";
@@ -24,6 +25,7 @@ export function OverviewView({ data, onSelect, width }: { data: CodewatchData; o
   const { kpis, meta } = data;
   const singleAuthor = meta.authorCount === 1;
   const tmWidth = Math.max(280, Math.min(520, width - 340));
+  const drift = buildDriftIndex(data.drift);
 
   // Novel: normalized multi-axis risk profile (higher = worse).
   const riskAxes = [
@@ -110,14 +112,17 @@ export function OverviewView({ data, onSelect, width }: { data: CodewatchData; o
               <View key={h.nodeId} style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                 <Text style={{ color: cw.textFaint, width: 16, fontSize: 12 }}>{i + 1}</Text>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: cw.text, fontSize: 13 }} numberOfLines={1}>{shortId(h.nodeId)}</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Text style={{ color: cw.text, fontSize: 13, flexShrink: 1, minWidth: 0 }} numberOfLines={1}>{shortId(h.nodeId)}</Text>
+                    <DriftBadge mark={drift.get(h.nodeId)} />
+                  </View>
                   <View style={{ flexDirection: "row", gap: 6, marginTop: 3 }}>
                     {h.reasons.map((r) => (
                       <Pillet key={r} text={r} color={r === "violation" || r === "scary hotspot" ? cw.error : r === "bus factor 1" ? cw.warning : cw.info} />
                     ))}
                   </View>
                 </View>
-                <Bar frac={Math.min(1, h.score / 5000)} color={hotspotColor(h.score)} />
+                <Bar frac={Math.min(1, h.score / 5000)} color={hotspotColor(h.score)} threshold={SCARY_SCORE / 5000} />
                 <Text style={{ color: cw.textDim, fontSize: 12, width: 46, textAlign: "right" }}>{h.score}</Text>
               </View>
             ))}

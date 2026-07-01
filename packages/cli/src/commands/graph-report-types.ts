@@ -7,6 +7,15 @@ export interface HotspotRow {
   score: number;
 }
 
+export interface NewHotspot extends HotspotRow {
+  /**
+   * Baseline hotspot score if the file existed in the baseline snapshot;
+   * `undefined` ⇒ a newborn file (didn't exist at baseline). Lets the UI split
+   * "new file" (neutral) from "existing file that climbed into the ranking".
+   */
+  before?: number;
+}
+
 export interface BusFactorRow {
   nodeId: string;
   busFactor: number;
@@ -72,7 +81,7 @@ export interface CouplingDelta {
 
 export interface ReportDrift {
   baselineSnapshot: SnapshotRow;
-  newHotspots: HotspotRow[];
+  newHotspots: NewHotspot[];
   /** Was in baseline top-N, score actually went down (or file gone). */
   resolvedHotspots: HotspotDelta[];
   /** Was in baseline top-N, score didn't improve — newer hotspots displaced it. */

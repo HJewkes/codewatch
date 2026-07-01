@@ -93,7 +93,10 @@ export interface HotspotDelta {
 
 export interface Drift {
   baselineSnapshotId: number;
-  newHotspots: { nodeId: string; score: number }[];
+  /** `before` is the baseline score of a file that existed then; `undefined` ⇒
+   * newborn file (absent from baseline). Splits neutral new files from existing
+   * files that climbed into the hotspot ranking. */
+  newHotspots: { nodeId: string; score: number; before?: number }[];
   worsened: HotspotDelta[];
   improved: HotspotDelta[];
   resolved: HotspotDelta[];
