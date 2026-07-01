@@ -1,0 +1,410 @@
+{
+  "meta": {
+    "repo": "codewatch",
+    "snapshotId": 120,
+    "ref": "wd",
+    "windowDays": 30,
+    "generatedAt": "2026-07-01T04:56:30.021Z",
+    "indexVersion": "0.2.0",
+    "emptyWindow": false,
+    "baseline": {
+      "ref": "97",
+      "snapshotId": 0
+    }
+  },
+  "kpis": {
+    "health": 78,
+    "newHotspots": 2,
+    "knowledgeSilos": 10,
+    "boundaryHealth": 0.6298126926117108,
+    "openViolations": {
+      "total": 2,
+      "new": 0,
+      "carry": 2,
+      "fixed": 0
+    },
+    "maxComplexity": 23
+  },
+  "hotspots": [
+    {
+      "nodeId": "packages/graph/src/indexer.ts",
+      "churn": 265,
+      "complexity": 19,
+      "score": 5035
+    },
+    {
+      "nodeId": "packages/graph/src/incremental.ts",
+      "churn": 199,
+      "complexity": 22,
+      "score": 4378
+    },
+    {
+      "nodeId": "packages/cli/src/commands/graph-dashboard.ts",
+      "churn": 284,
+      "complexity": 10,
+      "score": 2840
+    },
+    {
+      "nodeId": "packages/graph/src/test-linker.ts",
+      "churn": 113,
+      "complexity": 15,
+      "score": 1695
+    },
+    {
+      "nodeId": "packages/graph/src/check-validate.ts",
+      "churn": 92,
+      "complexity": 14,
+      "score": 1288
+    },
+    {
+      "nodeId": "packages/cli/src/commands/hook-cli.ts",
+      "churn": 105,
+      "complexity": 10,
+      "score": 1050
+    },
+    {
+      "nodeId": "packages/graph/src/partition-quality.ts",
+      "churn": 44,
+      "complexity": 23,
+      "score": 1012
+    },
+    {
+      "nodeId": "packages/cli/src/commands/graph-auto-update.ts",
+      "churn": 94,
+      "complexity": 10,
+      "score": 940
+    },
+    {
+      "nodeId": "packages/cli/src/commands/graph-report.ts",
+      "churn": 84,
+      "complexity": 10,
+      "score": 840
+    },
+    {
+      "nodeId": "packages/cli/src/commands/hook.ts",
+      "churn": 76,
+      "complexity": 9,
+      "score": 684
+    }
+  ],
+  "busFactorRisks": [
+    {
+      "nodeId": "packages/cli/src/commands/graph-dashboard.ts",
+      "topAuthorShare": 1,
+      "churn": 284
+    },
+    {
+      "nodeId": "packages/graph/src/indexer.ts",
+      "topAuthorShare": 1,
+      "churn": 265
+    },
+    {
+      "nodeId": "packages/graph/src/__tests__/incremental.test.ts",
+      "topAuthorShare": 1,
+      "churn": 245
+    },
+    {
+      "nodeId": "packages/graph/src/__tests__/test-linker.test.ts",
+      "topAuthorShare": 1,
+      "churn": 230
+    },
+    {
+      "nodeId": "packages/graph/src/incremental.ts",
+      "topAuthorShare": 1,
+      "churn": 199
+    },
+    {
+      "nodeId": "packages/graph/src/database.ts",
+      "topAuthorShare": 1,
+      "churn": 134
+    },
+    {
+      "nodeId": "packages/graph/src/test-linker.ts",
+      "topAuthorShare": 1,
+      "churn": 113
+    },
+    {
+      "nodeId": "packages/cli/src/commands/graph-cli.ts",
+      "topAuthorShare": 1,
+      "churn": 110
+    },
+    {
+      "nodeId": "packages/graph/src/db-rows.ts",
+      "topAuthorShare": 1,
+      "churn": 109
+    },
+    {
+      "nodeId": "packages/cli/src/commands/hook-cli.ts",
+      "topAuthorShare": 1,
+      "churn": 105
+    }
+  ],
+  "couplingClusters": [
+    {
+      "a": "packages/cli/src/commands/dashboard-template.ts",
+      "b": "packages/cli/src/commands/graph-dashboard.ts",
+      "coEdits": 4,
+      "hidden": false
+    },
+    {
+      "a": "packages/cli/src/commands/graph-cli.ts",
+      "b": "packages/graph/src/indexer.ts",
+      "coEdits": 3,
+      "hidden": false
+    },
+    {
+      "a": "packages/cli/src/__tests__/graph-report.test.ts",
+      "b": "packages/cli/src/commands/graph-report.ts",
+      "coEdits": 2,
+      "hidden": false
+    },
+    {
+      "a": "packages/cli/src/commands/graph-auto-update.ts",
+      "b": "packages/cli/src/commands/graph-cli.ts",
+      "coEdits": 2,
+      "hidden": false
+    },
+    {
+      "a": "packages/cli/src/commands/graph-auto-update.ts",
+      "b": "packages/graph/src/indexer.ts",
+      "coEdits": 2,
+      "hidden": false
+    },
+    {
+      "a": "packages/cli/src/commands/graph-cli.ts",
+      "b": "packages/graph/src/__tests__/incremental.test.ts",
+      "coEdits": 2,
+      "hidden": false
+    },
+    {
+      "a": "packages/cli/src/commands/graph-report-format.ts",
+      "b": "packages/cli/src/commands/graph-report-types.ts",
+      "coEdits": 2,
+      "hidden": false
+    },
+    {
+      "a": "packages/cli/src/commands/graph-report-format.ts",
+      "b": "packages/cli/src/commands/graph-report.ts",
+      "coEdits": 2,
+      "hidden": false
+    },
+    {
+      "a": "packages/cli/src/commands/graph-report-types.ts",
+      "b": "packages/cli/src/commands/graph-report.ts",
+      "coEdits": 2,
+      "hidden": false
+    },
+    {
+      "a": "packages/cli/src/commands/graph-report.ts",
+      "b": "packages/graph/src/index.ts",
+      "coEdits": 2,
+      "hidden": false
+    }
+  ],
+  "centralFiles": [
+    {
+      "nodeId": "packages/graph/src/types.ts",
+      "score": 0.02876334913435762
+    },
+    {
+      "nodeId": "packages/graph/src/index.ts",
+      "score": 0.023635854694899604
+    },
+    {
+      "nodeId": "packages/profile/src/index.ts",
+      "score": 0.021170519603824815
+    },
+    {
+      "nodeId": "packages/profile/src/schema/profile.ts",
+      "score": 0.020235293725394336
+    },
+    {
+      "nodeId": "packages/profile/src/schema/style-rule.ts",
+      "score": 0.012721258002408012
+    },
+    {
+      "nodeId": "packages/core/src/index.ts",
+      "score": 0.012428110694422775
+    },
+    {
+      "nodeId": "packages/analyzer/src/extractors/types.ts",
+      "score": 0.011032646250353568
+    },
+    {
+      "nodeId": "packages/render/src/types.ts",
+      "score": 0.00795344648826954
+    },
+    {
+      "nodeId": "packages/graph/src/database.ts",
+      "score": 0.007134682085964931
+    },
+    {
+      "nodeId": "packages/graph/src/churn.ts",
+      "score": 0.006944326805824014
+    }
+  ],
+  "packages": [
+    {
+      "pkgId": "dashboard",
+      "instability": 0,
+      "abstractness": 0,
+      "fileCount": 0,
+      "layer": "foundation",
+      "cohesion": 0,
+      "crossEdges": 0
+    },
+    {
+      "pkgId": "packages/analyzer",
+      "instability": 0.7727272727272727,
+      "abstractness": 0.046511627906976744,
+      "fileCount": 43,
+      "layer": "middle",
+      "cohesion": 0.8111111111111111,
+      "crossEdges": 22
+    },
+    {
+      "pkgId": "packages/checker",
+      "instability": 0.8,
+      "abstractness": 0.11764705882352941,
+      "fileCount": 17,
+      "layer": "middle",
+      "cohesion": 0.7647058823529411,
+      "crossEdges": 10
+    },
+    {
+      "pkgId": "packages/cli",
+      "instability": 1,
+      "abstractness": 0.013513513513513514,
+      "fileCount": 74,
+      "layer": "top",
+      "cohesion": 0.6027397260273972,
+      "crossEdges": 58
+    },
+    {
+      "pkgId": "packages/core",
+      "instability": 0,
+      "abstractness": 0.16666666666666666,
+      "fileCount": 18,
+      "layer": "foundation",
+      "cohesion": 1,
+      "crossEdges": 25
+    },
+    {
+      "pkgId": "packages/graph",
+      "instability": 0.22,
+      "abstractness": 0.016666666666666666,
+      "fileCount": 60,
+      "layer": "foundation",
+      "cohesion": 0.9276315789473685,
+      "crossEdges": 50
+    },
+    {
+      "pkgId": "packages/profile",
+      "instability": 0,
+      "abstractness": 0.03333333333333333,
+      "fileCount": 30,
+      "layer": "foundation",
+      "cohesion": 1,
+      "crossEdges": 26
+    },
+    {
+      "pkgId": "packages/render",
+      "instability": 0.6363636363636364,
+      "abstractness": 0.04,
+      "fileCount": 25,
+      "layer": "middle",
+      "cohesion": 0.8409090909090909,
+      "crossEdges": 11
+    }
+  ],
+  "violations": [
+    {
+      "rule": "scary-hotspots",
+      "severity": "error",
+      "file": "packages/graph/src/incremental.ts",
+      "detail": "churn_30d=199 * cognitive_max=22 = 4378 > 3000",
+      "status": "carry"
+    },
+    {
+      "rule": "scary-hotspots",
+      "severity": "error",
+      "file": "packages/graph/src/indexer.ts",
+      "detail": "churn_30d=265 * cognitive_max=19 = 5035 > 3000",
+      "status": "carry"
+    }
+  ],
+  "drift": {
+    "baselineSnapshotId": 97,
+    "newHotspots": [
+      {
+        "nodeId": "packages/cli/src/commands/graph-dashboard.ts",
+        "score": 2840
+      },
+      {
+        "nodeId": "packages/graph/src/test-linker.ts",
+        "score": 1695
+      },
+      {
+        "nodeId": "packages/graph/src/check-validate.ts",
+        "score": 1288
+      },
+      {
+        "nodeId": "packages/cli/src/commands/hook-cli.ts",
+        "score": 1050
+      },
+      {
+        "nodeId": "packages/graph/src/partition-quality.ts",
+        "score": 1012
+      },
+      {
+        "nodeId": "packages/cli/src/commands/graph-auto-update.ts",
+        "score": 940
+      },
+      {
+        "nodeId": "packages/cli/src/commands/graph-report.ts",
+        "score": 840
+      },
+      {
+        "nodeId": "packages/cli/src/commands/hook.ts",
+        "score": 684
+      }
+    ],
+    "worsened": [
+      {
+        "nodeId": "packages/graph/src/indexer.ts",
+        "before": 4693,
+        "after": 5035,
+        "delta": 342
+      }
+    ],
+    "improved": [],
+    "resolved": [],
+    "newSilos": [
+      "packages/cli/src/commands/graph-dashboard.ts",
+      "packages/graph/src/__tests__/test-linker.test.ts",
+      "packages/graph/src/test-linker.ts",
+      "packages/cli/src/commands/graph-cli.ts",
+      "packages/cli/src/commands/hook-cli.ts"
+    ],
+    "newCoupling": [
+      {
+        "a": "packages/cli/src/commands/dashboard-template.ts",
+        "b": "packages/cli/src/commands/graph-dashboard.ts",
+        "coEdits": 4,
+        "hidden": false
+      },
+      {
+        "a": "packages/cli/src/commands/graph-auto-update.ts",
+        "b": "packages/cli/src/commands/graph-cli.ts",
+        "coEdits": 2,
+        "hidden": false
+      },
+      {
+        "a": "packages/cli/src/commands/graph-auto-update.ts",
+        "b": "packages/graph/src/indexer.ts",
+        "coEdits": 2,
+        "hidden": false
+      }
+    ]
+  }
+}
