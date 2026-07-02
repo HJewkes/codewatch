@@ -41,6 +41,32 @@ export function severityColor(sev: "error" | "warning"): string {
   return sev === "error" ? cw.error : cw.warning;
 }
 
+/**
+ * Fitness budgets that anchor Dossier metric heat, mirroring `.codewatch/check.json`
+ * (and `computeHealth`'s complexity budget of 30). Heating a file's metric against
+ * the same threshold the checker uses means the Dossier predicts which files trip a
+ * rule — the color IS the fitness verdict, not an arbitrary gradient.
+ */
+export const METRIC_BUDGET: Record<string, number> = {
+  loc: 350,
+  cognitive_max: 30,
+  cyclomatic_max: 30,
+  max_nesting_depth: 5,
+  fan_out: 15,
+};
+
+/**
+ * Heat a metric value against its budget: over budget → error (will/does trip the
+ * rule), within 75% → warning (approaching), else calm. Quiet-when-fine keeps the
+ * panel from lighting up every small file — only genuine pressure draws the eye.
+ */
+export function metricHeat(value: number, budget: number | undefined): string {
+  if (budget === undefined) return cw.text; // no budget (e.g. fan_in) — never a risk on its own
+  if (value >= budget) return cw.error;
+  if (value >= budget * 0.75) return cw.warning;
+  return cw.text;
+}
+
 /** Modularity Q band (0..1, higher = cleaner package boundaries). */
 export function modularityColor(q: number): string {
   if (q >= 0.6) return cw.success;

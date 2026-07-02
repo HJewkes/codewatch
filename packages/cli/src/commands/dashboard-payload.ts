@@ -2,6 +2,7 @@ import { loadChurnEntries, openDatabase, computePageRank } from "@codewatch/grap
 import { runGraphReportCommand } from "./graph-report.js";
 import { runGraphCheckCommand } from "./graph-check.js";
 import { runGraphArchCommand } from "./graph-arch.js";
+import { type NodeMetrics, collectNodeMetrics, buildNodeMetrics } from "./dashboard-node-metrics.js";
 
 /**
  * Payload assembly for `graph dashboard`. Kept separate from the command wiring
@@ -45,6 +46,8 @@ export interface SnapshotContext {
    * called hidden-vs-import-backed; it's "unverifiable", not "hidden".
    */
   connectedNodes: ReadonlySet<string>;
+  /** Per-node structural metrics (loc, cognitive/cyclomatic max, nesting, fan) for the Dossier. */
+  metrics: ReadonlyMap<string, NodeMetrics>;
 }
 
 export type CouplingClass = { hidden: boolean; unindexed: boolean };
@@ -133,6 +136,7 @@ export function buildPayload(
       a: c.fileA, b: c.fileB, coEdits: c.count, ...classifyCoupling(c.fileA, c.fileB, snapCtx),
     })),
     centralFiles: buildCentralFiles(report, snapCtx.centrality),
+    nodeMetrics: buildNodeMetrics(report, snapCtx.metrics),
     packages: arch.packages,
     violations,
     drift: report.drift && {
@@ -197,7 +201,7 @@ export function computeWindowPayloads(
   let primaryKey = String(primaryWindow);
   // Import-linkage + centrality are snapshot-level (same for every window);
   // compute lazily once the first report resolves the snapshot id.
-  let snapCtx: SnapshotContext = { linkedPairs: new Set(), centrality: new Map(), connectedNodes: new Set() };
+  let snapCtx: SnapshotContext = { linkedPairs: new Set(), centrality: new Map(), connectedNodes: new Set(), metrics: new Map() };
   for (const w of windowsList) {
     const report = runGraphReportCommand({
       db: opts.db, repoRoot, windowDays: w, vs: opts.vs, includeScripts: opts.includeScripts,
@@ -318,6 +322,7 @@ export function snapshotContext(dbPath: string, snapshotId: number): SnapshotCon
   const linkedPairs = new Set<string>();
   const centrality = new Map<string, number>();
   const connectedNodes = new Set<string>();
+  let metrics = new Map<string, NodeMetrics>();
   const db = openDatabase(dbPath);
   try {
     const nodes = db.listNodes(snapshotId);
@@ -332,8 +337,9 @@ export function snapshotContext(dbPath: string, snapshotId: number): SnapshotCon
       connectedNodes.add(e.dstId);
     }
     for (const r of computePageRank(nodes, edges).rows) centrality.set(r.nodeId, r.score);
+    metrics = collectNodeMetrics(db.listMetrics(snapshotId));
   } finally {
     db.close();
   }
-  return { linkedPairs, centrality, connectedNodes };
+  return { linkedPairs, centrality, connectedNodes, metrics };
 }
