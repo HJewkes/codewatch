@@ -9,33 +9,53 @@ export function clientScript(kindColors: Record<string, string>): string {
     try { cytoscape.use(window.cytoscapeCoseBilkent); } catch (e) { /* already registered */ }
   }
   const hasCoseBilkent = !!window.cytoscapeCoseBilkent;
+  // The server (layout.ts) precomputes an ELK "layered" top-down layout. For the
+  // non-compound package graph (the default) those positions are exactly the
+  // legible DAG we want, so honor them with "preset" instead of letting
+  // cose-bilkent re-randomize them away. The compound file-level graph has no ELK
+  // hierarchy layout yet, so it still gets cose-bilkent (which handles compounds).
+  const anyCompound = data.nodes.some(function (n) { return n.data && n.data.parent; });
+  const anyPositioned = data.nodes.some(function (n) {
+    return n.position && Number.isFinite(n.position.x) && Number.isFinite(n.position.y);
+  });
+  const useElkPreset = anyPositioned && !anyCompound;
+  const coseBilkentLayout = {
+    name: "cose-bilkent",
+    animate: false,
+    fit: true,
+    padding: 30,
+    randomize: true,
+    nodeRepulsion: 6500,
+    idealEdgeLength: 90,
+    edgeElasticity: 0.45,
+    gravity: 0.25,
+    gravityRangeCompound: 1.5,
+    gravityCompound: 1.0,
+    numIter: 2500,
+    tile: true,
+    tilingPaddingVertical: 12,
+    tilingPaddingHorizontal: 12,
+  };
   const cy = cytoscape({
     container: document.getElementById("cy"),
     elements: { nodes: data.nodes, edges: data.edges },
-    layout: hasCoseBilkent
-      ? {
-          name: "cose-bilkent",
-          animate: false,
-          fit: true,
-          padding: 30,
-          randomize: true,
-          nodeRepulsion: 6500,
-          idealEdgeLength: 90,
-          edgeElasticity: 0.45,
-          gravity: 0.25,
-          gravityRangeCompound: 1.5,
-          gravityCompound: 1.0,
-          numIter: 2500,
-          tile: true,
-          tilingPaddingVertical: 12,
-          tilingPaddingHorizontal: 12,
-        }
-      : { name: "preset" },
+    layout: useElkPreset
+      ? { name: "preset", fit: true, padding: 30 }
+      : hasCoseBilkent ? coseBilkentLayout : { name: "preset", fit: true, padding: 30 },
     minZoom: 0.1,
     maxZoom: 3,
     wheelSensitivity: 0.2,
     style: ${cyStyles()}
   });
+  // Orthogonal (taxi) edges match ELK's DOWN-directed layered layout; the
+  // force-directed compound view keeps bezier curves.
+  if (useElkPreset) {
+    cy.edges().style({ "curve-style": "taxi", "taxi-direction": "downward", "taxi-turn": "50%" });
+  }
+  // Diagnostic hook — lets tests/Playwright assert layout + edge geometry by the
+  // numbers rather than by eye (see pr-viz sources doc §8.5).
+  window.__cy = cy;
+  window.__layoutMode = useElkPreset ? "elk-preset" : (hasCoseBilkent ? "cose-bilkent" : "preset");
   const KIND_FILL = ${JSON.stringify(kindColors)};
   cy.nodes().forEach(function (n) {
     const overlay = n.data("overlay_fill");

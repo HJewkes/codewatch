@@ -5,7 +5,16 @@ import type { RenderInput } from "../types.js";
 interface ParsedGraph {
   snapshotId: number;
   nodes: Array<{ data: { id: string } }>;
-  edges: Array<{ data: { id: string; source: string; target: string } }>;
+  edges: Array<{
+    data: {
+      id: string;
+      source: string;
+      target: string;
+      weight?: number;
+      width: number;
+      label: string;
+    };
+  }>;
 }
 
 function extractGraphJson(html: string): ParsedGraph {
@@ -72,6 +81,44 @@ describe("renderHtml graph consistency", () => {
     );
     for (const id of extras) {
       expect(id.startsWith("pkg:")).toBe(true);
+    }
+  });
+
+  it("carries package-edge weight into edge data as width + count label (C-46)", async () => {
+    const weighted: RenderInput = {
+      snapshotId: 7,
+      nodes: [
+        { id: "core", kind: "package", name: "core" },
+        { id: "cli", kind: "package", name: "cli" },
+      ],
+      edges: [
+        { srcId: "cli", dstId: "core", kind: "imports", attrs: { weight: 9 } },
+        { srcId: "core", dstId: "cli", kind: "imports", attrs: { weight: 1 } },
+      ],
+    };
+    const html = await renderHtml(weighted);
+    const g = extractGraphJson(html);
+    const heavy = g.edges.find((e) => e.data.source === "cli");
+    const light = g.edges.find((e) => e.data.source === "core");
+    // The weight reaches the Cytoscape edge data at all (the C-46 gap: it used
+    // to be dropped before assembly).
+    expect(heavy?.data.weight).toBe(9);
+    expect(light?.data.weight).toBe(1);
+    // Width scales with weight; a weight-1 edge keeps the base hairline.
+    expect(light?.data.width).toBeCloseTo(1.2);
+    expect(heavy!.data.width).toBeGreaterThan(light!.data.width);
+    // Only the aggregated (>1) edge gets a "×N" count label.
+    expect(heavy?.data.label).toBe("×9");
+    expect(light?.data.label).toBe("");
+  });
+
+  it("leaves weightless file edges at the base width with no label", async () => {
+    const html = await renderHtml(fixture);
+    const g = extractGraphJson(html);
+    for (const e of g.edges) {
+      expect(e.data.weight).toBeUndefined();
+      expect(e.data.width).toBeCloseTo(1.2);
+      expect(e.data.label).toBe("");
     }
   });
 
