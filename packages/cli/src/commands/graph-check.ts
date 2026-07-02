@@ -15,7 +15,7 @@ import { snapshotVersionMismatchWarning } from "../utils/output.js";
 export interface GraphCheckCommandOptions {
   db: string;
   config: string;
-  snapshot?: number;
+  snapshot?: string | number;
   baseline?: string;
   json?: boolean;
 }
@@ -37,7 +37,7 @@ export async function runGraphCheckCommand(
   try {
     const snapshot =
       options.snapshot !== undefined
-        ? db.getSnapshot(options.snapshot)
+        ? resolveSnapshot(db, String(options.snapshot), "--snapshot")
         : (db.listSnapshots({ limit: 1 })[0] ?? null);
     if (!snapshot) {
       throw new Error(`No snapshot in ${options.db}`);
