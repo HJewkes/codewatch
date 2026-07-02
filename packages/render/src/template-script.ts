@@ -127,13 +127,21 @@ export function clientScript(kindColors: Record<string, string>): string {
   showEmpty();
 
   function clearHighlights() {
-    cy.elements().removeClass("highlight").removeClass("faded");
+    cy.elements()
+      .removeClass("highlight").removeClass("faded")
+      .removeClass("fanout").removeClass("fanin");
   }
   function highlightNeighborhood(node) {
     const neighborhood = node.closedNeighborhood();
     cy.elements().not(neighborhood).addClass("faded");
     neighborhood.removeClass("faded");
-    neighborhood.addClass("highlight");
+    // Glow the focused node + its neighbors; tint the incident edges by
+    // direction — fan-out (its dependencies) teal, fan-in (its dependents)
+    // amber. Lines keep their source-module color; only the glow encodes
+    // direction, so both signals coexist.
+    neighborhood.nodes().addClass("highlight");
+    node.outgoers("edge").removeClass("faded").addClass("fanout");
+    node.incomers("edge").removeClass("faded").addClass("fanin");
   }
   function selectNodeById(id) {
     const n = cy.getElementById(id);

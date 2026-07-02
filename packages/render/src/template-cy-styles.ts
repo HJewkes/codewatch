@@ -133,18 +133,19 @@ export function cyStyles(): string {
       "arrow-scale": 0.8,
       "opacity": 0.7,
       "label": "data(label)",
-      "font-size": 9,
-      "color": "#9aa5b1",
-      "text-outline-color": "#0f1419",
-      "text-outline-width": 2,
+      "font-size": 12,
+      "font-weight": 700,
+      "color": "#eef2f8",
+      "text-outline-color": "#05070b",
+      "text-outline-width": 3.5,
+      "text-outline-opacity": 1,
       "text-rotation": "autorotate",
       "transition-property": "opacity, line-color, target-arrow-color, width",
       "transition-duration": "120ms"
     } },
     { selector: "edge[edgeColor]", style: {
       "line-color": "data(edgeColor)",
-      "target-arrow-color": "data(edgeColor)",
-      "color": "data(edgeColor)"
+      "target-arrow-color": "data(edgeColor)"
     } },
     { selector: "edge[kind = 're-exports']", style: {
       "line-style": "dashed"
@@ -163,11 +164,18 @@ export function cyStyles(): string {
     } },
     { selector: "edge.faded", style: { "opacity": 0.05 } },
     { selector: "edge.kind-hidden", style: { "opacity": 0.05 } },
-    { selector: "edge.highlight", style: {
-      "line-color": "#5eead4",
-      "target-arrow-color": "#5eead4",
-      "width": 2.2,
-      "opacity": 1
+    { selector: "edge.highlight", style: { "opacity": 1 } },
+    { selector: "edge.fanout", style: {
+      "opacity": 1,
+      "overlay-color": "#5eead4",
+      "overlay-padding": 5,
+      "overlay-opacity": 0.28
+    } },
+    { selector: "edge.fanin", style: {
+      "opacity": 1,
+      "overlay-color": "#fbbf24",
+      "overlay-padding": 5,
+      "overlay-opacity": 0.28
     } }
   ]`;
 }
