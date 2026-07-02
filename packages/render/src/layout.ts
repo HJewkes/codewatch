@@ -78,15 +78,47 @@ function gridFallback(
   });
 }
 
+// ELK reports node positions as top-left corners; Cytoscape positions are node
+// centers. Return centers so edge-section coordinates (also ELK-absolute) share
+// one frame with the node positions the client renders.
 function readPositions(root: ElkNode): Map<string, { x: number; y: number }> {
   const out = new Map<string, { x: number; y: number }>();
   for (const c of root.children ?? []) {
     const x = c.x ?? 0;
     const y = c.y ?? 0;
     if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-    out.set(c.id, { x, y });
+    out.set(c.id, { x: x + (c.width ?? NODE_WIDTH) / 2, y: y + (c.height ?? NODE_HEIGHT) / 2 });
   }
   return out;
+}
+
+// ELK's orthogonal edge routing — the obstacle-avoiding bend points. Keyed by
+// the src/dst pair (a flat graph declares every edge at the root, so the section
+// coordinates are already in the root/ELK-absolute frame).
+function readEdgeRoutes(root: ElkNode): Map<string, Array<{ x: number; y: number }>> {
+  const out = new Map<string, Array<{ x: number; y: number }>>();
+  for (const e of root.edges ?? []) {
+    const section = e.sections?.[0];
+    if (!section) continue;
+    const pts = [section.startPoint, ...(section.bendPoints ?? []), section.endPoint];
+    out.set(routeKey(e.sources[0], e.targets[0]), pts);
+  }
+  return out;
+}
+
+function routeKey(srcId: string, dstId: string): string {
+  return JSON.stringify([srcId, dstId]);
+}
+
+function attachRoutes(
+  edges: RenderInput["edges"],
+  routes: Map<string, Array<{ x: number; y: number }>>,
+): RenderInput["edges"] {
+  if (routes.size === 0) return edges;
+  return edges.map((e) => {
+    const route = routes.get(routeKey(e.srcId, e.dstId));
+    return route ? { ...e, attrs: { ...e.attrs, route } } : e;
+  });
 }
 
 export async function computeLayout(
@@ -109,7 +141,7 @@ export async function computeLayout(
       return { nodes: gridFallback(input, sizing), edges: input.edges };
     return {
       nodes: applyLayout(input, positions, sizing),
-      edges: input.edges,
+      edges: attachRoutes(input.edges, readEdgeRoutes(laid)),
     };
   } catch {
     return { nodes: gridFallback(input, sizing), edges: input.edges };

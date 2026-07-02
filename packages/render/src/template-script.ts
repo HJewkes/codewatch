@@ -47,18 +47,38 @@ export function clientScript(kindColors: Record<string, string>): string {
     wheelSensitivity: 0.2,
     style: ${cyStyles()}
   });
-  // Orthogonal (taxi) edges match ELK's DOWN-directed layered layout; the
-  // force-directed compound view keeps bezier curves. A short fixed turn
-  // distance makes every edge leaving a node drop the same amount and branch at
-  // one shared y — a clean fork rather than staggered mid-length bends.
+  // Render ELK's obstacle-avoiding orthogonal routes (segments) where present;
+  // fall back to taxi for any edge the server didn't route. The force-directed
+  // compound view keeps bezier curves.
   if (useElkPreset) {
-    cy.edges().style({
-      "curve-style": "taxi",
-      "taxi-direction": "downward",
-      "taxi-turn": 26,
-      "taxi-turn-min-distance": 6,
-    });
+    applyElkRouting();
     colorByPackage();
+  }
+
+  function applyElkRouting() {
+    cy.edges().forEach(function (e) {
+      const r = e.data("routing");
+      if (r && r.se) {
+        const st = {
+          "curve-style": r.w && r.w.length ? "segments" : "straight",
+          "edge-distances": "node-position",
+          "source-endpoint": r.se,
+          "target-endpoint": r.te,
+        };
+        if (r.w && r.w.length) {
+          st["segment-weights"] = r.w.join(" ");
+          st["segment-distances"] = r.d.join(" ");
+        }
+        e.style(st);
+      } else {
+        e.style({
+          "curve-style": "taxi",
+          "taxi-direction": "downward",
+          "taxi-turn": 26,
+          "taxi-turn-min-distance": 6,
+        });
+      }
+    });
   }
 
   // Give each package a stable palette color, paint its border with it, and
