@@ -74,6 +74,25 @@ interface CytoscapeEdgeData {
   target: string;
   kind: string;
   status: string;
+  weight?: number;
+  width: number;
+  label: string;
+}
+
+const BASE_EDGE_WIDTH = 1.2;
+const MAX_EDGE_WIDTH = 8;
+
+function edgeWeightOf(e: { attrs?: Record<string, unknown> }): number | undefined {
+  const w = e.attrs?.weight;
+  return typeof w === "number" && Number.isFinite(w) && w > 0 ? w : undefined;
+}
+
+// Perceptual (sqrt) scale: a 15×-heavier package dependency reads as ~5× thicker,
+// not 15×. Weightless edges (the file-level graph, where attrs.weight is absent)
+// keep the base hairline.
+function edgeWidthFor(weight: number | undefined): number {
+  if (weight === undefined || weight <= 1) return BASE_EDGE_WIDTH;
+  return Math.min(BASE_EDGE_WIDTH + 1.5 * Math.sqrt(weight - 1), MAX_EDGE_WIDTH);
 }
 
 interface NodeAssemblyContext {
@@ -247,15 +266,20 @@ function buildEdgeEntry(
   i: number,
   diff: RenderInput["diff"],
 ): { data: CytoscapeEdgeData } {
-  return {
-    data: {
-      id: `e${i}`,
-      source: e.srcId,
-      target: e.dstId,
-      kind: e.kind,
-      status: diff?.edgeStatus[`${e.srcId} ${e.dstId} ${e.kind}`] ?? "unchanged",
-    },
+  const weight = edgeWeightOf(e);
+  const data: CytoscapeEdgeData = {
+    id: `e${i}`,
+    source: e.srcId,
+    target: e.dstId,
+    kind: e.kind,
+    status: diff?.edgeStatus[`${e.srcId} ${e.dstId} ${e.kind}`] ?? "unchanged",
+    width: edgeWidthFor(weight),
+    // Only the aggregated package graph carries a >1 count worth annotating; the
+    // file-level graph's single edges get no label to avoid clutter.
+    label: weight !== undefined && weight > 1 ? `×${weight}` : "",
   };
+  if (weight !== undefined) data.weight = weight;
+  return { data };
 }
 
 export function buildCyData(
