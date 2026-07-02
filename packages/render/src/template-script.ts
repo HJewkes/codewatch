@@ -19,6 +19,33 @@ export function clientScript(kindColors: Record<string, string>): string {
     return n.position && Number.isFinite(n.position.x) && Number.isFinite(n.position.y);
   });
   const useElkPreset = anyPositioned && !anyCompound;
+  // Assign each package a stable, CVD-safe categorical color and write it onto
+  // the node/edge DATA *before* Cytoscape reads it, so the stylesheet's
+  // data(pkgColor)/data(edgeColor) mappers carry it. Doing it in the base style
+  // (not an imperative post-hoc .style() bypass) is what makes the color survive
+  // class toggles — selecting a node and deselecting no longer strips it.
+  if (useElkPreset) assignPackageColors();
+  function assignPackageColors() {
+    // Validated dark categorical palette (CVD-safe fixed order; see the dataviz
+    // skill). Assigned by sorted package id so the mapping is deterministic.
+    const PALETTE = [
+      "#3987e5", "#199e70", "#c98500", "#008300",
+      "#9085e9", "#e66767", "#d55181", "#d95926",
+    ];
+    const ids = data.nodes
+      .filter(function (n) { return n.data && n.data.kind === "package"; })
+      .map(function (n) { return n.data.id; })
+      .sort();
+    const colorOf = {};
+    ids.forEach(function (id, i) { colorOf[id] = PALETTE[i % PALETTE.length]; });
+    data.nodes.forEach(function (n) {
+      if (n.data && colorOf[n.data.id]) n.data.pkgColor = colorOf[n.data.id];
+    });
+    data.edges.forEach(function (e) {
+      const c = e.data && colorOf[e.data.source];
+      if (c) e.data.edgeColor = c;
+    });
+  }
   const coseBilkentLayout = {
     name: "cose-bilkent",
     animate: false,
@@ -52,7 +79,6 @@ export function clientScript(kindColors: Record<string, string>): string {
   // compound view keeps bezier curves.
   if (useElkPreset) {
     applyElkRouting();
-    colorByPackage();
   }
 
   function applyElkRouting() {
@@ -81,26 +107,6 @@ export function clientScript(kindColors: Record<string, string>): string {
     });
   }
 
-  // Give each package a stable palette color, paint its border with it, and
-  // color every edge by its SOURCE package so a fan-out reads as one colored
-  // bundle you can trace back to its origin.
-  function colorByPackage() {
-    const PALETTE = [
-      "#5eead4", "#f59e0b", "#60a5fa", "#f472b6", "#a78bfa",
-      "#34d399", "#fb923c", "#38bdf8", "#facc15", "#f87171",
-    ];
-    const colorOf = {};
-    cy.nodes().sort(function (a, b) { return a.id() < b.id() ? -1 : a.id() > b.id() ? 1 : 0; })
-      .forEach(function (n, i) {
-        const c = PALETTE[i % PALETTE.length];
-        colorOf[n.id()] = c;
-        n.style({ "border-color": c, "border-width": 2 });
-      });
-    cy.edges().forEach(function (e) {
-      const c = colorOf[e.source().id()] || "#3a4452";
-      e.style({ "line-color": c, "target-arrow-color": c, "color": c });
-    });
-  }
   // Diagnostic hook — lets tests/Playwright assert layout + edge geometry by the
   // numbers rather than by eye (see pr-viz sources doc §8.5).
   window.__cy = cy;

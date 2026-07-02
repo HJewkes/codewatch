@@ -55,7 +55,12 @@ export function cyStyles(): string {
     { selector: "node[kind = 'package']:childless", style: {
       "text-valign": "center",
       "text-margin-y": 0,
-      "text-transform": "uppercase"
+      "text-transform": "uppercase",
+      "padding": 0
+    } },
+    { selector: "node[pkgColor]", style: {
+      "border-color": "data(pkgColor)",
+      "border-width": 2
     } },
     { selector: "node[kind = 'package'][id = 'pkg:external']", style: {
       "background-color": "#2a1f18",
@@ -135,6 +140,11 @@ export function cyStyles(): string {
       "text-rotation": "autorotate",
       "transition-property": "opacity, line-color, target-arrow-color, width",
       "transition-duration": "120ms"
+    } },
+    { selector: "edge[edgeColor]", style: {
+      "line-color": "data(edgeColor)",
+      "target-arrow-color": "data(edgeColor)",
+      "color": "data(edgeColor)"
     } },
     { selector: "edge[kind = 're-exports']", style: {
       "line-style": "dashed"
