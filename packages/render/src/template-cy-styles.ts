@@ -52,6 +52,11 @@ export function cyStyles(): string {
       "text-transform": "uppercase",
       "z-compound-depth": "bottom"
     } },
+    { selector: "node[kind = 'package']:childless", style: {
+      "text-valign": "center",
+      "text-margin-y": 0,
+      "text-transform": "uppercase"
+    } },
     { selector: "node[kind = 'package'][id = 'pkg:external']", style: {
       "background-color": "#2a1f18",
       "border-color": "#5e3825",

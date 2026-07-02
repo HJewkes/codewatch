@@ -12,8 +12,14 @@ const NODE_HEIGHT = 48;
 const ELK_LAYOUT_OPTIONS = {
   algorithm: "layered",
   "elk.direction": "DOWN",
-  "elk.layered.spacing.nodeNodeBetweenLayers": "60",
-  "elk.spacing.nodeNode": "32",
+  // Generous inter-layer channels so fan-out/skip edges have room to route
+  // between layers instead of grazing the boxes.
+  "elk.layered.spacing.nodeNodeBetweenLayers": "110",
+  "elk.spacing.nodeNode": "55",
+  "elk.layered.spacing.edgeNodeBetweenLayers": "24",
+  "elk.spacing.edgeNode": "24",
+  "elk.spacing.edgeEdge": "16",
+  "elk.edgeRouting": "ORTHOGONAL",
   "elk.padding": "[top=24,left=24,bottom=24,right=24]",
 };
 
