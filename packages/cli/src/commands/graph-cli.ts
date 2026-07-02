@@ -162,7 +162,10 @@ function registerCheck(graphCmd: Command): void {
     .description("Run rule checks against a snapshot (max-complexity, no-imports, …). Exits non-zero on violations.")
     .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")
     .option("--config <path>", "Rules file (JSON)", "./.codewatch/check.json")
-    .option("--snapshot <id>", "Snapshot id (default: latest)")
+    .option(
+      "--snapshot <ref-or-id>",
+      "Snapshot to check: numeric id or ref name (default: latest)",
+    )
     .option(
       "--baseline <ref-or-id>",
       "Suppress violations that already exist in this baseline snapshot",
@@ -182,7 +185,7 @@ function registerCheck(graphCmd: Command): void {
           const result = await runGraphCheckCommand({
             db: options.db,
             config: options.config,
-            snapshot: asNumber(options.snapshot),
+            snapshot: options.snapshot,
             baseline: options.baseline,
           });
           console.log(

@@ -191,6 +191,56 @@ describe("runGraphCheckCommand", () => {
     expect(text).toContain("1 new, 1 carryover");
   });
 
+  it("--snapshot resolves a ref name, checking the head-vs-baseline pair regardless of index order (C-45)", async () => {
+    // Mirror CI: head is indexed FIRST, then baseline — so baseline is the
+    // LATEST snapshot in the shared DB.
+    const dir = await fs.mkdtemp(path.join(tmpdir(), "codewatch-snapref-cli-"));
+    const dbPath = path.join(dir, "graph.db");
+    const configPath = path.join(dir, "check.json");
+    const db = openDatabase(dbPath);
+    const headId = db.createSnapshot({ ref: "head", indexVersion: "0.1.0" });
+    db.insertNode(headId, { id: "new.ts", kind: "file", name: "" });
+    db.insertMetric(headId, { nodeId: "new.ts", name: "loc", value: 9001 });
+    const baselineId = db.createSnapshot({
+      ref: "baseline",
+      indexVersion: "0.1.0",
+    });
+    db.insertNode(baselineId, { id: "ok.ts", kind: "file", name: "" });
+    db.insertMetric(baselineId, { nodeId: "ok.ts", name: "loc", value: 1 });
+    db.close();
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({
+        rules: [{ id: "max-loc", type: "metric-max", metric: "loc", max: 500 }],
+      }),
+      "utf8",
+    );
+    fixture = { dir, dbPath, configPath, snapshotId: headId };
+
+    // Without --snapshot the default (latest) is the baseline, so the check
+    // compares baseline-vs-baseline and misses head's new violation — the no-op
+    // gate this fix repairs.
+    const noop = await runGraphCheckCommand({
+      db: dbPath,
+      config: configPath,
+      baseline: "baseline",
+    });
+    expect(noop.snapshot.id).toBe(baselineId);
+    expect(noop.result.newErrors).toBe(0);
+
+    // --snapshot head pins the head snapshot by ref, catching the regression.
+    const meaningful = await runGraphCheckCommand({
+      db: dbPath,
+      config: configPath,
+      snapshot: "head",
+      baseline: "baseline",
+    });
+    expect(meaningful.snapshot.id).toBe(headId);
+    expect(meaningful.baselineSnapshot?.id).toBe(baselineId);
+    expect(meaningful.result.newErrors).toBe(1);
+    expect(meaningful.result.passed).toBe(false);
+  });
+
   it("--baseline previous picks the second-to-latest snapshot", async () => {
     const dir = await fs.mkdtemp(path.join(tmpdir(), "codewatch-prev-cli-"));
     const dbPath = path.join(dir, "graph.db");

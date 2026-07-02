@@ -43,6 +43,11 @@ jobs:
           node packages/cli/dist/index.js graph index /tmp/baseline/packages \
             --db .codewatch/graph.db --ref baseline
           # Fail only on *new* violations — carryover errors are tolerated.
+          # Pin the checked snapshot to head explicitly: both head and baseline
+          # live in the shared DB, so the default (latest snapshot) would pick
+          # baseline — checking baseline-vs-baseline and never seeing head's
+          # new violations. --snapshot head compares the right pair regardless
+          # of index order.
           node packages/cli/dist/index.js graph check \
             --db .codewatch/graph.db --config .codewatch/check.json \
-            --baseline baseline
+            --snapshot head --baseline baseline
