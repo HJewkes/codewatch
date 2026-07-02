@@ -82,6 +82,21 @@ export interface CentralFile {
   score: number;
 }
 
+/**
+ * Per-file structural metrics for the Dossier, keyed against fitness budgets so
+ * the drawer shows a heat-colored readout of *why* a file is (or isn't) at risk.
+ * Present only for files referenced elsewhere in the payload (i.e. any file the
+ * Dossier can be opened on). Fields absent when the metric wasn't computed.
+ */
+export interface NodeMetrics {
+  loc?: number;
+  cognitiveMax?: number;
+  cyclomaticMax?: number;
+  maxNesting?: number;
+  fanIn?: number;
+  fanOut?: number;
+}
+
 export interface TestCoverageRisk {
   /** Source (non-test) file whose test coverage is owner-concentrated. */
   nodeId: string;
@@ -143,6 +158,8 @@ export interface CodewatchData {
   testCoverageRisks?: TestCoverageRisk[];
   couplingClusters: CouplingPair[];
   centralFiles: CentralFile[];
+  /** Structural metrics keyed by nodeId, for the Dossier heat readout. */
+  nodeMetrics?: Record<string, NodeMetrics>;
   packages?: PackageStat[];
   violations: Violation[];
   drift?: Drift;
