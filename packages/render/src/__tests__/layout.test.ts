@@ -27,9 +27,13 @@ describe("computeLayout", () => {
     }
   });
 
-  it("preserves edges", async () => {
+  it("preserves edge endpoints and enriches them with ELK routing", async () => {
     const result = await computeLayout(tinyGraph);
-    expect(result.edges).toEqual(tinyGraph.edges);
+    const endpoints = (es: RenderInput["edges"]) =>
+      es.map((e) => ({ srcId: e.srcId, dstId: e.dstId, kind: e.kind }));
+    expect(endpoints(result.edges)).toEqual(endpoints(tinyGraph.edges));
+    // ELK's orthogonal edge sections are attached for the client to render.
+    expect(result.edges.every((e) => Array.isArray(e.attrs?.route))).toBe(true);
   });
 
   it("handles an empty graph", async () => {

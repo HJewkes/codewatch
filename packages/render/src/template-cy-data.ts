@@ -1,5 +1,11 @@
 import type { LaidOutNode, LayoutResult, RenderInput } from "./types.js";
 import type { DiffSummary, ViolationsByNode } from "./template-violations.js";
+import {
+  edgeRoutingFor,
+  packageGraphCenters,
+  type EdgeRouting,
+  type Pt,
+} from "./edge-routing.js";
 
 interface CytoscapeNodeData {
   id: string;
@@ -77,6 +83,7 @@ interface CytoscapeEdgeData {
   weight?: number;
   width: number;
   label: string;
+  routing?: EdgeRouting;
 }
 
 const BASE_EDGE_WIDTH = 1.2;
@@ -265,6 +272,7 @@ function buildEdgeEntry(
   e: LayoutResult["edges"][number],
   i: number,
   diff: RenderInput["diff"],
+  centers: Map<string, Pt> | null,
 ): { data: CytoscapeEdgeData } {
   const weight = edgeWeightOf(e);
   const data: CytoscapeEdgeData = {
@@ -279,6 +287,8 @@ function buildEdgeEntry(
     label: weight !== undefined && weight > 1 ? `×${weight}` : "",
   };
   if (weight !== undefined) data.weight = weight;
+  const routing = edgeRoutingFor(e, centers);
+  if (routing) data.routing = routing;
   return { data };
 }
 
@@ -299,8 +309,9 @@ export function buildCyData(
   };
   const packageEntries = synthesizePackageEntries(layout);
   const nodeEntries = layout.nodes.map((n) => buildNodeEntry(n, ctx));
+  const centers = packageGraphCenters(layout);
   return {
     nodes: [...packageEntries, ...nodeEntries],
-    edges: layout.edges.map((e, i) => buildEdgeEntry(e, i, diff)),
+    edges: layout.edges.map((e, i) => buildEdgeEntry(e, i, diff, centers)),
   };
 }
