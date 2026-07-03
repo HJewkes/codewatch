@@ -218,14 +218,24 @@ export class GraphDatabase {
     return row ? rowToNode(row) : null;
   }
 
-  listNodes(snapshotId: number): GraphNode[] {
+  /**
+   * File-level structural graph by default: the per-symbol layer (C-53) is
+   * excluded so the many consumers that reason about module structure —
+   * PageRank/centrality, architecture, coupling, rendering — see the same graph
+   * they always did. Pass `includeSymbols` for the symbol layer (the reuse
+   * basis, which carries symbol nodes forward, and the hot-exports payload).
+   */
+  listNodes(snapshotId: number, opts?: { includeSymbols?: boolean }): GraphNode[] {
     const rows = this.listNodesStmt.all(snapshotId) as NodeDbRow[];
-    return rows.map(rowToNode);
+    const nodes = rows.map(rowToNode);
+    return opts?.includeSymbols ? nodes : nodes.filter((n) => n.kind !== "symbol");
   }
 
-  listEdges(snapshotId: number): GraphEdge[] {
+  /** See {@link listNodes}: `references` edges are the symbol layer, excluded by default. */
+  listEdges(snapshotId: number, opts?: { includeReferences?: boolean }): GraphEdge[] {
     const rows = this.listEdgesStmt.all(snapshotId) as EdgeDbRow[];
-    return rows.map(rowToEdge);
+    const edges = rows.map(rowToEdge);
+    return opts?.includeReferences ? edges : edges.filter((e) => e.kind !== "references");
   }
 
   listMetrics(snapshotId: number): GraphMetric[] {

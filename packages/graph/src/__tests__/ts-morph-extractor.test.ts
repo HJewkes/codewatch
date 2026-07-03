@@ -52,6 +52,12 @@ const FILES: Record<string, string> = {
   "/repo/src/reexport.ts":
     `export * from "./a.js";\n` + // namespace re-export → weight 1
     `export { P, Q } from "./multi.js";\n`, // two named re-exports → weight 2
+  // Imports A through the index.ts barrel (which `export *`s from a.ts). Symbol
+  // references must credit the origin symbol src/a.ts#A, not src/index.ts#A
+  // (C-53 sees through re-export hubs, mirroring C-55's file-level treatment).
+  "/repo/src/via-barrel.ts":
+    `import { A } from "./index.js";\n` +
+    `export const vb = A + A;\n`, // A used 2×
   // A directory outside the tsconfig project using extensionless,
   // bundler-style relative imports (like `dashboard/`). ts-morph's NodeNext
   // resolution cannot link these; the filesystem fallback must (C-44).
@@ -246,6 +252,54 @@ describe("TsMorphGraphExtractor", () => {
     it("weights a named re-export by its specifier count", () => {
       const [fragment] = fixture.extract("/repo/src/reexport.ts");
       expect(weightOf(fragment!, "re-exports", "src/multi.ts")).toBe(2);
+    });
+  });
+
+  describe("per-symbol nodes and references (C-53)", () => {
+    const symbolIds = (fragment: GraphFragment): string[] =>
+      fragment.nodes
+        .filter((n) => n.kind === "symbol")
+        .map((n) => n.id)
+        .sort();
+    const refTo = (fragment: GraphFragment, dstId: string) =>
+      fragment.edges.find((e) => e.kind === "references" && e.dstId === dstId);
+
+    it("emits a symbol node per exported declaration", () => {
+      const [fragment] = fixture.extract("/repo/src/multi.ts");
+      const syms = fragment!.nodes.filter((n) => n.kind === "symbol");
+      expect(symbolIds(fragment!)).toEqual(["src/multi.ts#P", "src/multi.ts#Q"]);
+      expect(syms[0]).toMatchObject({
+        kind: "symbol",
+        name: "P",
+        parentId: "src/multi.ts",
+      });
+    });
+
+    it("does not emit symbol nodes for re-exported names (only own declarations)", () => {
+      // index.ts declares only `x`; it `export *`s A from a.ts and imports B.
+      const [fragment] = fixture.extract("/repo/src/index.ts");
+      expect(symbolIds(fragment!)).toEqual(["src/index.ts#x"]);
+    });
+
+    it("emits a references edge to the imported export, weighted by use count", () => {
+      const [fragment] = fixture.extract("/repo/src/heavy.ts");
+      expect(refTo(fragment!, "src/a.ts#A")?.attrs?.weight).toBe(3);
+      expect(refTo(fragment!, "src/b.ts#B")?.attrs?.weight).toBe(1);
+    });
+
+    it("does not emit per-symbol references for namespace imports", () => {
+      const [fragment] = fixture.extract("/repo/src/heavy.ts");
+      const nsRefs = fragment!.edges.filter(
+        (e) => e.kind === "references" && e.dstId.startsWith("npm:"),
+      );
+      expect(nsRefs).toEqual([]);
+    });
+
+    it("resolves references through a barrel to the origin symbol", () => {
+      const [fragment] = fixture.extract("/repo/src/via-barrel.ts");
+      // Credits origin src/a.ts#A, never the barrel's src/index.ts#A.
+      expect(refTo(fragment!, "src/a.ts#A")?.attrs?.weight).toBe(2);
+      expect(refTo(fragment!, "src/index.ts#A")).toBeUndefined();
     });
   });
 

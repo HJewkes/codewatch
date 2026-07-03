@@ -16,11 +16,14 @@ import {
   fileId,
   moduleId,
   parentModuleId,
+  symbolId,
 } from "./ids.js";
 import {
   addWeightedEdge,
+  bindingWeight,
   buildLocalUsageCounts,
   importWeight,
+  namedImportBindings,
   reExportWeight,
 } from "./reference-weight.js";
 
@@ -90,8 +93,35 @@ export class TsMorphGraphExtractor implements Extractor<GraphFragment> {
     const project = this.ensureProject();
     const sourceFile = this.loadSourceFile(project, file);
     const nodes = this.buildFileAndModuleNodes(sourceFile);
+    const symbolNodes = this.buildSymbolNodes(sourceFile);
     const { edges, externalNodes } = this.collectEdges(sourceFile);
-    return [{ nodes: [...nodes, ...externalNodes], edges }];
+    return [{ nodes: [...nodes, ...symbolNodes, ...externalNodes], edges }];
+  }
+
+  /**
+   * A `symbol` node per name this file *declares and exports* (C-53). Names it
+   * merely re-exports are skipped — they belong to the origin file's symbol
+   * nodes, so `references` edges resolved through a barrel land on the file
+   * that does the work, not the re-export hub (mirrors the file-level
+   * see-through-barrels treatment of utilization in C-55). Source-local: an
+   * unchanged file's symbol nodes are byte-identical across runs, so the
+   * incremental indexer carries them forward without re-parsing.
+   */
+  private buildSymbolNodes(sourceFile: SourceFile): GraphNode[] {
+    const fId = fileId(this.repoRoot, sourceFile.getFilePath());
+    const out: GraphNode[] = [];
+    for (const [name, decls] of sourceFile.getExportedDeclarations()) {
+      const declaredHere = decls.some((d) => d.getSourceFile() === sourceFile);
+      if (!declaredHere) continue;
+      out.push({
+        id: symbolId(fId, name),
+        kind: "symbol",
+        name,
+        parentId: fId,
+        language: "typescript",
+      });
+    }
+    return out;
   }
 
   private ensureProject(): Project {
@@ -153,6 +183,62 @@ export class TsMorphGraphExtractor implements Extractor<GraphFragment> {
     if (dstId) {
       addWeightedEdge(c.agg, c.srcFileId, dstId, "imports", specifier, importWeight(decl, c.usage));
     }
+    this.recordSymbolReferences(c, decl);
+  }
+
+  /**
+   * Split an import into per-export `references` edges targeting `symbol` nodes,
+   * so per-symbol utilization (which exports are hot) falls out of the same
+   * inbound-weight sum that powers file utilization (C-53). Extracted *forward*
+   * from the importing file — source-local, exactly like the file-level import
+   * weight — which sidesteps the reuse-breaking reverse `findReferences` query:
+   * an unchanged file's outbound reference edges are carried forward verbatim.
+   */
+  private recordSymbolReferences(c: EdgeCollector, decl: ImportDeclaration): void {
+    const specifier = decl.getModuleSpecifierValue();
+    for (const binding of namedImportBindings(decl)) {
+      const dstId = this.resolveSymbolTarget(c, decl, binding.importedName);
+      if (!dstId) continue;
+      addWeightedEdge(
+        c.agg,
+        c.srcFileId,
+        dstId,
+        "references",
+        specifier,
+        bindingWeight(binding, c.usage),
+      );
+    }
+  }
+
+  /**
+   * Resolve an imported name to the id of the `symbol` node for the export that
+   * actually *declares* it — following re-exports through barrels via ts-morph's
+   * own `getExportedDeclarations`, so `import { x } from "./barrel"` credits the
+   * origin file's `x`, not the barrel. When ts-morph can't resolve the specifier
+   * (e.g. an extensionless relative import), falls back to direct attribution
+   * without barrel see-through. Returns null for external / unresolved targets.
+   * A name that resolves to no local declaration (an aliased re-export the
+   * origin doesn't export under this name) yields a dangling edge, pruned after
+   * assembly (`pruneDanglingReferences`).
+   */
+  private resolveSymbolTarget(
+    c: EdgeCollector,
+    decl: ImportDeclaration,
+    importedName: string,
+  ): string | null {
+    const targetSf = decl.getModuleSpecifierSourceFile();
+    if (targetSf) {
+      const decls = targetSf.getExportedDeclarations().get(importedName);
+      const originSf =
+        decls && decls.length > 0 ? decls[0]!.getSourceFile() : targetSf;
+      const originId = this.inRepoFileId(remapDistToSrc(originSf.getFilePath()));
+      return originId ? symbolId(originId, importedName) : null;
+    }
+    const directId = this.resolveRelativeInternal(
+      c.srcAbs,
+      decl.getModuleSpecifierValue(),
+    );
+    return directId ? symbolId(directId, importedName) : null;
   }
 
   private recordReExportEdge(c: EdgeCollector, decl: ExportDeclaration): void {

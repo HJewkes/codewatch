@@ -111,6 +111,8 @@ export interface ReuseBasis {
   nodesById: Map<string, GraphNode>;
   edgesBySrc: Map<string, GraphEdge[]>;
   sourceMetricsByFile: Map<string, GraphMetric[]>;
+  /** Symbol nodes grouped by their declaring file id, to carry forward for reused files (C-53). */
+  symbolsByFile: Map<string, GraphNode[]>;
 }
 
 /**
@@ -128,10 +130,20 @@ export function loadReuseBasis(
     if (fingerprints.length === 0) continue;
 
     const nodesById = new Map<string, GraphNode>();
-    for (const n of db.listNodes(snap.id)) nodesById.set(n.id, n);
+    const symbolsByFile = new Map<string, GraphNode[]>();
+    // Opt into the symbol layer: reuse must carry symbol nodes and their inbound
+    // reference edges forward for unchanged files (C-53).
+    for (const n of db.listNodes(snap.id, { includeSymbols: true })) {
+      nodesById.set(n.id, n);
+      if (n.kind === "symbol" && n.parentId) {
+        const bucket = symbolsByFile.get(n.parentId);
+        if (bucket) bucket.push(n);
+        else symbolsByFile.set(n.parentId, [n]);
+      }
+    }
 
     const edgesBySrc = new Map<string, GraphEdge[]>();
-    for (const e of db.listEdges(snap.id)) {
+    for (const e of db.listEdges(snap.id, { includeReferences: true })) {
       const bucket = edgesBySrc.get(e.srcId);
       if (bucket) bucket.push(e);
       else edgesBySrc.set(e.srcId, [e]);
@@ -151,6 +163,7 @@ export function loadReuseBasis(
       nodesById,
       edgesBySrc,
       sourceMetricsByFile,
+      symbolsByFile,
     };
   }
   return null;
@@ -176,8 +189,9 @@ export function membershipUnchanged(
 /**
  * Rebuild an unchanged file's graph fragment from the prior snapshot. Produces
  * byte-for-byte the same nodes and edges the extractor would emit: file +
- * module nodes (path-derived) plus the external nodes its imports reference,
- * and the outbound edges carried forward verbatim.
+ * module nodes (path-derived), the symbol nodes it declares (content-derived,
+ * so carried forward from the basis rather than rebuilt — C-53), the external
+ * nodes its imports reference, and the outbound edges carried forward verbatim.
  */
 export function reconstructFragment(
   repoRoot: string,
@@ -186,6 +200,7 @@ export function reconstructFragment(
   basis: ReuseBasis,
 ): GraphFragment {
   const nodes = buildFileModuleNodes(repoRoot, absPath);
+  nodes.push(...(basis.symbolsByFile.get(fileId) ?? []));
   const edges = basis.edgesBySrc.get(fileId) ?? [];
   const seenExternals = new Set<string>();
   for (const edge of edges) {

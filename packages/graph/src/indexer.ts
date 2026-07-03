@@ -16,6 +16,7 @@ import {
   isInsideGitRepo,
 } from "./git-renames.js";
 import { annotateRoles } from "./roles.js";
+import { pruneDanglingReferences } from "./barrel-resolve.js";
 import { fileId } from "./extractors/ids.js";
 import {
   assembleFragments,
@@ -34,7 +35,7 @@ import type {
   IdAlias,
 } from "./types.js";
 
-const INDEX_VERSION = "0.2.0";
+const INDEX_VERSION = "0.3.0";
 const TS_LANGUAGES = ["typescript"] as const;
 
 export interface GraphIndexOptions {
@@ -206,10 +207,8 @@ function persist(
 }
 
 function findPriorCommit(db: GraphDatabase): string | null {
-  for (const snap of db.listSnapshots({ limit: 50 })) {
-    if (snap.commitHash) return snap.commitHash;
-  }
-  return null;
+  const snap = db.listSnapshots({ limit: 50 }).find((s) => s.commitHash);
+  return snap?.commitHash ?? null;
 }
 
 function resolveAliases(
@@ -310,6 +309,7 @@ export async function runGraphIndex(
     const accumulator = mergeFragments(fragments);
     const annotated = annotateRoles([...accumulator.nodes.values()]);
     accumulator.nodes = new Map(annotated.map((n) => [n.id, n]));
+    pruneDanglingReferences(accumulator.nodes, accumulator.edges);
     const tExtract = performance.now() - tExtract0;
 
     const tMetrics0 = performance.now();
