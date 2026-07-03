@@ -20,13 +20,29 @@ import type { RenderInput } from "./types.js";
  *   file → pkg file edge becomes stub(other) → file. Aggregated by (endpoint,
  *   neighbour) with the fold count on `attrs.weight`.
  */
-export function focusPackage(input: RenderInput, pkg: string): RenderInput {
+export interface FocusOptions {
+  /**
+   * Include `test`-role files. Off by default: tests are leaves that each import
+   * one source file, so they roughly double the node count and blow out the
+   * layout width without revealing how the *production* code is structured — which
+   * is the question a "package internal structure" view answers.
+   */
+  includeTests?: boolean;
+}
+
+export function focusPackage(
+  input: RenderInput,
+  pkg: string,
+  opts: FocusOptions = {},
+): RenderInput {
   const pkgOf = (id: string): string => {
     const m = id.match(/^packages\/([^/]+)/);
     return m ? m[1] : (id.split("/")[0] ?? id);
   };
+  const kept = (n: { kind: string; role?: string }): boolean =>
+    n.kind === "file" && (opts.includeTests || n.role !== "test");
 
-  const fileNodes = input.nodes.filter((n) => n.kind === "file" && pkgOf(n.id) === pkg);
+  const fileNodes = input.nodes.filter((n) => kept(n) && pkgOf(n.id) === pkg);
   const fileIds = new Set(fileNodes.map((n) => n.id));
   const isFile = new Set(input.nodes.filter((n) => n.kind === "file").map((n) => n.id));
 
@@ -43,10 +59,12 @@ export function focusPackage(input: RenderInput, pkg: string): RenderInput {
       bump(intra, JSON.stringify([e.srcId, e.dstId]));
     } else if (srcIn && !dstIn) {
       const nb = pkgOf(e.dstId);
+      if (nb === pkg) continue; // dst is an excluded (test) file in this package — drop, not a neighbour
       neighbours.add(nb);
       bump(out, JSON.stringify([e.srcId, nb]));
     } else if (!srcIn && dstIn) {
       const nb = pkgOf(e.srcId);
+      if (nb === pkg) continue; // src is an excluded file in this package — drop, not a neighbour
       neighbours.add(nb);
       bump(inc, JSON.stringify([nb, e.dstId]));
     }

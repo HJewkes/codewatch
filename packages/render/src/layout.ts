@@ -23,6 +23,30 @@ const ELK_LAYOUT_OPTIONS = {
   "elk.padding": "[top=24,left=24,bottom=24,right=24]",
 };
 
+/**
+ * Layout profile for the within-package focus view. A focused package can still
+ * have wide layers (many files at similar dependency depth), so this trades some
+ * of the package graph's generous spacing for compactness: tighter intra-layer
+ * spacing plus left-compaction squeezes horizontal slack out of the layers, while
+ * the inter-layer channels stay wide enough for the orthogonal routing. (ELK
+ * layered *wrapping* doesn't help here — it cuts the layer *sequence*, but the
+ * focus graph is few-layers-but-wide, so the real width lever is excluding test
+ * leaves in `focusPackage`.)
+ */
+export const FOCUS_LAYOUT_OPTIONS = {
+  algorithm: "layered",
+  "elk.direction": "DOWN",
+  "elk.layered.spacing.nodeNodeBetweenLayers": "90",
+  "elk.spacing.nodeNode": "38",
+  "elk.layered.spacing.edgeNodeBetweenLayers": "20",
+  "elk.spacing.edgeNode": "20",
+  "elk.spacing.edgeEdge": "12",
+  "elk.edgeRouting": "ORTHOGONAL",
+  "elk.layered.nodePlacement.strategy": "NETWORK_SIMPLEX",
+  "elk.layered.compaction.postCompaction.strategy": "LEFT",
+  "elk.padding": "[top=24,left=24,bottom=24,right=24]",
+};
+
 function dimsFor(
   nodeId: string,
   sizing: Map<string, { width: number; height: number }> | null,
@@ -124,12 +148,13 @@ function attachRoutes(
 export async function computeLayout(
   input: RenderInput,
   sizing: Map<string, { width: number; height: number }> | null = null,
+  layoutOptions: Record<string, string> = ELK_LAYOUT_OPTIONS,
 ): Promise<LayoutResult> {
   if (input.nodes.length === 0) return { nodes: [], edges: input.edges };
   const ids = new Set(input.nodes.map((n) => n.id));
   const root: ElkNode = {
     id: "root",
-    layoutOptions: ELK_LAYOUT_OPTIONS,
+    layoutOptions,
     children: toElkNodes(input, sizing),
     edges: toElkEdges(input, ids),
   };
