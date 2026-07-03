@@ -68,6 +68,40 @@ describe("computeMetrics", () => {
     expect(metrics.some((m) => m.nodeId === "phantom")).toBe(false);
   });
 
+  it("utilization equals fan_in when edges are unweighted", () => {
+    const metrics = computeMetrics(
+      [file("a"), file("b"), file("c")],
+      [imports("a", "c"), imports("b", "c")],
+    );
+    expect(findMetric(metrics, "c", "fan_in")).toBe(2);
+    expect(findMetric(metrics, "c", "utilization")).toBe(2);
+  });
+
+  it("utilization sums inbound edge weights, so heavy use outranks bare imports", () => {
+    const metrics = computeMetrics(
+      [file("hot"), file("cold"), file("x"), file("y")],
+      [
+        { srcId: "x", dstId: "hot", kind: "imports", attrs: { weight: 30 } },
+        { srcId: "y", dstId: "cold", kind: "imports", attrs: { weight: 1 } },
+        { srcId: "x", dstId: "cold", kind: "imports", attrs: { weight: 1 } },
+      ],
+    );
+    // hot: one importer using it 30× → utilization 30, fan_in 1
+    expect(findMetric(metrics, "hot", "fan_in")).toBe(1);
+    expect(findMetric(metrics, "hot", "utilization")).toBe(30);
+    // cold: two importers naming it once each → utilization 2, fan_in 2
+    expect(findMetric(metrics, "cold", "fan_in")).toBe(2);
+    expect(findMetric(metrics, "cold", "utilization")).toBe(2);
+  });
+
+  it("floors each inbound edge at weight 1 for missing/invalid weights", () => {
+    const metrics = computeMetrics(
+      [file("a"), file("b")],
+      [{ srcId: "a", dstId: "b", kind: "imports", attrs: { weight: 0 } }],
+    );
+    expect(findMetric(metrics, "b", "utilization")).toBe(1);
+  });
+
   it("tags fan_in/fan_out with unit='count' and instability with unit='ratio'", () => {
     const metrics = computeMetrics(
       [file("a"), file("b")],

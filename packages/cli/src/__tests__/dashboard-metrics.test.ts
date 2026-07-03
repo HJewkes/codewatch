@@ -10,9 +10,10 @@ describe("collectNodeMetrics", () => {
       { nodeId: "a.ts", name: "max_nesting_depth", value: 4 },
       { nodeId: "a.ts", name: "fan_in", value: 7 },
       { nodeId: "a.ts", name: "fan_out", value: 3 },
+      { nodeId: "a.ts", name: "utilization", value: 21 },
     ]);
     expect(byNode.get("a.ts")).toEqual({
-      loc: 120, cognitiveMax: 18, cyclomaticMax: 12, maxNesting: 4, fanIn: 7, fanOut: 3,
+      loc: 120, cognitiveMax: 18, cyclomaticMax: 12, maxNesting: 4, fanIn: 7, fanOut: 3, utilization: 21,
     });
   });
 

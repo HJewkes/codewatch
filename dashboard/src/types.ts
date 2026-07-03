@@ -95,6 +95,8 @@ export interface NodeMetrics {
   maxNesting?: number;
   fanIn?: number;
   fanOut?: number;
+  /** Inbound reference count (C-52): how heavily this file's exports are used. */
+  utilization?: number;
 }
 
 export interface TestCoverageRisk {
