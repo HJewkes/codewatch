@@ -5,16 +5,34 @@ import {
   ScriptTarget,
   ModuleKind,
   ModuleResolutionKind,
+  type ExportDeclaration,
+  type ImportDeclaration,
   type SourceFile,
 } from "ts-morph";
 import type { Extractor, ParsedFile } from "@codewatch/core";
-import type { EdgeKind, GraphEdge, GraphFragment, GraphNode } from "../types.js";
+import type { GraphEdge, GraphFragment, GraphNode } from "../types.js";
 import {
   externalId,
   fileId,
   moduleId,
   parentModuleId,
 } from "./ids.js";
+import {
+  addWeightedEdge,
+  buildLocalUsageCounts,
+  importWeight,
+  reExportWeight,
+} from "./reference-weight.js";
+
+/** Mutable accumulator threaded through one file's edge collection. */
+interface EdgeCollector {
+  srcAbs: string;
+  srcFileId: string;
+  usage: Map<string, number>;
+  agg: Map<string, GraphEdge>;
+  externalNodes: GraphNode[];
+  seenExternals: Set<string>;
+}
 
 /**
  * Build the `file` + `module` nodes for a source file from its path alone.
@@ -112,77 +130,68 @@ export class TsMorphGraphExtractor implements Extractor<GraphFragment> {
     edges: GraphEdge[];
     externalNodes: GraphNode[];
   } {
-    const srcAbs = sourceFile.getFilePath();
-    const srcFileId = fileId(this.repoRoot, srcAbs);
-    const edges: GraphEdge[] = [];
-    const externalNodes: GraphNode[] = [];
-    const seenExternals = new Set<string>();
-
+    const c: EdgeCollector = {
+      srcAbs: sourceFile.getFilePath(),
+      srcFileId: fileId(this.repoRoot, sourceFile.getFilePath()),
+      usage: buildLocalUsageCounts(sourceFile),
+      agg: new Map(),
+      externalNodes: [],
+      seenExternals: new Set(),
+    };
     for (const decl of sourceFile.getImportDeclarations()) {
-      this.handleSpecifier(
-        srcAbs,
-        srcFileId,
-        decl.getModuleSpecifierValue(),
-        decl.getModuleSpecifierSourceFile(),
-        "imports",
-        edges,
-        externalNodes,
-        seenExternals,
-      );
+      this.recordImportEdge(c, decl);
     }
-
     for (const decl of sourceFile.getExportDeclarations()) {
-      if (!decl.hasModuleSpecifier()) continue;
-      this.handleSpecifier(
-        srcAbs,
-        srcFileId,
-        decl.getModuleSpecifierValue(),
-        decl.getModuleSpecifierSourceFile(),
-        "re-exports",
-        edges,
-        externalNodes,
-        seenExternals,
-      );
+      this.recordReExportEdge(c, decl);
     }
-
-    return { edges, externalNodes };
+    return { edges: [...c.agg.values()], externalNodes: c.externalNodes };
   }
 
-  private handleSpecifier(
-    srcAbs: string,
-    srcId: string,
-    specifier: string | undefined,
-    target: SourceFile | undefined,
-    kind: EdgeKind,
-    edges: GraphEdge[],
-    externalNodes: GraphNode[],
-    seenExternals: Set<string>,
-  ): void {
-    if (!specifier) return;
-    const internal =
-      this.resolveInternal(target) ??
-      this.resolveRelativeInternal(srcAbs, specifier);
-    if (internal) {
-      edges.push({ srcId, dstId: internal, kind, attrs: { specifier } });
-      return;
+  private recordImportEdge(c: EdgeCollector, decl: ImportDeclaration): void {
+    const specifier = decl.getModuleSpecifierValue();
+    const dstId = this.resolveTarget(c, specifier, decl);
+    if (dstId) {
+      addWeightedEdge(c.agg, c.srcFileId, dstId, "imports", specifier, importWeight(decl, c.usage));
     }
+  }
+
+  private recordReExportEdge(c: EdgeCollector, decl: ExportDeclaration): void {
+    if (!decl.hasModuleSpecifier()) return;
+    const specifier = decl.getModuleSpecifierValue();
+    if (!specifier) return;
+    const dstId = this.resolveTarget(c, specifier, decl);
+    if (dstId) {
+      addWeightedEdge(c.agg, c.srcFileId, dstId, "re-exports", specifier, reExportWeight(decl));
+    }
+  }
+
+  /**
+   * Resolve an import/export specifier to a graph node id (an in-repo file id or
+   * an `external` node, creating the external node on first sight), or `null`
+   * when it should not produce an edge.
+   */
+  private resolveTarget(
+    c: EdgeCollector,
+    specifier: string,
+    decl: ImportDeclaration | ExportDeclaration,
+  ): string | null {
+    const internal =
+      this.resolveInternal(decl.getModuleSpecifierSourceFile()) ??
+      this.resolveRelativeInternal(c.srcAbs, specifier);
+    if (internal) return internal;
     if (isRelativeSpecifier(specifier)) {
       // A relative import ts-morph could not resolve and that does not point at
       // a file on disk (e.g. an alias, or a genuinely missing target). Dropping
       // it is correct: bucketing it as an npm external produced `npm:..` junk
       // nodes and masked real internal edges for any out-of-project TS (C-44).
-      return;
+      return null;
     }
     const extId = externalId(specifier);
-    if (!seenExternals.has(extId)) {
-      seenExternals.add(extId);
-      externalNodes.push({
-        id: extId,
-        kind: "external",
-        name: specifier,
-      });
+    if (!c.seenExternals.has(extId)) {
+      c.seenExternals.add(extId);
+      c.externalNodes.push({ id: extId, kind: "external", name: specifier });
     }
-    edges.push({ srcId, dstId: extId, kind, attrs: { specifier } });
+    return extId;
   }
 
   private resolveInternal(target: SourceFile | undefined): string | null {

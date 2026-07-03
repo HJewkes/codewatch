@@ -1,4 +1,5 @@
 import type { GraphEdge, GraphNode } from "@codewatch/graph";
+import { edgeWeight } from "./edge-weight.js";
 import type { RenderInput } from "./types.js";
 
 /**
@@ -14,11 +15,11 @@ import type { RenderInput } from "./types.js";
  *
  * - Only `file` nodes contribute (module twins carry no edges; external deps
  *   would drown the internal structure), matching `collapseToPackages`.
- * - Intra-package file→file edges are kept, parallel edges folded (count on
- *   `attrs.weight`).
+ * - Intra-package file→file edges are kept, parallel edges folded (summed
+ *   reference counts on `attrs.weight`).
  * - A pkg file → other-pkg file edge becomes file → stub(other); an other-pkg
  *   file → pkg file edge becomes stub(other) → file. Aggregated by (endpoint,
- *   neighbour) with the fold count on `attrs.weight`.
+ *   neighbour) with the summed reference counts on `attrs.weight`.
  */
 export interface FocusOptions {
   /**
@@ -55,18 +56,19 @@ export function focusPackage(
     if (!isFile.has(e.srcId) || !isFile.has(e.dstId)) continue;
     const srcIn = fileIds.has(e.srcId);
     const dstIn = fileIds.has(e.dstId);
+    const w = edgeWeight(e);
     if (srcIn && dstIn) {
-      bump(intra, JSON.stringify([e.srcId, e.dstId]));
+      bump(intra, JSON.stringify([e.srcId, e.dstId]), w);
     } else if (srcIn && !dstIn) {
       const nb = pkgOf(e.dstId);
       if (nb === pkg) continue; // dst is an excluded (test) file in this package — drop, not a neighbour
       neighbours.add(nb);
-      bump(out, JSON.stringify([e.srcId, nb]));
+      bump(out, JSON.stringify([e.srcId, nb]), w);
     } else if (!srcIn && dstIn) {
       const nb = pkgOf(e.srcId);
       if (nb === pkg) continue; // src is an excluded file in this package — drop, not a neighbour
       neighbours.add(nb);
-      bump(inc, JSON.stringify([nb, e.dstId]));
+      bump(inc, JSON.stringify([nb, e.dstId]), w);
     }
   }
 
@@ -87,8 +89,8 @@ export function focusPackage(
   return { snapshotId: input.snapshotId, nodes, edges, metrics: input.metrics };
 }
 
-function bump(m: Map<string, number>, key: string): void {
-  m.set(key, (m.get(key) ?? 0) + 1);
+function bump(m: Map<string, number>, key: string, amount: number): void {
+  m.set(key, (m.get(key) ?? 0) + amount);
 }
 
 function foldEdges(m: Map<string, number>): GraphEdge[] {
