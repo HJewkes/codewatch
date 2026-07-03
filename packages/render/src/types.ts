@@ -46,6 +46,8 @@ export interface RenderOptions {
   subtitle?: string;
   sizeBy?: string;
   colorBy?: string;
+  /** Render as a flat DAG without compound package parents (focus view). */
+  flat?: boolean;
 }
 
 export type LaidOutNode = GraphNode & {

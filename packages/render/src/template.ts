@@ -139,6 +139,7 @@ export async function renderHtml(
     metricsBeforeByNode,
     violationsByNode,
     diffSummary,
+    { flat: options.flat },
   );
   const graphJson = JSON.stringify({
     snapshotId: input.snapshotId,
