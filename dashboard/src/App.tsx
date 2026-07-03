@@ -8,9 +8,10 @@ import {
   ButtonText,
 } from "@titan-design/react-ui";
 import { LayoutDashboard, Flame, Network, ShieldAlert, Users, GitFork, GitCompareArrows } from "lucide-react";
-import type { CodewatchData, NodeMetrics } from "./types";
-import { cw, shortId, pkgOf, hotspotColor, metricHeat, METRIC_BUDGET, tint, severityColor } from "./theme";
+import type { CodewatchData } from "./types";
+import { cw, shortId, pkgOf, hotspotColor, severityColor } from "./theme";
 import { Pillet } from "./components/primitives";
+import { MetricReadout, UtilizationRow, maxUtilization, isComplex, hotspotBreakdown, DossierRow } from "./components/dossier-metrics";
 import { loadWindows } from "./data";
 import { OverviewView } from "./views/OverviewView";
 import { HotspotsView } from "./views/HotspotsView";
@@ -231,6 +232,7 @@ function Dossier({ id, data, violations, onClose }: { id: string; data: Codewatc
   const central = data.centralFiles.find((c) => c.nodeId === id);
   const coupled = data.couplingClusters.filter((c) => c.a === id || c.b === id);
   const metrics = data.nodeMetrics?.[id];
+  const utilMax = maxUtilization(data.nodeMetrics);
   return (
     <ScrollView style={{ width: 340, backgroundColor: cw.surface, borderLeftWidth: 1, borderLeftColor: cw.border }} contentContainerStyle={{ padding: 16, gap: 14 }}>
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -242,6 +244,9 @@ function Dossier({ id, data, violations, onClose }: { id: string; data: Codewatc
       </View>
       <Text style={{ color: cw.textFaint, fontSize: 11 }} numberOfLines={2}>{id}</Text>
       {metrics ? <MetricReadout m={metrics} /> : null}
+      {metrics?.utilization !== undefined ? (
+        <UtilizationRow value={metrics.utilization} max={utilMax} complex={isComplex(metrics)} churning={!!hotspot && hotspot.churn > 0} />
+      ) : null}
       <DossierRow
         label="Hotspot score"
         value={hotspot ? hotspotBreakdown(hotspot) : "—"}
@@ -277,65 +282,3 @@ function Dossier({ id, data, violations, onClose }: { id: string; data: Codewatc
   );
 }
 
-/** Per-metric labels + the fitness-budget key that anchors each row's heat. */
-const METRIC_ROWS: { key: keyof NodeMetrics; label: string; budgetKey?: string }[] = [
-  { key: "loc", label: "Lines of code", budgetKey: "loc" },
-  { key: "cognitiveMax", label: "Cognitive (max fn)", budgetKey: "cognitive_max" },
-  { key: "cyclomaticMax", label: "Cyclomatic (max fn)", budgetKey: "cyclomatic_max" },
-  { key: "maxNesting", label: "Nesting depth", budgetKey: "max_nesting_depth" },
-  { key: "fanOut", label: "Fan-out", budgetKey: "fan_out" },
-  { key: "fanIn", label: "Fan-in" },
-];
-
-/**
- * Heat-colored structural readout: each metric is colored + bar-scaled against the
- * repo's own fitness budget, so the drawer shows at a glance which dimension pushes
- * a file toward (or over) a rule. Fan-in has no budget — shown neutral, no bar.
- */
-function MetricReadout({ m }: { m: NodeMetrics }) {
-  const rows = METRIC_ROWS.filter((r) => m[r.key] !== undefined);
-  if (!rows.length) return null;
-  return (
-    <View style={{ gap: 8 }}>
-      <Text style={{ color: cw.textDim, fontSize: 12, fontWeight: "600" }}>Structural metrics</Text>
-      {rows.map((r) => {
-        const value = m[r.key] as number;
-        const budget = r.budgetKey ? METRIC_BUDGET[r.budgetKey] : undefined;
-        const color = metricHeat(value, budget);
-        const ratio = budget ? Math.min(1, value / budget) : 0;
-        return (
-          <View key={r.key} style={{ gap: 3 }}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" }}>
-              <Text style={{ color: cw.textDim, fontSize: 12 }}>{r.label}</Text>
-              <Text style={{ fontSize: 12 }}>
-                <Text style={{ color, fontWeight: "700" }}>{value}</Text>
-                {budget !== undefined ? <Text style={{ color: cw.textFaint }}> / {budget}</Text> : null}
-              </Text>
-            </View>
-            {budget !== undefined ? (
-              <View style={{ height: 3, borderRadius: 2, backgroundColor: tint(cw.textFaint, 0.25), overflow: "hidden" }}>
-                <View style={{ height: 3, width: `${ratio * 100}%`, backgroundColor: color, borderRadius: 2 }} />
-              </View>
-            ) : null}
-          </View>
-        );
-      })}
-    </View>
-  );
-}
-
-/** "churn × complexity = score", inserting the recency factor only when it discounts. */
-function hotspotBreakdown(h: { churn: number; complexity: number; score: number; recency?: number }): string {
-  const discounted = h.recency !== undefined && h.recency < 1;
-  const factors = discounted ? `${h.churn} × ${h.complexity} × ${h.recency}` : `${h.churn} × ${h.complexity}`;
-  return `${factors} = ${h.score}`;
-}
-
-function DossierRow({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
-  return (
-    <View style={{ gap: 2 }}>
-      <Text style={{ color: cw.textDim, fontSize: 12 }}>{label}</Text>
-      <Text style={{ color: valueColor ?? cw.text, fontSize: 13, fontWeight: "600" }}>{value}</Text>
-    </View>
-  );
-}

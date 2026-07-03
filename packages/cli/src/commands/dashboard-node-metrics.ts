@@ -11,6 +11,7 @@ export interface NodeMetrics {
   maxNesting?: number;
   fanIn?: number;
   fanOut?: number;
+  utilization?: number;
 }
 
 /** Metric name → NodeMetrics field, for the structural metrics the Dossier heats. */
@@ -21,6 +22,7 @@ const METRIC_FIELD: Record<string, keyof NodeMetrics> = {
   max_nesting_depth: "maxNesting",
   fan_in: "fanIn",
   fan_out: "fanOut",
+  utilization: "utilization",
 };
 
 /** Fold the flat metric rows into a per-node structural-metrics map. */
