@@ -7,6 +7,7 @@ import {
   renderHtml,
   renderMultiViewHtml,
   collapseToPackages,
+  collapseToDirectories,
   focusPackage,
   packagesInSnapshot,
   type GraphView,
@@ -50,11 +51,19 @@ async function dependencyGraphHtml(opts: DashboardCommandOptions): Promise<strin
       // The file-level graph is a 500+ node hairball; opt-in only.
       return b64(await renderHtml(raw, { title: `${repo} — file dependencies` }));
     }
+    if (opts.graphScope === "module") {
+      return b64(await renderHtml(collapseToDirectories(raw), {
+        title: `${repo} — module (directory) coupling`,
+      }));
+    }
 
-    // Default: an interactive multi-view graph — the package overview plus one
-    // within-package focus view per package, switchable from the toolbar picker.
+    // Default: an interactive multi-view graph — the package overview, a
+    // barrel-resolved module (directory) coupling view that surfaces the real
+    // cross-directory dependencies a package barrel would hide, then one
+    // within-package focus view per package. Switchable from the toolbar picker.
     const views: GraphView[] = [
       { id: "__overview__", label: "All packages", input: collapseToPackages(raw), flat: false },
+      { id: "__modules__", label: "Modules", input: collapseToDirectories(raw), flat: false },
       ...packagesInSnapshot(raw).map((pkg) => ({
         id: pkg,
         label: pkg,
@@ -68,9 +77,9 @@ async function dependencyGraphHtml(opts: DashboardCommandOptions): Promise<strin
   }
 }
 
-/** Accept "file", "focus:<pkg>", or fall back to "package". */
+/** Accept "file", "module", "focus:<pkg>", or fall back to "package". */
 function normalizeGraphScope(scope: string | undefined): string {
-  if (scope === "file") return "file";
+  if (scope === "file" || scope === "module") return scope;
   if (scope && scope.startsWith("focus:")) return scope;
   return "package";
 }
@@ -119,7 +128,7 @@ export function registerGraphDashboard(graphCmd: Command): void {
     .option("--repo <name>", "Repo display name")
     .option("--include-scripts", "Include scripts/ and archive/ files")
     .option("--no-graph", "Skip the embedded Cytoscape dependency graph (smaller output)")
-    .option("--graph-scope <scope>", "Embedded graph granularity: package (default), file, or focus:<pkg>", "package")
+    .option("--graph-scope <scope>", "Embedded graph granularity: package (default), module, file, or focus:<pkg>", "package")
     .action(async (options: {
       db: string; config: string; out: string; repoRoot?: string;
       windowDays?: string; vs?: string; repo?: string; includeScripts?: boolean; graph?: boolean;
