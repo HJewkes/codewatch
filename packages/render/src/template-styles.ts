@@ -115,6 +115,19 @@ header .search:focus {
   opacity: 0.45;
   color: var(--text-dim);
 }
+.toolbar .view-picker-group { margin-right: 4px; }
+.toolbar .view-picker {
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: border-color 120ms ease;
+}
+.toolbar .view-picker:hover, .toolbar .view-picker:focus { border-color: var(--accent); outline: none; }
 .toolbar .spacer { flex: 1; }
 .toolbar button.btn {
   background: var(--bg-elev-2);

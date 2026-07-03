@@ -8,7 +8,7 @@ export const KIND_COLORS: Record<string, string> = {
   external: "#d97757",
 };
 
-const KIND_LABELS: Record<string, string> = {
+export const KIND_LABELS: Record<string, string> = {
   file: "File",
   module: "Module",
   package: "Package",
@@ -30,7 +30,7 @@ const STATUS_LABELS: Record<string, string> = {
   unchanged: "Unchanged",
 };
 
-const ROLE_COLORS: Record<string, string> = {
+export const ROLE_COLORS: Record<string, string> = {
   test: "#7e76c2",
   fixture: "#9077a8",
   barrel: "#7c8794",
@@ -39,7 +39,7 @@ const ROLE_COLORS: Record<string, string> = {
   source: "#4a6da7",
 };
 
-const ROLE_LABELS: Record<string, string> = {
+export const ROLE_LABELS: Record<string, string> = {
   test: "Test",
   fixture: "Fixture",
   barrel: "Barrel",
@@ -196,7 +196,8 @@ function roleGroupHtml(layout: LayoutResult): string {
   return `<div class="group" aria-label="Role"><span class="group-label">Role</span>${items}</div>`;
 }
 
-export function toolbarHtml(
+/** Chip groups for one view — regenerated client-side on view switch. */
+export function chipGroupsHtml(
   layout: LayoutResult,
   diff: RenderInput["diff"],
   checkResult: RenderInput["checkResult"],
@@ -222,12 +223,34 @@ export function toolbarHtml(
     countBy(layout.edges, (e) => e.kind),
     edgeKindChip,
   );
-  return `<div class="toolbar" role="toolbar" aria-label="Graph filters">
-  ${nodeGroup}
+  return `${nodeGroup}
   ${roleGroupHtml(layout)}
   ${edgeGroup}
   ${statusGroupHtml(diff, layout)}
-  ${violationGroupHtml(checkResult)}
+  ${violationGroupHtml(checkResult)}`;
+}
+
+/** Optional view selector — shown only when there is more than one baked view. */
+function viewPickerHtml(views: { id: string; label: string }[] | undefined): string {
+  if (!views || views.length < 2) return "";
+  const opts = views
+    .map((v) => `<option value="${escapeHtml(v.id)}">${escapeHtml(v.label)}</option>`)
+    .join("");
+  return `<div class="group view-picker-group" aria-label="View">
+    <span class="group-label">View</span>
+    <select id="view-picker" class="view-picker" aria-label="Select graph view">${opts}</select>
+  </div>`;
+}
+
+export function toolbarHtml(
+  layout: LayoutResult,
+  diff: RenderInput["diff"],
+  checkResult: RenderInput["checkResult"],
+  views?: { id: string; label: string }[],
+): string {
+  return `<div class="toolbar" role="toolbar" aria-label="Graph filters">
+  ${viewPickerHtml(views)}
+  <div id="chip-groups" class="chip-groups">${chipGroupsHtml(layout, diff, checkResult)}</div>
   <div class="spacer"></div>
   <span class="hint" aria-hidden="true">drag to pan · scroll to zoom</span>
   <div class="zoom-group" role="group" aria-label="Zoom controls">

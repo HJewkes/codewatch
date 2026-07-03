@@ -5,7 +5,14 @@ import { computeOverlays, type OverlayResult } from "./overlay.js";
 import { inlineStyles } from "./template-styles.js";
 import { clientScript } from "./template-script.js";
 import { loadLayoutBundles, type LayoutBundles } from "./template-layout-bundles.js";
-import { KIND_COLORS, escapeHtml, toolbarHtml } from "./template-toolbar.js";
+import {
+  KIND_COLORS,
+  KIND_LABELS,
+  ROLE_COLORS,
+  ROLE_LABELS,
+  escapeHtml,
+  toolbarHtml,
+} from "./template-toolbar.js";
 import {
   buildCheckDiffSummary,
   buildViolationsMap,
@@ -30,6 +37,8 @@ interface HtmlContext {
   bundle: string;
   layoutBundles: LayoutBundles;
   graphJson: string;
+  /** JSON of the baked view list (multi-view graphs only). */
+  viewsJson?: string;
   title: string;
   subtitle: string;
   overlayBadge: string;
@@ -67,7 +76,8 @@ ${ctx.toolbar}
 <script>${ctx.layoutBundles.coseBase}</script>
 <script>${ctx.layoutBundles.coseBilkent}</script>
 <script>window.__GRAPH__ = ${escapeForScript(ctx.graphJson)};</script>
-<script>${clientScript(KIND_COLORS)}</script>
+${ctx.viewsJson ? `<script>window.__GRAPH_VIEWS__ = ${escapeForScript(ctx.viewsJson)};</script>` : ""}
+<script>${clientScript({ kindColors: KIND_COLORS, kindLabels: KIND_LABELS, roleColors: ROLE_COLORS, roleLabels: ROLE_LABELS })}</script>
 </body>
 </html>`;
 }
@@ -162,5 +172,75 @@ export async function renderHtml(
     toolbar: toolbarHtml(layout, input.diff, input.checkResult),
     nodeCount: input.nodes.length,
     edgeCount: input.edges.length,
+  });
+}
+
+export interface GraphView {
+  id: string;
+  label: string;
+  input: RenderInput;
+  /** Flat (focus) view — no compound package parents, uses the focus layout. */
+  flat?: boolean;
+}
+
+/**
+ * Render a single self-contained graph HTML that bakes several views (e.g. a
+ * package overview + one within-package focus view per package) and lets a
+ * toolbar picker switch between them client-side. One Cytoscape bundle is shared
+ * across all views — far smaller than one full HTML per view — and each view's
+ * ELK layout + orthogonal routing is precomputed here, so switching is instant.
+ * The first view is the default shown on load.
+ */
+export async function renderMultiViewHtml(
+  views: GraphView[],
+  options: RenderOptions = {},
+): Promise<string> {
+  if (views.length === 0) throw new Error("renderMultiViewHtml: no views");
+  const [bundle, layoutBundles] = await Promise.all([
+    loadCytoscapeBundle(),
+    loadLayoutBundles(),
+  ]);
+  const built = [];
+  for (const v of views) {
+    const overlay = computeOverlays(v.input.nodes, v.input.metrics, {
+      sizeBy: options.sizeBy,
+      colorBy: options.colorBy,
+    });
+    const layout = await computeLayout(
+      v.input,
+      overlay.sizing,
+      v.flat ? FOCUS_LAYOUT_OPTIONS : undefined,
+    );
+    const cy = buildCyData(
+      layout,
+      undefined,
+      overlay.fills,
+      metricMapFromList(v.input.metrics),
+      new Map(),
+      buildViolationsMap(undefined),
+      buildCheckDiffSummary(undefined),
+      { flat: v.flat },
+    );
+    built.push({
+      id: v.id,
+      label: v.label,
+      layout,
+      graph: { snapshotId: v.input.snapshotId, nodes: cy.nodes, edges: cy.edges },
+    });
+  }
+  const primary = built[0];
+  const viewMeta = built.map((b) => ({ id: b.id, label: b.label }));
+  return buildHtml({
+    bundle,
+    layoutBundles,
+    graphJson: JSON.stringify(primary.graph),
+    viewsJson: JSON.stringify(built.map((b) => ({ id: b.id, label: b.label, graph: b.graph }))),
+    title: options.title ?? "codewatch graph",
+    subtitle: options.subtitle ?? `${primary.layout.nodes.length} nodes · ${primary.layout.edges.length} edges`,
+    overlayBadge: "",
+    diffSummary: "",
+    toolbar: toolbarHtml(primary.layout, undefined, undefined, viewMeta),
+    nodeCount: primary.layout.nodes.length,
+    edgeCount: primary.layout.edges.length,
   });
 }

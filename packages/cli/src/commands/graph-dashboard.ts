@@ -2,7 +2,15 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, basename } from "node:path";
 import type { Command } from "commander";
 import chalk from "chalk";
-import { loadSnapshot, renderHtml, collapseToPackages, focusPackage } from "@codewatch/render";
+import {
+  loadSnapshot,
+  renderHtml,
+  renderMultiViewHtml,
+  collapseToPackages,
+  focusPackage,
+  packagesInSnapshot,
+  type GraphView,
+} from "@codewatch/render";
 import { dashboardTemplate } from "./dashboard-template.js";
 import {
   type DashboardCommandOptions,
@@ -27,25 +35,34 @@ async function dependencyGraphHtml(opts: DashboardCommandOptions): Promise<strin
   if (opts.graph === false) return null;
   try {
     const raw = await loadSnapshot(opts.db);
-    // Default to the package-level collapse — the file-level graph is a 500+ node
-    // hairball that answers no question on load. `--graph-scope file` opts back
-    // in; `focus:<pkg>` shows one package's files with the rest stubbed.
+    const repo = opts.repo ?? "repo";
+    const b64 = (html: string): string => Buffer.from(html, "utf8").toString("base64");
+
+    // Explicit single-scope requests stay single-view.
     const focus = parseFocusScope(opts.graphScope);
-    const input = focus
-      ? focusPackage(raw, focus)
-      : opts.graphScope === "file"
-        ? raw
-        : collapseToPackages(raw);
-    const scopeLabel = focus
-      ? `${focus} — internal structure`
-      : opts.graphScope === "file"
-        ? "file dependencies"
-        : "package dependencies";
-    const html = await renderHtml(input, {
-      title: `${opts.repo ?? "repo"} — ${scopeLabel}`,
-      flat: Boolean(focus),
-    });
-    return Buffer.from(html, "utf8").toString("base64");
+    if (focus) {
+      return b64(await renderHtml(focusPackage(raw, focus), {
+        title: `${repo} — ${focus} internal structure`,
+        flat: true,
+      }));
+    }
+    if (opts.graphScope === "file") {
+      // The file-level graph is a 500+ node hairball; opt-in only.
+      return b64(await renderHtml(raw, { title: `${repo} — file dependencies` }));
+    }
+
+    // Default: an interactive multi-view graph — the package overview plus one
+    // within-package focus view per package, switchable from the toolbar picker.
+    const views: GraphView[] = [
+      { id: "__overview__", label: "All packages", input: collapseToPackages(raw), flat: false },
+      ...packagesInSnapshot(raw).map((pkg) => ({
+        id: pkg,
+        label: pkg,
+        input: focusPackage(raw, pkg),
+        flat: true,
+      })),
+    ];
+    return b64(await renderMultiViewHtml(views, { title: `${repo} — architecture` }));
   } catch {
     return null; // graph is optional; never fail the dashboard over it.
   }

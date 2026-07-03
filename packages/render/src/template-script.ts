@@ -1,10 +1,26 @@
 import { cyStyles } from "./template-cy-styles.js";
 import { panelClientCode } from "./template-script-panel.js";
+import { viewSwitchingCode } from "./template-script-views.js";
 
-export function clientScript(kindColors: Record<string, string>): string {
+export interface ClientChipMaps {
+  kindColors: Record<string, string>;
+  kindLabels: Record<string, string>;
+  roleColors: Record<string, string>;
+  roleLabels: Record<string, string>;
+}
+
+export function clientScript(maps: ClientChipMaps): string {
   return `
 (function () {
-  const data = window.__GRAPH__;
+  // Baked views: the multi-view dependency graph bakes __GRAPH_VIEWS__ (a list of
+  // {id,label,graph}); a single-view render only sets __GRAPH__. Default to the
+  // first view so the single-view path below is byte-for-byte unchanged.
+  const VIEWS = window.__GRAPH_VIEWS__ || null;
+  const data = VIEWS ? VIEWS[0].graph : window.__GRAPH__;
+  const KIND_COLORS = ${JSON.stringify(maps.kindColors)};
+  const KIND_LABELS = ${JSON.stringify(maps.kindLabels)};
+  const ROLE_COLORS = ${JSON.stringify(maps.roleColors)};
+  const ROLE_LABELS = ${JSON.stringify(maps.roleLabels)};
   if (window.cytoscapeCoseBilkent && typeof cytoscape.use === "function") {
     try { cytoscape.use(window.cytoscapeCoseBilkent); } catch (e) { /* already registered */ }
   }
@@ -24,12 +40,12 @@ export function clientScript(kindColors: Record<string, string>): string {
   // data(pkgColor)/data(edgeColor) mappers carry it. Doing it in the base style
   // (not an imperative post-hoc .style() bypass) is what makes the color survive
   // class toggles — selecting a node and deselecting no longer strips it.
-  if (useElkPreset) assignPackageColors();
+  if (useElkPreset) assignPackageColors(data);
   function pkgOfId(id) {
     const m = /^packages\\/([^/]+)/.exec(id);
     return m ? m[1] : (id.split("/")[0] || id);
   }
-  function assignPackageColors() {
+  function assignPackageColors(data) {
     // Validated dark categorical palette (CVD-safe fixed order; see the dataviz
     // skill). Assigned by sorted package id so the mapping is deterministic.
     const PALETTE = [
@@ -123,11 +139,14 @@ export function clientScript(kindColors: Record<string, string>): string {
   // numbers rather than by eye (see pr-viz sources doc §8.5).
   window.__cy = cy;
   window.__layoutMode = useElkPreset ? "elk-preset" : (hasCoseBilkent ? "cose-bilkent" : "preset");
-  const KIND_FILL = ${JSON.stringify(kindColors)};
-  cy.nodes().forEach(function (n) {
-    const overlay = n.data("overlay_fill");
-    n.data("fill", overlay || KIND_FILL[n.data("kind")] || "#4a6da7");
-  });
+  const KIND_FILL = KIND_COLORS;
+  applyFills();
+  function applyFills() {
+    cy.nodes().forEach(function (n) {
+      const overlay = n.data("overlay_fill");
+      n.data("fill", overlay || KIND_FILL[n.data("kind")] || "#4a6da7");
+    });
+  }
   cy.ready(function () { cy.fit(undefined, 50); });
 
   const hiddenNodeKinds = new Set();
@@ -330,6 +349,8 @@ export function clientScript(kindColors: Record<string, string>): string {
       cy.edges().addClass("faded");
     });
   });
+
+  ${viewSwitchingCode()}
 })();
 `;
 }
