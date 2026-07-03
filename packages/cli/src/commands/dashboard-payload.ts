@@ -339,6 +339,13 @@ export function snapshotContext(dbPath: string, snapshotId: number): SnapshotCon
     }
     for (const r of computePageRank(nodes, edges).rows) centrality.set(r.nodeId, r.score);
     metrics = collectNodeMetrics(db.listMetrics(snapshotId));
+    // Attach node role so the Dossier can explain e.g. a barrel's utilization=0.
+    for (const n of nodes) {
+      if (!n.role) continue;
+      const entry = metrics.get(n.id) ?? {};
+      entry.role = n.role;
+      metrics.set(n.id, entry);
+    }
   } finally {
     db.close();
   }

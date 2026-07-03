@@ -245,7 +245,7 @@ function Dossier({ id, data, violations, onClose }: { id: string; data: Codewatc
       <Text style={{ color: cw.textFaint, fontSize: 11 }} numberOfLines={2}>{id}</Text>
       {metrics ? <MetricReadout m={metrics} /> : null}
       {metrics?.utilization !== undefined ? (
-        <UtilizationRow value={metrics.utilization} max={utilMax} complex={isComplex(metrics)} churning={!!hotspot && hotspot.churn > 0} />
+        <UtilizationRow value={metrics.utilization} max={utilMax} complex={isComplex(metrics)} churning={!!hotspot && hotspot.churn > 0} isBarrel={metrics.role === "barrel"} />
       ) : null}
       <DossierRow
         label="Hotspot score"

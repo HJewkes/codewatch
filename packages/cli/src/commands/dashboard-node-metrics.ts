@@ -12,10 +12,15 @@ export interface NodeMetrics {
   fanIn?: number;
   fanOut?: number;
   utilization?: number;
+  /** Node role (e.g. "barrel") — lets the Dossier explain barrel-resolved utilization. */
+  role?: string;
 }
 
+/** The numeric NodeMetrics fields fed from metric rows (excludes `role`). */
+type NumericMetricField = Exclude<keyof NodeMetrics, "role">;
+
 /** Metric name → NodeMetrics field, for the structural metrics the Dossier heats. */
-const METRIC_FIELD: Record<string, keyof NodeMetrics> = {
+const METRIC_FIELD: Record<string, NumericMetricField> = {
   loc: "loc",
   cognitive_max: "cognitiveMax",
   cyclomatic_max: "cyclomaticMax",
