@@ -25,6 +25,10 @@ export function clientScript(kindColors: Record<string, string>): string {
   // (not an imperative post-hoc .style() bypass) is what makes the color survive
   // class toggles — selecting a node and deselecting no longer strips it.
   if (useElkPreset) assignPackageColors();
+  function pkgOfId(id) {
+    const m = /^packages\\/([^/]+)/.exec(id);
+    return m ? m[1] : (id.split("/")[0] || id);
+  }
   function assignPackageColors() {
     // Validated dark categorical palette (CVD-safe fixed order; see the dataviz
     // skill). Assigned by sorted package id so the mapping is deterministic.
@@ -32,17 +36,25 @@ export function clientScript(kindColors: Record<string, string>): string {
       "#3987e5", "#199e70", "#c98500", "#008300",
       "#9085e9", "#e66767", "#d55181", "#d95926",
     ];
-    const ids = data.nodes
-      .filter(function (n) { return n.data && n.data.kind === "package"; })
-      .map(function (n) { return n.data.id; })
-      .sort();
-    const colorOf = {};
-    ids.forEach(function (id, i) { colorOf[id] = PALETTE[i % PALETTE.length]; });
+    // Every package in play, whether present as a collapsed package node (the
+    // package graph, or a focus view's boundary stubs) or as the owning package
+    // of a file node (the focus view's exploded package). Coloring by owning
+    // package makes the focus graph's file→file edges traceable, not just its
+    // stub edges — while leaving the all-package graph's mapping unchanged.
+    const pkgs = {};
     data.nodes.forEach(function (n) {
-      if (n.data && colorOf[n.data.id]) n.data.pkgColor = colorOf[n.data.id];
+      if (!n.data) return;
+      pkgs[n.data.kind === "package" ? n.data.id : pkgOfId(n.data.id)] = true;
+    });
+    const colorOf = {};
+    Object.keys(pkgs).sort().forEach(function (id, i) { colorOf[id] = PALETTE[i % PALETTE.length]; });
+    const colorFor = function (id) { return colorOf[id] || colorOf[pkgOfId(id)]; };
+    data.nodes.forEach(function (n) {
+      const c = n.data && colorFor(n.data.id);
+      if (c) n.data.pkgColor = c;
     });
     data.edges.forEach(function (e) {
-      const c = e.data && colorOf[e.data.source];
+      const c = e.data && colorFor(e.data.source);
       if (c) e.data.edgeColor = c;
     });
   }

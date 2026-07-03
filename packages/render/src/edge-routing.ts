@@ -79,13 +79,22 @@ export function edgeRoutingFor(
   return projectRoute(route, cs, ct);
 }
 
-// Routing is only meaningful for the collapsed package graph, which the client
-// lays out from ELK's precomputed positions (a `preset`). The file-level graph
-// is re-laid-out by cose-bilkent, so ELK's route coordinates wouldn't align —
+// Routing is only meaningful when the client renders from ELK's precomputed
+// positions (a `preset`) — the collapsed package graph and the flat
+// within-package focus graph both do. The *compound* file-level graph is
+// re-laid-out by cose-bilkent, so ELK's route coordinates wouldn't align —
 // return null there and let the client's taxi/bezier fallback handle it.
-export function packageGraphCenters(layout: LayoutResult): Map<string, Pt> | null {
+//
+// A graph renders elk-preset iff it's flat (no compound parents): the package
+// graph is all `package` nodes; the focus graph is explicitly flat. The
+// non-flat file graph parents its files into compounds → cose-bilkent.
+export function elkPresetCenters(
+  layout: LayoutResult,
+  flat: boolean,
+): Map<string, Pt> | null {
   if (layout.nodes.length === 0) return null;
-  if (!layout.nodes.every((n) => n.kind === "package")) return null;
+  const allPackage = layout.nodes.every((n) => n.kind === "package");
+  if (!flat && !allPackage) return null;
   const centers = new Map<string, Pt>();
   for (const n of layout.nodes) centers.set(n.id, { x: n.x, y: n.y });
   return centers;

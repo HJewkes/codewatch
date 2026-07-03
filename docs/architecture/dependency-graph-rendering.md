@@ -164,12 +164,15 @@ with orthogonal routing and zero console errors:
 
 Known and deliberate — worth understanding before relying on the view:
 
-1. **The file-level graph is not routed.** `--graph-scope file` still uses
-   `cose-bilkent` (obstacle-blind, force-directed). ELK's orthogonal routing is
-   gated to the flat package graph because the compound file graph needs
-   `hierarchyHandling: INCLUDE_CHILDREN` plus a per-edge LCA offset (ELK reports a
-   nested edge's section in its lowest-common-ancestor's local frame). This is the
-   next routing frontier (see *Future directions*).
+1. **The *compound* file-level graph is not routed.** `--graph-scope file` still
+   uses `cose-bilkent` (obstacle-blind, force-directed), because a compound graph
+   needs `hierarchyHandling: INCLUDE_CHILDREN` plus a per-edge LCA offset (ELK
+   reports a nested edge's section in its lowest-common-ancestor's local frame).
+   The *flat* file graphs — the package graph and the within-package **focus**
+   view (`--graph-scope focus:<pkg>`) — DO get ELK layered layout + orthogonal
+   routing: routing is gated on flatness (`elkPresetCenters`), not on node kind,
+   so any graph the client renders `elk-preset` is routed. Compound INCLUDE_CHILDREN
+   routing is the remaining frontier (see *Future directions*).
 2. **The package view hides all intra-package structure.** That's the point — it
    answers the package-dependency question — but it says nothing about *how big or
    tangled a package is inside*. On this repo some packages are large (`cli` ~77
@@ -193,26 +196,36 @@ Known and deliberate — worth understanding before relying on the view:
 ## Future directions — the file-level graph
 
 The unsolved-and-interesting frontier, especially because this repo's packages are
-large enough that "expand everything" is not viable. Several modes worth
-prototyping (not yet built):
+large enough that "expand everything" is not viable. The modes:
 
-- **Files-within-packages** (the pr-viz reference model): file nodes nested inside
-  package compound boxes, cross-package edges aggregated to the package boundary,
-  intra-package edges shown inside. Needs the compound ELK routing from
-  Limitation #1.
+- **Within-package (focus) view** — *rendering shipped* (`--graph-scope
+  focus:<pkg>`, C-50). Pick one package, show its files in full, and **stub** the
+  other packages as single boundary nodes so cross-package edges still have a
+  target. Because it's a **flat** graph (files + a handful of stubs), it reuses the
+  package graph's whole ELK-layered + orthogonal-routing pipeline unchanged — the
+  `focusPackage` transform builds it, `renderHtml(..., { flat: true })` skips the
+  compound package parents, and `elkPresetCenters` routes it. Verified on `graph`
+  (60 files, 154 edges, all routed, 0 errors): a legible layered DAG, not a
+  hairball, because only one package is ever exploded. **Remaining:** the
+  *interactive* picker in the dashboard Architecture view (today it's a
+  generate-time `--graph-scope` choice, one baked graph) — see below.
 - **Toggleable per-package expansion**: keep the package graph as the default and
   let a click *expand one package* into its files in place, re-running layout on
   the mixed collapsed/expanded set. Progressive disclosure without drowning in a
   500-node hairball.
-- **Within-package (focus) view**: pick one package, show its files in full, and
-  either **hide** the other packages or **stub** them as single boundary nodes
-  (so cross-package edges still have a target). Scales to large packages because
-  only one is ever exploded.
+- **Files-within-packages** (the pr-viz reference model): file nodes nested inside
+  package compound boxes, cross-package edges aggregated to the package boundary,
+  intra-package edges shown inside. Needs the compound ELK routing from
+  Limitation #1.
 
-The design tension throughout is **scale**: `cli` and `graph` are big enough that
-any mode which expands more than one at a time risks the hairball the package
-collapse was built to avoid. Nailing the interaction (what expands, when, and how
-the layout reflows) is the real work.
+**Open interaction question (the focus-view picker).** The dashboard embeds one
+baked graph HTML. To switch focus interactively, either (a) bake the package graph
++ one focus graph per package and swap iframes in the Architecture view (simple;
+payload grows ~linearly in package count), or (b) ship ELK client-side and re-lay
+out on switch (one graph, heavier bundle + client compute). The design tension
+throughout is **scale**: `cli` and `graph` are big enough that any mode which
+expands more than one at a time risks the hairball the package collapse was built
+to avoid.
 
 ---
 

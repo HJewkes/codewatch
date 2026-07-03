@@ -20,8 +20,9 @@ export interface DashboardCommandOptions {
   vs?: string;
   repo?: string;
   includeScripts?: boolean;
-  /** Embedded dependency graph granularity. Default "package" (collapsed). */
-  graphScope?: "package" | "file";
+  /** Embedded dependency graph granularity. "package" (default, collapsed),
+   * "file" (full hairball), or "focus:<pkg>" (one package's files, rest stubbed). */
+  graphScope?: string;
 }
 
 export interface ArchInfo {

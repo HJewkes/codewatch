@@ -2,7 +2,7 @@ import type { LaidOutNode, LayoutResult, RenderInput } from "./types.js";
 import type { DiffSummary, ViolationsByNode } from "./template-violations.js";
 import {
   edgeRoutingFor,
-  packageGraphCenters,
+  elkPresetCenters,
   type EdgeRouting,
   type Pt,
 } from "./edge-routing.js";
@@ -109,6 +109,8 @@ interface NodeAssemblyContext {
   metricsBeforeByNode: Map<string, Record<string, number>>;
   violationsByNode: ViolationsByNode;
   diffSummary: DiffSummary;
+  /** Skip compound package parents (within-package focus view). */
+  flat?: boolean;
 }
 
 type Violation = ReturnType<ViolationsByNode["get"]>;
@@ -248,7 +250,7 @@ function buildNodeEntry(
       label: labelForNode(n),
       kind: n.kind,
       ...roleField(n.role),
-      ...parentField(packageIdFor(n)),
+      ...parentField(ctx.flat ? undefined : packageIdFor(n)),
       tooltip: tooltipFor(n.id, oldId),
       status,
       ...violationFields(violation, trend, resolved),
@@ -300,16 +302,20 @@ export function buildCyData(
   metricsBeforeByNode: Map<string, Record<string, number>>,
   violationsByNode: ViolationsByNode,
   diffSummary: DiffSummary,
+  opts: { flat?: boolean } = {},
 ): {
   nodes: Array<{ data: CytoscapeNodeData; position?: { x: number; y: number } }>;
   edges: Array<{ data: CytoscapeEdgeData }>;
 } {
   const ctx: NodeAssemblyContext = {
     diff, fills, metricsByNode, metricsBeforeByNode, violationsByNode, diffSummary,
+    // Flat mode (the within-package focus view) skips compound package parents so
+    // the graph stays a flat DAG the client renders with elk-preset + routing.
+    flat: opts.flat,
   };
-  const packageEntries = synthesizePackageEntries(layout);
+  const packageEntries = opts.flat ? [] : synthesizePackageEntries(layout);
   const nodeEntries = layout.nodes.map((n) => buildNodeEntry(n, ctx));
-  const centers = packageGraphCenters(layout);
+  const centers = elkPresetCenters(layout, Boolean(opts.flat));
   return {
     nodes: [...packageEntries, ...nodeEntries],
     edges: layout.edges.map((e, i) => buildEdgeEntry(e, i, diff, centers)),

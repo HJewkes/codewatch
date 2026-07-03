@@ -2,7 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, basename } from "node:path";
 import type { Command } from "commander";
 import chalk from "chalk";
-import { loadSnapshot, renderHtml, collapseToPackages } from "@codewatch/render";
+import { loadSnapshot, renderHtml, collapseToPackages, focusPackage } from "@codewatch/render";
 import { dashboardTemplate } from "./dashboard-template.js";
 import {
   type DashboardCommandOptions,
@@ -28,14 +28,41 @@ async function dependencyGraphHtml(opts: DashboardCommandOptions): Promise<strin
   try {
     const raw = await loadSnapshot(opts.db);
     // Default to the package-level collapse — the file-level graph is a 500+ node
-    // hairball that answers no question on load. `--graph-scope file` opts back in.
-    const input = opts.graphScope === "file" ? raw : collapseToPackages(raw);
-    const scopeLabel = opts.graphScope === "file" ? "file dependencies" : "package dependencies";
-    const html = await renderHtml(input, { title: `${opts.repo ?? "repo"} — ${scopeLabel}` });
+    // hairball that answers no question on load. `--graph-scope file` opts back
+    // in; `focus:<pkg>` shows one package's files with the rest stubbed.
+    const focus = parseFocusScope(opts.graphScope);
+    const input = focus
+      ? focusPackage(raw, focus)
+      : opts.graphScope === "file"
+        ? raw
+        : collapseToPackages(raw);
+    const scopeLabel = focus
+      ? `${focus} — internal structure`
+      : opts.graphScope === "file"
+        ? "file dependencies"
+        : "package dependencies";
+    const html = await renderHtml(input, {
+      title: `${opts.repo ?? "repo"} — ${scopeLabel}`,
+      flat: Boolean(focus),
+    });
     return Buffer.from(html, "utf8").toString("base64");
   } catch {
     return null; // graph is optional; never fail the dashboard over it.
   }
+}
+
+/** Accept "file", "focus:<pkg>", or fall back to "package". */
+function normalizeGraphScope(scope: string | undefined): string {
+  if (scope === "file") return "file";
+  if (scope && scope.startsWith("focus:")) return scope;
+  return "package";
+}
+
+/** `focus:<pkg>` → the package name; anything else → null. */
+function parseFocusScope(scope: string | undefined): string | null {
+  if (!scope || !scope.startsWith("focus:")) return null;
+  const pkg = scope.slice("focus:".length).trim();
+  return pkg || null;
 }
 
 export async function runGraphDashboardCommand(opts: DashboardCommandOptions): Promise<{ out: string; snapshotId: number }> {
@@ -75,7 +102,7 @@ export function registerGraphDashboard(graphCmd: Command): void {
     .option("--repo <name>", "Repo display name")
     .option("--include-scripts", "Include scripts/ and archive/ files")
     .option("--no-graph", "Skip the embedded Cytoscape dependency graph (smaller output)")
-    .option("--graph-scope <scope>", "Embedded graph granularity: package (default) or file", "package")
+    .option("--graph-scope <scope>", "Embedded graph granularity: package (default), file, or focus:<pkg>", "package")
     .action(async (options: {
       db: string; config: string; out: string; repoRoot?: string;
       windowDays?: string; vs?: string; repo?: string; includeScripts?: boolean; graph?: boolean;
@@ -91,7 +118,7 @@ export function registerGraphDashboard(graphCmd: Command): void {
         repo: options.repo ?? basename(process.cwd()),
         includeScripts: options.includeScripts,
         graph: options.graph,
-        graphScope: options.graphScope === "file" ? "file" : "package",
+        graphScope: normalizeGraphScope(options.graphScope),
       });
       console.log(chalk.green(`✓ wrote ${out}`) + chalk.dim(` (snapshot ${snapshotId})`));
     });
