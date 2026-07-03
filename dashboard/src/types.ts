@@ -97,6 +97,8 @@ export interface NodeMetrics {
   fanOut?: number;
   /** Inbound reference count (C-52): how heavily this file's exports are used. */
   utilization?: number;
+  /** Node role (e.g. "barrel") — explains barrel-resolved utilization=0. */
+  role?: string;
 }
 
 export interface TestCoverageRisk {

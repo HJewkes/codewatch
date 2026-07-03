@@ -66,13 +66,17 @@ export function isComplex(m: NodeMetrics): boolean {
 
 /**
  * Utilization (C-52): how heavily a file's exports are actually referenced across
- * the repo (inbound reference count, not merely importer count). High utilization
- * is not itself a defect — a heavily-used, simple, stable file is a solid
- * foundation — so it reads in the informational accent, not the danger heat. The
- * warning only fires when a load-bearing file is ALSO complex or churning: that
- * intersection is blast radius (idea (d) of C-52).
+ * the repo (inbound reference count, not merely importer count). Measured on the
+ * BARREL-RESOLVED edge set (C-53) — references that route through an `index.ts`
+ * re-export hub are credited to the file that actually defines them, so a barrel
+ * reads utilization ~0 (it forwards, it isn't used) while its targets get the
+ * credit. High utilization is not itself a defect — a heavily-used, simple,
+ * stable file is a solid foundation — so it reads in the informational accent,
+ * not the danger heat. The warning only fires when a load-bearing file is ALSO
+ * complex or churning: that intersection is blast radius (idea (d) of C-52).
  */
-export function UtilizationRow({ value, max, complex, churning }: { value: number; max: number; complex: boolean; churning: boolean }) {
+export function UtilizationRow({ value, max, complex, churning, isBarrel }: { value: number; max: number; complex: boolean; churning: boolean; isBarrel?: boolean }) {
+  const shown = Math.round(value);
   const ratio = max > 0 ? Math.min(1, value / max) : 0;
   const loadBearing = ratio >= 0.66 && value >= 3;
   const blastRadius = loadBearing && (complex || churning);
@@ -80,12 +84,14 @@ export function UtilizationRow({ value, max, complex, churning }: { value: numbe
     <View style={{ gap: 4 }}>
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" }}>
         <Text style={{ color: cw.textDim, fontSize: 12 }}>Utilization (inbound refs)</Text>
-        <Text style={{ color: cw.info, fontSize: 12, fontWeight: "700" }}>{value}</Text>
+        <Text style={{ color: cw.info, fontSize: 12, fontWeight: "700" }}>{shown}</Text>
       </View>
       <View style={{ height: 3, borderRadius: 2, backgroundColor: tint(cw.info, 0.2), overflow: "hidden" }}>
         <View style={{ height: 3, width: `${ratio * 100}%`, backgroundColor: cw.info, borderRadius: 2 }} />
       </View>
-      {blastRadius ? (
+      {isBarrel ? (
+        <Text style={{ color: cw.textFaint, fontSize: 11 }}>Re-export barrel — utilization is credited to the files it forwards, not the hub.</Text>
+      ) : blastRadius ? (
         <Text style={{ color: cw.warning, fontSize: 11 }}>
           Load-bearing and {complex ? "complex" : "churning"} — wide blast radius; change carefully.
         </Text>

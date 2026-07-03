@@ -94,6 +94,22 @@ describe("computeMetrics", () => {
     expect(findMetric(metrics, "cold", "utilization")).toBe(2);
   });
 
+  it("credits utilization through a barrel to the real target, not the index hub", () => {
+    const nodes: GraphNode[] = [
+      { id: "f", kind: "file", name: "f" },
+      { id: "index.ts", kind: "file", name: "index.ts", role: "barrel" },
+      { id: "real.ts", kind: "file", name: "real.ts" },
+    ];
+    const metrics = computeMetrics(nodes, [
+      { srcId: "f", dstId: "index.ts", kind: "imports", attrs: { weight: 12 } },
+      { srcId: "index.ts", dstId: "real.ts", kind: "re-exports", attrs: { weight: 3 } },
+    ]);
+    // The barrel keeps its raw fan_in (f imports it) but utilization flows through.
+    expect(findMetric(metrics, "index.ts", "fan_in")).toBe(1);
+    expect(findMetric(metrics, "index.ts", "utilization")).toBe(0);
+    expect(findMetric(metrics, "real.ts", "utilization")).toBe(12);
+  });
+
   it("floors each inbound edge at weight 1 for missing/invalid weights", () => {
     const metrics = computeMetrics(
       [file("a"), file("b")],
