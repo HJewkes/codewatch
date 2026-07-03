@@ -118,6 +118,29 @@ describe("computeMetrics", () => {
     expect(findMetric(metrics, "b", "utilization")).toBe(1);
   });
 
+  it("accrues per-symbol utilization from inbound references edges (C-53)", () => {
+    const nodes: GraphNode[] = [
+      { id: "a.ts", kind: "file", name: "a.ts" },
+      { id: "a.ts#hot", kind: "symbol", name: "hot", parentId: "a.ts" },
+      { id: "a.ts#cold", kind: "symbol", name: "cold", parentId: "a.ts" },
+      { id: "b.ts", kind: "file", name: "b.ts" },
+      { id: "c.ts", kind: "file", name: "c.ts" },
+    ];
+    const metrics = computeMetrics(nodes, [
+      { srcId: "b.ts", dstId: "a.ts#hot", kind: "references", attrs: { weight: 7 } },
+      { srcId: "c.ts", dstId: "a.ts#hot", kind: "references", attrs: { weight: 3 } },
+      { srcId: "b.ts", dstId: "a.ts#cold", kind: "references", attrs: { weight: 1 } },
+    ]);
+    // The heavily-referenced export outranks the barely-used one at symbol grain.
+    expect(findMetric(metrics, "a.ts#hot", "utilization")).toBe(10);
+    expect(findMetric(metrics, "a.ts#cold", "utilization")).toBe(1);
+    // Symbols carry only utilization — not the module-structural degree metrics.
+    expect(findMetric(metrics, "a.ts#hot", "fan_in")).toBeUndefined();
+    expect(findMetric(metrics, "a.ts#hot", "fan_out")).toBeUndefined();
+    // references edges must not inflate the referencing file's structural fan_out.
+    expect(findMetric(metrics, "b.ts", "fan_out")).toBe(0);
+  });
+
   it("tags fan_in/fan_out with unit='count' and instability with unit='ratio'", () => {
     const metrics = computeMetrics(
       [file("a"), file("b")],

@@ -30,6 +30,16 @@ export function packageId(name: string): string {
   return name;
 }
 
+// Symbol nodes hang under their declaring file: `<fileId>#<exportName>` (C-53).
+// `#` never occurs in a posix path or a JS export identifier, so it can't
+// collide with a real file id — and it is printable, unlike the NUL separators
+// that made git treat files as binary (C-21).
+export const SYMBOL_ID_SEP = "#";
+
+export function symbolId(fileId: string, exportName: string): string {
+  return `${fileId}${SYMBOL_ID_SEP}${exportName}`;
+}
+
 export function externalId(specifier: string): string {
   if (specifier.startsWith("node:")) {
     return specifier;

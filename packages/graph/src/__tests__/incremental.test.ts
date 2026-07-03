@@ -144,6 +144,39 @@ describe("fingerprint-based incremental indexing", () => {
     }
   });
 
+  it("carries symbol nodes and references edges forward on reuse (C-53)", async () => {
+    const first = await runGraphIndex({ rootDir: project.rootDir });
+    const second = await runGraphIndex({
+      rootDir: project.rootDir,
+      incremental: true,
+    });
+    expect(second.reparsedFiles).toBe(0);
+
+    const db = openDatabase(project.dbPath);
+    try {
+      // The symbol layer is opt-in on reads (file-level graph is the default).
+      const nodes = db.listNodes(second.snapshotId, { includeSymbols: true });
+      // a.ts declares `A`; its symbol node must survive reuse (content-derived,
+      // so it can't be rebuilt from path alone like the file/module nodes).
+      expect(
+        nodes.some((n) => n.kind === "symbol" && n.id === "src/a.ts#A"),
+      ).toBe(true);
+      // b.ts imports A → a forward reference edge to the origin symbol.
+      const refs = db
+        .listEdges(second.snapshotId, { includeReferences: true })
+        .filter((e) => e.kind === "references");
+      expect(
+        refs.some((e) => e.srcId === "src/b.ts" && e.dstId === "src/a.ts#A"),
+      ).toBe(true);
+      // The reused snapshot equals the from-scratch one, symbols and all.
+      expect(readSnapshot(db, second.snapshotId)).toEqual(
+        readSnapshot(db, first.snapshotId),
+      );
+    } finally {
+      db.close();
+    }
+  });
+
   it("produces a snapshot identical to a full index after one file changes", async () => {
     await runGraphIndex({ rootDir: project.rootDir });
 

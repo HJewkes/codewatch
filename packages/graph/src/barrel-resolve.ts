@@ -7,6 +7,23 @@ export function edgeWeight(e: GraphEdge): number {
 }
 
 /**
+ * Drop `references` edges (C-53) whose target `symbol` node doesn't exist — an
+ * aliased re-export chain, or a barrel that changed under a reused file, can
+ * resolve a name to an origin that doesn't declare it. Only `references` can
+ * dangle (imports/re-exports resolve to always-emitted file/external nodes);
+ * metrics already guard unknown ids, so this just keeps the persisted edge set
+ * clean. Mutates `edges` in place.
+ */
+export function pruneDanglingReferences(
+  nodes: ReadonlyMap<string, GraphNode>,
+  edges: Map<string, GraphEdge>,
+): void {
+  for (const [key, edge] of edges) {
+    if (edge.kind === "references" && !nodes.has(edge.dstId)) edges.delete(key);
+  }
+}
+
+/**
  * Resolve edges that land on a barrel (`role="barrel"` — a bare `index.*`
  * re-export file) onto the files the barrel actually re-exports from, so
  * downstream signals measure the real dependency surface instead of the

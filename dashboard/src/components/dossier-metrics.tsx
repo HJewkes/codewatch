@@ -102,6 +102,36 @@ export function UtilizationRow({ value, max, complex, churning, isBarrel }: { va
   );
 }
 
+/**
+ * Which of a file's exports carry its load (C-53): per-symbol utilization,
+ * ranked. Decomposes the file-level utilization above — answers "if I touch
+ * this file, which specific export ripples?". Bars scale to the file's own
+ * hottest export so the internal distribution reads clearly.
+ */
+export function HotExportsRow({ exports }: { exports: { name: string; utilization: number }[] }) {
+  if (!exports.length) return null;
+  const max = exports.reduce((m, e) => Math.max(m, e.utilization), 0);
+  return (
+    <View style={{ gap: 6 }}>
+      <Text style={{ color: cw.textDim, fontSize: 12, fontWeight: "600" }}>Hot exports</Text>
+      {exports.map((e) => {
+        const ratio = max > 0 ? Math.min(1, e.utilization / max) : 0;
+        return (
+          <View key={e.name} style={{ gap: 3 }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" }}>
+              <Text style={{ color: cw.text, fontSize: 12, fontFamily: "monospace" } as any} numberOfLines={1}>{e.name}</Text>
+              <Text style={{ color: cw.info, fontSize: 12, fontWeight: "700" }}>{Math.round(e.utilization)}</Text>
+            </View>
+            <View style={{ height: 3, borderRadius: 2, backgroundColor: tint(cw.info, 0.2), overflow: "hidden" }}>
+              <View style={{ height: 3, width: `${ratio * 100}%`, backgroundColor: cw.info, borderRadius: 2 }} />
+            </View>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 /** "churn × complexity = score", inserting the recency factor only when it discounts. */
 export function hotspotBreakdown(h: { churn: number; complexity: number; score: number; recency?: number }): string {
   const discounted = h.recency !== undefined && h.recency < 1;

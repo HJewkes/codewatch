@@ -2,7 +2,17 @@ import { loadChurnEntries, openDatabase, computePageRank } from "@codewatch/grap
 import { runGraphReportCommand } from "./graph-report.js";
 import { runGraphCheckCommand } from "./graph-check.js";
 import { runGraphArchCommand } from "./graph-arch.js";
-import { type NodeMetrics, collectNodeMetrics, buildNodeMetrics } from "./dashboard-node-metrics.js";
+import {
+  type NodeMetrics,
+  type SymbolUtil,
+  collectNodeMetrics,
+  buildNodeMetrics,
+  buildCentralFiles,
+  collectSymbolUtil,
+  buildHotExports,
+  buildBlastRadius,
+  referencedNodes,
+} from "./dashboard-node-metrics.js";
 
 /**
  * Payload assembly for `graph dashboard`. Kept separate from the command wiring
@@ -49,6 +59,8 @@ export interface SnapshotContext {
   connectedNodes: ReadonlySet<string>;
   /** Per-node structural metrics (loc, cognitive/cyclomatic max, nesting, fan) for the Dossier. */
   metrics: ReadonlyMap<string, NodeMetrics>;
+  /** Per-export utilization (C-53), for the Dossier "hot exports" list and the blast-radius section. */
+  symbols: readonly SymbolUtil[];
 }
 
 export type CouplingClass = { hidden: boolean; unindexed: boolean };
@@ -138,6 +150,12 @@ export function buildPayload(
     })),
     centralFiles: buildCentralFiles(report, snapCtx.centrality),
     nodeMetrics: buildNodeMetrics(report, snapCtx.metrics),
+    hotExports: buildHotExports(snapCtx.symbols, referencedNodes(report)),
+    blastRadius: buildBlastRadius(
+      snapCtx.symbols,
+      snapCtx.metrics,
+      new Map(report.hotspots.map((h) => [h.nodeId, h.churn])),
+    ),
     packages: arch.packages,
     violations,
     drift: report.drift && {
@@ -202,7 +220,7 @@ export function computeWindowPayloads(
   let primaryKey = String(primaryWindow);
   // Import-linkage + centrality are snapshot-level (same for every window);
   // compute lazily once the first report resolves the snapshot id.
-  let snapCtx: SnapshotContext = { linkedPairs: new Set(), centrality: new Map(), connectedNodes: new Set(), metrics: new Map() };
+  let snapCtx: SnapshotContext = { linkedPairs: new Set(), centrality: new Map(), connectedNodes: new Set(), metrics: new Map(), symbols: [] };
   for (const w of windowsList) {
     const report = runGraphReportCommand({
       db: opts.db, repoRoot, windowDays: w, vs: opts.vs, includeScripts: opts.includeScripts,
@@ -292,27 +310,6 @@ function isExternal(id: string): boolean {
 }
 
 /**
- * Reading-order centrality (top-N central files) PLUS the centrality of every
- * node referenced elsewhere in the payload (hotspots, silos, coupling), so the
- * Dossier can always show a PageRank score instead of "—" for a hotspot that
- * falls outside the top-N central list. Sorted descending, so the Overview
- * "reading order" (top-6 slice) is unaffected.
- */
-function buildCentralFiles(
-  report: ReturnType<typeof runGraphReportCommand>,
-  centrality: ReadonlyMap<string, number>,
-): { nodeId: string; score: number }[] {
-  const byId = new Map<string, number>();
-  for (const c of report.centralFiles) byId.set(c.nodeId, c.score);
-  const referenced = new Set<string>();
-  for (const h of report.hotspots) referenced.add(h.nodeId);
-  for (const b of report.busFactorRisks) referenced.add(b.nodeId);
-  for (const c of report.couplingClusters) { referenced.add(c.fileA); referenced.add(c.fileB); }
-  for (const id of referenced) if (!byId.has(id)) byId.set(id, centrality.get(id) ?? 0);
-  return [...byId].map(([nodeId, score]) => ({ nodeId, score })).sort((a, b) => b.score - a.score);
-}
-
-/**
  * Snapshot-level derived data from a single db open: the set of file pairs
  * joined by a static `imports`/`re-exports` edge (a co-changed pair NOT in it is
  * "hidden" coupling — the actionable signal; test↔source and generated↔generator
@@ -324,6 +321,7 @@ export function snapshotContext(dbPath: string, snapshotId: number): SnapshotCon
   const centrality = new Map<string, number>();
   const connectedNodes = new Set<string>();
   let metrics = new Map<string, NodeMetrics>();
+  let symbols: SymbolUtil[] = [];
   const db = openDatabase(dbPath);
   try {
     const nodes = db.listNodes(snapshotId);
@@ -346,8 +344,11 @@ export function snapshotContext(dbPath: string, snapshotId: number): SnapshotCon
       entry.role = n.role;
       metrics.set(n.id, entry);
     }
+    // Opt into the symbol layer for per-export utilization (C-53); it's excluded
+    // from the file-level nodes/edges above so PageRank and coupling stay file-level.
+    symbols = collectSymbolUtil(db.listNodes(snapshotId, { includeSymbols: true }), metrics);
   } finally {
     db.close();
   }
-  return { linkedPairs, centrality, connectedNodes, metrics };
+  return { linkedPairs, centrality, connectedNodes, metrics, symbols };
 }

@@ -153,6 +153,23 @@ export interface PackageStat {
   crossEdges?: number;
 }
 
+/** One export's utilization (C-53), for the Dossier "hot exports" list. */
+export interface HotExport {
+  name: string;
+  utilization: number;
+}
+
+/** A high-blast-radius export: heavily used, in a complex + churning file (C-53). */
+export interface BlastRadiusEntry {
+  symbolId: string;
+  name: string;
+  fileId: string;
+  utilization: number;
+  complexity: number;
+  churn: number;
+  score: number;
+}
+
 export interface CodewatchData {
   meta: DashboardMeta;
   kpis: Kpis;
@@ -164,6 +181,10 @@ export interface CodewatchData {
   centralFiles: CentralFile[];
   /** Structural metrics keyed by nodeId, for the Dossier heat readout. */
   nodeMetrics?: Record<string, NodeMetrics>;
+  /** Per-file ranked hot exports (C-53), keyed by fileId. */
+  hotExports?: Record<string, HotExport[]>;
+  /** Exports ranked by blast radius = utilization × complexity × churn (C-53). */
+  blastRadius?: BlastRadiusEntry[];
   packages?: PackageStat[];
   violations: Violation[];
   drift?: Drift;

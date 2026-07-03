@@ -7,11 +7,11 @@ import {
   Button,
   ButtonText,
 } from "@titan-design/react-ui";
-import { LayoutDashboard, Flame, Network, ShieldAlert, Users, GitFork, GitCompareArrows } from "lucide-react";
+import { LayoutDashboard, Flame, Network, ShieldAlert, Users, GitFork, GitCompareArrows, Bomb } from "lucide-react";
 import type { CodewatchData } from "./types";
 import { cw, shortId, pkgOf, hotspotColor, severityColor } from "./theme";
 import { Pillet } from "./components/primitives";
-import { MetricReadout, UtilizationRow, maxUtilization, isComplex, hotspotBreakdown, DossierRow } from "./components/dossier-metrics";
+import { MetricReadout, UtilizationRow, HotExportsRow, maxUtilization, isComplex, hotspotBreakdown, DossierRow } from "./components/dossier-metrics";
 import { loadWindows } from "./data";
 import { OverviewView } from "./views/OverviewView";
 import { HotspotsView } from "./views/HotspotsView";
@@ -20,12 +20,14 @@ import { FitnessView } from "./views/FitnessView";
 import { OwnershipView } from "./views/OwnershipView";
 import { CouplingView } from "./views/CouplingView";
 import { DriftView } from "./views/DriftView";
+import { BlastRadiusView } from "./views/BlastRadiusView";
 
-type ViewId = "overview" | "hotspots" | "architecture" | "coupling" | "ownership" | "fitness" | "drift";
+type ViewId = "overview" | "hotspots" | "blast" | "architecture" | "coupling" | "ownership" | "fitness" | "drift";
 
 const NAV: { id: ViewId; label: string; icon: any }[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "hotspots", label: "Hotspots", icon: Flame },
+  { id: "blast", label: "Blast radius", icon: Bomb },
   { id: "architecture", label: "Architecture", icon: Network },
   { id: "coupling", label: "Coupling", icon: GitFork },
   { id: "ownership", label: "Ownership", icon: Users },
@@ -83,6 +85,7 @@ function applyQuery(data: CodewatchData, q: string): CodewatchData {
     busFactorRisks: data.busFactorRisks.filter((b) => m(b.nodeId)),
     couplingClusters: data.couplingClusters.filter((c) => m(c.a) || m(c.b)),
     centralFiles: data.centralFiles.filter((c) => m(c.nodeId)),
+    blastRadius: data.blastRadius?.filter((e) => m(e.fileId) || m(e.name)),
     violations: data.violations.filter((v) => m(v.file)),
     drift: data.drift && {
       ...data.drift,
@@ -167,6 +170,7 @@ export function App({ data }: { data: CodewatchData }) {
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }}>
             {loc.view === "overview" && <OverviewView data={view} onSelect={setSelected} width={contentW} />}
             {loc.view === "hotspots" && <HotspotsView data={view} onSelect={setSelected} width={contentW} />}
+            {loc.view === "blast" && <BlastRadiusView data={view} onSelect={setSelected} />}
             {loc.view === "architecture" && <ArchitectureView data={active} onSelect={setSelected} width={contentW} />}
             {loc.view === "coupling" && <CouplingView data={view} onSelect={setSelected} />}
             {loc.view === "ownership" && <OwnershipView data={view} onSelect={setSelected} />}
@@ -247,6 +251,7 @@ function Dossier({ id, data, violations, onClose }: { id: string; data: Codewatc
       {metrics?.utilization !== undefined ? (
         <UtilizationRow value={metrics.utilization} max={utilMax} complex={isComplex(metrics)} churning={!!hotspot && hotspot.churn > 0} isBarrel={metrics.role === "barrel"} />
       ) : null}
+      {data.hotExports?.[id]?.length ? <HotExportsRow exports={data.hotExports[id]} /> : null}
       <DossierRow
         label="Hotspot score"
         value={hotspot ? hotspotBreakdown(hotspot) : "—"}

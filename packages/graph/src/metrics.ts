@@ -6,6 +6,17 @@ interface DegreeCounts {
   fanOut: Map<string, number>;
 }
 
+/**
+ * fan_in / fan_out are file/module *structural* coupling — how many modules a
+ * file depends on, and vice versa. They count only `imports`/`re-exports`
+ * edges; the per-symbol `references` layer (C-53) is a finer granularity and
+ * must not inflate module degree (one references edge per imported *symbol*
+ * would turn "depends on 3 modules" into "names 30 symbols").
+ */
+function isStructuralEdge(e: GraphEdge): boolean {
+  return e.kind === "imports" || e.kind === "re-exports";
+}
+
 function countDegrees(
   nodes: readonly GraphNode[],
   edges: readonly GraphEdge[],
@@ -17,6 +28,7 @@ function countDegrees(
     fanOut.set(n.id, 0);
   }
   for (const e of edges) {
+    if (!isStructuralEdge(e)) continue;
     if (fanOut.has(e.srcId)) {
       fanOut.set(e.srcId, fanOut.get(e.srcId)! + 1);
     }
@@ -57,6 +69,13 @@ export function computeMetrics(
   const utilization = weightedInbound(nodes, edges);
   const out: GraphMetric[] = [];
   for (const n of nodes) {
+    // Symbol nodes carry only utilization (how heavily the export is used).
+    // fan_in/fan_out/instability are module-structural and don't apply — and
+    // skipping them keeps the per-export layer from tripling the metric table.
+    if (n.kind === "symbol") {
+      out.push({ nodeId: n.id, name: "utilization", value: utilization.get(n.id) ?? 0, unit: "count" });
+      continue;
+    }
     const ci = fanIn.get(n.id) ?? 0;
     const co = fanOut.get(n.id) ?? 0;
     out.push({ nodeId: n.id, name: "fan_in", value: ci, unit: "count" });
