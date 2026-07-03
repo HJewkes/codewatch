@@ -26,6 +26,32 @@ const FILES: Record<string, string> = {
     `import { join } from "node:path";\n` +
     `import sub from "@scope/pkg/sub";\n` +
     `export const y = join("a", "b") + sub;\n`,
+  "/repo/src/c.ts": `export const C = 1;\n`,
+  "/repo/src/multi.ts": `export const P = 1;\nexport const Q = 2;\n`,
+  // Reference-count fixtures (C-51): weight = how often the imported binding is
+  // actually used, not how many import statements name it.
+  "/repo/src/heavy.ts":
+    `import { A } from "./a.js";\n` +
+    `import { B as Bee } from "./b.js";\n` +
+    `import * as ts from "typescript";\n` +
+    `const obj = { A: 0 };\n` +
+    `export const h =\n` +
+    `  A + A + A + obj.A +\n` + // A used 3×; object key + property access excluded
+    `  Bee +\n` + // aliased import counted by its local name
+    `  ts.version + ts.sys;\n`, // namespace used 2×; member names excluded
+  // Same module imported twice (value + type) folds into one summed edge.
+  "/repo/src/folded.ts":
+    `import { A } from "./a.js";\n` +
+    `import type { A as AT } from "./a.js";\n` +
+    `export const f = (x: AT): number => A + A;\n`, // weight = A(2) + AT(1) = 3
+  "/repo/src/edge-cases.ts":
+    `import "./c.js";\n` + // side-effect import binds nothing → floored to 1
+    `import { B } from "./b.js";\n` + // imported but unused → floored to 1
+    `import { A } from "./a.js";\n` +
+    `export const e = A;\n`,
+  "/repo/src/reexport.ts":
+    `export * from "./a.js";\n` + // namespace re-export → weight 1
+    `export { P, Q } from "./multi.js";\n`, // two named re-exports → weight 2
   // A directory outside the tsconfig project using extensionless,
   // bundler-style relative imports (like `dashboard/`). ts-morph's NodeNext
   // resolution cannot link these; the filesystem fallback must (C-44).
@@ -138,7 +164,7 @@ describe("TsMorphGraphExtractor", () => {
       (e) => e.kind === "imports" && e.dstId === "node:fs/promises",
     );
     expect(edge).toBeDefined();
-    expect(edge!.attrs).toEqual({ specifier: "node:fs/promises" });
+    expect(edge!.attrs).toEqual({ specifier: "node:fs/promises", weight: 1 });
   });
 
   it("emits npm: external nodes for bare npm packages", () => {
@@ -164,6 +190,63 @@ describe("TsMorphGraphExtractor", () => {
     expect(reExports).toHaveLength(1);
     expect(reExports[0]!.srcId).toBe("src/index.ts");
     expect(reExports[0]!.dstId).toBe("src/a.ts");
+  });
+
+  describe("reference-count edge weights (C-51)", () => {
+    const weightOf = (
+      fragment: GraphFragment,
+      kind: string,
+      dstId: string,
+    ): unknown => {
+      const edge = fragment.edges.find(
+        (e) => e.kind === kind && e.dstId === dstId,
+      );
+      return edge?.attrs?.weight;
+    };
+
+    it("counts each use of a named import", () => {
+      const [fragment] = fixture.extract("/repo/src/heavy.ts");
+      expect(weightOf(fragment!, "imports", "src/a.ts")).toBe(3);
+    });
+
+    it("counts an aliased import by its local name", () => {
+      const [fragment] = fixture.extract("/repo/src/heavy.ts");
+      expect(weightOf(fragment!, "imports", "src/b.ts")).toBe(1);
+    });
+
+    it("counts namespace uses but excludes member-name positions", () => {
+      const [fragment] = fixture.extract("/repo/src/heavy.ts");
+      expect(weightOf(fragment!, "imports", "npm:typescript")).toBe(2);
+    });
+
+    it("folds parallel imports of one module into a summed edge", () => {
+      const [fragment] = fixture.extract("/repo/src/folded.ts");
+      const toA = fragment!.edges.filter(
+        (e) => e.kind === "imports" && e.dstId === "src/a.ts",
+      );
+      expect(toA).toHaveLength(1);
+      expect(toA[0]!.attrs?.weight).toBe(3);
+    });
+
+    it("floors a side-effect import at 1", () => {
+      const [fragment] = fixture.extract("/repo/src/edge-cases.ts");
+      expect(weightOf(fragment!, "imports", "src/c.ts")).toBe(1);
+    });
+
+    it("floors an imported-but-unused binding at 1", () => {
+      const [fragment] = fixture.extract("/repo/src/edge-cases.ts");
+      expect(weightOf(fragment!, "imports", "src/b.ts")).toBe(1);
+    });
+
+    it("weights a namespace re-export at 1", () => {
+      const [fragment] = fixture.extract("/repo/src/reexport.ts");
+      expect(weightOf(fragment!, "re-exports", "src/a.ts")).toBe(1);
+    });
+
+    it("weights a named re-export by its specifier count", () => {
+      const [fragment] = fixture.extract("/repo/src/reexport.ts");
+      expect(weightOf(fragment!, "re-exports", "src/multi.ts")).toBe(2);
+    });
   });
 
   describe("extensionless relative imports (C-44)", () => {

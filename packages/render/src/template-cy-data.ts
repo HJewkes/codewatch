@@ -284,8 +284,9 @@ function buildEdgeEntry(
     kind: e.kind,
     status: diff?.edgeStatus[`${e.srcId} ${e.dstId} ${e.kind}`] ?? "unchanged",
     width: edgeWidthFor(weight),
-    // Only the aggregated package graph carries a >1 count worth annotating; the
-    // file-level graph's single edges get no label to avoid clutter.
+    // Annotate any edge whose weight exceeds 1 — both the aggregated package
+    // graph and, since C-51, file-level import edges carrying a reference count.
+    // A ×1 (or weightless) edge stays unlabelled to avoid clutter.
     label: weight !== undefined && weight > 1 ? `×${weight}` : "",
   };
   if (weight !== undefined) data.weight = weight;

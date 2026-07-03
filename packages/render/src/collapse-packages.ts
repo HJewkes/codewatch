@@ -1,4 +1,5 @@
 import type { GraphEdge, GraphNode } from "@codewatch/graph";
+import { edgeWeight } from "./edge-weight.js";
 import type { RenderInput } from "./types.js";
 
 /**
@@ -10,8 +11,8 @@ import type { RenderInput } from "./types.js";
  *
  * - Only `file` nodes contribute (the `module` twins carry no edges — they're the
  *   orphan grid — and `external` deps would drown the internal structure).
- * - Intra-package edges are dropped; parallel edges fold into one, their count
- *   kept on `attrs.weight` for edge-thickness styling.
+ * - Intra-package edges are dropped; parallel edges fold into one, their
+ *   summed reference counts kept on `attrs.weight` for edge-thickness styling.
  */
 export function collapseToPackages(input: RenderInput): RenderInput {
   const pkgOf = (id: string): string => {
@@ -34,7 +35,7 @@ export function collapseToPackages(input: RenderInput): RenderInput {
     const d = pkgByFile.get(e.dstId);
     if (!s || !d || s === d) continue;
     const key = JSON.stringify([s, d]); // JSON tuple key — no in-band separator
-    weights.set(key, (weights.get(key) ?? 0) + 1);
+    weights.set(key, (weights.get(key) ?? 0) + edgeWeight(e));
   }
 
   const nodes: GraphNode[] = [...fileCount].map(([pkg, count]) => ({

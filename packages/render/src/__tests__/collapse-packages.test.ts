@@ -34,9 +34,22 @@ describe("collapseToPackages", () => {
 
   it("folds parallel cross-package edges into one weighted edge; drops intra-package and external", () => {
     const out = collapseToPackages(input);
-    // cli -> graph twice (via a.ts and b.ts) collapses to weight 2; no others.
+    // cli -> graph twice (via a.ts and b.ts), each weightless → 1 apiece = 2.
     expect(out.edges).toHaveLength(1);
     expect(out.edges[0]).toMatchObject({ srcId: "cli", dstId: "graph", kind: "imports" });
     expect(out.edges[0]!.attrs).toMatchObject({ weight: 2 });
+  });
+
+  it("sums file-edge reference counts into the package edge weight (C-51)", () => {
+    const weighted: RenderInput = {
+      ...input,
+      edges: [
+        { srcId: "packages/cli/src/c.ts", dstId: "packages/graph/src/a.ts", kind: "imports", attrs: { weight: 5 } },
+        { srcId: "packages/cli/src/c.ts", dstId: "packages/graph/src/b.ts", kind: "imports", attrs: { weight: 3 } },
+      ],
+    };
+    const out = collapseToPackages(weighted);
+    expect(out.edges).toHaveLength(1);
+    expect(out.edges[0]!.attrs).toMatchObject({ weight: 8 });
   });
 });

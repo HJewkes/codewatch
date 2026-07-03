@@ -63,6 +63,22 @@ describe("focusPackage", () => {
     expect(incoming[0].attrs?.weight).toBe(2); // m.ts and n.ts both import b.ts
   });
 
+  it("sums file-edge reference counts into folded stub edges (C-51)", () => {
+    const weighted: RenderInput = {
+      ...input,
+      edges: [
+        { srcId: "packages/cli/src/m.ts", dstId: "packages/graph/src/b.ts", kind: "imports", attrs: { weight: 4 } },
+        { srcId: "packages/cli/src/n.ts", dstId: "packages/graph/src/b.ts", kind: "imports", attrs: { weight: 7 } },
+      ],
+    };
+    const out = focusPackage(weighted, "graph");
+    const incoming = out.edges.filter(
+      (e) => e.srcId === "cli" && e.dstId === "packages/graph/src/b.ts",
+    );
+    expect(incoming).toHaveLength(1);
+    expect(incoming[0].attrs?.weight).toBe(11);
+  });
+
   it("drops external (npm) endpoints entirely", () => {
     expect(out.nodes.some((n) => n.id.startsWith("npm:"))).toBe(false);
     expect(out.edges.some((e) => e.dstId.startsWith("npm:"))).toBe(false);
