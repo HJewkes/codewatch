@@ -12,6 +12,7 @@ function ctx(connected: string[], linked: [string, string][]): SnapshotContext {
     linkedPairs: new Set(linked.map(([a, b]) => key(a, b))),
     centrality: new Map(),
     metrics: new Map(),
+    symbols: [],
   };
 }
 
