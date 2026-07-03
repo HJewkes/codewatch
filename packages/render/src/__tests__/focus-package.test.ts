@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import { focusPackage, packagesInSnapshot } from "../focus-package.js";
 import type { RenderInput } from "../types.js";
 
-function file(id: string) {
-  return { id, kind: "file" as const, name: id.split("/").pop() ?? id };
+function file(id: string, role?: string) {
+  return { id, kind: "file" as const, name: id.split("/").pop() ?? id, ...(role ? { role: role as never } : {}) };
 }
 function edge(srcId: string, dstId: string) {
   return { srcId, dstId, kind: "imports" as const };
@@ -71,6 +71,41 @@ describe("focusPackage", () => {
   it("returns only stubs (no files) when the package has none", () => {
     const empty = focusPackage(input, "nonexistent");
     expect(empty.nodes.filter((n) => n.kind === "file")).toHaveLength(0);
+  });
+});
+
+describe("focusPackage test-file handling", () => {
+  // graph package with a test file that imports a source file in the same package.
+  const withTest: RenderInput = {
+    snapshotId: 1,
+    nodes: [
+      file("packages/graph/src/a.ts", "source"),
+      file("packages/graph/src/a.test.ts", "test"),
+      file("packages/core/src/x.ts", "source"),
+    ],
+    edges: [
+      edge("packages/graph/src/a.test.ts", "packages/graph/src/a.ts"),
+      edge("packages/graph/src/a.ts", "packages/core/src/x.ts"),
+    ],
+  };
+
+  it("excludes test-role files by default (internal structure = production code)", () => {
+    const out = focusPackage(withTest, "graph");
+    const files = out.nodes.filter((n) => n.kind === "file").map((n) => n.id);
+    expect(files).toEqual(["packages/graph/src/a.ts"]);
+  });
+
+  it("does not turn an excluded same-package test into a phantom self-stub", () => {
+    const out = focusPackage(withTest, "graph");
+    // The a.test.ts → a.ts edge should vanish, NOT become a `graph` stub edge.
+    expect(out.nodes.some((n) => n.kind === "package" && n.id === "graph")).toBe(false);
+    expect(out.nodes.filter((n) => n.kind === "package").map((n) => n.id)).toEqual(["core"]);
+  });
+
+  it("includes test files when includeTests is set", () => {
+    const out = focusPackage(withTest, "graph", { includeTests: true });
+    const files = out.nodes.filter((n) => n.kind === "file").map((n) => n.id).sort();
+    expect(files).toEqual(["packages/graph/src/a.test.ts", "packages/graph/src/a.ts"]);
   });
 });
 

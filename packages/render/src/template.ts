@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { computeLayout } from "./layout.js";
+import { computeLayout, FOCUS_LAYOUT_OPTIONS } from "./layout.js";
 import { computeOverlays, type OverlayResult } from "./overlay.js";
 import { inlineStyles } from "./template-styles.js";
 import { clientScript } from "./template-script.js";
@@ -122,7 +122,11 @@ export async function renderHtml(
     sizeBy: options.sizeBy,
     colorBy: options.colorBy,
   });
-  const layout = await computeLayout(input, overlay.sizing);
+  const layout = await computeLayout(
+    input,
+    overlay.sizing,
+    options.flat ? FOCUS_LAYOUT_OPTIONS : undefined,
+  );
   const [bundle, layoutBundles] = await Promise.all([
     loadCytoscapeBundle(),
     loadLayoutBundles(),
