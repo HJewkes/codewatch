@@ -128,6 +128,18 @@ header .search:focus {
   transition: border-color 120ms ease;
 }
 .toolbar .view-picker:hover, .toolbar .view-picker:focus { border-color: var(--accent); outline: none; }
+.toolbar .barrel-toggle-group { margin-right: 4px; }
+.toolbar .barrel-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+}
+.toolbar .barrel-toggle input { cursor: pointer; accent-color: var(--accent); margin: 0; }
 .toolbar .spacer { flex: 1; }
 .toolbar button.btn {
   background: var(--bg-elev-2);
