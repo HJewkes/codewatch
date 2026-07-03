@@ -22,6 +22,30 @@ describe("collapseToDirectories", () => {
     expect(e?.attrs?.weight).toBe(5); // 3 + 2 folded
   });
 
+  it("with resolve:false keeps barrel edges — coupling lands on the barrel's directory", () => {
+    const input: RenderInput = {
+      snapshotId: 1,
+      nodes: [
+        file("packages/cli/src/m.ts"),
+        file("packages/graph/src/index.ts", "barrel"),
+        file("packages/graph/src/extractors/x.ts"),
+      ],
+      edges: [
+        edge("packages/cli/src/m.ts", "packages/graph/src/index.ts", 8),
+        edge("packages/graph/src/index.ts", "packages/graph/src/extractors/x.ts", 1, "re-exports"),
+      ],
+    };
+    const isCli = (e: { srcId: string }) => e.srcId === "packages/cli/src";
+    const raw = collapseToDirectories(input, { resolve: false });
+    // Raw: cli's import lands on the barrel's own directory (graph), not extractors.
+    expect(raw.edges.find((e) => isCli(e) && e.dstId === "packages/graph/src")?.attrs?.weight).toBe(8);
+    expect(raw.edges.some((e) => isCli(e) && e.dstId === "packages/graph/src/extractors")).toBe(false);
+    // Resolved (default): cli's coupling is attributed through to extractors.
+    const resolved = collapseToDirectories(input, { resolve: true });
+    expect(resolved.edges.some((e) => isCli(e) && e.dstId === "packages/graph/src/extractors")).toBe(true);
+    expect(resolved.edges.some((e) => isCli(e) && e.dstId === "packages/graph/src")).toBe(false);
+  });
+
   it("drops intra-directory edges", () => {
     const input: RenderInput = {
       snapshotId: 1,

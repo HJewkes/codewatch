@@ -28,7 +28,16 @@ import type { RenderInput } from "./types.js";
  */
 const SKIP_ROLES = new Set(["test", "fixture", "config", "script"]);
 
-export function collapseToDirectories(input: RenderInput): RenderInput {
+/**
+ * @param resolve When true (default) the collapse runs on the barrel-resolved
+ *   edge set, so cross-package coupling lands on the real target directory
+ *   rather than on the package-root directory that holds the `index.ts` barrel.
+ *   Pass false for the raw ("keep barrels") variant of the view.
+ */
+export function collapseToDirectories(
+  input: RenderInput,
+  { resolve = true }: { resolve?: boolean } = {},
+): RenderInput {
   const dirByFile = new Map<string, string>();
   const fileCount = new Map<string, number>();
   for (const n of input.nodes) {
@@ -38,8 +47,11 @@ export function collapseToDirectories(input: RenderInput): RenderInput {
     fileCount.set(dir, (fileCount.get(dir) ?? 0) + 1);
   }
 
+  const collapsedEdges = resolve
+    ? resolveBarrelEdges(input.nodes, input.edges)
+    : input.edges;
   const weights = new Map<string, number>();
-  for (const e of resolveBarrelEdges(input.nodes, input.edges)) {
+  for (const e of collapsedEdges) {
     const s = dirByFile.get(e.srcId);
     const d = dirByFile.get(e.dstId);
     if (!s || !d || s === d) continue;

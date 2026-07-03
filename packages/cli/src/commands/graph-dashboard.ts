@@ -10,6 +10,7 @@ import {
   collapseToDirectories,
   focusPackage,
   packagesInSnapshot,
+  resolveBarrels,
   type GraphView,
 } from "@codewatch/render";
 import { dashboardTemplate } from "./dashboard-template.js";
@@ -57,19 +58,22 @@ async function dependencyGraphHtml(opts: DashboardCommandOptions): Promise<strin
       }));
     }
 
-    // Default: an interactive multi-view graph — the package overview, a
-    // barrel-resolved module (directory) coupling view that surfaces the real
-    // cross-directory dependencies a package barrel would hide, then one
-    // within-package focus view per package. Switchable from the toolbar picker.
+    // Default: an interactive multi-view graph — the package overview, a module
+    // (directory) coupling view, then one within-package focus view per package,
+    // switchable from the toolbar picker. Each barrel-sensitive view also bakes a
+    // hidden `::resolved` variant so the "See through barrels" toggle can flip
+    // between the raw graph (imports land on the index.ts hub) and the resolved
+    // one (edges rerouted to the files the barrel forwards to). The package
+    // overview is invariant to barrels, so it needs no variant.
+    const resolved = resolveBarrels(raw);
     const views: GraphView[] = [
       { id: "__overview__", label: "All packages", input: collapseToPackages(raw), flat: false },
-      { id: "__modules__", label: "Modules", input: collapseToDirectories(raw), flat: false },
-      ...packagesInSnapshot(raw).map((pkg) => ({
-        id: pkg,
-        label: pkg,
-        input: focusPackage(raw, pkg),
-        flat: true,
-      })),
+      { id: "__modules__", label: "Modules", input: collapseToDirectories(raw, { resolve: false }), flat: false },
+      { id: "__modules__::resolved", label: "Modules", input: collapseToDirectories(raw, { resolve: true }), flat: false, hidden: true },
+      ...packagesInSnapshot(raw).flatMap((pkg) => [
+        { id: pkg, label: pkg, input: focusPackage(raw, pkg), flat: true },
+        { id: `${pkg}::resolved`, label: pkg, input: focusPackage(resolved, pkg), flat: true, hidden: true },
+      ]),
     ];
     return b64(await renderMultiViewHtml(views, { title: `${repo} — architecture` }));
   } catch {

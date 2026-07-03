@@ -242,14 +242,29 @@ function viewPickerHtml(views: { id: string; label: string }[] | undefined): str
   </div>`;
 }
 
+/**
+ * "See through barrels" toggle — when a view has a baked `::resolved` variant,
+ * flips it between the raw graph (imports land on the `index.ts` re-export hub)
+ * and the barrel-resolved graph (edges rerouted to the files the barrel forwards
+ * to, exposing the real coupling). Default on.
+ */
+function barrelToggleHtml(show: boolean): string {
+  if (!show) return "";
+  return `<div class="group barrel-toggle-group" aria-label="Barrels">
+    <label class="barrel-toggle"><input type="checkbox" id="barrel-toggle" checked /> See through barrels</label>
+  </div>`;
+}
+
 export function toolbarHtml(
   layout: LayoutResult,
   diff: RenderInput["diff"],
   checkResult: RenderInput["checkResult"],
   views?: { id: string; label: string }[],
+  showBarrelToggle = false,
 ): string {
   return `<div class="toolbar" role="toolbar" aria-label="Graph filters">
   ${viewPickerHtml(views)}
+  ${barrelToggleHtml(showBarrelToggle)}
   <div id="chip-groups" class="chip-groups">${chipGroupsHtml(layout, diff, checkResult)}</div>
   <div class="spacer"></div>
   <span class="hint" aria-hidden="true">drag to pan · scroll to zoom</span>

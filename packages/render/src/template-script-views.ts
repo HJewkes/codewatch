@@ -66,7 +66,19 @@ export function viewSwitchingCode(): string {
   if (VIEWS) {
     const byId = {}; VIEWS.forEach(function (v) { byId[v.id] = v.graph; });
     const picker = document.getElementById("view-picker");
-    if (picker) picker.addEventListener("change", function () { const g = byId[picker.value]; if (g) switchView(g); });
+    const barrelToggle = document.getElementById("barrel-toggle");
+    // The picker only lists base views; a "::resolved" variant (if baked) is
+    // reached by the "See through barrels" toggle, not a separate menu entry.
+    function apply() {
+      const base = picker ? picker.value : (VIEWS[0] && VIEWS[0].id);
+      const resolvedId = base + "::resolved";
+      const wantResolved = barrelToggle ? barrelToggle.checked : false;
+      const id = (wantResolved && byId[resolvedId]) ? resolvedId : base;
+      const g = byId[id]; if (g) switchView(g);
+    }
+    if (picker) picker.addEventListener("change", apply);
+    if (barrelToggle) barrelToggle.addEventListener("change", apply);
+    if (barrelToggle) apply(); // sync initial render to the toggle's default state
   }
 `;
 }

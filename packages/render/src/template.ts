@@ -181,6 +181,12 @@ export interface GraphView {
   input: RenderInput;
   /** Flat (focus) view — no compound package parents, uses the focus layout. */
   flat?: boolean;
+  /**
+   * Baked and switchable but hidden from the picker — used for the
+   * barrel-resolved variant of another view (id `${baseId}::resolved`), which
+   * the "See through barrels" toggle swaps to rather than a separate menu entry.
+   */
+  hidden?: boolean;
 }
 
 /**
@@ -224,12 +230,15 @@ export async function renderMultiViewHtml(
     built.push({
       id: v.id,
       label: v.label,
+      hidden: v.hidden ?? false,
       layout,
       graph: { snapshotId: v.input.snapshotId, nodes: cy.nodes, edges: cy.edges },
     });
   }
   const primary = built[0];
-  const viewMeta = built.map((b) => ({ id: b.id, label: b.label }));
+  // Picker lists only visible views; hidden ::resolved variants stay swappable.
+  const viewMeta = built.filter((b) => !b.hidden).map((b) => ({ id: b.id, label: b.label }));
+  const hasBarrelToggle = built.some((b) => b.id.endsWith("::resolved"));
   return buildHtml({
     bundle,
     layoutBundles,
@@ -239,7 +248,7 @@ export async function renderMultiViewHtml(
     subtitle: options.subtitle ?? `${primary.layout.nodes.length} nodes · ${primary.layout.edges.length} edges`,
     overlayBadge: "",
     diffSummary: "",
-    toolbar: toolbarHtml(primary.layout, undefined, undefined, viewMeta),
+    toolbar: toolbarHtml(primary.layout, undefined, undefined, viewMeta, hasBarrelToggle),
     nodeCount: primary.layout.nodes.length,
     edgeCount: primary.layout.edges.length,
   });
