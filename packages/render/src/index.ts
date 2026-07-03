@@ -1,4 +1,4 @@
-export { renderHtml } from "./template.js";
+export { renderHtml, renderMultiViewHtml, type GraphView } from "./template.js";
 export { computeLayout } from "./layout.js";
 export { loadSnapshot } from "./snapshot.js";
 export { collapseToPackages } from "./collapse-packages.js";
