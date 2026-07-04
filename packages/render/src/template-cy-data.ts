@@ -1,4 +1,5 @@
 import type { LaidOutNode, LayoutResult, RenderInput } from "./types.js";
+import type { GroupOf } from "./layout.js";
 import type { DiffSummary, ViolationsByNode } from "./template-violations.js";
 import {
   edgeRoutingFor,
@@ -6,8 +7,15 @@ import {
   type EdgeRouting,
   type Pt,
 } from "./edge-routing.js";
+import {
+  packageIdFor,
+  synthesizeGroupBoxes,
+  synthesizePackageEntries,
+} from "./template-compound-boxes.js";
 
-interface CytoscapeNodeData {
+export { packageIdFor };
+
+export interface CytoscapeNodeData {
   id: string;
   label: string;
   kind: string;
@@ -23,60 +31,6 @@ interface CytoscapeNodeData {
   height: number;
   overlay_fill?: string;
   raw: unknown;
-}
-
-export const EXTERNAL_PARENT_ID = "pkg:external";
-
-// The package a file belongs to. In a `packages/<name>/…` monorepo the package
-// is the second segment (every file's first segment is just `packages`), so nest
-// files into per-package boxes rather than one giant `packages` box. Mirrors the
-// client's `pkgOfId` so compound parents and package colors agree.
-function packageFromInternalId(id: string): string | undefined {
-  const monorepo = /^packages\/([^/]+)/.exec(id);
-  const seg = monorepo ? monorepo[1] : id.split("/")[0];
-  return seg ? `pkg:${seg}` : undefined;
-}
-
-export function packageIdFor(node: { id: string; kind: string }): string | undefined {
-  if (node.kind === "external") return EXTERNAL_PARENT_ID;
-  if (node.kind === "package") return undefined;
-  return packageFromInternalId(node.id);
-}
-
-function packageLabelFor(pkgId: string): string {
-  if (pkgId === EXTERNAL_PARENT_ID) return "external deps";
-  return pkgId.replace(/^pkg:/, "");
-}
-
-function packageEntry(pkg: string): { data: CytoscapeNodeData } {
-  // Width/height are hints for non-compound layout; cytoscape sizes compound
-  // parents by their children's bounding box regardless.
-  return {
-    data: {
-      id: pkg,
-      label: packageLabelFor(pkg),
-      kind: "package",
-      tooltip: pkg,
-      status: "unchanged",
-      width: 180,
-      height: 48,
-      raw: { id: pkg, kind: "package", name: packageLabelFor(pkg) },
-    },
-  };
-}
-
-function synthesizePackageEntries(
-  layout: LayoutResult,
-): Array<{ data: CytoscapeNodeData }> {
-  const seen = new Set<string>();
-  const out: Array<{ data: CytoscapeNodeData }> = [];
-  layout.nodes.forEach((n) => {
-    const pkg = packageIdFor(n);
-    if (!pkg || seen.has(pkg)) return;
-    seen.add(pkg);
-    out.push(packageEntry(pkg));
-  });
-  return out;
 }
 
 interface CytoscapeEdgeData {
@@ -116,6 +70,11 @@ interface NodeAssemblyContext {
   diffSummary: DiffSummary;
   /** Skip compound package parents (within-package focus view). */
   flat?: boolean;
+  /**
+   * When set (the nested drill-down view), a node's compound parent is the
+   * innermost box its grouping returns rather than just its package.
+   */
+  groupOf?: GroupOf;
 }
 
 type Violation = ReturnType<ViolationsByNode["get"]>;
@@ -232,6 +191,17 @@ function parentField(parentPkg: string | undefined): { parent?: string } {
   return parentPkg ? { parent: parentPkg } : {};
 }
 
+// The compound box a node nests directly inside: its innermost group box (nested
+// view) or, by default, just its package. Flat views have no compound parents.
+function parentBoxFor(n: LaidOutNode, ctx: NodeAssemblyContext): string | undefined {
+  if (ctx.flat) return undefined;
+  if (ctx.groupOf) {
+    const chain = ctx.groupOf(n);
+    return chain[chain.length - 1];
+  }
+  return packageIdFor(n);
+}
+
 function overlayFillField(fill: string | undefined): { overlay_fill?: string } {
   return fill ? { overlay_fill: fill } : {};
 }
@@ -255,7 +225,7 @@ function buildNodeEntry(
       label: labelForNode(n),
       kind: n.kind,
       ...roleField(n.role),
-      ...parentField(ctx.flat ? undefined : packageIdFor(n)),
+      ...parentField(parentBoxFor(n, ctx)),
       tooltip: tooltipFor(n.id, oldId),
       status,
       ...violationFields(violation, trend, resolved),
@@ -308,7 +278,7 @@ export function buildCyData(
   metricsBeforeByNode: Map<string, Record<string, number>>,
   violationsByNode: ViolationsByNode,
   diffSummary: DiffSummary,
-  opts: { flat?: boolean; compound?: boolean } = {},
+  opts: { flat?: boolean; compound?: boolean; groupOf?: GroupOf } = {},
 ): {
   nodes: Array<{ data: CytoscapeNodeData; position?: { x: number; y: number } }>;
   edges: Array<{ data: CytoscapeEdgeData }>;
@@ -318,8 +288,13 @@ export function buildCyData(
     // Flat mode (the within-package focus view) skips compound package parents so
     // the graph stays a flat DAG the client renders with elk-preset + routing.
     flat: opts.flat,
+    groupOf: opts.groupOf,
   };
-  const packageEntries = opts.flat ? [] : synthesizePackageEntries(layout);
+  const packageEntries = opts.flat
+    ? []
+    : opts.groupOf
+      ? synthesizeGroupBoxes(layout, opts.groupOf)
+      : synthesizePackageEntries(layout);
   const nodeEntries = layout.nodes.map((n) => buildNodeEntry(n, ctx));
   // The compound file graph keeps its package parents but is still laid out by
   // ELK (INCLUDE_CHILDREN), so its absolute leaf centers drive route projection.

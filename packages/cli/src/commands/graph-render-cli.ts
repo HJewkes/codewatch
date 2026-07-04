@@ -64,6 +64,10 @@ export function registerRender(graphCmd: Command): void {
       "--baseline <ref-or-id>",
       "Mark violations also present in this baseline as carryover (used with --check)",
     )
+    .option(
+      "--nested",
+      "Drill the compound file graph into per-directory boxes (package → subdir → file)",
+    )
     .action(
       async (options: {
         db: string;
@@ -75,6 +79,7 @@ export function registerRender(graphCmd: Command): void {
         colorBy?: string;
         check?: string;
         baseline?: string;
+        nested?: boolean;
       }) => {
         try {
           const { runGraphRenderCommand, formatGraphRenderText } =
@@ -89,6 +94,7 @@ export function registerRender(graphCmd: Command): void {
             colorBy: options.colorBy,
             check: options.check,
             baseline: options.baseline,
+            nested: options.nested,
           });
           console.log(formatGraphRenderText(result));
         } catch (err) {

@@ -36,6 +36,29 @@ const packageGroupOf: GroupOf = (node) => {
   return pkg ? [pkg] : [];
 };
 
+// The directory that owns a node's package (`packages/<name>` in a monorepo,
+// else the first path segment) — the boundary subdirectory boxes nest under.
+function packageDirOf(id: string): string {
+  const monorepo = /^(packages\/[^/]+)/.exec(id);
+  return monorepo ? monorepo[1] : id.split("/")[0];
+}
+
+function dirOfId(id: string): string {
+  const slash = id.lastIndexOf("/");
+  return slash === -1 ? "" : id.slice(0, slash);
+}
+
+// The nested drill-down grouping (C-56): a file nests inside a box for its own
+// directory, which nests inside its package box — `package → subdir → file`.
+// Files sitting directly at the package root (and externals) get no subdir box.
+const dirGroupOf: GroupOf = (node) => {
+  const pkg = packageIdFor(node);
+  if (!pkg) return [];
+  if (node.kind !== "file") return [pkg];
+  const dir = dirOfId(node.id);
+  return !dir || dir === packageDirOf(node.id) ? [pkg] : [pkg, `dir:${dir}`];
+};
+
 function escapeForScript(s: string): string {
   // Prevent </script> sequences in embedded JSON from terminating the script tag.
   return s.replace(/</g, "\\u003c");
@@ -145,8 +168,11 @@ export async function renderHtml(
     sizeBy: options.sizeBy,
     colorBy: options.colorBy,
   });
+  // The nested drill-down view groups files by directory; the default compound
+  // view groups them by package.
+  const groupOf = options.nested ? dirGroupOf : packageGroupOf;
   const layout = options.compound
-    ? await computeCompoundLayout(input, overlay.sizing, packageGroupOf)
+    ? await computeCompoundLayout(input, overlay.sizing, groupOf)
     : await computeLayout(
         input,
         overlay.sizing,
@@ -168,7 +194,10 @@ export async function renderHtml(
     metricsBeforeByNode,
     violationsByNode,
     diffSummary,
-    { flat: options.flat, compound: options.compound },
+    // The nested view drives compound parents from the directory grouping so the
+    // synthesized subdir boxes match ELK's layout; the default view keeps its
+    // package-only parents.
+    { flat: options.flat, compound: options.compound, groupOf: options.nested ? dirGroupOf : undefined },
   );
   const graphJson = JSON.stringify({
     snapshotId: input.snapshotId,

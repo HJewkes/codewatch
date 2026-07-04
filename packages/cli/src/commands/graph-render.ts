@@ -20,6 +20,8 @@ export interface GraphRenderCommandOptions {
   colorBy?: string;
   check?: string;
   baseline?: string;
+  /** Drill the compound file graph into per-directory boxes (C-56). */
+  nested?: boolean;
 }
 
 export interface GraphRenderResult {
@@ -57,6 +59,8 @@ export async function runGraphRenderCommand(
       // ELK's INCLUDE_CHILDREN hierarchy + orthogonal routing (C-48) rather than
       // client-side cose-bilkent, so positions and routes are deterministic.
       compound: true,
+      // --nested drills one level deeper: files nest in per-directory boxes (C-56).
+      nested: options.nested,
     },
   );
   const outPath = resolve(options.out);

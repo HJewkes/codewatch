@@ -53,6 +53,12 @@ export interface RenderOptions {
    * package boxes) with orthogonal routing, instead of client-side cose-bilkent.
    */
   compound?: boolean;
+  /**
+   * Drill the compound view one level deeper: nest files inside a box for their
+   * directory, nested in turn inside their package box (`package → subdir →
+   * file`). Only meaningful together with `compound`.
+   */
+  nested?: boolean;
 }
 
 export type LaidOutNode = GraphNode & {

@@ -174,3 +174,34 @@ describe("compound file-level graph (ELK INCLUDE_CHILDREN)", () => {
     expect(layout.taxiEdges).toBe(0);
   }, 30_000);
 });
+
+// Files nested two levels deep: package box → directory box → file, with edges
+// crossing subdirectory and package boundaries.
+const nestedFixture: RenderInput = {
+  snapshotId: 1,
+  nodes: [
+    { id: "packages/cli/src/commands/a.ts", kind: "file", name: "a.ts", role: "source" },
+    { id: "packages/cli/src/utils/b.ts", kind: "file", name: "b.ts", role: "source" },
+    { id: "packages/graph/src/c.ts", kind: "file", name: "c.ts", role: "source" },
+  ],
+  edges: [
+    { srcId: "packages/cli/src/commands/a.ts", dstId: "packages/cli/src/utils/b.ts", kind: "imports" }, // cross-subdir
+    { srcId: "packages/cli/src/utils/b.ts", dstId: "packages/graph/src/c.ts", kind: "imports" }, // cross-package
+  ],
+};
+
+describe("nested drill-down file graph (C-56)", () => {
+  it("renders elk-preset with edges routed across nesting boundaries", async () => {
+    const { consoleErrors, pageErrors, layout } = await renderAndLoad(nestedFixture, {
+      compound: true,
+      nested: true,
+    });
+    expect(pageErrors).toEqual([]);
+    expect(consoleErrors).toEqual([]);
+    expect(layout.mode).toBe("elk-preset");
+    expect(layout.maxPositionDrift).toBeLessThan(0.01);
+    // Cross-subdir and cross-package edges all render ELK routes, no taxi fallback.
+    expect(layout.routedEdges).toBe(layout.totalEdges);
+    expect(layout.taxiEdges).toBe(0);
+  }, 30_000);
+});
