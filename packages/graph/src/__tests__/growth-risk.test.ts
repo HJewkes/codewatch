@@ -9,6 +9,12 @@ async function parseTs(code: string, fp = "f.ts"): Promise<ParsedFile> {
 function loopDepth(metrics: ReturnType<typeof computeGrowthRiskMetrics>): number | undefined {
   return metrics.find((m) => m.name === "loop_depth")?.value ?? undefined;
 }
+function metric(
+  metrics: ReturnType<typeof computeGrowthRiskMetrics>,
+  name: string,
+): number {
+  return metrics.find((m) => m.name === name)?.value ?? 0;
+}
 
 describe("computeGrowthRiskMetrics — loop_depth (C-66)", () => {
   it("flags a doubly-nested loop as depth 2 (quadratic-shaped)", async () => {
@@ -59,5 +65,37 @@ describe("computeGrowthRiskMetrics — loop_depth (C-66)", () => {
       "python",
     );
     expect(loopDepth(computeGrowthRiskMetrics([f], idOf))).toBe(2);
+  });
+});
+
+describe("computeGrowthRiskMetrics — recursion (C-66)", () => {
+  it("flags a directly self-recursive function", async () => {
+    const f = await parseTs(`function fib(n: number): number { return n < 2 ? n : fib(n - 1) + fib(n - 2); }`);
+    expect(metric(computeGrowthRiskMetrics([f], idOf), "recursive_functions")).toBe(1);
+  });
+
+  it("does not flag a non-recursive function", async () => {
+    const f = await parseTs(`function f(n: number) { return g(n) + h(n); }`);
+    expect(metric(computeGrowthRiskMetrics([f], idOf), "recursive_functions")).toBe(0);
+  });
+});
+
+describe("computeGrowthRiskMetrics — search in loop (C-66)", () => {
+  it("flags a .includes() call inside a loop", async () => {
+    const f = await parseTs(
+      `function f(a: number[], b: number[]) { for (const x of a) { if (b.includes(x)) g(x); } }`,
+    );
+    expect(metric(computeGrowthRiskMetrics([f], idOf), "search_in_loop")).toBe(1);
+  });
+
+  it("counts .find and .indexOf too, and only inside loops", async () => {
+    const f = await parseTs(
+      `function f(a: number[]) {\n` +
+        `  const outside = a.find((x) => x > 0);\n` + // NOT in a loop
+        `  for (const y of a) { a.indexOf(y); a.find((z) => z === y); }\n` +
+        `  return outside;\n` +
+        `}`,
+    );
+    expect(metric(computeGrowthRiskMetrics([f], idOf), "search_in_loop")).toBe(2);
   });
 });

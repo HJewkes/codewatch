@@ -189,9 +189,11 @@ function pushDeadModules(lines: string[], rows: readonly DeadModuleRow[]): void 
 }
 
 /**
- * Structural scaling smells (C-66) — deep loop nesting as a growth-risk proxy.
- * Explicitly heuristic: a "shape," NOT a proven complexity bound (depth-2 loops
- * over two different collections are linear; a `.includes` on a `Set` is O(1)).
+ * Structural scaling smells (C-66) — deep loop nesting, direct recursion, and
+ * linear-scan calls inside loops, as growth-risk proxies. Explicitly heuristic:
+ * a "smell," NOT a proven complexity bound (depth-2 loops over two different
+ * collections are linear; a `.includes` on a `Set` is O(1); recursion may be
+ * well-bounded).
  */
 function pushGrowthRisks(lines: string[], rows: readonly GrowthRiskRow[]): void {
   lines.push("## Growth-risk (scaling smells — heuristic, not a proven bound)");
@@ -201,10 +203,10 @@ function pushGrowthRisks(lines: string[], rows: readonly GrowthRiskRow[]): void 
     lines.push("");
     return;
   }
-  lines.push("| File | Loop nesting | Shape |");
-  lines.push("|---|--:|---|");
+  lines.push("| File | Scaling smells |");
+  lines.push("|---|---|");
   for (const r of rows) {
-    lines.push(`| ${r.nodeId} | ${r.loopDepth} | ${r.shape} |`);
+    lines.push(`| ${r.nodeId} | ${r.smells.join("; ")} |`);
   }
   lines.push("");
 }

@@ -11,16 +11,24 @@ const depth = (nodeId: string, value: number): GraphMetric => ({
   unit: "count",
 });
 
+const smell = (nodeId: string, name: string, value: number): GraphMetric => ({
+  nodeId,
+  name,
+  value,
+  unit: "count",
+});
+
 const nodes: GraphNode[] = [
   file("src/quad.ts"),
   file("src/cubic.ts"),
-  file("src/quartic.ts"),
+  file("src/rec.ts"),
   file("src/flat.ts"),
 ];
 const metrics: GraphMetric[] = [
   depth("src/quad.ts", 2),
+  smell("src/quad.ts", "search_in_loop", 3),
   depth("src/cubic.ts", 3),
-  depth("src/quartic.ts", 4),
+  smell("src/rec.ts", "recursive_functions", 1),
   depth("src/flat.ts", 1),
 ];
 
@@ -35,16 +43,22 @@ function ctx() {
 }
 
 describe("topGrowthRisks (C-66)", () => {
-  it("flags loop_depth >= 2 with a shape label, deepest first", () => {
+  it("aggregates each file's scaling smells, deepest-loops first", () => {
     const rows = topGrowthRisks(ctx(), 10);
-    expect(rows.map((r) => [r.nodeId, r.loopDepth, r.shape])).toEqual([
-      ["src/quartic.ts", 4, "4-deep loop nesting"],
-      ["src/cubic.ts", 3, "cubic-shaped"],
-      ["src/quad.ts", 2, "quadratic-shaped"],
+    expect(rows.map((r) => r.nodeId)).toEqual(["src/cubic.ts", "src/quad.ts", "src/rec.ts"]);
+    expect(rows.find((r) => r.nodeId === "src/cubic.ts")!.smells).toEqual([
+      "cubic-shaped loop nesting",
+    ]);
+    expect(rows.find((r) => r.nodeId === "src/quad.ts")!.smells).toEqual([
+      "quadratic-shaped loop nesting",
+      "3 linear searches in loops",
+    ]);
+    expect(rows.find((r) => r.nodeId === "src/rec.ts")!.smells).toEqual([
+      "1 recursive function",
     ]);
   });
 
-  it("does not flag depth-1 (unremarkable) files", () => {
+  it("does not flag files with no smell (depth-1, no recursion/search)", () => {
     expect(topGrowthRisks(ctx(), 10).map((r) => r.nodeId)).not.toContain("src/flat.ts");
   });
 });
