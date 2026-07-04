@@ -8,6 +8,9 @@ function file(id: string): GraphNode {
 function barrel(id: string): GraphNode {
   return { id, kind: "file", name: id, role: "barrel" };
 }
+function symbol(id: string): GraphNode {
+  return { id, kind: "symbol", name: id };
+}
 function edge(srcId: string, dstId: string, weight: number, kind: GraphEdge["kind"] = "imports"): GraphEdge {
   return { srcId, dstId, kind, attrs: { weight } };
 }
@@ -79,6 +82,24 @@ describe("resolveBarrelEdges", () => {
     ]);
     // Terminates; the cycle resolves to a barrel-as-itself endpoint (no crash).
     expect(resolved.length).toBeGreaterThan(0);
+  });
+
+  it("keeps a references edge from a barrel source as real usage (C-68)", () => {
+    // A composition root the role classifier labels `barrel` but which actually
+    // consumes a symbol via a destructured dynamic import. Its `references` edge
+    // is usage, not re-export plumbing, so it must survive and credit the symbol
+    // — while its module `imports` plumbing is still dropped.
+    const nodes = [barrel("index.ts"), file("cmd.ts"), symbol("cmd.ts#runX")];
+    const resolved = resolveBarrelEdges(nodes, [
+      edge("index.ts", "cmd.ts", 1, "imports"),
+      edge("index.ts", "cmd.ts#runX", 1, "references"),
+    ]);
+    expect(resolved).toHaveLength(1);
+    expect(resolved[0]).toMatchObject({
+      srcId: "index.ts",
+      dstId: "cmd.ts#runX",
+      kind: "references",
+    });
   });
 
   it("drops a resolved edge that circles back to the importer", () => {
