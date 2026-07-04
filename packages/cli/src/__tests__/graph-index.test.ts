@@ -55,7 +55,7 @@ describe("runGraphIndexCommand", () => {
       const snapshots = db.listSnapshots();
       expect(snapshots).toHaveLength(1);
       expect(snapshots[0]!.ref).toBe("wd");
-      expect(snapshots[0]!.indexVersion).toBe("0.5.0");
+      expect(snapshots[0]!.indexVersion).toBe("0.6.0");
 
       const aFile = db.getNode(result.snapshotId, "src/a.ts");
       const bFile = db.getNode(result.snapshotId, "src/b.ts");
