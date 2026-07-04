@@ -5,12 +5,12 @@ import {
   Aggregator,
   createStyleExtractors,
   parseFile,
-  shouldIncludeFile,
   getLanguageFromPath,
   type AggregatedFeature,
   type Extractor,
   type Observation,
 } from "@codewatch/analyzer";
+import { walkSourceFiles } from "@codewatch/graph";
 
 export interface AnalyzeOptions {
   rootDir: string;
@@ -39,35 +39,6 @@ export interface AnalyzeResult {
 
 const DEFAULT_LANGUAGES = ["typescript", "python"];
 
-export async function walkSourceFiles(
-  rootDir: string,
-  languages: string[],
-): Promise<string[]> {
-  const out: string[] = [];
-  async function walk(dir: string): Promise<void> {
-    const entries = await fs.readdir(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      const full = path.join(dir, entry.name);
-      const relative = path.relative(rootDir, full);
-      if (!shouldIncludeFile(relative, languages)) {
-        if (entry.isDirectory()) {
-          // shouldIncludeFile doesn't tell us whether the dir is excluded,
-          // but it filters segments anyway — recurse and let it filter files.
-          await walk(full);
-        }
-        continue;
-      }
-      if (entry.isDirectory()) {
-        await walk(full);
-      } else if (entry.isFile()) {
-        out.push(full);
-      }
-    }
-  }
-  await walk(rootDir);
-  return out;
-}
-
 export async function runAnalyze(
   options: AnalyzeOptions,
 ): Promise<AnalyzeResult> {
@@ -75,7 +46,7 @@ export async function runAnalyze(
   const languages = options.languages ?? DEFAULT_LANGUAGES;
   const extractors = options.extractors ?? createStyleExtractors();
 
-  const filePaths = await walkSourceFiles(rootDir, languages);
+  const filePaths = await walkSourceFiles([rootDir], languages);
   const byLanguage: Record<string, number> = {};
 
   const observations: Observation[] = [];

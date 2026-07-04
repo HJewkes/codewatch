@@ -67,7 +67,7 @@ function formatRowsDelta(
     .join(", ");
 }
 
-export function formatGraphPruneText(result: GraphPruneCommandResult): string {
+function formatGraphPruneText(result: GraphPruneCommandResult): string {
   const lines: string[] = [];
   const header = result.dryRun
     ? `Graph prune (dry-run): ${result.dbPath}`

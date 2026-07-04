@@ -24,7 +24,7 @@ function formatKindBreakdown(byKind: Record<string, number>): string {
   return entries.map(([k, n]) => `${n} ${k}`).join(", ");
 }
 
-export function formatGraphIndexText(result: GraphIndexResult): string {
+function formatGraphIndexText(result: GraphIndexResult): string {
   const lines: string[] = [];
   lines.push(chalk.bold.underline(`Graph index: ${result.dbPath}`));
   lines.push(chalk.cyan(`Snapshot ${result.snapshotId}`));
