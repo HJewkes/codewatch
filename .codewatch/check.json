@@ -27,13 +27,14 @@
       "excludeRoles": ["test", "fixture"]
     },
     {
-      "$comment": "C-14: `entry` joins the exclude set — a shebang-prefixed executable entry (e.g. the CLI's index.ts) legitimately wires up many command modules, the same high-fan-out-is-fine rationale as a re-export barrel.",
+      "$comment": "C-14: `entry` joins the exclude set — a shebang-prefixed executable entry (e.g. the CLI's index.ts) legitimately wires up many command modules, the same high-fan-out-is-fine rationale as a re-export barrel. C-62: graph-cli.ts is the `graph`-subcommand composition root — the same aggregator rationale, but it has no shebang so the classifier doesn't label it `entry`; excluded by path. Bucketing its registrars into arbitrary group files would be indirection existing only to dodge this threshold, so an explicit exempt for the honest fan-out is preferred.",
       "id": "max-fan-out-per-file",
       "type": "metric-max",
       "metric": "fan_out",
       "kind": "file",
       "max": 15,
-      "excludeRoles": ["barrel", "test", "entry"]
+      "excludeRoles": ["barrel", "test", "entry"],
+      "exclude": ["packages/cli/src/commands/graph-cli.ts"]
     },
     {
       "$comment": "Replaces three former forbid-import rules (render→cli, graph→cli, core→analyzer) with one declarative layer spec. New packages added to the wrong layer fail automatically without anyone remembering to add a rule. Layer strings are path prefixes — longest-prefix-match wins, consistent with no-internal-only-barrels.packageRoots. Previously written as bare names like \"core\" but those silently matched nothing on real codewatch node ids (packages/core/src/…); fixed in C-15.",
