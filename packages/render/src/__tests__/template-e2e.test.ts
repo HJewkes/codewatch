@@ -4,7 +4,7 @@ import * as path from "node:path";
 import { tmpdir } from "node:os";
 import { chromium, type Browser } from "playwright";
 import { renderHtml } from "../template.js";
-import type { RenderInput } from "../types.js";
+import type { RenderInput, RenderOptions } from "../types.js";
 
 let browser: Browser;
 let workDir: string;
@@ -34,12 +34,25 @@ afterAll(async () => {
   if (workDir) await fs.rm(workDir, { recursive: true, force: true });
 });
 
-async function renderAndLoad(input: RenderInput): Promise<{
+interface LoadResult {
   consoleErrors: string[];
   pageErrors: string[];
   cyState: { nodeCount: number; edgeCount: number; canvasCount: number; danglingCount: number };
-}> {
-  const html = await renderHtml(input);
+  // Layout mode + geometry, read off window.__cy once the client has laid out.
+  layout: {
+    mode: string;
+    maxPositionDrift: number;
+    routedEdges: number;
+    taxiEdges: number;
+    totalEdges: number;
+  };
+}
+
+async function renderAndLoad(
+  input: RenderInput,
+  options: RenderOptions = {},
+): Promise<LoadResult> {
+  const html = await renderHtml(input, options);
   const outPath = path.join(workDir, `render-${Date.now()}.html`);
   await fs.writeFile(outPath, html);
 
@@ -55,34 +68,58 @@ async function renderAndLoad(input: RenderInput): Promise<{
 
   try {
     await page.goto(`file://${outPath}`);
+    // Wait for the client to build the graph (__cy) so layout + routing are set.
     await page.waitForFunction(
-      () =>
-        typeof (window as unknown as { __GRAPH__?: unknown }).__GRAPH__ !==
-        "undefined",
+      () => typeof (window as unknown as { __cy?: unknown }).__cy !== "undefined",
       undefined,
-      { timeout: 5000 },
+      { timeout: 15000 },
     );
-    const cyState = await page.evaluate(() => {
-      const g = (window as unknown as { __GRAPH__: {
-        nodes: Array<{ data: { id: string } }>;
-        edges: Array<{ data: { source: string; target: string } }>;
-      } }).__GRAPH__;
-      const ids = new Set(g.nodes.map((n) => n.data.id));
-      const dangling = g.edges.filter(
-        (e) => !ids.has(e.data.source) || !ids.has(e.data.target),
-      );
-      const canvases = document.querySelectorAll("#cy canvas").length;
-      return {
-        nodeCount: g.nodes.length,
-        edgeCount: g.edges.length,
-        canvasCount: canvases,
-        danglingCount: dangling.length,
-      };
-    });
-    return { consoleErrors, pageErrors, cyState };
+    const state = await page.evaluate(evaluateLoadState);
+    return { consoleErrors, pageErrors, ...state };
   } finally {
     await page.close();
   }
+}
+
+// Runs in the browser: reads graph consistency off __GRAPH__ and layout geometry
+// off __cy. Extracted so the assertions read as data, not DOM-poking.
+function evaluateLoadState(): Omit<LoadResult, "consoleErrors" | "pageErrors"> {
+  const w = window as unknown as {
+    __cy: {
+      getElementById: (id: string) => { position: () => { x: number; y: number } };
+      edges: () => Array<{ style: (k: string) => string }>;
+    };
+    __layoutMode: string;
+    __GRAPH__: {
+      nodes: Array<{ data: { id: string }; position?: { x: number; y: number } }>;
+      edges: Array<{ data: { source: string; target: string } }>;
+    };
+  };
+  const g = w.__GRAPH__;
+  const ids = new Set(g.nodes.map((n) => n.data.id));
+  const dangling = g.edges.filter((e) => !ids.has(e.data.source) || !ids.has(e.data.target));
+  let maxPositionDrift = 0;
+  for (const n of g.nodes) {
+    if (!n.position) continue;
+    const p = w.__cy.getElementById(n.data.id).position();
+    maxPositionDrift = Math.max(maxPositionDrift, Math.abs(p.x - n.position.x), Math.abs(p.y - n.position.y));
+  }
+  let routedEdges = 0;
+  let taxiEdges = 0;
+  for (const e of w.__cy.edges()) {
+    const cs = e.style("curve-style");
+    if (cs === "segments" || cs === "straight") routedEdges++;
+    if (cs === "taxi") taxiEdges++;
+  }
+  return {
+    cyState: {
+      nodeCount: g.nodes.length,
+      edgeCount: g.edges.length,
+      canvasCount: document.querySelectorAll("#cy canvas").length,
+      danglingCount: dangling.length,
+    },
+    layout: { mode: w.__layoutMode, maxPositionDrift, routedEdges, taxiEdges, totalEdges: g.edges.length },
+  };
 }
 
 describe("renderHtml in a real browser", () => {
@@ -103,5 +140,37 @@ describe("renderHtml in a real browser", () => {
     const { consoleErrors, pageErrors } = await renderAndLoad(empty);
     expect(pageErrors).toEqual([]);
     expect(consoleErrors).toEqual([]);
+  }, 30_000);
+});
+
+const compoundFixture: RenderInput = {
+  snapshotId: 1,
+  nodes: [
+    { id: "cli/index.ts", kind: "file", name: "index.ts", role: "source" },
+    { id: "cli/run.ts", kind: "file", name: "run.ts", role: "source" },
+    { id: "core/graph.ts", kind: "file", name: "graph.ts", role: "source" },
+    { id: "core/util.ts", kind: "file", name: "util.ts", role: "source" },
+  ],
+  edges: [
+    { srcId: "cli/index.ts", dstId: "cli/run.ts", kind: "imports" }, // intra-package
+    { srcId: "cli/run.ts", dstId: "core/graph.ts", kind: "imports" }, // cross-package
+    { srcId: "core/graph.ts", dstId: "core/util.ts", kind: "imports" }, // intra-package
+  ],
+};
+
+describe("compound file-level graph (ELK INCLUDE_CHILDREN)", () => {
+  it("renders elk-preset with faithful positions and orthogonal routes", async () => {
+    const { consoleErrors, pageErrors, layout } = await renderAndLoad(compoundFixture, {
+      compound: true,
+    });
+    expect(pageErrors).toEqual([]);
+    expect(consoleErrors).toEqual([]);
+    // The compound graph now uses ELK's preset layout, not cose-bilkent.
+    expect(layout.mode).toBe("elk-preset");
+    // Cytoscape preset honors the server's absolute node centers to sub-pixel.
+    expect(layout.maxPositionDrift).toBeLessThan(0.01);
+    // Every edge renders ELK's route; none falls back to the taxi/bezier default.
+    expect(layout.routedEdges).toBe(layout.totalEdges);
+    expect(layout.taxiEdges).toBe(0);
   }, 30_000);
 });

@@ -1,6 +1,11 @@
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { computeLayout, FOCUS_LAYOUT_OPTIONS } from "./layout.js";
+import {
+  computeLayout,
+  computeCompoundLayout,
+  FOCUS_LAYOUT_OPTIONS,
+  type GroupOf,
+} from "./layout.js";
 import { computeOverlays, type OverlayResult } from "./overlay.js";
 import { inlineStyles } from "./template-styles.js";
 import { clientScript } from "./template-script.js";
@@ -18,10 +23,18 @@ import {
   buildViolationsMap,
   checkBadgeHtml,
 } from "./template-violations.js";
-import { buildCyData, metricMapFromList } from "./template-cy-data.js";
+import { buildCyData, metricMapFromList, packageIdFor } from "./template-cy-data.js";
 import type { RenderInput, RenderOptions } from "./types.js";
 
 const require = createRequire(import.meta.url);
+
+// Group each file/external node under its package compound box (`pkg:<name>`),
+// matching the parent ids `buildCyData` synthesizes so ELK's layout and the
+// Cytoscape compound boxes agree.
+const packageGroupOf: GroupOf = (node) => {
+  const pkg = packageIdFor(node);
+  return pkg ? [pkg] : [];
+};
 
 function escapeForScript(s: string): string {
   // Prevent </script> sequences in embedded JSON from terminating the script tag.
@@ -132,11 +145,13 @@ export async function renderHtml(
     sizeBy: options.sizeBy,
     colorBy: options.colorBy,
   });
-  const layout = await computeLayout(
-    input,
-    overlay.sizing,
-    options.flat ? FOCUS_LAYOUT_OPTIONS : undefined,
-  );
+  const layout = options.compound
+    ? await computeCompoundLayout(input, overlay.sizing, packageGroupOf)
+    : await computeLayout(
+        input,
+        overlay.sizing,
+        options.flat ? FOCUS_LAYOUT_OPTIONS : undefined,
+      );
   const [bundle, layoutBundles] = await Promise.all([
     loadCytoscapeBundle(),
     loadLayoutBundles(),
@@ -153,12 +168,15 @@ export async function renderHtml(
     metricsBeforeByNode,
     violationsByNode,
     diffSummary,
-    { flat: options.flat },
+    { flat: options.flat, compound: options.compound },
   );
   const graphJson = JSON.stringify({
     snapshotId: input.snapshotId,
     nodes: cy.nodes,
     edges: cy.edges,
+    // Signals the client to honor ELK's preset positions + routing for a graph
+    // that has compound parents (which otherwise defaults to cose-bilkent).
+    elkCompound: Boolean(options.compound),
   });
   return buildHtml({
     bundle,

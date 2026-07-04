@@ -28,13 +28,15 @@ export function clientScript(maps: ClientChipMaps): string {
   // The server (layout.ts) precomputes an ELK "layered" top-down layout. For the
   // non-compound package graph (the default) those positions are exactly the
   // legible DAG we want, so honor them with "preset" instead of letting
-  // cose-bilkent re-randomize them away. The compound file-level graph has no ELK
-  // hierarchy layout yet, so it still gets cose-bilkent (which handles compounds).
+  // cose-bilkent re-randomize them away. The compound file-level graph gets the
+  // same treatment when the server laid it out via ELK's INCLUDE_CHILDREN
+  // hierarchy (elkCompound), pinning files inside their package boxes; other
+  // compound graphs still fall back to cose-bilkent (which handles compounds).
   const anyCompound = data.nodes.some(function (n) { return n.data && n.data.parent; });
   const anyPositioned = data.nodes.some(function (n) {
     return n.position && Number.isFinite(n.position.x) && Number.isFinite(n.position.y);
   });
-  const useElkPreset = anyPositioned && !anyCompound;
+  const useElkPreset = anyPositioned && (!anyCompound || !!data.elkCompound);
   // Assign each package a stable, CVD-safe categorical color and write it onto
   // the node/edge DATA *before* Cytoscape reads it, so the stylesheet's
   // data(pkgColor)/data(edgeColor) mappers carry it. Doing it in the base style

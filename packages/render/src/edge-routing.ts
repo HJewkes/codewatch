@@ -80,21 +80,20 @@ export function edgeRoutingFor(
 }
 
 // Routing is only meaningful when the client renders from ELK's precomputed
-// positions (a `preset`) — the collapsed package graph and the flat
-// within-package focus graph both do. The *compound* file-level graph is
-// re-laid-out by cose-bilkent, so ELK's route coordinates wouldn't align —
-// return null there and let the client's taxi/bezier fallback handle it.
-//
-// A graph renders elk-preset iff it's flat (no compound parents): the package
-// graph is all `package` nodes; the focus graph is explicitly flat. The
-// non-flat file graph parents its files into compounds → cose-bilkent.
+// positions (a `preset`). Three views qualify: the collapsed package graph (all
+// `package` nodes), the flat within-package focus graph, and — since C-48 — the
+// compound file-level graph laid out by ELK's INCLUDE_CHILDREN hierarchy (its
+// leaf centers and routes are already absolute). Any other non-flat graph is
+// re-laid-out by cose-bilkent, where ELK's coordinates wouldn't align, so we
+// return null and let the client's taxi/bezier fallback handle it.
 export function elkPresetCenters(
   layout: LayoutResult,
   flat: boolean,
+  compound = false,
 ): Map<string, Pt> | null {
   if (layout.nodes.length === 0) return null;
   const allPackage = layout.nodes.every((n) => n.kind === "package");
-  if (!flat && !allPackage) return null;
+  if (!flat && !allPackage && !compound) return null;
   const centers = new Map<string, Pt>();
   for (const n of layout.nodes) centers.set(n.id, { x: n.x, y: n.y });
   return centers;
