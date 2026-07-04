@@ -61,6 +61,8 @@ export interface SnapshotContext {
   metrics: ReadonlyMap<string, NodeMetrics>;
   /** Per-export utilization (C-53), for the Dossier "hot exports" list and the blast-radius section. */
   symbols: readonly SymbolUtil[];
+  /** Inbound `references` count per symbol id (C-59): how many files consume each export. */
+  consumersBySymbol: ReadonlyMap<string, number>;
 }
 
 export type CouplingClass = { hidden: boolean; unindexed: boolean };
@@ -150,7 +152,7 @@ export function buildPayload(
     })),
     centralFiles: buildCentralFiles(report, snapCtx.centrality),
     nodeMetrics: buildNodeMetrics(report, snapCtx.metrics),
-    hotExports: buildHotExports(snapCtx.symbols, referencedNodes(report)),
+    hotExports: buildHotExports(snapCtx.symbols, referencedNodes(report), snapCtx.metrics, snapCtx.consumersBySymbol),
     blastRadius: buildBlastRadius(
       snapCtx.symbols,
       snapCtx.metrics,
@@ -220,7 +222,7 @@ export function computeWindowPayloads(
   let primaryKey = String(primaryWindow);
   // Import-linkage + centrality are snapshot-level (same for every window);
   // compute lazily once the first report resolves the snapshot id.
-  let snapCtx: SnapshotContext = { linkedPairs: new Set(), centrality: new Map(), connectedNodes: new Set(), metrics: new Map(), symbols: [] };
+  let snapCtx: SnapshotContext = { linkedPairs: new Set(), centrality: new Map(), connectedNodes: new Set(), metrics: new Map(), symbols: [], consumersBySymbol: new Map() };
   for (const w of windowsList) {
     const report = runGraphReportCommand({
       db: opts.db, repoRoot, windowDays: w, vs: opts.vs, includeScripts: opts.includeScripts,
@@ -320,6 +322,7 @@ export function snapshotContext(dbPath: string, snapshotId: number): SnapshotCon
   const linkedPairs = new Set<string>();
   const centrality = new Map<string, number>();
   const connectedNodes = new Set<string>();
+  const consumersBySymbol = new Map<string, number>();
   let metrics = new Map<string, NodeMetrics>();
   let symbols: SymbolUtil[] = [];
   const db = openDatabase(dbPath);
@@ -334,6 +337,12 @@ export function snapshotContext(dbPath: string, snapshotId: number): SnapshotCon
       linkedPairs.add(pairKey(e.srcId, e.dstId));
       connectedNodes.add(e.srcId);
       connectedNodes.add(e.dstId);
+    }
+    // Count inbound `references` edges per symbol (C-59): each edge is one
+    // consuming file, so this is "how many files use this export".
+    for (const e of db.listEdges(snapshotId, { includeReferences: true })) {
+      if (e.kind !== "references") continue;
+      consumersBySymbol.set(e.dstId, (consumersBySymbol.get(e.dstId) ?? 0) + 1);
     }
     for (const r of computePageRank(nodes, edges).rows) centrality.set(r.nodeId, r.score);
     metrics = collectNodeMetrics(db.listMetrics(snapshotId));
@@ -350,5 +359,5 @@ export function snapshotContext(dbPath: string, snapshotId: number): SnapshotCon
   } finally {
     db.close();
   }
-  return { linkedPairs, centrality, connectedNodes, metrics, symbols };
+  return { linkedPairs, centrality, connectedNodes, metrics, symbols, consumersBySymbol };
 }

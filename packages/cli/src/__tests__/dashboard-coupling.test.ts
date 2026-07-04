@@ -13,6 +13,7 @@ function ctx(connected: string[], linked: [string, string][]): SnapshotContext {
     centrality: new Map(),
     metrics: new Map(),
     symbols: [],
+    consumersBySymbol: new Map(),
   };
 }
 
