@@ -8,6 +8,7 @@ import {
 } from "./extractors/ts-morph-extractor.js";
 import { fileId } from "./extractors/ids.js";
 import { SOURCE_METRIC_NAMES } from "./source-metrics.js";
+import { DEAD_CODE_METRIC_NAMES } from "./dead-code.js";
 import type {
   FileFingerprint,
   GraphEdge,
@@ -151,7 +152,9 @@ export function loadReuseBasis(
 
     const sourceMetricsByFile = new Map<string, GraphMetric[]>();
     for (const m of db.listMetrics(snap.id)) {
-      if (!SOURCE_METRIC_NAMES.has(m.name)) continue;
+      // Source-content + function-local dead-code metrics (C-65) are both pure
+      // functions of a file's bytes, so both carry forward for an unchanged file.
+      if (!SOURCE_METRIC_NAMES.has(m.name) && !DEAD_CODE_METRIC_NAMES.has(m.name)) continue;
       // Per-symbol metrics (C-58) live on `<fileId>#<name>` nodes; bucket them
       // under their parent file so an unchanged file carries its symbol
       // complexity forward alongside its file-level source metrics.

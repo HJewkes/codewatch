@@ -1,6 +1,7 @@
 import type { ParsedFile } from "@codewatch/core";
 import { computeMetrics } from "./metrics.js";
 import { computeSourceMetrics } from "./source-metrics.js";
+import { computeDeadCodeMetrics } from "./dead-code.js";
 import {
   aggregateChurnWindows,
   computeRecencyWindows,
@@ -119,6 +120,7 @@ export function buildIndexerMetrics(input: IndexerMetricsInput): GraphMetric[] {
       (p) => fileId(input.idRoot, p),
       symbolNamesByFile(nodeList),
     ),
+    ...computeDeadCodeMetrics(input.parsedFiles, (p) => fileId(input.idRoot, p)),
     ...input.reusedSourceMetrics,
   ];
   let entries: readonly ChurnEntry[] | null = null;
