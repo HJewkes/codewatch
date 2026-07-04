@@ -358,6 +358,19 @@ describe("TsMorphGraphExtractor", () => {
       const [fragment] = fixture.extract("/repo/src/model-b.ts");
       expect(symById(fragment!, "src/model-b.ts#CONST")).toBeUndefined();
     });
+
+    it("attaches a 1-based line span to function/class symbols (C-63)", () => {
+      const [fragment] = fixture.extract("/repo/src/model-b.ts");
+      // `pub` is the first line of the fixture; `helper` the second.
+      expect(symById(fragment!, "src/model-b.ts#pub")?.attrs).toMatchObject({
+        startLine: 1,
+        endLine: 1,
+      });
+      expect(symById(fragment!, "src/model-b.ts#helper")?.attrs).toMatchObject({
+        startLine: 2,
+        endLine: 2,
+      });
+    });
   });
 
   describe("dynamic imports (C-65)", () => {
