@@ -1,0 +1,37 @@
+name: Release
+
+# Manual only. Publishing is never automatic — it runs when a maintainer
+# triggers this workflow from the Actions tab, and only if an NPM_TOKEN secret
+# with publish rights to the @codewatch scope is configured. This keeps the
+# distribution pipeline "ready" without risking an accidental publish on merge.
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Pack tarballs and print what would publish, without publishing"
+        type: boolean
+        default: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -r run build
+      - name: Publish (or dry-run) @codewatch/* to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            pnpm -r publish --dry-run --no-git-checks
+          else
+            pnpm changeset publish
+          fi

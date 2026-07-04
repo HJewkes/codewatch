@@ -1,6 +1,7 @@
 {
   "name": "@codewatch/checker",
-  "version": "0.0.1",
+  "version": "0.1.0",
+  "description": "Style and architecture checks for codewatch",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -10,12 +11,30 @@
       "types": "./dist/index.d.ts"
     }
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "author": "Henry Jewkes",
+  "license": "MIT",
+  "homepage": "https://github.com/HJewkes/codewatch#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HJewkes/codewatch.git",
+    "directory": "packages/checker"
+  },
+  "bugs": "https://github.com/HJewkes/codewatch/issues",
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
     "lint": "echo 'lint not configured yet'"
   },
-  "files": ["dist"],
   "dependencies": {
     "@codewatch/profile": "workspace:*"
   }

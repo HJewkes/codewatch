@@ -2,14 +2,24 @@
   "name": "codewatch",
   "private": true,
   "type": "module",
+  "license": "MIT",
+  "author": "Henry Jewkes",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HJewkes/codewatch.git"
+  },
   "scripts": {
     "build": "pnpm -r run build",
     "typecheck": "pnpm -r run typecheck",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "pnpm -r run lint"
+    "lint": "pnpm -r run lint",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "pnpm -r run build && changeset publish"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.27.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0",
