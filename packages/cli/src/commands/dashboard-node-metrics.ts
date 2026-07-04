@@ -12,6 +12,8 @@ export interface NodeMetrics {
   fanIn?: number;
   fanOut?: number;
   utilization?: number;
+  /** Distinct test files linking to this source (C-4); shown in the Dossier (C-59). */
+  linkedTests?: number;
   /** Node role (e.g. "barrel") — lets the Dossier explain barrel-resolved utilization. */
   role?: string;
 }
@@ -28,6 +30,7 @@ const METRIC_FIELD: Record<string, NumericMetricField> = {
   fan_in: "fanIn",
   fan_out: "fanOut",
   utilization: "utilization",
+  linked_test_count: "linkedTests",
   // Per-symbol complexity (C-58) lands on `symbol` nodes; map onto the same
   // fields so a symbol node reads its OWN complexity (file nodes never carry the
   // `symbol_*` names, so there's no collision on a shared field).
@@ -136,27 +139,43 @@ export function collectSymbolUtil(
 export interface HotExport {
   name: string;
   utilization: number;
+  /** The export's OWN cognitive complexity (C-58); undefined for a class/type/re-export. */
+  cognitive?: number;
+  /** Distinct files that reference this export (inbound `references` edges, C-59). */
+  consumers: number;
 }
 
 /**
- * Per-file ranked "hot exports" (symbol utilization, C-53), so the Dossier can
- * show *which* of a file's exports carry its load. Scoped to files the Dossier
- * can open on; top 8 exports each, so a large public surface stays readable.
+ * Per-file "Exports" detail for the Dossier (C-59): each of a file's exports
+ * with its per-symbol complexity (C-58), utilization (C-53), and consumer count
+ * (inbound references). Unlike the earlier hot-exports list this keeps exports
+ * with zero utilization — a complex but unused export is worth seeing — and
+ * ranks by utilization then complexity. Scoped to Dossier-openable files; top 8
+ * each so a large public surface stays readable.
  */
 export function buildHotExports(
   symbols: readonly SymbolUtil[],
   referenced: ReadonlySet<string>,
+  metrics: ReadonlyMap<string, NodeMetrics>,
+  consumersBySymbol: ReadonlyMap<string, number>,
 ): Record<string, HotExport[]> {
   const byFile = new Map<string, HotExport[]>();
   for (const s of symbols) {
-    if (s.utilization <= 0 || !referenced.has(s.fileId)) continue;
+    if (!referenced.has(s.fileId)) continue;
     const bucket = byFile.get(s.fileId) ?? [];
-    bucket.push({ name: s.name, utilization: s.utilization });
+    bucket.push({
+      name: s.name,
+      utilization: s.utilization,
+      cognitive: metrics.get(s.symbolId)?.cognitiveMax,
+      consumers: consumersBySymbol.get(s.symbolId) ?? 0,
+    });
     byFile.set(s.fileId, bucket);
   }
   const out: Record<string, HotExport[]> = {};
   for (const [fileId, exps] of byFile) {
-    out[fileId] = exps.sort((a, b) => b.utilization - a.utilization).slice(0, 8);
+    out[fileId] = exps
+      .sort((a, b) => b.utilization - a.utilization || (b.cognitive ?? 0) - (a.cognitive ?? 0))
+      .slice(0, 8);
   }
   return out;
 }

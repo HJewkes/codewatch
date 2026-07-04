@@ -11,7 +11,7 @@ import { LayoutDashboard, Flame, Network, ShieldAlert, Users, GitFork, GitCompar
 import type { CodewatchData } from "./types";
 import { cw, shortId, pkgOf, hotspotColor, severityColor } from "./theme";
 import { Pillet } from "./components/primitives";
-import { MetricReadout, UtilizationRow, HotExportsRow, maxUtilization, isComplex, hotspotBreakdown, DossierRow } from "./components/dossier-metrics";
+import { MetricReadout, UtilizationRow, ExportsTable, maxUtilization, isComplex, hotspotBreakdown, DossierRow } from "./components/dossier-metrics";
 import { loadWindows } from "./data";
 import { OverviewView } from "./views/OverviewView";
 import { HotspotsView } from "./views/HotspotsView";
@@ -251,7 +251,10 @@ function Dossier({ id, data, violations, onClose }: { id: string; data: Codewatc
       {metrics?.utilization !== undefined ? (
         <UtilizationRow value={metrics.utilization} max={utilMax} complex={isComplex(metrics)} churning={!!hotspot && hotspot.churn > 0} isBarrel={metrics.role === "barrel"} />
       ) : null}
-      {data.hotExports?.[id]?.length ? <HotExportsRow exports={data.hotExports[id]} /> : null}
+      {metrics?.linkedTests !== undefined ? (
+        <DossierRow label="Linked tests" value={`${metrics.linkedTests} test file${metrics.linkedTests === 1 ? "" : "s"}`} />
+      ) : null}
+      {data.hotExports?.[id]?.length ? <ExportsTable exports={data.hotExports[id]} /> : null}
       <DossierRow
         label="Hotspot score"
         value={hotspot ? hotspotBreakdown(hotspot) : "—"}

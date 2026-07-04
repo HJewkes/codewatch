@@ -97,6 +97,8 @@ export interface NodeMetrics {
   fanOut?: number;
   /** Inbound reference count (C-52): how heavily this file's exports are used. */
   utilization?: number;
+  /** Distinct test files linking to this source (C-4); shown in the Dossier (C-59). */
+  linkedTests?: number;
   /** Node role (e.g. "barrel") — explains barrel-resolved utilization=0. */
   role?: string;
 }
@@ -153,10 +155,14 @@ export interface PackageStat {
   crossEdges?: number;
 }
 
-/** One export's utilization (C-53), for the Dossier "hot exports" list. */
+/** One export's per-symbol detail for the Dossier "Exports" table (C-53 utilization + C-59 complexity/consumers). */
 export interface HotExport {
   name: string;
   utilization: number;
+  /** The export's OWN cognitive complexity (C-58); undefined for a class/type/re-export. */
+  cognitive?: number;
+  /** Distinct files that reference this export (inbound `references` edges, C-59). */
+  consumers: number;
 }
 
 /** A high-blast-radius export: heavily used, in a complex + churning file (C-53). */

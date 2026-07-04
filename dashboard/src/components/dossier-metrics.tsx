@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text } from "react-native";
-import type { CodewatchData, NodeMetrics } from "../types";
+import type { CodewatchData, HotExport, NodeMetrics } from "../types";
 import { cw, metricHeat, METRIC_BUDGET, tint } from "../theme";
 
 /** Per-metric labels + the fitness-budget key that anchors each row's heat. */
@@ -103,28 +103,40 @@ export function UtilizationRow({ value, max, complex, churning, isBarrel }: { va
 }
 
 /**
- * Which of a file's exports carry its load (C-53): per-symbol utilization,
- * ranked. Decomposes the file-level utilization above — answers "if I touch
- * this file, which specific export ripples?". Bars scale to the file's own
- * hottest export so the internal distribution reads clearly.
+ * A file's exports, decomposed (C-53 utilization + C-58 complexity + C-59
+ * consumers). Answers "if I touch this file, which export ripples, how risky is
+ * it, and who depends on it?" — the per-symbol readout obs #5 asked for. Each
+ * export shows its OWN cognitive complexity (heat-colored against the fitness
+ * budget), a utilization bar scaled to the file's hottest export, and its
+ * consumer count. Ranked utilization-then-complexity; unused-but-complex exports
+ * are kept (they're worth seeing), so this is the full public surface, capped.
  */
-export function HotExportsRow({ exports }: { exports: { name: string; utilization: number }[] }) {
-  if (!exports.length) return null;
+export function ExportsTable({ exports }: { exports: HotExport[] }) {
+  if (!exports?.length) return null;
   const max = exports.reduce((m, e) => Math.max(m, e.utilization), 0);
   return (
-    <View style={{ gap: 6 }}>
-      <Text style={{ color: cw.textDim, fontSize: 12, fontWeight: "600" }}>Hot exports</Text>
+    <View style={{ gap: 8 }}>
+      <Text style={{ color: cw.textDim, fontSize: 12, fontWeight: "600" }}>Exports</Text>
       {exports.map((e) => {
         const ratio = max > 0 ? Math.min(1, e.utilization / max) : 0;
+        const cxColor = e.cognitive !== undefined ? metricHeat(e.cognitive, METRIC_BUDGET.cognitive_max) : cw.textFaint;
         return (
           <View key={e.name} style={{ gap: 3 }}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" }}>
-              <Text style={{ color: cw.text, fontSize: 12, fontFamily: "monospace" } as any} numberOfLines={1}>{e.name}</Text>
-              <Text style={{ color: cw.info, fontSize: 12, fontWeight: "700" }}>{Math.round(e.utilization)}</Text>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+              <Text style={{ color: cw.text, fontSize: 12, fontFamily: "monospace", flex: 1 } as any} numberOfLines={1}>{e.name}</Text>
+              {e.cognitive !== undefined ? (
+                <Text style={{ fontSize: 11 }}>
+                  <Text style={{ color: cw.textFaint }}>cx </Text>
+                  <Text style={{ color: cxColor, fontWeight: "700" }}>{e.cognitive}</Text>
+                </Text>
+              ) : null}
             </View>
             <View style={{ height: 3, borderRadius: 2, backgroundColor: tint(cw.info, 0.2), overflow: "hidden" }}>
               <View style={{ height: 3, width: `${ratio * 100}%`, backgroundColor: cw.info, borderRadius: 2 }} />
             </View>
+            <Text style={{ color: cw.textFaint, fontSize: 10 }}>
+              util {Math.round(e.utilization)} · {e.consumers} consumer{e.consumers === 1 ? "" : "s"}
+            </Text>
           </View>
         );
       })}

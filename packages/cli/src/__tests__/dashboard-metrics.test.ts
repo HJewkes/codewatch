@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   collectNodeMetrics,
   buildBlastRadius,
+  buildHotExports,
   type NodeMetrics,
   type SymbolUtil,
 } from "../commands/dashboard-node-metrics.js";
@@ -55,6 +56,45 @@ describe("collectNodeMetrics", () => {
       { nodeId: "a.ts#hot", name: "symbol_cyclomatic", value: 9 },
     ]);
     expect(byNode.get("a.ts#hot")).toEqual({ cognitiveMax: 25, cyclomaticMax: 9 });
+  });
+
+  it("maps linked_test_count onto linkedTests (C-59)", () => {
+    const byNode = collectNodeMetrics([
+      { nodeId: "a.ts", name: "loc", value: 50 },
+      { nodeId: "a.ts", name: "linked_test_count", value: 3 },
+    ]);
+    expect(byNode.get("a.ts")).toEqual({ loc: 50, linkedTests: 3 });
+  });
+});
+
+describe("buildHotExports (C-59 export detail)", () => {
+  const referenced = new Set(["a.ts"]);
+  const symbols: SymbolUtil[] = [
+    { symbolId: "a.ts#hot", name: "hot", fileId: "a.ts", utilization: 40 },
+    { symbolId: "a.ts#dead", name: "dead", fileId: "a.ts", utilization: 0 },
+    { symbolId: "other.ts#x", name: "x", fileId: "other.ts", utilization: 5 },
+  ];
+  const metrics = new Map<string, NodeMetrics>([
+    ["a.ts#hot", { cognitiveMax: 12 }],
+    ["a.ts#dead", { cognitiveMax: 20 }],
+  ]);
+  const consumers = new Map([["a.ts#hot", 7]]);
+
+  it("enriches each export with its complexity and consumer count", () => {
+    const out = buildHotExports(symbols, referenced, metrics, consumers);
+    const hot = out["a.ts"]?.find((e) => e.name === "hot");
+    expect(hot).toEqual({ name: "hot", utilization: 40, cognitive: 12, consumers: 7 });
+  });
+
+  it("keeps a complex-but-unused export (util 0) instead of dropping it", () => {
+    const out = buildHotExports(symbols, referenced, metrics, consumers);
+    const dead = out["a.ts"]?.find((e) => e.name === "dead");
+    expect(dead).toEqual({ name: "dead", utilization: 0, cognitive: 20, consumers: 0 });
+  });
+
+  it("only includes Dossier-openable (referenced) files", () => {
+    const out = buildHotExports(symbols, referenced, metrics, consumers);
+    expect(out["other.ts"]).toBeUndefined();
   });
 });
 
