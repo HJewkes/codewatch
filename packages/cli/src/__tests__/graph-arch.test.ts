@@ -259,3 +259,149 @@ describe("formatArchMermaid", () => {
     expect(mermaid).toContain("(no packages with indexed files)");
   });
 });
+
+const dirFiles = (pkg: string, dir: string, n: number) =>
+  Array.from({ length: n }, (_, i) => fileNode(`${pkg}/src/${dir}/f${i}.ts`));
+
+describe("graph arch --depth modules (C-10)", () => {
+  let fx: Fixture;
+
+  afterEach(async () => {
+    if (fx) await fs.rm(fx.dir, { recursive: true, force: true });
+  });
+
+  it("keeps every package a plain node when all are under the threshold", async () => {
+    fx = await fixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        fileNode("packages/cli/src/a.ts"),
+        fileNode("packages/graph/src/x.ts"),
+      ]);
+      db.insertEdges(snapshotId, [
+        { srcId: "packages/cli/src/a.ts", dstId: "packages/graph/src/x.ts", kind: "imports" },
+      ]);
+    });
+    const result = runGraphArchCommand({
+      db: fx.dbPath,
+      repoRoot: fx.dir,
+      depth: "modules",
+    });
+    expect(result.packages.every((p) => p.subNodes === undefined)).toBe(true);
+    expect(result.edges).toEqual([
+      { from: "packages/cli", to: "packages/graph", count: 1 },
+    ]);
+  });
+
+  it("drills a single oversized package into its top-level directories", async () => {
+    fx = await fixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        ...dirFiles("packages/cli", "commands", 3),
+        ...dirFiles("packages/cli", "utils", 2),
+        fileNode("packages/graph/src/x.ts"),
+      ]);
+    });
+    const result = runGraphArchCommand({
+      db: fx.dbPath,
+      repoRoot: fx.dir,
+      maxPackageSize: 4,
+    });
+    const cli = result.packages.find((p) => p.id === "packages/cli");
+    const graph = result.packages.find((p) => p.id === "packages/graph");
+    expect(graph?.subNodes).toBeUndefined();
+    expect(cli?.subNodes).toEqual([
+      { id: "packages/cli/src/commands", label: "commands", files: 3 },
+      { id: "packages/cli/src/utils", label: "utils", files: 2 },
+    ]);
+  });
+
+  it("re-points a cross-package edge to the specific sub-directory of the file", async () => {
+    fx = await fixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        ...dirFiles("packages/cli", "commands", 3),
+        ...dirFiles("packages/cli", "utils", 2),
+        fileNode("packages/graph/src/x.ts"),
+      ]);
+      db.insertEdges(snapshotId, [
+        { srcId: "packages/cli/src/commands/f0.ts", dstId: "packages/graph/src/x.ts", kind: "imports" },
+        { srcId: "packages/cli/src/utils/f0.ts", dstId: "packages/graph/src/x.ts", kind: "imports" },
+        { srcId: "packages/graph/src/x.ts", dstId: "packages/cli/src/utils/f1.ts", kind: "imports" },
+      ]);
+    });
+    const result = runGraphArchCommand({
+      db: fx.dbPath,
+      repoRoot: fx.dir,
+      maxPackageSize: 4,
+    });
+    expect(result.edges).toEqual([
+      { from: "packages/cli/src/commands", to: "packages/graph", count: 1 },
+      { from: "packages/cli/src/utils", to: "packages/graph", count: 1 },
+      { from: "packages/graph", to: "packages/cli/src/utils", count: 1 },
+    ]);
+  });
+
+  it("drills multiple oversized packages and aggregates sub-dir to sub-dir edges", async () => {
+    fx = await fixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        ...dirFiles("packages/cli", "commands", 3),
+        ...dirFiles("packages/cli", "utils", 2),
+        ...dirFiles("packages/graph", "db", 3),
+        ...dirFiles("packages/graph", "api", 2),
+      ]);
+      db.insertEdges(snapshotId, [
+        // two files in cli/commands both import graph/db -> aggregated count 2
+        { srcId: "packages/cli/src/commands/f0.ts", dstId: "packages/graph/src/db/f0.ts", kind: "imports" },
+        { srcId: "packages/cli/src/commands/f1.ts", dstId: "packages/graph/src/db/f1.ts", kind: "imports" },
+        { srcId: "packages/cli/src/utils/f0.ts", dstId: "packages/graph/src/api/f0.ts", kind: "imports" },
+      ]);
+    });
+    const result = runGraphArchCommand({
+      db: fx.dbPath,
+      repoRoot: fx.dir,
+      maxPackageSize: 4,
+    });
+    expect(result.packages.find((p) => p.id === "packages/cli")?.subNodes).toBeDefined();
+    expect(result.packages.find((p) => p.id === "packages/graph")?.subNodes).toBeDefined();
+    expect(result.edges).toEqual([
+      { from: "packages/cli/src/commands", to: "packages/graph/src/db", count: 2 },
+      { from: "packages/cli/src/utils", to: "packages/graph/src/api", count: 1 },
+    ]);
+  });
+
+  it("renders drilled packages as mermaid subgraphs", async () => {
+    fx = await fixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        ...dirFiles("packages/cli", "commands", 3),
+        ...dirFiles("packages/cli", "utils", 2),
+      ]);
+    });
+    const result = runGraphArchCommand({
+      db: fx.dbPath,
+      repoRoot: fx.dir,
+      maxPackageSize: 4,
+    });
+    const mermaid = formatArchMermaid(result);
+    expect(mermaid).toContain('subgraph P_packages_cli ["@x/cli"]');
+    expect(mermaid).toContain('P_packages_cli_src_commands["commands<br/>3 files"]');
+    expect(mermaid).toContain('P_packages_cli_src_utils["utils<br/>2 files"]');
+    expect(mermaid).toContain("  end");
+  });
+
+  it("buckets files sitting directly in the common root under (root)", async () => {
+    fx = await fixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        ...dirFiles("packages/cli", "commands", 3),
+        fileNode("packages/cli/src/index.ts"),
+        fileNode("packages/cli/src/main.ts"),
+      ]);
+    });
+    const result = runGraphArchCommand({
+      db: fx.dbPath,
+      repoRoot: fx.dir,
+      maxPackageSize: 4,
+    });
+    const cli = result.packages.find((p) => p.id === "packages/cli");
+    expect(cli?.subNodes).toEqual([
+      { id: "packages/cli/src", label: "(root)", files: 2 },
+      { id: "packages/cli/src/commands", label: "commands", files: 3 },
+    ]);
+  });
+});
