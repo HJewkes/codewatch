@@ -102,7 +102,7 @@ export function invertBuckets(
   return out;
 }
 
-function aggregateEdges(
+export function aggregateEdges(
   edges: ReadonlyArray<{ srcId: string; dstId: string }>,
   pkgByFile: ReadonlyMap<string, string>,
   nodeByFile: ReadonlyMap<string, string>,
@@ -161,7 +161,7 @@ function bump(
   row.set(to, (row.get(to) ?? 0) + 1);
 }
 
-function toSortedEdges(
+export function toSortedEdges(
   counts: ReadonlyMap<string, ReadonlyMap<string, number>>,
   minEdges: number,
 ): ArchEdge[] {
@@ -206,7 +206,7 @@ function activePackages(
   return out;
 }
 
-function packagesReferencedByEdges(
+export function packagesReferencedByEdges(
   counts: ReadonlyMap<string, ReadonlyMap<string, number>>,
 ): Set<string> {
   const referenced = new Set<string>();

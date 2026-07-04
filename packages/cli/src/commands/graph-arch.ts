@@ -1,5 +1,6 @@
 import type { Command } from "commander";
 import * as fs from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import {
   computePartitionQuality,
   openDatabase,
@@ -17,6 +18,12 @@ import {
   filteredFileIds,
   type ComputeArchInput,
 } from "./graph-arch-compute.js";
+import {
+  computeArchDomains,
+  parseDomainConfig,
+  type DomainValidation,
+  type PartitionFit,
+} from "./graph-arch-domains.js";
 
 export type { ComputeArchInput };
 export { computeArch };
@@ -36,6 +43,8 @@ export interface GraphArchCommandOptions {
   depth?: "modules";
   /** File-count threshold above which a package is drilled (default 30). */
   maxPackageSize?: number;
+  /** Path to a JSON domains config; aggregates the diagram at domain level. */
+  domains?: string;
 }
 
 /** A top-level sub-directory of a drilled package, rendered inside its cluster. */
@@ -68,6 +77,10 @@ export interface ArchResult {
   includesExternal: boolean;
   /** Present when options.health=true. */
   quality?: PartitionQualityResult;
+  /** Present when options.domains is set: config validation warnings. */
+  domainValidation?: DomainValidation;
+  /** Present when options.domains is set: domain vs package vs detected Q. */
+  partitionFit?: PartitionFit;
 }
 
 export function runGraphArchCommand(
@@ -79,6 +92,20 @@ export function runGraphArchCommand(
     const nodes = db.listNodes(snapshot.id);
     const edges = db.listEdges(snapshot.id);
     const packages = detectPackages(options.repoRoot);
+    if (options.domains) {
+      return computeArchDomains(
+        {
+          snapshot,
+          nodes,
+          edges,
+          packages,
+          exclude: options.exclude,
+          excludeRole: options.excludeRole,
+          minEdges: options.minEdges,
+        },
+        parseDomainConfig(readFileSync(options.domains, "utf-8")),
+      );
+    }
     const result = computeArch({
       snapshot,
       nodes,
@@ -174,6 +201,7 @@ interface ArchCliOptions {
   health?: boolean;
   depth?: string;
   maxPackageSize?: string;
+  domains?: string;
 }
 
 async function runArchAction(options: ArchCliOptions): Promise<void> {
@@ -190,11 +218,11 @@ async function runArchAction(options: ArchCliOptions): Promise<void> {
       health: options.health,
       depth: options.depth === "modules" ? "modules" : undefined,
       maxPackageSize: asNumber(options.maxPackageSize),
+      domains: options.domains,
     });
-    const output = options.health
-      ? (await import("./graph-arch-format.js")).formatArchHealth(result)
-      : formatArchMermaid(result);
-    await emitArchOutput(output, options.out, result, Boolean(options.health));
+    const output = await renderArchOutput(result, options);
+    const rich = Boolean(options.health || options.domains);
+    await emitArchOutput(output, options.out, result, rich);
   } catch (err) {
     console.error(
       formatError(err instanceof Error ? err.message : String(err)),
@@ -203,25 +231,42 @@ async function runArchAction(options: ArchCliOptions): Promise<void> {
   }
 }
 
+async function renderArchOutput(
+  result: ArchResult,
+  options: ArchCliOptions,
+): Promise<string> {
+  const fmt = await import("./graph-arch-format.js");
+  if (options.domains) return fmt.formatArchDomains(result);
+  if (options.health) return fmt.formatArchHealth(result);
+  return formatArchMermaid(result);
+}
+
 async function emitArchOutput(
   content: string,
   out: string | undefined,
   result: ArchResult,
-  isHealth: boolean,
+  isMarkdown: boolean,
 ): Promise<void> {
   if (!out) {
     console.log(content);
     return;
   }
   const fenced =
-    !isHealth && out.endsWith(".md")
+    !isMarkdown && out.endsWith(".md")
       ? "```mermaid\n" + content + "\n```\n"
       : content + "\n";
   await fs.writeFile(out, fenced, "utf-8");
-  const summary = isHealth
-    ? `partition-quality analysis (${result.quality?.flagsCount ?? 0} flag(s))`
-    : `${result.packages.length} package(s), ${result.edges.length} edge(s)`;
-  console.log(`Wrote ${summary} to ${out}.`);
+  console.log(`Wrote ${archSummary(result)} to ${out}.`);
+}
+
+function archSummary(result: ArchResult): string {
+  if (result.partitionFit) {
+    return `domain partition-fit analysis (Q ${result.partitionFit.domainQ.toFixed(3)})`;
+  }
+  if (result.quality) {
+    return `partition-quality analysis (${result.quality.flagsCount} flag(s))`;
+  }
+  return `${result.packages.length} package(s), ${result.edges.length} edge(s)`;
 }
 
 export function registerGraphArch(graphCmd: Command): void {
@@ -264,6 +309,10 @@ export function registerGraphArch(graphCmd: Command): void {
     .option(
       "--max-package-size <n>",
       "File-count threshold above which a package is drilled into sub-directory nodes (default 30; implies --depth modules)",
+    )
+    .option(
+      "--domains <config>",
+      "Path to a JSON config mapping path globs to domain names; aggregates the diagram at domain level and compares partition fit (domain vs package vs detected Q)",
     )
     .action(runArchAction);
 }

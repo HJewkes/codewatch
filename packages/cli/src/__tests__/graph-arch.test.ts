@@ -7,6 +7,8 @@ import {
   formatArchMermaid,
   runGraphArchCommand,
 } from "../commands/graph-arch.js";
+import { parseDomainConfig } from "../commands/graph-arch-domains.js";
+import { formatArchDomains } from "../commands/graph-arch-format.js";
 
 interface Fixture {
   dir: string;
@@ -403,5 +405,126 @@ describe("graph arch --depth modules (C-10)", () => {
       { id: "packages/cli/src", label: "(root)", files: 2 },
       { id: "packages/cli/src/commands", label: "commands", files: 3 },
     ]);
+  });
+});
+
+const multiPkgNodes = [
+  fileNode("packages/cli/src/a.ts"),
+  fileNode("packages/cli/src/b.ts"),
+  fileNode("packages/graph/src/x.ts"),
+  fileNode("packages/core/src/z.ts"),
+];
+
+const multiPkgEdges = [
+  { srcId: "packages/cli/src/a.ts", dstId: "packages/graph/src/x.ts", kind: "imports" },
+  { srcId: "packages/cli/src/b.ts", dstId: "packages/graph/src/x.ts", kind: "imports" },
+  { srcId: "packages/graph/src/x.ts", dstId: "packages/core/src/z.ts", kind: "imports" },
+] as const;
+
+describe("graph arch --domains (C-11)", () => {
+  let fx: Fixture;
+
+  afterEach(async () => {
+    if (fx) await fs.rm(fx.dir, { recursive: true, force: true });
+  });
+
+  async function withDomains(config: unknown): Promise<string> {
+    fx = await fixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, multiPkgNodes);
+      db.insertEdges(snapshotId, [...multiPkgEdges]);
+    });
+    const cfgPath = path.join(fx.dir, "domains.json");
+    await fs.writeFile(cfgPath, JSON.stringify(config));
+    return cfgPath;
+  }
+
+  it("aggregates every file into one node for a single all-covering domain", async () => {
+    const cfg = await withDomains({ domains: { app: "packages/**" } });
+    const result = runGraphArchCommand({ db: fx.dbPath, repoRoot: fx.dir, domains: cfg });
+    expect(result.packages).toEqual([{ id: "app", name: "app", files: 4 }]);
+    expect(result.edges).toEqual([]);
+    expect(result.domainValidation?.unassignedFiles).toBe(0);
+  });
+
+  it("aggregates cross-domain edges and reports partition fit for multiple domains", async () => {
+    const cfg = await withDomains({
+      domains: { front: "packages/cli/**", back: ["packages/graph/**", "packages/core/**"] },
+    });
+    const result = runGraphArchCommand({ db: fx.dbPath, repoRoot: fx.dir, domains: cfg });
+    expect(result.packages.map((p) => p.id)).toEqual(["back", "front"]);
+    expect(result.edges).toEqual([{ from: "front", to: "back", count: 2 }]);
+    const fit = result.partitionFit!;
+    expect(Number.isFinite(fit.domainQ)).toBe(true);
+    expect(Number.isFinite(fit.packageQ)).toBe(true);
+    expect(Number.isFinite(fit.detectedQ)).toBe(true);
+    expect(fit.detectedCommunities).toBeGreaterThanOrEqual(1);
+  });
+
+  it("flags files matched by no domain as unassigned and drops their edges", async () => {
+    const cfg = await withDomains({ domains: { front: "packages/cli/**" } });
+    const result = runGraphArchCommand({ db: fx.dbPath, repoRoot: fx.dir, domains: cfg });
+    expect(result.domainValidation?.unassignedFiles).toBe(2);
+    expect(result.edges).toEqual([]);
+    expect(result.packages.map((p) => p.id)).toEqual(["front"]);
+  });
+
+  it("flags overlap conflicts and assigns the file to the first domain in config order", async () => {
+    const cfg = await withDomains({
+      domains: { a: "packages/cli/**", b: "packages/cli/src/a.ts" },
+    });
+    const result = runGraphArchCommand({ db: fx.dbPath, repoRoot: fx.dir, domains: cfg });
+    const v = result.domainValidation!;
+    expect(v.overlaps).toEqual([
+      { file: "packages/cli/src/a.ts", domains: ["a", "b"] },
+    ]);
+    expect(v.emptyDomains).toContain("b");
+    expect(result.packages.find((p) => p.id === "a")?.files).toBe(2);
+  });
+
+  it("warns about globs that match no files", async () => {
+    const cfg = await withDomains({
+      domains: { front: "packages/cli/**", ghost: "packages/nope/**" },
+    });
+    const result = runGraphArchCommand({ db: fx.dbPath, repoRoot: fx.dir, domains: cfg });
+    expect(result.domainValidation?.emptyPatterns).toContain("ghost: packages/nope/**");
+    expect(result.domainValidation?.emptyDomains).toContain("ghost");
+  });
+
+  it("renders a domain diagram with a partition-fit table and validation section", async () => {
+    const cfg = await withDomains({
+      domains: { front: "packages/cli/**", back: ["packages/graph/**", "packages/core/**"] },
+    });
+    const result = runGraphArchCommand({ db: fx.dbPath, repoRoot: fx.dir, domains: cfg });
+    const md = formatArchDomains(result);
+    expect(md).toContain("# Architecture by domain");
+    expect(md).toContain("## Partition fit");
+    expect(md).toContain("| Domains (config, 2) |");
+    expect(md).toContain("## Config validation");
+  });
+});
+
+describe("parseDomainConfig", () => {
+  it("accepts a string glob and an array of globs", () => {
+    const defs = parseDomainConfig(
+      JSON.stringify({ domains: { a: "src/**", b: ["x/**", "y/**"] } }),
+    );
+    expect(defs).toEqual([
+      { name: "a", patterns: ["src/**"] },
+      { name: "b", patterns: ["x/**", "y/**"] },
+    ]);
+  });
+
+  it("rejects invalid JSON", () => {
+    expect(() => parseDomainConfig("{ not json")).toThrow(/Invalid domains config JSON/);
+  });
+
+  it("rejects a config without a domains object", () => {
+    expect(() => parseDomainConfig(JSON.stringify({ foo: 1 }))).toThrow(/must have a "domains" object/);
+  });
+
+  it("rejects a domain mapped to an empty pattern list", () => {
+    expect(() => parseDomainConfig(JSON.stringify({ domains: { a: [] } }))).toThrow(
+      /Domain "a" must map to/,
+    );
   });
 });

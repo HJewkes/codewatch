@@ -4,6 +4,10 @@ import type {
   PartitionQualityResult,
 } from "@codewatch/graph";
 import type { ArchResult } from "./graph-arch.js";
+import type {
+  DomainValidation,
+  PartitionFit,
+} from "./graph-arch-domains.js";
 import { formatArchMermaid } from "./graph-arch.js";
 
 /**
@@ -20,6 +24,87 @@ export function formatArchHealth(result: ArchResult): string {
   lines.push("");
   if (result.quality) pushQualityAnalysis(lines, result.quality);
   return lines.join("\n");
+}
+
+/**
+ * Format the domain-level architecture diagram plus a partition-fit comparison
+ * (domain vs package vs detected-community Q) and config-validation warnings.
+ * Used by `graph arch --domains`.
+ */
+export function formatArchDomains(result: ArchResult): string {
+  const lines: string[] = [];
+  lines.push(`# Architecture by domain — snap ${result.snapshot.id} (${result.snapshot.ref})`);
+  lines.push("");
+  lines.push("```mermaid");
+  lines.push(formatArchMermaid(result));
+  lines.push("```");
+  lines.push("");
+  if (result.partitionFit) {
+    pushPartitionFit(lines, result.partitionFit, result.packages.length);
+  }
+  if (result.domainValidation) pushDomainValidation(lines, result.domainValidation);
+  return lines.join("\n");
+}
+
+function pushPartitionFit(
+  lines: string[],
+  fit: PartitionFit,
+  domainCount: number,
+): void {
+  lines.push("## Partition fit");
+  lines.push("");
+  lines.push("Newman-Girvan **Q** — higher means the partition better matches the natural dependency clustering.");
+  lines.push("");
+  lines.push("| Partition | Q |");
+  lines.push("|---|--:|");
+  lines.push(`| Domains (config, ${domainCount}) | ${fit.domainQ.toFixed(3)} |`);
+  lines.push(`| Packages | ${fit.packageQ.toFixed(3)} |`);
+  lines.push(`| Detected communities (${fit.detectedCommunities}) | ${fit.detectedQ.toFixed(3)} |`);
+  lines.push("");
+  lines.push(interpretFit(fit));
+  lines.push("");
+}
+
+function interpretFit(fit: PartitionFit): string {
+  const vsPackages =
+    fit.domainQ >= fit.packageQ
+      ? `Your domains fit the dependency graph at least as well as the package layout (Q ${fit.packageQ.toFixed(3)}).`
+      : `The package layout fits the actual dependencies better than your domains (by ${(fit.packageQ - fit.domainQ).toFixed(3)} Q).`;
+  const headroom = fit.detectedQ - fit.domainQ;
+  const vsDetected =
+    headroom > 0.01
+      ? ` The best detected clustering reaches Q ${fit.detectedQ.toFixed(3)}, so the domains leave ${headroom.toFixed(3)} of headroom.`
+      : ` Your domains are close to the best detected clustering (Q ${fit.detectedQ.toFixed(3)}).`;
+  return vsPackages + vsDetected;
+}
+
+function pushDomainValidation(
+  lines: string[],
+  v: DomainValidation,
+): void {
+  lines.push("## Config validation");
+  lines.push("");
+  const warnings = collectValidationWarnings(v);
+  if (warnings.length === 0) {
+    lines.push("_No configuration issues detected._");
+    lines.push("");
+    return;
+  }
+  for (const w of warnings) lines.push(`- ${w}`);
+  lines.push("");
+}
+
+function collectValidationWarnings(v: DomainValidation): string[] {
+  const out: string[] = [];
+  for (const d of v.emptyDomains) out.push(`Domain **${d}** matched no files.`);
+  for (const p of v.emptyPatterns) out.push(`Glob \`${p}\` matched no files.`);
+  for (const o of v.overlaps) {
+    out.push(`File \`${o.file}\` matched multiple domains (${o.domains.join(", ")}); assigned to **${o.domains[0]}**.`);
+  }
+  if (v.unassignedFiles > 0) {
+    out.push(`${v.unassignedFiles} indexed file(s) matched no domain and are excluded from the diagram.`);
+  }
+  return out;
 }
 
 function pushQualityAnalysis(
