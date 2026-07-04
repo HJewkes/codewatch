@@ -1,6 +1,7 @@
 {
   "name": "@codewatch/graph",
-  "version": "0.0.1",
+  "version": "0.1.0",
+  "description": "Dependency-graph indexer and architectural metrics for codewatch",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -10,15 +11,31 @@
       "types": "./dist/index.d.ts"
     }
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "author": "Henry Jewkes",
+  "license": "MIT",
+  "homepage": "https://github.com/HJewkes/codewatch#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HJewkes/codewatch.git",
+    "directory": "packages/graph"
+  },
+  "bugs": "https://github.com/HJewkes/codewatch/issues",
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "lint": "echo 'lint not configured yet'"
   },
-  "files": [
-    "dist"
-  ],
   "dependencies": {
     "@codewatch/core": "workspace:*",
     "better-sqlite3": "^11.7.0",
