@@ -152,9 +152,15 @@ export function loadReuseBasis(
     const sourceMetricsByFile = new Map<string, GraphMetric[]>();
     for (const m of db.listMetrics(snap.id)) {
       if (!SOURCE_METRIC_NAMES.has(m.name)) continue;
-      const bucket = sourceMetricsByFile.get(m.nodeId);
+      // Per-symbol metrics (C-58) live on `<fileId>#<name>` nodes; bucket them
+      // under their parent file so an unchanged file carries its symbol
+      // complexity forward alongside its file-level source metrics.
+      const node = nodesById.get(m.nodeId);
+      const fileKey =
+        node?.kind === "symbol" && node.parentId ? node.parentId : m.nodeId;
+      const bucket = sourceMetricsByFile.get(fileKey);
       if (bucket) bucket.push(m);
-      else sourceMetricsByFile.set(m.nodeId, [m]);
+      else sourceMetricsByFile.set(fileKey, [m]);
     }
 
     return {

@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { collectNodeMetrics } from "../commands/dashboard-node-metrics.js";
+import {
+  collectNodeMetrics,
+  buildBlastRadius,
+  type NodeMetrics,
+  type SymbolUtil,
+} from "../commands/dashboard-node-metrics.js";
 
 describe("collectNodeMetrics", () => {
   it("folds flat metric rows into a per-node structural-metrics map", () => {
@@ -42,5 +47,50 @@ describe("collectNodeMetrics", () => {
     expect(byNode.get("a.ts")).toEqual({ loc: 50 });
     expect(byNode.get("b.ts")).toEqual({ loc: 400 });
     expect(byNode.size).toBe(2);
+  });
+
+  it("maps per-symbol complexity (C-58) onto a symbol node's cognitiveMax", () => {
+    const byNode = collectNodeMetrics([
+      { nodeId: "a.ts#hot", name: "symbol_cognitive", value: 25 },
+      { nodeId: "a.ts#hot", name: "symbol_cyclomatic", value: 9 },
+    ]);
+    expect(byNode.get("a.ts#hot")).toEqual({ cognitiveMax: 25, cyclomaticMax: 9 });
+  });
+});
+
+describe("buildBlastRadius (C-58 per-symbol complexity)", () => {
+  const churn = new Map([["a.ts", 100]]);
+  const symbols: SymbolUtil[] = [
+    { symbolId: "a.ts#hot", name: "hot", fileId: "a.ts", utilization: 10 },
+    { symbolId: "a.ts#cold", name: "cold", fileId: "a.ts", utilization: 10 },
+  ];
+
+  it("separates two exports of one hot file by their OWN complexity", () => {
+    const metrics = new Map<string, NodeMetrics>([
+      ["a.ts", { cognitiveMax: 20 }], // file-broadcast value
+      ["a.ts#hot", { cognitiveMax: 30 }], // the risky export
+      ["a.ts#cold", { cognitiveMax: 2 }], // a calm export in the same file
+    ]);
+    const out = buildBlastRadius(symbols, metrics, churn);
+    const hot = out.find((e) => e.name === "hot");
+    const cold = out.find((e) => e.name === "cold");
+    // Per-symbol complexity is used, NOT the file's broadcast 20 — so the two
+    // exports diverge instead of tying (the flatness C-58 fixes).
+    expect(hot?.complexity).toBe(30);
+    expect(cold?.complexity).toBe(2);
+    expect(hot!.score).toBeGreaterThan(cold!.score);
+  });
+
+  it("falls back to file complexity for an export with no symbol complexity", () => {
+    const metrics = new Map<string, NodeMetrics>([
+      ["a.ts", { cognitiveMax: 20 }],
+      // no a.ts#hot entry (e.g. a class or re-exported symbol)
+    ]);
+    const out = buildBlastRadius(
+      [{ symbolId: "a.ts#hot", name: "hot", fileId: "a.ts", utilization: 10 }],
+      metrics,
+      churn,
+    );
+    expect(out[0]?.complexity).toBe(20);
   });
 });

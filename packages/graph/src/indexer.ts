@@ -35,7 +35,7 @@ import type {
   IdAlias,
 } from "./types.js";
 
-const INDEX_VERSION = "0.3.0";
+const INDEX_VERSION = "0.4.0"; // C-58: +per-symbol complexity; rejects pre-0.4.0 reuse basis
 const TS_LANGUAGES = ["typescript"] as const;
 
 export interface GraphIndexOptions {

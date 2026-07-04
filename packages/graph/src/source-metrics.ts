@@ -2,6 +2,7 @@ import type { ParsedFile } from "@codewatch/core";
 import type { Node } from "web-tree-sitter";
 import { cognitiveComplexityOf } from "./cognitive-complexity.js";
 import { computeLcomMetrics } from "./lcom.js";
+import { symbolId } from "./extractors/ids.js";
 import type { GraphMetric } from "./types.js";
 
 const TS_FUNCTION_TYPES = new Set([
@@ -49,6 +50,8 @@ const PY_BRANCH_TYPES = new Set([
 ]);
 
 interface FunctionStats {
+  /** Declared name, or null for an anonymous function (e.g. `export default () => {}`). */
+  name: string | null;
   cyclomatic: number;
   cognitive: number;
   nestingDepth: number;
@@ -71,21 +74,41 @@ export const SOURCE_METRIC_NAMES: ReadonlySet<string> = new Set([
   "max_nesting_depth",
   "class_count",
   "lcom4_max",
+  // Per-exported-symbol complexity (C-58), keyed to `symbol` node ids. Source-
+  // local like the file-level metrics above, so an unchanged file carries them
+  // forward — but their nodeId is `<fileId>#<name>`, so the reuse basis buckets
+  // them under the symbol's parent file (see incremental.ts).
+  "symbol_cognitive",
+  "symbol_cyclomatic",
 ]);
 
+const EMPTY_NAMES: ReadonlySet<string> = new Set();
+
+/**
+ * Per-file source metrics. `symbolNamesByFile` maps a file id to the names of
+ * the `symbol` nodes it declares (its exported declarations); when supplied,
+ * per-exported-function complexity is emitted on those symbol nodes (C-58). It
+ * defaults to empty, so existing callers/tests that don't thread the symbol
+ * layer keep emitting only file-level metrics.
+ */
 export function computeSourceMetrics(
   files: readonly ParsedFile[],
   fileIdOf: (filePath: string) => string,
+  symbolNamesByFile: ReadonlyMap<string, ReadonlySet<string>> = new Map(),
 ): GraphMetric[] {
   const out: GraphMetric[] = [];
   for (const file of files) {
     const id = fileIdOf(file.filePath);
-    out.push(...metricsForFile(id, file));
+    out.push(...metricsForFile(id, file, symbolNamesByFile.get(id) ?? EMPTY_NAMES));
   }
   return out;
 }
 
-function metricsForFile(nodeId: string, file: ParsedFile): GraphMetric[] {
+function metricsForFile(
+  nodeId: string,
+  file: ParsedFile,
+  exportedNames: ReadonlySet<string>,
+): GraphMetric[] {
   const out: GraphMetric[] = [];
   const loc = countLoc(file.content);
   out.push({ nodeId, name: "loc", value: loc, unit: "lines" });
@@ -130,7 +153,41 @@ function metricsForFile(nodeId: string, file: ParsedFile): GraphMetric[] {
       unit: "count",
     });
   }
+  out.push(...symbolComplexityMetrics(nodeId, stats, exportedNames));
   out.push(...computeLcomMetrics(file, nodeId));
+  return out;
+}
+
+/**
+ * Per-exported-symbol complexity (C-58): for each named function whose name is
+ * an exported declaration of this file, emit `symbol_cognitive`/`symbol_cyclomatic`
+ * on that symbol's node (`<fileId>#<name>`). A name shared by several functions
+ * (overloads, a re-used method name) takes the max, matching the file-level
+ * `_max` framing. Non-exported helpers are counted in the file-level metrics
+ * above but get no symbol node, so they emit nothing here (exports-first, C-58).
+ */
+function symbolComplexityMetrics(
+  fileId: string,
+  stats: readonly FunctionStats[],
+  exportedNames: ReadonlySet<string>,
+): GraphMetric[] {
+  if (exportedNames.size === 0) return [];
+  const byName = new Map<string, { cognitive: number; cyclomatic: number }>();
+  for (const s of stats) {
+    if (!s.name || !exportedNames.has(s.name)) continue;
+    const prev = byName.get(s.name);
+    if (!prev) byName.set(s.name, { cognitive: s.cognitive, cyclomatic: s.cyclomatic });
+    else {
+      prev.cognitive = Math.max(prev.cognitive, s.cognitive);
+      prev.cyclomatic = Math.max(prev.cyclomatic, s.cyclomatic);
+    }
+  }
+  const out: GraphMetric[] = [];
+  for (const [name, m] of byName) {
+    const sid = symbolId(fileId, name);
+    out.push({ nodeId: sid, name: "symbol_cognitive", value: m.cognitive, unit: "count" });
+    out.push({ nodeId: sid, name: "symbol_cyclomatic", value: m.cyclomatic, unit: "count" });
+  }
   return out;
 }
 
@@ -143,15 +200,14 @@ function analyzeFunctions(file: ParsedFile): FunctionStats[] {
   const fnTypes =
     file.language === "python" ? PY_FUNCTION_TYPES : TS_FUNCTION_TYPES;
   const visit = (node: Node): void => {
-    if (fnTypes.has(node.type)) {
-      const body = node.childForFieldName("body");
-      if (body) {
-        stats.push({
-          cyclomatic: cyclomaticOf(body, file.language),
-          cognitive: cognitiveComplexityOf(body, file.language),
-          nestingDepth: nestingDepthOf(body, file.language, 0),
-        });
-      }
+    const fn = functionAt(node, fnTypes);
+    if (fn) {
+      stats.push({
+        name: fn.name,
+        cyclomatic: cyclomaticOf(fn.body, file.language),
+        cognitive: cognitiveComplexityOf(fn.body, file.language),
+        nestingDepth: nestingDepthOf(fn.body, file.language, 0),
+      });
     }
     for (const child of node.children) {
       if (child) visit(child);
@@ -159,6 +215,35 @@ function analyzeFunctions(file: ParsedFile): FunctionStats[] {
   };
   visit(file.tree.rootNode);
   return stats;
+}
+
+/**
+ * A named, standalone function at this node, with its body and declared name —
+ * or null. Covers declarations/methods (name on the node) and, crucially,
+ * arrow / function-expression bound to a `const`/`let` (`export const foo =
+ * () => {}`), where the name lives on the enclosing variable_declarator. Those
+ * bindings were previously invisible to the analyzer (C-58) — a real complexity
+ * under-count in an arrow-heavy codebase. Anonymous inline callbacks (parent is
+ * a call, not a declarator) are intentionally excluded: their control flow
+ * already rolls into the enclosing function's cognitive score.
+ */
+function functionAt(
+  node: Node,
+  fnTypes: ReadonlySet<string>,
+): { name: string | null; body: Node } | null {
+  if (fnTypes.has(node.type)) {
+    const body = node.childForFieldName("body");
+    return body ? { name: node.childForFieldName("name")?.text ?? null, body } : null;
+  }
+  if (
+    (node.type === "arrow_function" || node.type === "function_expression") &&
+    node.parent?.type === "variable_declarator"
+  ) {
+    const body = node.childForFieldName("body");
+    if (!body) return null;
+    return { name: node.parent.childForFieldName("name")?.text ?? null, body };
+  }
+  return null;
 }
 
 function nestingDepthOf(node: Node, language: string, depth: number): number {
