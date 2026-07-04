@@ -1,4 +1,9 @@
 import { loadChurnEntries, openDatabase, computePageRank } from "@codewatch/graph";
+import {
+  buildSymbolCouplingPayload,
+  type SymbolCouplingPayload,
+} from "./dashboard-symbol-coupling.js";
+import { computeHealth } from "./dashboard-health.js";
 import { runGraphReportCommand } from "./graph-report.js";
 import { runGraphCheckCommand } from "./graph-check.js";
 import { runGraphArchCommand } from "./graph-arch.js";
@@ -63,6 +68,8 @@ export interface SnapshotContext {
   symbols: readonly SymbolUtil[];
   /** Inbound `references` count per symbol id (C-59): how many files consume each export. */
   consumersBySymbol: ReadonlyMap<string, number>;
+  /** Symbol-level coupling slices (C-60): co-imported pairs + per-symbol consumers. */
+  symbolCoupling?: SymbolCouplingPayload;
 }
 
 export type CouplingClass = { hidden: boolean; unindexed: boolean };
@@ -158,6 +165,8 @@ export function buildPayload(
       snapCtx.metrics,
       new Map(report.hotspots.map((h) => [h.nodeId, h.churn])),
     ),
+    symbolCoupling: snapCtx.symbolCoupling?.symbolCoupling ?? [],
+    symbolConsumers: snapCtx.symbolCoupling?.symbolConsumers ?? [],
     packages: arch.packages,
     violations,
     drift: report.drift && {
@@ -173,32 +182,6 @@ export function buildPayload(
 }
 
 export type DashboardPayload = ReturnType<typeof buildPayload>;
-
-/**
- * Composite health as a transparent sum of independent penalty components, so
- * the UI can show *why* the score is what it is instead of a black-box number.
- * Each component is capped and drawn from a distinct dimension — the hotspots
- * component owns scary files, so the violations component excludes the
- * scary-hotspots rule (no double-count). Ownership (knowledge-silo / bus-factor)
- * signal is deliberately NOT a health component: it saturates on single-author
- * repos and lives on the Ownership tab, not in the cross-cutting score.
- */
-export function computeHealth(x: {
-  scary: number;
-  newViolations: number;
-  carryViolations: number;
-  maxComplexity: number;
-  hiddenCoupling: number;
-}): { health: number; healthBreakdown: { label: string; penalty: number; detail: string }[] } {
-  const breakdown = [
-    { label: "scary hotspots", penalty: Math.min(30, x.scary * 10), detail: `${x.scary} file(s) ≥ 3000` },
-    { label: "fitness violations", penalty: Math.min(20, x.newViolations * 8 + x.carryViolations * 3), detail: `${x.newViolations} new, ${x.carryViolations} parked (non-hotspot rules)` },
-    { label: "complexity over budget", penalty: Math.min(15, Math.max(0, x.maxComplexity - 30)), detail: `max ${x.maxComplexity} vs budget 30` },
-    { label: "hidden coupling", penalty: Math.min(10, x.hiddenCoupling * 2), detail: `${x.hiddenCoupling} pair(s) co-change without an import` },
-  ];
-  const total = breakdown.reduce((s, c) => s + c.penalty, 0);
-  return { health: Math.max(0, 100 - total), healthBreakdown: breakdown };
-}
 
 const DEFAULT_WINDOWS = [30, 90, 180];
 
@@ -325,6 +308,7 @@ export function snapshotContext(dbPath: string, snapshotId: number): SnapshotCon
   const consumersBySymbol = new Map<string, number>();
   let metrics = new Map<string, NodeMetrics>();
   let symbols: SymbolUtil[] = [];
+  let symbolCoupling: SymbolCouplingPayload | undefined;
   const db = openDatabase(dbPath);
   try {
     const nodes = db.listNodes(snapshotId);
@@ -338,12 +322,15 @@ export function snapshotContext(dbPath: string, snapshotId: number): SnapshotCon
       connectedNodes.add(e.srcId);
       connectedNodes.add(e.dstId);
     }
-    // Count inbound `references` edges per symbol (C-59): each edge is one
-    // consuming file, so this is "how many files use this export".
+    // Inbound `references` per symbol (C-59, one edge = one consuming file), and
+    // the raw pairs for the C-60 symbol-coupling slices (co-import + consumers).
+    const refEdges: { srcId: string; dstId: string }[] = [];
     for (const e of db.listEdges(snapshotId, { includeReferences: true })) {
       if (e.kind !== "references") continue;
       consumersBySymbol.set(e.dstId, (consumersBySymbol.get(e.dstId) ?? 0) + 1);
+      refEdges.push({ srcId: e.srcId, dstId: e.dstId });
     }
+    symbolCoupling = buildSymbolCouplingPayload(refEdges);
     for (const r of computePageRank(nodes, edges).rows) centrality.set(r.nodeId, r.score);
     metrics = collectNodeMetrics(db.listMetrics(snapshotId));
     // Attach node role so the Dossier can explain e.g. a barrel's utilization=0.
@@ -359,5 +346,5 @@ export function snapshotContext(dbPath: string, snapshotId: number): SnapshotCon
   } finally {
     db.close();
   }
-  return { linkedPairs, centrality, connectedNodes, metrics, symbols, consumersBySymbol };
+  return { linkedPairs, centrality, connectedNodes, metrics, symbols, consumersBySymbol, symbolCoupling };
 }

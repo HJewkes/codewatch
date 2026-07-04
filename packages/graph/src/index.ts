@@ -40,6 +40,7 @@ export {
   parentModuleId,
   packageId,
   externalId,
+  parseSymbolId,
 } from "./extractors/ids.js";
 
 export {
@@ -71,6 +72,14 @@ export {
   type ChangeCouplingResult,
   type ComputeChangeCouplingOptions,
 } from "./change-coupling.js";
+export {
+  computeSymbolConsumers,
+  computeSymbolCoupling,
+  type ReferenceEdgeLite,
+  type SymbolConsumers,
+  type SymbolCouplingPair,
+  type SymbolCouplingOptions,
+} from "./symbol-coupling.js";
 export {
   computeOwnershipMetrics,
   computeTestCoverageOwnership,

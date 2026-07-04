@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeHealth } from "../commands/dashboard-payload.js";
+import { computeHealth } from "../commands/dashboard-health.js";
 
 describe("computeHealth", () => {
   it("is 100 with a clean repo and every component reads 0", () => {
