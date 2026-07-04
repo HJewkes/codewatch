@@ -55,7 +55,7 @@ describe("runMigrations", () => {
       const rows = db
         .prepare("SELECT version FROM _migration ORDER BY version")
         .all() as Array<{ version: number }>;
-      expect(rows.map((r) => r.version)).toEqual([1, 2, 3]);
+      expect(rows.map((r) => r.version)).toEqual([1, 2, 3, 4]);
     } finally {
       db.close();
     }

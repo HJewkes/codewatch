@@ -69,8 +69,8 @@ export class GraphDatabase {
        VALUES (@snapshotId, @oldId, @newId, @reason)`,
     );
     this.insertFingerprintStmt = db.prepare(
-      `INSERT INTO file_fingerprint (snapshot_id, file_id, content_hash)
-       VALUES (@snapshotId, @fileId, @contentHash)`,
+      `INSERT INTO file_fingerprint (snapshot_id, file_id, content_hash, structural_hash)
+       VALUES (@snapshotId, @fileId, @contentHash, @structuralHash)`,
     );
     this.getSnapshotStmt = db.prepare(
       "SELECT * FROM snapshot WHERE id = ?",
@@ -97,7 +97,7 @@ export class GraphDatabase {
       "SELECT old_id, new_id, reason FROM id_alias WHERE snapshot_id = ?",
     );
     this.listFingerprintsStmt = db.prepare(
-      "SELECT file_id, content_hash FROM file_fingerprint WHERE snapshot_id = ?",
+      "SELECT file_id, content_hash, structural_hash FROM file_fingerprint WHERE snapshot_id = ?",
     );
   }
 
@@ -212,6 +212,7 @@ export class GraphDatabase {
           snapshotId,
           fileId: f.fileId,
           contentHash: f.contentHash,
+          structuralHash: f.structuralHash ?? null,
         });
       }
     });

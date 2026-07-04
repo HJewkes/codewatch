@@ -19,6 +19,7 @@ import {
   assembleFragments,
   buildFingerprints,
   classifyForReuse,
+  classifyParsed,
   loadReuseBasis,
   membershipUnchanged,
   readSourceFiles,
@@ -95,6 +96,9 @@ export interface GraphIndexResult {
   reusedFiles: number;
   /** Files that were parsed + extracted this run (new, changed, or full index). */
   reparsedFiles: number;
+  /** Parsed files whose ts-morph extract was skipped as COSMETIC (C-18); a
+   * subset of reparsedFiles — still tree-sitter parsed for spans + metrics. */
+  cosmeticFiles: number;
   nodesByKind: Record<string, number>;
   edgesByKind: Record<string, number>;
   durationMs: GraphIndexDurations;
@@ -269,12 +273,16 @@ export async function runGraphIndex(
       repoRoot: idRoot,
       tsConfigPath: options.tsConfigPath,
     });
+    // C-18: split parsed files into COSMETIC (structure unchanged → reuse edges,
+    // skip ts-morph extract) vs STRUCTURAL, and collect signatures to persist.
+    const classified = classifyParsed(parsedByPath, idRoot, reuse, reusedFileIds);
     const tExtract0 = performance.now();
     const fragments = assembleFragments({
       readFiles,
       idRoot,
       parsedByPath,
       reuse,
+      cosmeticFileIds: classified.cosmeticFileIds,
       extractor,
     });
     const accumulator = mergeFragments(fragments);
@@ -313,7 +321,10 @@ export async function runGraphIndex(
     const commitHash =
       options.commitHash ?? detectGitHead(rootDir) ?? undefined;
     const snapshotId = persist(db, ref, commitHash, accumulator, aliases, metrics);
-    db.insertFingerprints(snapshotId, buildFingerprints(readFiles, idRoot));
+    db.insertFingerprints(
+      snapshotId,
+      buildFingerprints(readFiles, idRoot, classified.structuralByFileId),
+    );
     const tPersist = performance.now() - tPersist0;
 
     return {
@@ -326,6 +337,7 @@ export async function runGraphIndex(
       metrics: metrics.length,
       reusedFiles: reusedFileIds.length,
       reparsedFiles: toParse.length,
+      cosmeticFiles: classified.cosmeticFileIds.size,
       nodesByKind: countByKind(accumulator.nodes.values()),
       edgesByKind: countByKind(accumulator.edges.values()),
       durationMs: {
