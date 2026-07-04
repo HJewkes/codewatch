@@ -1,3 +1,4 @@
+import type { Command } from "commander";
 import chalk from "chalk";
 import {
   diffSnapshots,
@@ -6,6 +7,7 @@ import {
   type GraphDiff,
   type SnapshotRow,
 } from "@codewatch/graph";
+import { formatError } from "../utils/output.js";
 
 export interface GraphDiffCommandOptions {
   db: string;
@@ -175,4 +177,36 @@ export function formatGraphDiffJson(result: GraphDiffCommandResult): string {
     null,
     2,
   );
+}
+
+export function registerGraphDiff(graphCmd: Command): void {
+  graphCmd
+    .command("diff")
+    .description(
+      "Diff two graph snapshots (added / removed / renamed nodes + edges, metric deltas)",
+    )
+    .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")
+    .requiredOption(
+      "--from <ref-or-id>",
+      "From-side snapshot: numeric id or ref name",
+    )
+    .requiredOption("--to <ref-or-id>", "To-side snapshot: numeric id or ref name")
+    .option("--json", "Output structured JSON")
+    .action(
+      async (options: { db: string; from: string; to: string; json?: boolean }) => {
+        try {
+          const result = await runGraphDiffCommand(options);
+          console.log(
+            options.json
+              ? formatGraphDiffJson(result)
+              : formatGraphDiffText(result),
+          );
+        } catch (err) {
+          console.error(
+            formatError(err instanceof Error ? err.message : String(err)),
+          );
+          process.exitCode = 1;
+        }
+      },
+    );
 }

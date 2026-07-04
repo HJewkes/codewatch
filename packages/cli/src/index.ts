@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createRequire } from "node:module";
 import { Command } from "commander";
 import { readProfile, writeProfile } from "@codewatch/profile";
 import type {
@@ -17,6 +18,12 @@ import { extractFromFiles } from "./utils/pipeline.js";
 import { registerGraphCommands } from "./commands/graph-cli.js";
 import { registerHookCommands } from "./commands/hook-cli.js";
 
+// Read the real version from package.json (one root up from dist/) so
+// `codewatch --version` tracks the published package version instead of a
+// hand-maintained literal that silently drifts.
+const require = createRequire(import.meta.url);
+const { version } = require("../package.json") as { version: string };
+
 const program = new Command();
 
 program
@@ -24,7 +31,7 @@ program
   .description(
     "Analyze GitHub contributions to create a personal coding style profile",
   )
-  .version("0.0.1");
+  .version(version);
 
 program
   .command("init")

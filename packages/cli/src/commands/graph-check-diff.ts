@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import type { Command } from "commander";
 import chalk from "chalk";
 import {
   diffCheckResults,
@@ -12,6 +13,7 @@ import {
   type SnapshotRow,
   type UnchangedViolation,
 } from "@codewatch/graph";
+import { formatError } from "../utils/output.js";
 
 export interface GraphCheckDiffCommandOptions {
   db: string;
@@ -202,4 +204,40 @@ export function formatGraphCheckDiffJson(result: GraphCheckDiffCommandResult): s
     null,
     2,
   );
+}
+
+export function registerGraphCheckDiff(graphCmd: Command): void {
+  graphCmd
+    .command("check-diff")
+    .description(
+      "Diff rule violations across two snapshots (new / resolved / worsened / improved)",
+    )
+    .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")
+    .option("--config <path>", "Rules file (JSON)", "./.codewatch/check.json")
+    .requiredOption("--from <ref-or-id>", "From-side snapshot")
+    .requiredOption("--to <ref-or-id>", "To-side snapshot")
+    .option("--json", "Output structured JSON")
+    .action(
+      async (options: {
+        db: string;
+        config: string;
+        from: string;
+        to: string;
+        json?: boolean;
+      }) => {
+        try {
+          const result = await runGraphCheckDiffCommand(options);
+          console.log(
+            options.json
+              ? formatGraphCheckDiffJson(result)
+              : formatGraphCheckDiffText(result),
+          );
+        } catch (err) {
+          console.error(
+            formatError(err instanceof Error ? err.message : String(err)),
+          );
+          process.exitCode = 1;
+        }
+      },
+    );
 }
