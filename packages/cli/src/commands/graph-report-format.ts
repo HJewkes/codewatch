@@ -7,6 +7,7 @@ import type {
   GraphReportResult,
   HotspotDelta,
   DeadModuleRow,
+  GrowthRiskRow,
   HotspotRow,
   ReportDrift,
   TestCoverageRow,
@@ -39,6 +40,7 @@ export function formatGraphReportMarkdown(result: GraphReportResult): string {
   pushCentral(lines, result.centralFiles);
   pushUnusedExports(lines, result.unusedExports);
   pushDeadModules(lines, result.deadModules);
+  pushGrowthRisks(lines, result.growthRisks);
   if (result.drift) pushDrift(lines, result.drift);
   return lines.join("\n");
 }
@@ -182,6 +184,27 @@ function pushDeadModules(lines: string[], rows: readonly DeadModuleRow[]): void 
   lines.push("|---|--:|---|");
   for (const r of rows) {
     lines.push(`| ${r.nodeId} | ${r.loc} | ${r.role} |`);
+  }
+  lines.push("");
+}
+
+/**
+ * Structural scaling smells (C-66) — deep loop nesting as a growth-risk proxy.
+ * Explicitly heuristic: a "shape," NOT a proven complexity bound (depth-2 loops
+ * over two different collections are linear; a `.includes` on a `Set` is O(1)).
+ */
+function pushGrowthRisks(lines: string[], rows: readonly GrowthRiskRow[]): void {
+  lines.push("## Growth-risk (scaling smells — heuristic, not a proven bound)");
+  lines.push("");
+  if (rows.length === 0) {
+    lines.push("_No deep loop nesting._");
+    lines.push("");
+    return;
+  }
+  lines.push("| File | Loop nesting | Shape |");
+  lines.push("|---|--:|---|");
+  for (const r of rows) {
+    lines.push(`| ${r.nodeId} | ${r.loopDepth} | ${r.shape} |`);
   }
   lines.push("");
 }

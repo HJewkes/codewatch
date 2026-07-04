@@ -32,7 +32,7 @@ import type {
   IdAlias,
 } from "./types.js";
 
-const INDEX_VERSION = "0.6.0"; // C-65: capture dynamic import() edges (changes fan_in/pagerank); rejects pre-0.6.0 reuse basis
+const INDEX_VERSION = "0.7.0"; // C-66: +growth-risk loop_depth metric; rejects pre-0.7.0 reuse basis
 const TS_LANGUAGES = ["typescript"] as const;
 
 export interface GraphIndexOptions {

@@ -23,11 +23,14 @@ import {
   topCouplingClusters,
   topHotspots,
   topTestCoverageRisks,
-  topUnusedExports,
-  topDeadModules,
-  publicApiFiles,
   type ReportContext,
 } from "./graph-report-sections.js";
+import {
+  topUnusedExports,
+  topDeadModules,
+  topGrowthRisks,
+  publicApiFiles,
+} from "./graph-report-quality-sections.js";
 import type {
   BusFactorRow,
   CentralRow,
@@ -128,6 +131,7 @@ export function runGraphReportCommand(
       centralFiles: topCentralFiles(nodes, edges, ctx, limit),
       unusedExports: topUnusedExports(symbolNodes, publicApiFiles(nodes, edges), ctx, limit),
       deadModules: topDeadModules(nodes, edges, ctx, limit),
+      growthRisks: topGrowthRisks(ctx, limit),
     };
     if (!hasChurnSignal(metrics, windowDays)) {
       result.emptyWindow = true;
