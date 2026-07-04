@@ -6,6 +6,7 @@ import type {
   CouplingRow,
   GraphReportResult,
   HotspotDelta,
+  DeadModuleRow,
   HotspotRow,
   ReportDrift,
   TestCoverageRow,
@@ -37,6 +38,7 @@ export function formatGraphReportMarkdown(result: GraphReportResult): string {
   }
   pushCentral(lines, result.centralFiles);
   pushUnusedExports(lines, result.unusedExports);
+  pushDeadModules(lines, result.deadModules);
   if (result.drift) pushDrift(lines, result.drift);
   return lines.join("\n");
 }
@@ -158,6 +160,28 @@ function pushUnusedExports(
     lines.push(
       `| \`${r.name}\` | ${r.fileId} | ${r.cognitive} | ${confidence} |`,
     );
+  }
+  lines.push("");
+}
+
+/**
+ * Files no importer reaches from the entry roots (C-65). Framed "no importer
+ * found," not "dead" — a computed dynamic import, a DI/registry string, or a
+ * non-barrel package entry can make a live file look unreferenced. A lead to
+ * investigate, ranked by size.
+ */
+function pushDeadModules(lines: string[], rows: readonly DeadModuleRow[]): void {
+  lines.push("## Unreferenced files (no importer found)");
+  lines.push("");
+  if (rows.length === 0) {
+    lines.push("_Every file is reachable from an entry root._");
+    lines.push("");
+    return;
+  }
+  lines.push("| File | LOC | Role |");
+  lines.push("|---|--:|---|");
+  for (const r of rows) {
+    lines.push(`| ${r.nodeId} | ${r.loc} | ${r.role} |`);
   }
   lines.push("");
 }
