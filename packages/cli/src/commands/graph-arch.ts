@@ -32,12 +32,27 @@ export interface GraphArchCommandOptions {
   minEdges?: number;
   /** Compute partition quality (modularity Q + per-package + pair flags). */
   health?: boolean;
+  /** When "modules", drill packages larger than maxPackageSize into sub-dir nodes. */
+  depth?: "modules";
+  /** File-count threshold above which a package is drilled (default 30). */
+  maxPackageSize?: number;
+}
+
+/** A top-level sub-directory of a drilled package, rendered inside its cluster. */
+export interface ArchSubNode {
+  /** Full path id, e.g. "packages/cli/src/commands". */
+  id: string;
+  /** Directory name shown as the node label, e.g. "commands". */
+  label: string;
+  files: number;
 }
 
 export interface ArchPackage {
   id: string;
   name: string;
   files: number;
+  /** Present when the package was drilled (--depth modules); renders as a subgraph. */
+  subNodes?: ArchSubNode[];
 }
 
 export interface ArchEdge {
@@ -73,6 +88,8 @@ export function runGraphArchCommand(
       excludeRole: options.excludeRole,
       includeExternal: options.includeExternal,
       minEdges: options.minEdges,
+      depth: options.depth,
+      maxPackageSize: options.maxPackageSize,
     });
     if (options.health) {
       const fileIds = filteredFileIds(nodes, options);
@@ -109,16 +126,28 @@ export function formatArchMermaid(result: ArchResult): string {
     lines.push("  %% (no packages with indexed files)");
     return lines.join("\n");
   }
-  for (const p of result.packages) {
-    const label =
-      p.files > 0 ? `${escapeLabel(p.name)}<br/>${p.files} files` : escapeLabel(p.name);
-    lines.push(`  ${sanitizeId(p.id)}["${label}"]`);
-  }
+  for (const p of result.packages) pushPackageNode(lines, p);
   for (const e of result.edges) {
     const arrow = e.count > 1 ? ` -- ${e.count} --> ` : ` --> `;
     lines.push(`  ${sanitizeId(e.from)}${arrow}${sanitizeId(e.to)}`);
   }
   return lines.join("\n");
+}
+
+function pushPackageNode(lines: string[], p: ArchPackage): void {
+  if (p.subNodes && p.subNodes.length > 0) {
+    lines.push(`  subgraph ${sanitizeId(p.id)} ["${escapeLabel(p.name)}"]`);
+    for (const s of p.subNodes) {
+      lines.push(
+        `    ${sanitizeId(s.id)}["${escapeLabel(s.label)}<br/>${s.files} files"]`,
+      );
+    }
+    lines.push("  end");
+    return;
+  }
+  const label =
+    p.files > 0 ? `${escapeLabel(p.name)}<br/>${p.files} files` : escapeLabel(p.name);
+  lines.push(`  ${sanitizeId(p.id)}["${label}"]`);
 }
 
 function sanitizeId(id: string): string {
@@ -143,6 +172,8 @@ interface ArchCliOptions {
   includeExternal?: boolean;
   minEdges?: string;
   health?: boolean;
+  depth?: string;
+  maxPackageSize?: string;
 }
 
 async function runArchAction(options: ArchCliOptions): Promise<void> {
@@ -157,6 +188,8 @@ async function runArchAction(options: ArchCliOptions): Promise<void> {
       includeExternal: options.includeExternal,
       minEdges: asNumber(options.minEdges),
       health: options.health,
+      depth: options.depth === "modules" ? "modules" : undefined,
+      maxPackageSize: asNumber(options.maxPackageSize),
     });
     const output = options.health
       ? (await import("./graph-arch-format.js")).formatArchHealth(result)
@@ -223,6 +256,14 @@ export function registerGraphArch(graphCmd: Command): void {
     .option(
       "--health",
       "Augment output with partition-quality analysis (Newman-Girvan Q, per-package cohesion/instability/layer, pair coupling)",
+    )
+    .option(
+      "--depth <level>",
+      "Drill packages larger than --max-package-size into their top-level directories (only 'modules' supported)",
+    )
+    .option(
+      "--max-package-size <n>",
+      "File-count threshold above which a package is drilled into sub-directory nodes (default 30; implies --depth modules)",
     )
     .action(runArchAction);
 }
