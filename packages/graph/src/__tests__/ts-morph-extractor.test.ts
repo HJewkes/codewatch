@@ -36,6 +36,17 @@ const FILES: Record<string, string> = {
     `  const other = await import(name);\n` +
     `  return mod.C + (other ? 1 : 0);\n` +
     `}\n`,
+  // Destructured dynamic import (C-68): the lazy-command-loading pattern. `P`
+  // and the aliased `Q: qq` each credit their origin symbol in multi.ts; the
+  // namespace `const ns = await import(...)` binds no specific export, so it
+  // gets only the module edge (no symbol reference), like a static `import *`.
+  "/repo/src/dyn-destructure.ts":
+    `export async function reg() {\n` +
+    `  const { P } = await import("./multi.js");\n` +
+    `  const { Q: qq } = await import("./multi.js");\n` +
+    `  const ns = await import("./c.js");\n` +
+    `  return P + qq + (ns ? 0 : 1);\n` +
+    `}\n`,
   // Model B (C-64): a mix of exported + internal declarations. `pub` is exported;
   // `helper` (function), the internal arrow-const `arrow`, the class `Priv` and
   // its method `run` all get non-exported symbol nodes. The plain const `CONST`
@@ -388,6 +399,40 @@ describe("TsMorphGraphExtractor", () => {
       const importEdges = fragment!.edges.filter((e) => e.kind === "imports");
       expect(importEdges).toHaveLength(1);
       expect(importEdges[0]!.dstId).toBe("src/c.ts");
+    });
+
+    it("emits a references edge for a destructured dynamic import (C-68)", () => {
+      const [fragment] = fixture.extract("/repo/src/dyn-destructure.ts");
+      const refs = fragment!.edges.filter((e) => e.kind === "references");
+      const targets = refs.map((e) => e.dstId);
+      expect(targets).toContain("src/multi.ts#P");
+    });
+
+    it("credits the exported name, not the local alias, for `Q: qq` (C-68)", () => {
+      const [fragment] = fixture.extract("/repo/src/dyn-destructure.ts");
+      const targets = fragment!.edges
+        .filter((e) => e.kind === "references")
+        .map((e) => e.dstId);
+      expect(targets).toContain("src/multi.ts#Q");
+      expect(targets).not.toContain("src/multi.ts#qq");
+    });
+
+    it("does not emit a symbol reference for a namespace dynamic import (C-68)", () => {
+      const [fragment] = fixture.extract("/repo/src/dyn-destructure.ts");
+      // `const ns = await import("./c.js")` binds the whole module — module edge
+      // only, no per-symbol reference (mirrors static `import *`).
+      const refToC = fragment!.edges.find(
+        (e) => e.kind === "references" && e.dstId.startsWith("src/c.ts#"),
+      );
+      expect(refToC).toBeUndefined();
+    });
+
+    it("still emits the module imports edge for a destructured dynamic import", () => {
+      const [fragment] = fixture.extract("/repo/src/dyn-destructure.ts");
+      const importTargets = fragment!.edges
+        .filter((e) => e.kind === "imports")
+        .map((e) => e.dstId);
+      expect(importTargets).toContain("src/multi.ts");
     });
   });
 
