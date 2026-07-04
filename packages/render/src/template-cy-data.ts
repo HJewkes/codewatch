@@ -27,12 +27,17 @@ interface CytoscapeNodeData {
 
 export const EXTERNAL_PARENT_ID = "pkg:external";
 
+// The package a file belongs to. In a `packages/<name>/…` monorepo the package
+// is the second segment (every file's first segment is just `packages`), so nest
+// files into per-package boxes rather than one giant `packages` box. Mirrors the
+// client's `pkgOfId` so compound parents and package colors agree.
 function packageFromInternalId(id: string): string | undefined {
-  const first = id.split("/")[0];
-  return first ? `pkg:${first}` : undefined;
+  const monorepo = /^packages\/([^/]+)/.exec(id);
+  const seg = monorepo ? monorepo[1] : id.split("/")[0];
+  return seg ? `pkg:${seg}` : undefined;
 }
 
-function packageIdFor(node: { id: string; kind: string }): string | undefined {
+export function packageIdFor(node: { id: string; kind: string }): string | undefined {
   if (node.kind === "external") return EXTERNAL_PARENT_ID;
   if (node.kind === "package") return undefined;
   return packageFromInternalId(node.id);
@@ -303,7 +308,7 @@ export function buildCyData(
   metricsBeforeByNode: Map<string, Record<string, number>>,
   violationsByNode: ViolationsByNode,
   diffSummary: DiffSummary,
-  opts: { flat?: boolean } = {},
+  opts: { flat?: boolean; compound?: boolean } = {},
 ): {
   nodes: Array<{ data: CytoscapeNodeData; position?: { x: number; y: number } }>;
   edges: Array<{ data: CytoscapeEdgeData }>;
@@ -316,7 +321,9 @@ export function buildCyData(
   };
   const packageEntries = opts.flat ? [] : synthesizePackageEntries(layout);
   const nodeEntries = layout.nodes.map((n) => buildNodeEntry(n, ctx));
-  const centers = elkPresetCenters(layout, Boolean(opts.flat));
+  // The compound file graph keeps its package parents but is still laid out by
+  // ELK (INCLUDE_CHILDREN), so its absolute leaf centers drive route projection.
+  const centers = elkPresetCenters(layout, Boolean(opts.flat), Boolean(opts.compound));
   return {
     nodes: [...packageEntries, ...nodeEntries],
     edges: layout.edges.map((e, i) => buildEdgeEntry(e, i, diff, centers)),

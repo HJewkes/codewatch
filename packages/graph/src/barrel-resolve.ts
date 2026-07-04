@@ -54,9 +54,12 @@ export function resolveBarrelEdges(
 
   // Each barrel's outbound forwarding edges (re-exports, and any import it then
   // re-exports), keyed by barrel id, as {target, weight} to split inbound by.
+  // A `references` edge is per-symbol *usage*, not re-export plumbing (a pure
+  // barrel emits none — it only `export … from`s), so it's excluded from the
+  // forwarding basis and kept as a real edge below (C-68).
   const forwards = new Map<string, { dst: string; weight: number }[]>();
   for (const e of edges) {
-    if (!barrels.has(e.srcId)) continue;
+    if (!barrels.has(e.srcId) || e.kind === "references") continue;
     const arr = forwards.get(e.srcId) ?? [];
     arr.push({ dst: e.dstId, weight: edgeWeight(e) });
     forwards.set(e.srcId, arr);
@@ -86,9 +89,12 @@ export function resolveBarrelEdges(
 
   const resolved: GraphEdge[] = [];
   for (const e of edges) {
-    // A barrel's own outbound edges are plumbing — captured by resolving its
-    // inbound edges to targets — so drop them to avoid double-crediting.
-    if (barrels.has(e.srcId)) continue;
+    // A barrel's own outbound import/re-export edges are plumbing — captured by
+    // resolving its inbound edges to targets — so drop them to avoid
+    // double-crediting. A `references` edge is genuine usage (e.g. a composition
+    // root that the role classifier labels `barrel` but which actually consumes
+    // a symbol via `const { runX } = await import(...)`, C-68), so keep it.
+    if (barrels.has(e.srcId) && e.kind !== "references") continue;
     if (!barrels.has(e.dstId)) {
       resolved.push(e);
       continue;
