@@ -78,6 +78,11 @@ export interface IdAlias {
 export interface FileFingerprint {
   fileId: string;
   contentHash: string;
+  /**
+   * Comment/whitespace-insensitive parse-structure hash (C-18). Absent on
+   * snapshots written before C-18 (they can only reuse whole unchanged files).
+   */
+  structuralHash?: string;
 }
 
 export interface MetricDelta {

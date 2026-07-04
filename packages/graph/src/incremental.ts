@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import * as fs from "node:fs/promises";
+import type { Node } from "web-tree-sitter";
 import { getLanguageFromPath, type ParsedFile } from "@codewatch/core";
 import type { GraphDatabase } from "./database.js";
 import {
@@ -7,6 +8,7 @@ import {
   TsMorphGraphExtractor,
 } from "./extractors/ts-morph-extractor.js";
 import { fileId } from "./extractors/ids.js";
+import { collectDeclaredSpans, type LineSpan } from "./declared-names.js";
 import { SOURCE_METRIC_NAMES } from "./source-metrics.js";
 import { DEAD_CODE_METRIC_NAMES } from "./dead-code.js";
 import { GROWTH_RISK_METRIC_NAMES } from "./growth-risk.js";
@@ -21,6 +23,26 @@ import type {
 /** SHA-256 of file content. The fingerprint that gates per-file reuse. */
 export function hashContent(content: string): string {
   return createHash("sha256").update(content, "utf8").digest("hex");
+}
+
+/**
+ * Comment/whitespace-insensitive hash of a file's parse structure (C-18). Walks
+ * the tree-sitter tree emitting each node's type plus leaf text, skipping comment
+ * nodes; whitespace and positions are absent from the tree, so a pure reformat or
+ * comment edit yields the SAME signature while any token change yields a new one.
+ * Two files with an equal signature therefore produce identical edges and AST
+ * metrics and differ only in line spans (and loc) — the COSMETIC reuse class.
+ */
+export function structuralSignature(file: ParsedFile): string {
+  const parts: string[] = [];
+  const visit = (node: Node): void => {
+    if (node.type === "comment") return;
+    parts.push(node.type);
+    if (node.childCount === 0) parts.push(node.text);
+    for (const child of node.children) if (child) visit(child);
+  };
+  visit(file.tree.rootNode);
+  return hashContent(parts.join(""));
 }
 
 export interface ReadFile {
@@ -63,25 +85,71 @@ export function classifyForReuse(
   return { toParse, reusedFileIds };
 }
 
+/** COSMETIC/structural split of the freshly-parsed files, plus every parsed and
+ *  reused file's structural signature (to persist for the next run). */
+export interface ParsedClassification {
+  /** Parsed files whose structure matches the basis — reuse edges, skip extract. */
+  cosmeticFileIds: Set<string>;
+  /** fileId → structural signature, for every parsed file and every reused file. */
+  structuralByFileId: Map<string, string>;
+}
+
 /**
- * Build fragments for all files in walk order — extracting freshly-parsed files
- * and reconstructing reused ones. Walk order is preserved so the merge dedup
- * resolves shared nodes identically to a full index.
+ * Split freshly-parsed files into COSMETIC (structure unchanged vs the basis —
+ * only comments/whitespace moved) and STRUCTURAL (a real token change), by
+ * comparing each file's structural signature against the basis (C-18). Also
+ * carries reused (NONE-tier) files' signatures forward so they survive across
+ * generations rather than decaying to NULL after their first reuse.
+ */
+export function classifyParsed(
+  parsedByPath: Map<string, ParsedFile>,
+  idRoot: string,
+  reuse: ReuseBasis | null,
+  reusedFileIds: readonly string[],
+): ParsedClassification {
+  const cosmeticFileIds = new Set<string>();
+  const structuralByFileId = new Map<string, string>();
+  for (const [filePath, parsed] of parsedByPath) {
+    const id = fileId(idRoot, filePath);
+    const sig = structuralSignature(parsed);
+    structuralByFileId.set(id, sig);
+    if (reuse && reuse.structuralHashes.get(id) === sig) cosmeticFileIds.add(id);
+  }
+  if (reuse) {
+    for (const id of reusedFileIds) {
+      const sig = reuse.structuralHashes.get(id);
+      if (sig !== undefined) structuralByFileId.set(id, sig);
+    }
+  }
+  return { cosmeticFileIds, structuralByFileId };
+}
+
+/**
+ * Build fragments for all files in walk order — extracting STRUCTURAL freshly-
+ * parsed files, reconstructing NONE-tier reused ones, and (C-18) reconstructing
+ * COSMETIC files from the basis edges while refreshing their symbol line spans
+ * from the fresh parse, skipping the expensive ts-morph extract. Walk order is
+ * preserved so the merge dedup resolves shared nodes identically to a full index.
  */
 export function assembleFragments(input: {
   readFiles: readonly ReadFile[];
   idRoot: string;
   parsedByPath: Map<string, ParsedFile>;
   reuse: ReuseBasis | null;
+  cosmeticFileIds: ReadonlySet<string>;
   extractor: TsMorphGraphExtractor;
 }): GraphFragment[] {
   const fragments: GraphFragment[] = [];
   for (const rf of input.readFiles) {
     const parsed = input.parsedByPath.get(rf.filePath);
-    if (parsed) {
+    const id = fileId(input.idRoot, rf.filePath);
+    if (parsed && input.reuse && input.cosmeticFileIds.has(id)) {
+      fragments.push(
+        reconstructCosmetic(input.idRoot, rf.filePath, id, input.reuse, parsed),
+      );
+    } else if (parsed) {
       fragments.push(...input.extractor.extract(parsed));
     } else if (input.reuse) {
-      const id = fileId(input.idRoot, rf.filePath);
       fragments.push(
         reconstructFragment(input.idRoot, rf.filePath, id, input.reuse),
       );
@@ -90,15 +158,25 @@ export function assembleFragments(input: {
   return fragments;
 }
 
-/** One content fingerprint per file, ready to persist for the next run to diff against. */
+/**
+ * One fingerprint per file (content hash + C-18 structural signature), to persist
+ * for the next run to diff against. The structural signature is looked up per
+ * file; a file with none (e.g. a non-TS file, or a reuse carried from a pre-C-18
+ * basis) stores NULL and simply can't take the cosmetic path next time.
+ */
 export function buildFingerprints(
   readFiles: readonly ReadFile[],
   idRoot: string,
+  structuralByFileId: ReadonlyMap<string, string>,
 ): FileFingerprint[] {
-  return readFiles.map((rf) => ({
-    fileId: fileId(idRoot, rf.filePath),
-    contentHash: rf.hash,
-  }));
+  return readFiles.map((rf) => {
+    const id = fileId(idRoot, rf.filePath);
+    return {
+      fileId: id,
+      contentHash: rf.hash,
+      structuralHash: structuralByFileId.get(id),
+    };
+  });
 }
 
 /**
@@ -110,6 +188,8 @@ export function buildFingerprints(
 export interface ReuseBasis {
   snapshotId: number;
   fingerprints: Map<string, string>;
+  /** Per-file structural signature (C-18); empty for a pre-C-18 basis. */
+  structuralHashes: Map<string, string>;
   nodesById: Map<string, GraphNode>;
   edgesBySrc: Map<string, GraphEdge[]>;
   sourceMetricsByFile: Map<string, GraphMetric[]>;
@@ -172,9 +252,15 @@ export function loadReuseBasis(
       else sourceMetricsByFile.set(fileKey, [m]);
     }
 
+    const structuralHashes = new Map<string, string>();
+    for (const f of fingerprints) {
+      if (f.structuralHash) structuralHashes.set(f.fileId, f.structuralHash);
+    }
+
     return {
       snapshotId: snap.id,
       fingerprints: new Map(fingerprints.map((f) => [f.fileId, f.contentHash])),
+      structuralHashes,
       nodesById,
       edgesBySrc,
       sourceMetricsByFile,
@@ -226,4 +312,50 @@ export function reconstructFragment(
     }
   }
   return { nodes, edges };
+}
+
+/**
+ * Reconstruct a COSMETIC file's fragment (C-18): its edges + file/module/external
+ * nodes are structure-invariant so they come from the basis verbatim, but its
+ * symbol line spans shifted with the moved comments/whitespace, so those are
+ * refreshed from the fresh parse. Produces byte-for-byte what a full extract
+ * would — same names, same `exported`, same edges — with up-to-date spans, while
+ * skipping the ts-morph extract entirely. Its loc + AST metrics are recomputed
+ * from the same parse by the normal metrics path.
+ */
+export function reconstructCosmetic(
+  repoRoot: string,
+  absPath: string,
+  fileId: string,
+  basis: ReuseBasis,
+  parsed: ParsedFile,
+): GraphFragment {
+  const base = reconstructFragment(repoRoot, absPath, fileId, basis);
+  const spans = collectDeclaredSpans(parsed);
+  const nodes = base.nodes.map((n) =>
+    n.kind === "symbol" ? withRefreshedSpan(n, spans) : n,
+  );
+  return { nodes, edges: base.edges };
+}
+
+/**
+ * A symbol node with its line span refreshed from a fresh parse. Span-less
+ * symbols (exported types/consts, which never carry startLine) are returned
+ * unchanged; a function/method/class symbol takes the freshly-parsed span for
+ * its name, matching exactly what the extractor would emit.
+ */
+function withRefreshedSpan(
+  node: GraphNode,
+  spans: ReadonlyMap<string, LineSpan>,
+): GraphNode {
+  const attrs = node.attrs as
+    | { exported?: boolean; startLine?: number; endLine?: number }
+    | undefined;
+  if (!attrs || attrs.startLine === undefined) return node;
+  const span = spans.get(node.name);
+  if (!span) return node;
+  return {
+    ...node,
+    attrs: { ...attrs, startLine: span.startLine, endLine: span.endLine },
+  };
 }

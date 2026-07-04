@@ -53,6 +53,7 @@ export interface AliasDbRow {
 export interface FingerprintDbRow {
   file_id: string;
   content_hash: string;
+  structural_hash: string | null;
 }
 
 export function rowToSnapshot(row: SnapshotDbRow): SnapshotRow {
@@ -105,5 +106,9 @@ export function rowToAlias(row: AliasDbRow): IdAlias {
 }
 
 export function rowToFingerprint(row: FingerprintDbRow): FileFingerprint {
-  return { fileId: row.file_id, contentHash: row.content_hash };
+  return {
+    fileId: row.file_id,
+    contentHash: row.content_hash,
+    structuralHash: row.structural_hash ?? undefined,
+  };
 }

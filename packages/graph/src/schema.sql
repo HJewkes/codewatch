@@ -76,8 +76,13 @@ CREATE TABLE entry_point (
 );
 
 CREATE TABLE file_fingerprint (
-  snapshot_id   INTEGER NOT NULL REFERENCES snapshot(id) ON DELETE CASCADE,
-  file_id       TEXT NOT NULL,
-  content_hash  TEXT NOT NULL,
+  snapshot_id     INTEGER NOT NULL REFERENCES snapshot(id) ON DELETE CASCADE,
+  file_id         TEXT NOT NULL,
+  content_hash    TEXT NOT NULL,
+  -- Comment/whitespace-insensitive parse-structure hash (C-18). Distinguishes a
+  -- COSMETIC change (same structure, shifted lines) from a STRUCTURAL one, so a
+  -- cosmetic edit can reuse edges + AST metrics and skip the ts-morph extract.
+  -- Nullable: snapshots written before C-18 carry NULL and only reuse whole files.
+  structural_hash TEXT,
   PRIMARY KEY (snapshot_id, file_id)
 );

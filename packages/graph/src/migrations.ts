@@ -45,6 +45,19 @@ const migrations: Migration[] = [
       `);
     },
   },
+  {
+    // C-18: structural (comment/whitespace-insensitive) hash for the COSMETIC
+    // reuse tier. Nullable, so pre-existing fingerprint rows stay valid.
+    version: 4,
+    up: (db) => {
+      const cols = db
+        .prepare("PRAGMA table_info(file_fingerprint)")
+        .all() as Array<{ name: string }>;
+      if (!cols.some((c) => c.name === "structural_hash")) {
+        db.exec("ALTER TABLE file_fingerprint ADD COLUMN structural_hash TEXT");
+      }
+    },
+  },
 ];
 
 function ensureMigrationTable(db: Database.Database): void {

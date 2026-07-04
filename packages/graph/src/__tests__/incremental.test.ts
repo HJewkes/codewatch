@@ -6,6 +6,7 @@ import { parseFile } from "@codewatch/core";
 import { openDatabase, GraphDatabase } from "../database.js";
 import { runGraphIndex } from "../indexer.js";
 import { computeSourceMetrics, SOURCE_METRIC_NAMES } from "../source-metrics.js";
+import { structuralSignature } from "../incremental.js";
 
 interface Project {
   rootDir: string;
@@ -229,6 +230,65 @@ describe("fingerprint-based incremental indexing", () => {
     }
   });
 
+  it("COSMETIC change (comments/whitespace) reuses edges, skips extract, stays identical to a full index", async () => {
+    await runGraphIndex({ rootDir: project.rootDir });
+
+    // Add a leading comment (shifts every line down) + an inline comment +
+    // re-indentation. Content hash changes; parse structure does not.
+    const cosmetic = `// a newly added banner comment\n${B_TS.replace(
+      "return path.sep;",
+      "return path.sep; // inline note",
+    )}`;
+    await fs.writeFile(path.join(project.rootDir, "src", "b.ts"), cosmetic);
+
+    const incremental = await runGraphIndex({
+      rootDir: project.rootDir,
+      incremental: true,
+    });
+    // b.ts took the cosmetic path: parsed (for fresh spans/loc) but not extracted.
+    expect(incremental.cosmeticFiles).toBe(1);
+    expect(incremental.reusedFiles).toBe(incremental.files - 1);
+
+    const db = openDatabase(project.dbPath);
+    try {
+      const incrementalSnap = readSnapshot(db, incremental.snapshotId);
+      const fullSnap = await fullIndexSnapshot(project.rootDir);
+      // Edges reused, spans refreshed, loc recomputed — byte-identical to a full index.
+      expect(incrementalSnap).toEqual(fullSnap);
+      // The `classify` symbol's span shifted down by the banner comment.
+      const classify = db
+        .listNodes(incremental.snapshotId, { includeSymbols: true })
+        .find((n) => n.kind === "symbol" && n.name === "classify");
+      expect((classify?.attrs as { startLine?: number }).startLine).toBe(5);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("a real token change is STRUCTURAL, not cosmetic (full extract)", async () => {
+    await runGraphIndex({ rootDir: project.rootDir });
+    // Change a literal — same line count, but the token stream differs.
+    await fs.writeFile(
+      path.join(project.rootDir, "src", "b.ts"),
+      B_TS.replace("i % 2 === 0", "i % 3 === 0"),
+    );
+    const incremental = await runGraphIndex({
+      rootDir: project.rootDir,
+      incremental: true,
+    });
+    expect(incremental.cosmeticFiles).toBe(0);
+    expect(incremental.reparsedFiles).toBe(1);
+
+    const db = openDatabase(project.dbPath);
+    try {
+      expect(readSnapshot(db, incremental.snapshotId)).toEqual(
+        await fullIndexSnapshot(project.rootDir),
+      );
+    } finally {
+      db.close();
+    }
+  });
+
   it("reuses byte-identical files by default (no flag)", async () => {
     const first = await runGraphIndex({ rootDir: project.rootDir });
     const second = await runGraphIndex({ rootDir: project.rootDir });
@@ -270,5 +330,32 @@ describe("fingerprint-based incremental indexing", () => {
     for (const name of emitted) {
       expect(SOURCE_METRIC_NAMES.has(name)).toBe(true);
     }
+  });
+});
+
+describe("structuralSignature (C-18)", () => {
+  const sig = async (src: string): Promise<string> =>
+    structuralSignature(await parseFile(src, "/x.ts", "typescript"));
+
+  it("is identical across comment and whitespace changes", async () => {
+    const base = await sig(`export function f(n: number) { return n + 1; }\n`);
+    const commented = await sig(
+      `// header\nexport function f(n: number) {\n  return n + 1; // note\n}\n`,
+    );
+    expect(commented).toBe(base);
+  });
+
+  it("differs when a token changes", async () => {
+    const plus = await sig(`export const x = a + b;\n`);
+    const minus = await sig(`export const x = a - b;\n`);
+    const renamed = await sig(`export const x = a + c;\n`);
+    expect(minus).not.toBe(plus);
+    expect(renamed).not.toBe(plus);
+  });
+
+  it("differs when a string literal (a dynamic-import specifier) changes", async () => {
+    const a = await sig(`const m = await import("./a.js");\n`);
+    const b = await sig(`const m = await import("./b.js");\n`);
+    expect(b).not.toBe(a);
   });
 });
