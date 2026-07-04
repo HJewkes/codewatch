@@ -11,6 +11,7 @@ import type {
   HotspotRow,
   ReportDrift,
   TestCoverageRow,
+  UntestedRiskRow,
   UnusedExportRow,
 } from "./graph-report-types.js";
 
@@ -41,6 +42,7 @@ export function formatGraphReportMarkdown(result: GraphReportResult): string {
   pushUnusedExports(lines, result.unusedExports);
   pushDeadModules(lines, result.deadModules);
   pushGrowthRisks(lines, result.growthRisks);
+  pushUntestedRisks(lines, result.untestedRisks);
   if (result.drift) pushDrift(lines, result.drift);
   return lines.join("\n");
 }
@@ -207,6 +209,28 @@ function pushGrowthRisks(lines: string[], rows: readonly GrowthRiskRow[]): void 
   lines.push("|---|---|");
   for (const r of rows) {
     lines.push(`| ${r.nodeId} | ${r.smells.join("; ")} |`);
+  }
+  lines.push("");
+}
+
+/**
+ * Under-tested hotspots (C-63): load-bearing, complex, churning AND under-covered
+ * — `hotspot × (1 − coverage)`. Empty unless a coverage report has been ingested
+ * (`graph coverage`); coverage is an overlay, never inferred, so no report ⇒ no
+ * rows rather than a stale/assumed number.
+ */
+function pushUntestedRisks(lines: string[], rows: readonly UntestedRiskRow[]): void {
+  lines.push("## Untested risk (hotspot × uncovered)");
+  lines.push("");
+  if (rows.length === 0) {
+    lines.push("_No coverage ingested (run `graph coverage`), or every hotspot is covered._");
+    lines.push("");
+    return;
+  }
+  lines.push("| File | Coverage | Hotspot | Untested risk |");
+  lines.push("|---|--:|--:|--:|");
+  for (const r of rows) {
+    lines.push(`| ${r.nodeId} | ${r.coverage}% | ${r.hotspot} | ${r.score} |`);
   }
   lines.push("");
 }

@@ -71,6 +71,16 @@ export interface GrowthRiskRow {
   smells: string[];
 }
 
+export interface UntestedRiskRow {
+  nodeId: string;
+  /** Coverage % from an ingested Istanbul report (C-63). */
+  coverage: number;
+  /** Hotspot score (churn × complexity × recency) for context. */
+  hotspot: number;
+  /** hotspot × (1 − coverage/100): load-bearing, complex, churning, AND untested. */
+  score: number;
+}
+
 export interface TestCoverageRow {
   /** Source (non-test) file whose test coverage is owner-concentrated. */
   nodeId: string;
@@ -96,6 +106,8 @@ export interface GraphReportResult {
   deadModules: DeadModuleRow[];
   /** Files with structural scaling smells (deep loop nesting) — heuristic, not Big-O (C-66). */
   growthRisks: GrowthRiskRow[];
+  /** Load-bearing + complex + churning + under-tested files (C-63); empty if no coverage ingested. */
+  untestedRisks: UntestedRiskRow[];
   /** True when no file has churn > 0 in the window (churn sections all empty). */
   emptyWindow?: boolean;
   /** User-facing guidance shown when emptyWindow is true. */
