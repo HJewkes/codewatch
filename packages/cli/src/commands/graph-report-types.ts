@@ -65,10 +65,10 @@ export interface DeadModuleRow {
 
 export interface GrowthRiskRow {
   nodeId: string;
-  /** Max lexical loop-nesting depth (C-66); a structural scaling-smell proxy. */
+  /** Max lexical loop-nesting depth (C-66); 0 when the file's smell is not nesting. */
   loopDepth: number;
-  /** Human-readable shape label ("quadratic-shaped", "cubic-shaped", …). */
-  shape: string;
+  /** Human-readable scaling smells (deep loops, recursion, linear-search-in-loop). */
+  smells: string[];
 }
 
 export interface TestCoverageRow {
