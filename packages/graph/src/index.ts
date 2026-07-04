@@ -105,6 +105,7 @@ export {
 } from "./pagerank.js";
 export {
   computePartitionQuality,
+  invertBuckets,
   type PartitionQualityInput,
   type PartitionQualityResult,
   type PackageStats,

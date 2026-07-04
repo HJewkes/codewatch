@@ -1,3 +1,4 @@
+import { invertBuckets } from "@codewatch/graph";
 import type {
   GraphEdge,
   GraphNode,
@@ -209,15 +210,4 @@ function toRows(
     .map(([pkg, v]) => ({ pkg, count: v.count, examples: v.examples }))
     .sort((a, b) => b.count - a.count)
     .slice(0, limit);
-}
-
-function invertBuckets(
-  fileByPackage: ReadonlyMap<string, ReadonlyArray<string>>,
-): Map<string, string> {
-  const out = new Map<string, string>();
-  for (const [pkgId, files] of fileByPackage) {
-    if (pkgId === "") continue;
-    for (const f of files) out.set(f, pkgId);
-  }
-  return out;
 }
