@@ -28,6 +28,11 @@ const METRIC_FIELD: Record<string, NumericMetricField> = {
   fan_in: "fanIn",
   fan_out: "fanOut",
   utilization: "utilization",
+  // Per-symbol complexity (C-58) lands on `symbol` nodes; map onto the same
+  // fields so a symbol node reads its OWN complexity (file nodes never carry the
+  // `symbol_*` names, so there's no collision on a shared field).
+  symbol_cognitive: "cognitiveMax",
+  symbol_cyclomatic: "cyclomaticMax",
 };
 
 /** Fold the flat metric rows into a per-node structural-metrics map. */
@@ -167,21 +172,28 @@ export interface BlastRadiusEntry {
 }
 
 /**
- * Rank exports by blast radius = utilization × file cognitive complexity ×
- * file churn (C-53, "idea d"). Surfaces the single riskiest thing to touch: a
- * heavily-used export living in a file that is both hard to reason about and
- * actively changing. Stable files (churn 0) score 0 and drop out — a
- * load-bearing export in a calm file isn't a change hazard.
+ * Rank exports by blast radius = utilization × cognitive complexity × file
+ * churn (C-53, "idea d"). Surfaces the single riskiest thing to touch: a
+ * heavily-used export that is both hard to reason about and actively changing.
+ * Complexity is the export's OWN cognitive complexity (C-58, per-symbol) when
+ * known, falling back to the file's max for exports without a computed symbol
+ * complexity (e.g. class or re-exported symbols). This is what lets two exports
+ * of one hot file separate instead of tying on the file-broadcast value.
+ * Stable files (churn 0) score 0 and drop out — a load-bearing export in a calm
+ * file isn't a change hazard.
  */
 export function buildBlastRadius(
   symbols: readonly SymbolUtil[],
-  fileMetrics: ReadonlyMap<string, NodeMetrics>,
+  metrics: ReadonlyMap<string, NodeMetrics>,
   churnByFile: ReadonlyMap<string, number>,
   limit = 15,
 ): BlastRadiusEntry[] {
   const out: BlastRadiusEntry[] = [];
   for (const s of symbols) {
-    const complexity = fileMetrics.get(s.fileId)?.cognitiveMax ?? 0;
+    const complexity =
+      metrics.get(s.symbolId)?.cognitiveMax ??
+      metrics.get(s.fileId)?.cognitiveMax ??
+      0;
     const churn = churnByFile.get(s.fileId) ?? 0;
     const score = s.utilization * complexity * churn;
     if (score <= 0) continue;

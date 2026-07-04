@@ -119,3 +119,86 @@ describe("computeSourceMetrics — id mapping", () => {
     expect(ids).toEqual(new Set(["rel/foo.ts"]));
   });
 });
+
+describe("computeSourceMetrics — arrow/expr functions bound to a name (C-58)", () => {
+  it("counts arrow and function-expression bindings that were previously invisible", async () => {
+    const file = await parseTs(
+      `export const arrow = (x: number) => { if (x > 0) return 1; return 0; };
+       export const expr = function (y: number) { if (y) return y; return 0; };
+       function decl() { return 1; }\n`,
+    );
+    const metrics = computeSourceMetrics([file], idOf);
+    // All three are named functions now (arrow + fn-expr + decl).
+    expect(metric(metrics, "f.ts", "function_count")).toBe(3);
+    // The branchy arrow/expr drive cyclomatic_max above the plain decl's 1.
+    expect(metric(metrics, "f.ts", "cyclomatic_max")).toBe(2);
+  });
+
+  it("does NOT count anonymous inline callbacks as standalone functions", async () => {
+    const file = await parseTs(
+      `function run(xs: number[]) { return xs.map((x) => x + 1).filter((x) => x > 0); }\n`,
+    );
+    // Only `run` — the two inline arrows are callbacks, not named bindings.
+    expect(metric(computeSourceMetrics([file], idOf), "f.ts", "function_count")).toBe(1);
+  });
+});
+
+describe("computeSourceMetrics — per-symbol complexity (C-58)", () => {
+  const sym = (file: string, name: string): string => `${file}#${name}`;
+
+  it("emits symbol_cognitive/symbol_cyclomatic for exported functions only", async () => {
+    const file = await parseTs(
+      `export function hot(x: number) {
+         if (x > 0) { if (x > 10 && x < 20) return 1; }
+         return x > 5 ? 1 : 0;
+       }
+       function internalHelper(y: number) { if (y) return y; return 0; }\n`,
+    );
+    const names = new Map([["f.ts", new Set(["hot"])]]);
+    const metrics = computeSourceMetrics([file], idOf, names);
+    expect(metric(metrics, sym("f.ts", "hot"), "symbol_cognitive")).toBeGreaterThan(0);
+    expect(metric(metrics, sym("f.ts", "hot"), "symbol_cyclomatic")).toBeGreaterThan(1);
+    // The non-exported helper has no symbol node → no per-symbol metric.
+    expect(metric(metrics, sym("f.ts", "internalHelper"), "symbol_cognitive")).toBeUndefined();
+    // File-level metrics still count BOTH functions.
+    expect(metric(metrics, "f.ts", "function_count")).toBe(2);
+  });
+
+  it("attributes complexity to an exported const-arrow export", async () => {
+    const file = await parseTs(
+      `export const handler = (n: number) => {
+         if (n > 0 && n < 10) { for (let i = 0; i < n; i++) { if (i) return i; } }
+         return 0;
+       };\n`,
+    );
+    const names = new Map([["f.ts", new Set(["handler"])]]);
+    const metrics = computeSourceMetrics([file], idOf, names);
+    // The whole point of C-58: this arrow-const export gets its own complexity.
+    expect(metric(metrics, sym("f.ts", "handler"), "symbol_cognitive")).toBeGreaterThan(0);
+  });
+
+  it("takes the max when a name maps to several functions", async () => {
+    const file = await parseTs(
+      `export function dup(x: number) { return x; }
+       class A { dup(x: number) { if (x > 0) { if (x > 1) { if (x > 2) return 3; } } return 0; } }\n`,
+    );
+    const names = new Map([["f.ts", new Set(["dup"])]]);
+    const metrics = computeSourceMetrics([file], idOf, names);
+    // The method's nested ifs dominate the plain function's 0.
+    expect(metric(metrics, sym("f.ts", "dup"), "symbol_cognitive")).toBeGreaterThan(0);
+  });
+
+  it("emits nothing per-symbol when no symbol names are supplied", async () => {
+    const file = await parseTs(`export function a() { if (1) return 1; return 0; }\n`);
+    const metrics = computeSourceMetrics([file], idOf);
+    expect(metrics.some((m) => m.name === "symbol_cognitive")).toBe(false);
+  });
+
+  it("ignores an anonymous default export without crashing", async () => {
+    const file = await parseTs(`export default function () { if (1) return 1; return 0; }\n`);
+    const names = new Map([["f.ts", new Set(["default"])]]);
+    const metrics = computeSourceMetrics([file], idOf, names);
+    // Anonymous — no name to match "default", so no symbol metric, no throw.
+    expect(metrics.some((m) => m.name === "symbol_cognitive")).toBe(false);
+  });
+});

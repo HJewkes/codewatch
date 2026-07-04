@@ -83,6 +83,25 @@ function collectFileIds(nodes: Iterable<GraphNode>): Set<string> {
 }
 
 /**
+ * Map each file id to the names of the `symbol` nodes it declares, so
+ * `computeSourceMetrics` can attach per-exported-function complexity (C-58).
+ * Reflects the assembled node set (parsed + reused symbol nodes alike), so
+ * per-symbol complexity is only emitted for names that have a symbol node.
+ */
+function exportedNamesByFile(
+  nodes: Iterable<GraphNode>,
+): Map<string, Set<string>> {
+  const out = new Map<string, Set<string>>();
+  for (const n of nodes) {
+    if (n.kind !== "symbol" || !n.parentId) continue;
+    const bucket = out.get(n.parentId);
+    if (bucket) bucket.add(n.name);
+    else out.set(n.parentId, new Set([n.name]));
+  }
+  return out;
+}
+
+/**
  * Assemble the metric set for a snapshot: graph-wide degree metrics over the
  * full node/edge set, freshly-computed source metrics for (re)parsed files,
  * reused source metrics carried forward for unchanged files, and git churn /
@@ -94,7 +113,11 @@ export function buildIndexerMetrics(input: IndexerMetricsInput): GraphMetric[] {
   const edgeList = [...input.edges.values()];
   const out: GraphMetric[] = [
     ...computeMetrics(nodeList, edgeList),
-    ...computeSourceMetrics(input.parsedFiles, (p) => fileId(input.idRoot, p)),
+    ...computeSourceMetrics(
+      input.parsedFiles,
+      (p) => fileId(input.idRoot, p),
+      exportedNamesByFile(nodeList),
+    ),
     ...input.reusedSourceMetrics,
   ];
   let entries: readonly ChurnEntry[] | null = null;
