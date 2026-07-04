@@ -9,47 +9,67 @@ const TS_DECL_TYPES = new Set([
 
 const PY_DECL_TYPES = new Set(["function_definition", "class_definition"]);
 
+/** 1-based inclusive line span of a declaration, for coverage range-attribution (C-63). */
+export interface LineSpan {
+  startLine: number;
+  endLine: number;
+}
+
 /**
- * Names of every function, method, and class a file DECLARES — the model-B
- * symbol surface (C-64). A superset of the file's exports: internal helpers like
+ * Every function/method/class a file DECLARES, mapped to its 1-based line span
+ * (the model-B symbol surface, C-64, now carrying spans for C-63 coverage
+ * range-containment). A superset of the file's exports: internal helpers like
  * `mergeFragments` are included so they get a `symbol` node (and, by name match,
- * their per-function complexity) even though nothing imports them. Names come
- * from the same tree-sitter walk that computes complexity (source-metrics.ts), so
- * a declared name and its complexity never drift. Anonymous declarations (a
- * default-exported arrow, inline callbacks) contribute no name and are skipped.
+ * their complexity + coverage) even though nothing imports them. Names come from
+ * the same tree-sitter walk that computes complexity, so they never drift.
+ * Anonymous declarations (a default-exported arrow, inline callbacks) contribute
+ * no name and are skipped. A name declared more than once keeps its last span
+ * (overloads / same-named methods are rare; range lookup still resolves most).
  */
-export function collectDeclaredNames(file: ParsedFile): Set<string> {
+export function collectDeclaredSpans(file: ParsedFile): Map<string, LineSpan> {
   const declTypes = file.language === "python" ? PY_DECL_TYPES : TS_DECL_TYPES;
-  const names = new Set<string>();
+  const spans = new Map<string, LineSpan>();
   const visit = (node: Node): void => {
-    const name = declaredNameAt(node, declTypes);
-    if (name) names.add(name);
+    const named = declaredNodeAt(node, declTypes);
+    if (named) {
+      spans.set(named.name, {
+        startLine: named.node.startPosition.row + 1,
+        endLine: named.node.endPosition.row + 1,
+      });
+    }
     for (const child of node.children) {
       if (child) visit(child);
     }
   };
   visit(file.tree.rootNode);
-  return names;
+  return spans;
+}
+
+/** Declared names only — the Set view over {@link collectDeclaredSpans}. */
+export function collectDeclaredNames(file: ParsedFile): Set<string> {
+  return new Set(collectDeclaredSpans(file).keys());
 }
 
 /**
- * The declared name at this node, or null. Mirrors source-metrics' `functionAt`
- * handling of an arrow / function-expression bound to a `const`/`let`, but
- * returns the name for the broader declaration set (adds classes) and needs no
- * body.
+ * The declaration at this node — its name plus the node whose line span
+ * represents it — or null. Mirrors source-metrics' `functionAt` handling of an
+ * arrow / function-expression bound to a `const`/`let` (the span is the callable
+ * body's node, so it contains the coverage `fnMap` loc), extended to classes.
  */
-function declaredNameAt(
+function declaredNodeAt(
   node: Node,
   declTypes: ReadonlySet<string>,
-): string | null {
+): { name: string; node: Node } | null {
   if (declTypes.has(node.type)) {
-    return node.childForFieldName("name")?.text ?? null;
+    const name = node.childForFieldName("name")?.text;
+    return name ? { name, node } : null;
   }
   if (
     (node.type === "arrow_function" || node.type === "function_expression") &&
     node.parent?.type === "variable_declarator"
   ) {
-    return node.parent.childForFieldName("name")?.text ?? null;
+    const name = node.parent.childForFieldName("name")?.text;
+    return name ? { name, node } : null;
   }
   return null;
 }

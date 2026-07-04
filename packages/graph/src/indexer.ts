@@ -32,7 +32,7 @@ import type {
   IdAlias,
 } from "./types.js";
 
-const INDEX_VERSION = "0.8.0"; // C-66: +growth-risk recursion/search-in-loop metrics; rejects pre-0.8.0 reuse basis
+const INDEX_VERSION = "0.9.0"; // C-63: symbol nodes carry line spans (attrs.startLine/endLine); rejects pre-0.9.0 reuse basis
 const TS_LANGUAGES = ["typescript"] as const;
 
 export interface GraphIndexOptions {

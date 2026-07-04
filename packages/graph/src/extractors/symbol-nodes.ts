@@ -1,14 +1,20 @@
 import type { ParsedFile } from "@codewatch/core";
 import type { SourceFile } from "ts-morph";
-import { collectDeclaredNames } from "../declared-names.js";
+import { collectDeclaredSpans, type LineSpan } from "../declared-names.js";
 import { fileId, symbolId } from "./ids.js";
 import type { GraphNode } from "../types.js";
 
-/** A `symbol` node for a declaration, tagging whether it is exported (C-64). */
+/**
+ * A `symbol` node for a declaration, tagging whether it is exported (C-64) and,
+ * when it is a function/method/class, its 1-based line span (C-63) so coverage
+ * can be attributed by range containment. A span-less symbol (an exported type or
+ * const value) just carries `exported`.
+ */
 function makeSymbolNode(
   fileId: string,
   name: string,
   exported: boolean,
+  span: LineSpan | undefined,
 ): GraphNode {
   return {
     id: symbolId(fileId, name),
@@ -16,7 +22,9 @@ function makeSymbolNode(
     name,
     parentId: fileId,
     language: "typescript",
-    attrs: { exported },
+    attrs: span
+      ? { exported, startLine: span.startLine, endLine: span.endLine }
+      : { exported },
   };
 }
 
@@ -44,17 +52,18 @@ export function buildSymbolNodes(
   file: ParsedFile,
 ): GraphNode[] {
   const fId = fileId(repoRoot, sourceFile.getFilePath());
+  const spans = collectDeclaredSpans(file);
   const out: GraphNode[] = [];
   const exported = new Set<string>();
   for (const [name, decls] of sourceFile.getExportedDeclarations()) {
     const declaredHere = decls.some((d) => d.getSourceFile() === sourceFile);
     if (!declaredHere) continue;
     exported.add(name);
-    out.push(makeSymbolNode(fId, name, true));
+    out.push(makeSymbolNode(fId, name, true, spans.get(name)));
   }
-  for (const name of collectDeclaredNames(file)) {
+  for (const [name, span] of spans) {
     if (exported.has(name)) continue;
-    out.push(makeSymbolNode(fId, name, false));
+    out.push(makeSymbolNode(fId, name, false, span));
   }
   return out;
 }
