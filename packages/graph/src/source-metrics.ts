@@ -74,10 +74,10 @@ export const SOURCE_METRIC_NAMES: ReadonlySet<string> = new Set([
   "max_nesting_depth",
   "class_count",
   "lcom4_max",
-  // Per-exported-symbol complexity (C-58), keyed to `symbol` node ids. Source-
-  // local like the file-level metrics above, so an unchanged file carries them
-  // forward — but their nodeId is `<fileId>#<name>`, so the reuse basis buckets
-  // them under the symbol's parent file (see incremental.ts).
+  // Per-symbol complexity (C-58; C-64 extends it to non-exported symbols), keyed
+  // to `symbol` node ids. Source-local like the file-level metrics above, so an
+  // unchanged file carries them forward — but their nodeId is `<fileId>#<name>`,
+  // so the reuse basis buckets them under the symbol's parent file (incremental.ts).
   "symbol_cognitive",
   "symbol_cyclomatic",
 ]);
@@ -86,8 +86,8 @@ const EMPTY_NAMES: ReadonlySet<string> = new Set();
 
 /**
  * Per-file source metrics. `symbolNamesByFile` maps a file id to the names of
- * the `symbol` nodes it declares (its exported declarations); when supplied,
- * per-exported-function complexity is emitted on those symbol nodes (C-58). It
+ * the `symbol` nodes it declares; when supplied, per-function complexity is
+ * emitted on those symbol nodes (C-58; all declared functions since C-64). It
  * defaults to empty, so existing callers/tests that don't thread the symbol
  * layer keep emitting only file-level metrics.
  */
@@ -107,7 +107,7 @@ export function computeSourceMetrics(
 function metricsForFile(
   nodeId: string,
   file: ParsedFile,
-  exportedNames: ReadonlySet<string>,
+  symbolNames: ReadonlySet<string>,
 ): GraphMetric[] {
   const out: GraphMetric[] = [];
   const loc = countLoc(file.content);
@@ -153,28 +153,28 @@ function metricsForFile(
       unit: "count",
     });
   }
-  out.push(...symbolComplexityMetrics(nodeId, stats, exportedNames));
+  out.push(...symbolComplexityMetrics(nodeId, stats, symbolNames));
   out.push(...computeLcomMetrics(file, nodeId));
   return out;
 }
 
 /**
- * Per-exported-symbol complexity (C-58): for each named function whose name is
- * an exported declaration of this file, emit `symbol_cognitive`/`symbol_cyclomatic`
- * on that symbol's node (`<fileId>#<name>`). A name shared by several functions
- * (overloads, a re-used method name) takes the max, matching the file-level
- * `_max` framing. Non-exported helpers are counted in the file-level metrics
- * above but get no symbol node, so they emit nothing here (exports-first, C-58).
+ * Per-symbol complexity (C-58, C-64): for each named function whose name has a
+ * `symbol` node on this file, emit `symbol_cognitive`/`symbol_cyclomatic` on that
+ * node (`<fileId>#<name>`). Model B (C-64) gives non-exported helpers a node too,
+ * so internal functions now get their own complexity here, not just exports. A
+ * name shared by several functions takes the max (the file-level `_max` framing);
+ * a declared name with no complexity (a bare class) matches no stat, emits nothing.
  */
 function symbolComplexityMetrics(
   fileId: string,
   stats: readonly FunctionStats[],
-  exportedNames: ReadonlySet<string>,
+  symbolNames: ReadonlySet<string>,
 ): GraphMetric[] {
-  if (exportedNames.size === 0) return [];
+  if (symbolNames.size === 0) return [];
   const byName = new Map<string, { cognitive: number; cyclomatic: number }>();
   for (const s of stats) {
-    if (!s.name || !exportedNames.has(s.name)) continue;
+    if (!s.name || !symbolNames.has(s.name)) continue;
     const prev = byName.get(s.name);
     if (!prev) byName.set(s.name, { cognitive: s.cognitive, cyclomatic: s.cyclomatic });
     else {

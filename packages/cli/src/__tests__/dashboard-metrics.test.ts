@@ -70,26 +70,36 @@ describe("collectNodeMetrics", () => {
 describe("buildHotExports (C-59 export detail)", () => {
   const referenced = new Set(["a.ts"]);
   const symbols: SymbolUtil[] = [
-    { symbolId: "a.ts#hot", name: "hot", fileId: "a.ts", utilization: 40 },
-    { symbolId: "a.ts#dead", name: "dead", fileId: "a.ts", utilization: 0 },
-    { symbolId: "other.ts#x", name: "x", fileId: "other.ts", utilization: 5 },
+    { symbolId: "a.ts#hot", name: "hot", fileId: "a.ts", utilization: 40, exported: true },
+    { symbolId: "a.ts#dead", name: "dead", fileId: "a.ts", utilization: 0, exported: true },
+    { symbolId: "a.ts#helper", name: "helper", fileId: "a.ts", utilization: 0, exported: false },
+    { symbolId: "other.ts#x", name: "x", fileId: "other.ts", utilization: 5, exported: true },
   ];
   const metrics = new Map<string, NodeMetrics>([
     ["a.ts#hot", { cognitiveMax: 12 }],
     ["a.ts#dead", { cognitiveMax: 20 }],
+    ["a.ts#helper", { cognitiveMax: 9 }],
   ]);
   const consumers = new Map([["a.ts#hot", 7]]);
 
   it("enriches each export with its complexity and consumer count", () => {
     const out = buildHotExports(symbols, referenced, metrics, consumers);
     const hot = out["a.ts"]?.find((e) => e.name === "hot");
-    expect(hot).toEqual({ name: "hot", utilization: 40, cognitive: 12, consumers: 7 });
+    expect(hot).toEqual({ name: "hot", utilization: 40, cognitive: 12, consumers: 7, exported: true });
   });
 
   it("keeps a complex-but-unused export (util 0) instead of dropping it", () => {
     const out = buildHotExports(symbols, referenced, metrics, consumers);
     const dead = out["a.ts"]?.find((e) => e.name === "dead");
-    expect(dead).toEqual({ name: "dead", utilization: 0, cognitive: 20, consumers: 0 });
+    expect(dead).toEqual({ name: "dead", utilization: 0, cognitive: 20, consumers: 0, exported: true });
+  });
+
+  it("includes non-exported internal functions, flagged exported:false (C-64)", () => {
+    const out = buildHotExports(symbols, referenced, metrics, consumers);
+    const helper = out["a.ts"]?.find((e) => e.name === "helper");
+    // A util-0 internal helper survives the per-surface cap because internal
+    // functions are ranked/capped separately from the public exports.
+    expect(helper).toEqual({ name: "helper", utilization: 0, cognitive: 9, consumers: 0, exported: false });
   });
 
   it("only includes Dossier-openable (referenced) files", () => {
@@ -101,8 +111,8 @@ describe("buildHotExports (C-59 export detail)", () => {
 describe("buildBlastRadius (C-58 per-symbol complexity)", () => {
   const churn = new Map([["a.ts", 100]]);
   const symbols: SymbolUtil[] = [
-    { symbolId: "a.ts#hot", name: "hot", fileId: "a.ts", utilization: 10 },
-    { symbolId: "a.ts#cold", name: "cold", fileId: "a.ts", utilization: 10 },
+    { symbolId: "a.ts#hot", name: "hot", fileId: "a.ts", utilization: 10, exported: true },
+    { symbolId: "a.ts#cold", name: "cold", fileId: "a.ts", utilization: 10, exported: true },
   ];
 
   it("separates two exports of one hot file by their OWN complexity", () => {
@@ -127,7 +137,7 @@ describe("buildBlastRadius (C-58 per-symbol complexity)", () => {
       // no a.ts#hot entry (e.g. a class or re-exported symbol)
     ]);
     const out = buildBlastRadius(
-      [{ symbolId: "a.ts#hot", name: "hot", fileId: "a.ts", utilization: 10 }],
+      [{ symbolId: "a.ts#hot", name: "hot", fileId: "a.ts", utilization: 10, exported: true }],
       metrics,
       churn,
     );

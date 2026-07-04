@@ -110,17 +110,30 @@ export function buildCentralFiles(
   return [...byId].map(([nodeId, score]) => ({ nodeId, score })).sort((a, b) => b.score - a.score);
 }
 
-/** One export's utilization (C-53), tagged with the file that declares it. */
+/** One declared symbol's utilization (C-53), tagged with its declaring file. */
 export interface SymbolUtil {
   symbolId: string;
   name: string;
   fileId: string;
   utilization: number;
+  /** Whether the symbol is exported (model B, C-64); internal helpers are false. */
+  exported: boolean;
 }
 
-/** Pair each `symbol` node with its utilization metric and declaring file (C-53). */
+/**
+ * Pair each `symbol` node with its utilization metric and declaring file (C-53).
+ * Model B (C-64) adds non-exported function/class nodes; the `exported` attr
+ * (defaulting true for pre-C-64 nodes that lack it) lets the Dossier separate a
+ * file's public surface from its internal helpers.
+ */
 export function collectSymbolUtil(
-  nodes: readonly { id: string; kind: string; name: string; parentId?: string }[],
+  nodes: readonly {
+    id: string;
+    kind: string;
+    name: string;
+    parentId?: string;
+    attrs?: Record<string, unknown>;
+  }[],
   metrics: ReadonlyMap<string, NodeMetrics>,
 ): SymbolUtil[] {
   const out: SymbolUtil[] = [];
@@ -131,6 +144,7 @@ export function collectSymbolUtil(
       name: n.name,
       fileId: n.parentId,
       utilization: metrics.get(n.id)?.utilization ?? 0,
+      exported: n.attrs?.exported !== false,
     });
   }
   return out;
@@ -139,19 +153,23 @@ export function collectSymbolUtil(
 export interface HotExport {
   name: string;
   utilization: number;
-  /** The export's OWN cognitive complexity (C-58); undefined for a class/type/re-export. */
+  /** The symbol's OWN cognitive complexity (C-58); undefined for a class/type/re-export. */
   cognitive?: number;
   /** Distinct files that reference this export (inbound `references` edges, C-59). */
   consumers: number;
+  /** Exported (public surface) vs internal helper (model B, C-64). */
+  exported: boolean;
 }
 
 /**
- * Per-file "Exports" detail for the Dossier (C-59): each of a file's exports
- * with its per-symbol complexity (C-58), utilization (C-53), and consumer count
- * (inbound references). Unlike the earlier hot-exports list this keeps exports
- * with zero utilization — a complex but unused export is worth seeing — and
- * ranks by utilization then complexity. Scoped to Dossier-openable files; top 8
- * each so a large public surface stays readable.
+ * Per-file symbol detail for the Dossier (C-59, C-64): each of a file's declared
+ * symbols with its per-symbol complexity (C-58), utilization (C-53), and
+ * consumer count (inbound references). Keeps zero-utilization symbols — a complex
+ * but unused symbol is worth seeing. Model B (C-64) adds internal helpers, so the
+ * two surfaces are ranked and capped *separately* (the Dossier renders them in
+ * their own sections): exports by utilization-then-complexity, internal functions
+ * by complexity — otherwise a large public surface would slice every internal
+ * helper out before it could show. Scoped to Dossier-openable files; top 8 each.
  */
 export function buildHotExports(
   symbols: readonly SymbolUtil[],
@@ -168,14 +186,21 @@ export function buildHotExports(
       utilization: s.utilization,
       cognitive: metrics.get(s.symbolId)?.cognitiveMax,
       consumers: consumersBySymbol.get(s.symbolId) ?? 0,
+      exported: s.exported,
     });
     byFile.set(s.fileId, bucket);
   }
   const out: Record<string, HotExport[]> = {};
-  for (const [fileId, exps] of byFile) {
-    out[fileId] = exps
+  for (const [fileId, syms] of byFile) {
+    const exports = syms
+      .filter((s) => s.exported)
       .sort((a, b) => b.utilization - a.utilization || (b.cognitive ?? 0) - (a.cognitive ?? 0))
       .slice(0, 8);
+    const internal = syms
+      .filter((s) => !s.exported)
+      .sort((a, b) => (b.cognitive ?? 0) - (a.cognitive ?? 0) || a.name.localeCompare(b.name))
+      .slice(0, 8);
+    out[fileId] = [...exports, ...internal];
   }
   return out;
 }

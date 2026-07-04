@@ -28,6 +28,16 @@ const FILES: Record<string, string> = {
     `export const y = join("a", "b") + sub;\n`,
   "/repo/src/c.ts": `export const C = 1;\n`,
   "/repo/src/multi.ts": `export const P = 1;\nexport const Q = 2;\n`,
+  // Model B (C-64): a mix of exported + internal declarations. `pub` is exported;
+  // `helper` (function), the internal arrow-const `arrow`, the class `Priv` and
+  // its method `run` all get non-exported symbol nodes. The plain const `CONST`
+  // gets none (not callable/class).
+  "/repo/src/model-b.ts":
+    `export function pub(x: number) { return x > 0 ? x : -x; }\n` +
+    `function helper(n: number) { let s = 0; for (let i = 0; i < n; i++) { if (i % 2) s += i; } return s; }\n` +
+    `const arrow = (a: number) => a + 1;\n` +
+    `const CONST = 42;\n` +
+    `class Priv { run(v: number) { return v && CONST; } }\n`,
   // Reference-count fixtures (C-51): weight = how often the imported binding is
   // actually used, not how many import statements name it.
   "/repo/src/heavy.ts":
@@ -300,6 +310,45 @@ describe("TsMorphGraphExtractor", () => {
       // Credits origin src/a.ts#A, never the barrel's src/index.ts#A.
       expect(refTo(fragment!, "src/a.ts#A")?.attrs?.weight).toBe(2);
       expect(refTo(fragment!, "src/index.ts#A")).toBeUndefined();
+    });
+
+    it("tags an exported declaration's symbol node exported:true", () => {
+      const [fragment] = fixture.extract("/repo/src/multi.ts");
+      const p = fragment!.nodes.find((n) => n.id === "src/multi.ts#P");
+      expect(p?.attrs?.exported).toBe(true);
+    });
+  });
+
+  describe("model B: all-functions symbol nodes (C-64)", () => {
+    const symById = (fragment: GraphFragment, id: string) =>
+      fragment.nodes.find((n) => n.kind === "symbol" && n.id === id);
+
+    it("emits symbol nodes for non-exported functions, methods, and classes", () => {
+      const [fragment] = fixture.extract("/repo/src/model-b.ts");
+      const ids = fragment!.nodes
+        .filter((n) => n.kind === "symbol")
+        .map((n) => n.id)
+        .sort();
+      expect(ids).toEqual([
+        "src/model-b.ts#Priv",
+        "src/model-b.ts#arrow",
+        "src/model-b.ts#helper",
+        "src/model-b.ts#pub",
+        "src/model-b.ts#run",
+      ]);
+    });
+
+    it("flags exported vs internal declarations", () => {
+      const [fragment] = fixture.extract("/repo/src/model-b.ts");
+      expect(symById(fragment!, "src/model-b.ts#pub")?.attrs?.exported).toBe(true);
+      expect(symById(fragment!, "src/model-b.ts#helper")?.attrs?.exported).toBe(false);
+      expect(symById(fragment!, "src/model-b.ts#Priv")?.attrs?.exported).toBe(false);
+      expect(symById(fragment!, "src/model-b.ts#run")?.attrs?.exported).toBe(false);
+    });
+
+    it("emits no symbol node for a non-callable internal const", () => {
+      const [fragment] = fixture.extract("/repo/src/model-b.ts");
+      expect(symById(fragment!, "src/model-b.ts#CONST")).toBeUndefined();
     });
   });
 

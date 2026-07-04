@@ -26,6 +26,7 @@ import {
   namedImportBindings,
   reExportWeight,
 } from "./reference-weight.js";
+import { buildSymbolNodes } from "./symbol-nodes.js";
 
 /** Mutable accumulator threaded through one file's edge collection. */
 interface EdgeCollector {
@@ -93,35 +94,9 @@ export class TsMorphGraphExtractor implements Extractor<GraphFragment> {
     const project = this.ensureProject();
     const sourceFile = this.loadSourceFile(project, file);
     const nodes = this.buildFileAndModuleNodes(sourceFile);
-    const symbolNodes = this.buildSymbolNodes(sourceFile);
+    const symbolNodes = buildSymbolNodes(this.repoRoot, sourceFile, file);
     const { edges, externalNodes } = this.collectEdges(sourceFile);
     return [{ nodes: [...nodes, ...symbolNodes, ...externalNodes], edges }];
-  }
-
-  /**
-   * A `symbol` node per name this file *declares and exports* (C-53). Names it
-   * merely re-exports are skipped — they belong to the origin file's symbol
-   * nodes, so `references` edges resolved through a barrel land on the file
-   * that does the work, not the re-export hub (mirrors the file-level
-   * see-through-barrels treatment of utilization in C-55). Source-local: an
-   * unchanged file's symbol nodes are byte-identical across runs, so the
-   * incremental indexer carries them forward without re-parsing.
-   */
-  private buildSymbolNodes(sourceFile: SourceFile): GraphNode[] {
-    const fId = fileId(this.repoRoot, sourceFile.getFilePath());
-    const out: GraphNode[] = [];
-    for (const [name, decls] of sourceFile.getExportedDeclarations()) {
-      const declaredHere = decls.some((d) => d.getSourceFile() === sourceFile);
-      if (!declaredHere) continue;
-      out.push({
-        id: symbolId(fId, name),
-        kind: "symbol",
-        name,
-        parentId: fId,
-        language: "typescript",
-      });
-    }
-    return out;
   }
 
   private ensureProject(): Project {

@@ -102,44 +102,71 @@ export function UtilizationRow({ value, max, complex, churning, isBarrel }: { va
   );
 }
 
+/** One symbol row: name + heat-colored complexity, and (for exports) a
+ * utilization bar scaled to the file's hottest export plus its consumer count.
+ * Internal helpers (model B, C-64) have no utilization/consumers, so those are
+ * hidden — the row reads as pure complexity. */
+function SymbolRow({ e, max, showUtil }: { e: HotExport; max: number; showUtil: boolean }) {
+  const ratio = max > 0 ? Math.min(1, e.utilization / max) : 0;
+  const cxColor = e.cognitive !== undefined ? metricHeat(e.cognitive, METRIC_BUDGET.cognitive_max) : cw.textFaint;
+  return (
+    <View style={{ gap: 3 }}>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+        <Text style={{ color: cw.text, fontSize: 12, fontFamily: "monospace", flex: 1 } as any} numberOfLines={1}>{e.name}</Text>
+        {e.cognitive !== undefined ? (
+          <Text style={{ fontSize: 11 }}>
+            <Text style={{ color: cw.textFaint }}>cx </Text>
+            <Text style={{ color: cxColor, fontWeight: "700" }}>{e.cognitive}</Text>
+          </Text>
+        ) : null}
+      </View>
+      {showUtil ? (
+        <>
+          <View style={{ height: 3, borderRadius: 2, backgroundColor: tint(cw.info, 0.2), overflow: "hidden" }}>
+            <View style={{ height: 3, width: `${ratio * 100}%`, backgroundColor: cw.info, borderRadius: 2 }} />
+          </View>
+          <Text style={{ color: cw.textFaint, fontSize: 10 }}>
+            util {Math.round(e.utilization)} · {e.consumers} consumer{e.consumers === 1 ? "" : "s"}
+          </Text>
+        </>
+      ) : null}
+    </View>
+  );
+}
+
 /**
- * A file's exports, decomposed (C-53 utilization + C-58 complexity + C-59
- * consumers). Answers "if I touch this file, which export ripples, how risky is
- * it, and who depends on it?" — the per-symbol readout obs #5 asked for. Each
- * export shows its OWN cognitive complexity (heat-colored against the fitness
- * budget), a utilization bar scaled to the file's hottest export, and its
- * consumer count. Ranked utilization-then-complexity; unused-but-complex exports
- * are kept (they're worth seeing), so this is the full public surface, capped.
+ * A file's declared symbols, decomposed (C-53 utilization + C-58 complexity +
+ * C-59 consumers + C-64 internal functions). Answers "if I touch this file, what
+ * ripples, how risky is it, and who depends on it?" — the per-symbol readout
+ * obs #5 asked for. Splits the public **Exports** (ranked utilization-then-
+ * complexity, with a utilization bar + consumer count) from **Internal
+ * functions** (model B, C-64 — ranked by complexity), so internal helpers like
+ * `walkSourceFiles` finally show their own complexity instead of vanishing into
+ * a file-level max. Unused-but-complex symbols are kept — they're worth seeing.
  */
 export function ExportsTable({ exports }: { exports: HotExport[] }) {
   if (!exports?.length) return null;
-  const max = exports.reduce((m, e) => Math.max(m, e.utilization), 0);
+  const pub = exports.filter((e) => e.exported);
+  const internal = exports.filter((e) => !e.exported);
+  const max = pub.reduce((m, e) => Math.max(m, e.utilization), 0);
   return (
     <View style={{ gap: 8 }}>
-      <Text style={{ color: cw.textDim, fontSize: 12, fontWeight: "600" }}>Exports</Text>
-      {exports.map((e) => {
-        const ratio = max > 0 ? Math.min(1, e.utilization / max) : 0;
-        const cxColor = e.cognitive !== undefined ? metricHeat(e.cognitive, METRIC_BUDGET.cognitive_max) : cw.textFaint;
-        return (
-          <View key={e.name} style={{ gap: 3 }}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-              <Text style={{ color: cw.text, fontSize: 12, fontFamily: "monospace", flex: 1 } as any} numberOfLines={1}>{e.name}</Text>
-              {e.cognitive !== undefined ? (
-                <Text style={{ fontSize: 11 }}>
-                  <Text style={{ color: cw.textFaint }}>cx </Text>
-                  <Text style={{ color: cxColor, fontWeight: "700" }}>{e.cognitive}</Text>
-                </Text>
-              ) : null}
-            </View>
-            <View style={{ height: 3, borderRadius: 2, backgroundColor: tint(cw.info, 0.2), overflow: "hidden" }}>
-              <View style={{ height: 3, width: `${ratio * 100}%`, backgroundColor: cw.info, borderRadius: 2 }} />
-            </View>
-            <Text style={{ color: cw.textFaint, fontSize: 10 }}>
-              util {Math.round(e.utilization)} · {e.consumers} consumer{e.consumers === 1 ? "" : "s"}
-            </Text>
-          </View>
-        );
-      })}
+      {pub.length ? (
+        <>
+          <Text style={{ color: cw.textDim, fontSize: 12, fontWeight: "600" }}>Exports</Text>
+          {pub.map((e) => (
+            <SymbolRow key={e.name} e={e} max={max} showUtil />
+          ))}
+        </>
+      ) : null}
+      {internal.length ? (
+        <>
+          <Text style={{ color: cw.textDim, fontSize: 12, fontWeight: "600" }}>Internal functions</Text>
+          {internal.map((e) => (
+            <SymbolRow key={e.name} e={e} max={0} showUtil={false} />
+          ))}
+        </>
+      ) : null}
     </View>
   );
 }

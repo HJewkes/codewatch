@@ -84,11 +84,12 @@ function collectFileIds(nodes: Iterable<GraphNode>): Set<string> {
 
 /**
  * Map each file id to the names of the `symbol` nodes it declares, so
- * `computeSourceMetrics` can attach per-exported-function complexity (C-58).
- * Reflects the assembled node set (parsed + reused symbol nodes alike), so
- * per-symbol complexity is only emitted for names that have a symbol node.
+ * `computeSourceMetrics` can attach per-function complexity (C-58). Reflects the
+ * assembled node set (parsed + reused symbol nodes alike) — including the
+ * non-exported function/class nodes of model B (C-64) — so per-symbol complexity
+ * is emitted for exactly the names that have a symbol node.
  */
-function exportedNamesByFile(
+function symbolNamesByFile(
   nodes: Iterable<GraphNode>,
 ): Map<string, Set<string>> {
   const out = new Map<string, Set<string>>();
@@ -116,7 +117,7 @@ export function buildIndexerMetrics(input: IndexerMetricsInput): GraphMetric[] {
     ...computeSourceMetrics(
       input.parsedFiles,
       (p) => fileId(input.idRoot, p),
-      exportedNamesByFile(nodeList),
+      symbolNamesByFile(nodeList),
     ),
     ...input.reusedSourceMetrics,
   ];

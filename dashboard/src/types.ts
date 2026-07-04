@@ -159,10 +159,12 @@ export interface PackageStat {
 export interface HotExport {
   name: string;
   utilization: number;
-  /** The export's OWN cognitive complexity (C-58); undefined for a class/type/re-export. */
+  /** The symbol's OWN cognitive complexity (C-58); undefined for a class/type/re-export. */
   cognitive?: number;
   /** Distinct files that reference this export (inbound `references` edges, C-59). */
   consumers: number;
+  /** Exported (public surface) vs internal helper (model B, C-64). */
+  exported: boolean;
 }
 
 /** A high-blast-radius export: heavily used, in a complex + churning file (C-53). */
