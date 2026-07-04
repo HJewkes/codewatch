@@ -1,11 +1,7 @@
 import * as fs from "node:fs/promises";
 import { realpathSync } from "node:fs";
 import * as path from "node:path";
-import {
-  parseFile,
-  shouldIncludeFile,
-  type ParsedFile,
-} from "@codewatch/core";
+import { parseFile, type ParsedFile } from "@codewatch/core";
 import { openDatabase, GraphDatabase } from "./database.js";
 import { TsMorphGraphExtractor } from "./extractors/ts-morph-extractor.js";
 import {
@@ -16,6 +12,7 @@ import {
   isInsideGitRepo,
 } from "./git-renames.js";
 import { annotateRoles } from "./roles.js";
+import { walkSourceFiles } from "./file-walk.js";
 import { pruneDanglingReferences } from "./barrel-resolve.js";
 import { fileId } from "./extractors/ids.js";
 import {
@@ -127,32 +124,6 @@ function normalizeRootDirs(options: GraphIndexOptions): string[] {
   return [...new Set(resolved)];
 }
 
-async function walkTypeScriptFiles(rootDirs: readonly string[]): Promise<string[]> {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const rootDir of rootDirs) {
-    async function walk(dir: string): Promise<void> {
-      const entries = await fs.readdir(dir, { withFileTypes: true });
-      for (const entry of entries) {
-        const full = path.join(dir, entry.name);
-        const relative = path.relative(rootDir, full);
-        if (!shouldIncludeFile(relative, [...TS_LANGUAGES])) {
-          if (entry.isDirectory()) await walk(full);
-          continue;
-        }
-        if (entry.isDirectory()) {
-          await walk(full);
-        } else if (entry.isFile() && !seen.has(full)) {
-          seen.add(full);
-          out.push(full);
-        }
-      }
-    }
-    await walk(rootDir);
-  }
-  return out;
-}
-
 function edgeKey(edge: GraphEdge): string {
   // JSON-encode so ids containing the separator can't collide (paths may hold
   // spaces). Mirrors the (snapshot_id, src_id, dst_id, kind) edge primary key.
@@ -261,7 +232,7 @@ export async function runGraphIndex(
 
   const tStart = performance.now();
   const tWalk0 = performance.now();
-  const filePaths = await walkTypeScriptFiles(rootDirs);
+  const filePaths = await walkSourceFiles(rootDirs, TS_LANGUAGES);
   const tWalk = performance.now() - tWalk0;
 
   const tRead0 = performance.now();
