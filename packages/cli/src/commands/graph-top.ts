@@ -1,3 +1,4 @@
+import type { Command } from "commander";
 import chalk from "chalk";
 import {
   compilePatterns,
@@ -6,6 +7,7 @@ import {
   type NodeRole,
   type SnapshotRow,
 } from "@codewatch/graph";
+import { formatError } from "../utils/output.js";
 import { padLeft, padRight, visualWidth } from "../utils/table.js";
 
 export interface GraphTopCommandOptions {
@@ -139,4 +141,66 @@ export function formatGraphTopText(result: GraphTopResult): string {
 
 export function formatGraphTopJson(result: GraphTopResult): string {
   return JSON.stringify(result, null, 2);
+}
+
+function asNumber(s: string | undefined): number | undefined {
+  return s !== undefined ? Number(s) : undefined;
+}
+
+export function registerGraphTop(graphCmd: Command): void {
+  graphCmd
+    .command("top")
+    .description("List top nodes by a metric (hotspot view)")
+    .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")
+    .requiredOption(
+      "--metric <name>",
+      "Metric name (e.g. cyclomatic_max, loc, fan_in)",
+    )
+    .option("--snapshot <id>", "Snapshot id (default: latest)")
+    .option("--limit <n>", "Number of rows to return", "20")
+    .option(
+      "--kind <kind>",
+      "Filter to one node kind (file, module, package, external)",
+    )
+    .option(
+      "--exclude <pattern...>",
+      "Exclude node ids matching this glob or substring (repeatable)",
+    )
+    .option(
+      "--exclude-role <role...>",
+      "Exclude nodes with this role (test, fixture, barrel, types, config; repeatable)",
+    )
+    .option("--json", "Output structured JSON")
+    .action(
+      async (options: {
+        db: string;
+        metric: string;
+        snapshot?: string;
+        limit?: string;
+        kind?: string;
+        exclude?: string[];
+        excludeRole?: string[];
+        json?: boolean;
+      }) => {
+        try {
+          const result = runGraphTopCommand({
+            db: options.db,
+            metric: options.metric,
+            snapshot: asNumber(options.snapshot),
+            limit: asNumber(options.limit),
+            kind: options.kind,
+            exclude: options.exclude,
+            excludeRole: options.excludeRole,
+          });
+          console.log(
+            options.json ? formatGraphTopJson(result) : formatGraphTopText(result),
+          );
+        } catch (err) {
+          console.error(
+            formatError(err instanceof Error ? err.message : String(err)),
+          );
+          process.exitCode = 1;
+        }
+      },
+    );
 }
