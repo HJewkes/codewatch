@@ -167,6 +167,42 @@ export interface HotExport {
   exported: boolean;
 }
 
+/**
+ * A pair of symbols consistently co-imported by the same files (C-60, Slice B).
+ * Structural (used-together) coupling — drift-free, and it covers span-less
+ * types/consts that git-hunk co-change cannot resolve.
+ */
+export interface SymbolCouplingRow {
+  aName: string;
+  aFile: string;
+  bName: string;
+  bFile: string;
+  /** Distinct files that import both symbols. */
+  coImports: number;
+  /** True when the two symbols live in different files (the actionable case). */
+  crossFile: boolean;
+}
+
+/** One exported symbol and the files that consume it (C-60, Slice C). */
+export interface SymbolConsumerRow {
+  name: string;
+  /** Sample of consuming file ids (may be truncated; see consumerCount). */
+  consumers: string[];
+  /** Full distinct-consumer count. */
+  consumerCount: number;
+}
+
+/**
+ * A file's shared exports and where each goes (C-60, Slice C). Decomposes a
+ * god-file the file-level coupling view rolls up as one node into per-symbol
+ * consumer lists — "what IN types.ts is used where".
+ */
+export interface SymbolConsumerGroup {
+  fileId: string;
+  symbols: SymbolConsumerRow[];
+  totalConsumers: number;
+}
+
 /** A high-blast-radius export: heavily used, in a complex + churning file (C-53). */
 export interface BlastRadiusEntry {
   symbolId: string;
@@ -186,6 +222,10 @@ export interface CodewatchData {
   /** Test-coverage ownership (C-4): meaningful even on a single-author repo. */
   testCoverageRisks?: TestCoverageRisk[];
   couplingClusters: CouplingPair[];
+  /** Symbol pairs co-imported together (C-60, Slice B); structural coupling. */
+  symbolCoupling?: SymbolCouplingRow[];
+  /** Per-file symbol → consumer decomposition (C-60, Slice C). */
+  symbolConsumers?: SymbolConsumerGroup[];
   centralFiles: CentralFile[];
   /** Structural metrics keyed by nodeId, for the Dossier heat readout. */
   nodeMetrics?: Record<string, NodeMetrics>;
