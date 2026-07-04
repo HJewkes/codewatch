@@ -306,7 +306,7 @@ export class TsMorphGraphExtractor implements Extractor<GraphFragment> {
   }
 }
 
-const RESOLVABLE_EXTS = [
+export const RESOLVABLE_EXTS = [
   ".ts",
   ".tsx",
   ".mts",

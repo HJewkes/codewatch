@@ -21,9 +21,9 @@ import {
   classifyForReuse,
   classifyParsed,
   loadReuseBasis,
-  membershipUnchanged,
   readSourceFiles,
 } from "./incremental.js";
+import { computeDeltaAffected } from "./reuse-delta.js";
 import { buildIndexerMetrics } from "./index-metrics.js";
 import type {
   GraphEdge,
@@ -62,10 +62,10 @@ export interface GraphIndexOptions {
   /**
    * Reuse the prior snapshot for byte-identical files: skip their tree-sitter
    * parse + ts-morph extract and carry their nodes/edges/source-metrics
-   * forward. Only kicks in when file membership is unchanged (see
-   * `membershipUnchanged`); otherwise this run silently falls back to a full
-   * index. Fingerprints are written on every run regardless, so the next run
-   * has a basis to diff against.
+   * forward. Survives a file-membership delta (C-20) — only files whose imports
+   * the delta re-resolves re-extract (see `computeDeltaAffected`). Fingerprints
+   * are written on every run regardless, so the next run has a basis to diff
+   * against.
    *
    * Defaults to `true` — set `false` to force a full index. The reuse path is
    * provably equivalent to a full index, so the only reason to disable it is to
@@ -249,14 +249,16 @@ export async function runGraphIndex(
     const currentFileIds = new Set(
       readFiles.map((rf) => fileId(idRoot, rf.filePath)),
     );
-    const basis =
-      options.incremental !== false ? loadReuseBasis(db, INDEX_VERSION) : null;
     const reuse =
-      basis && membershipUnchanged(basis, currentFileIds) ? basis : null;
+      options.incremental !== false ? loadReuseBasis(db, INDEX_VERSION) : null;
+    // C-20: on a membership delta, reuse every unchanged file except those whose
+    // imports the delta re-resolves; empty set when membership is unchanged.
+    const affected = reuse ? computeDeltaAffected(reuse, currentFileIds) : new Set<string>();
     const { toParse, reusedFileIds } = classifyForReuse(
       readFiles,
       idRoot,
       reuse,
+      affected,
     );
 
     const tParse0 = performance.now();
@@ -275,7 +277,13 @@ export async function runGraphIndex(
     });
     // C-18: split parsed files into COSMETIC (structure unchanged → reuse edges,
     // skip ts-morph extract) vs STRUCTURAL, and collect signatures to persist.
-    const classified = classifyParsed(parsedByPath, idRoot, reuse, reusedFileIds);
+    const classified = classifyParsed(
+      parsedByPath,
+      idRoot,
+      reuse,
+      reusedFileIds,
+      affected,
+    );
     const tExtract0 = performance.now();
     const fragments = assembleFragments({
       readFiles,

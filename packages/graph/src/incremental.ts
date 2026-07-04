@@ -66,17 +66,23 @@ export async function readSourceFiles(
   return out;
 }
 
-/** Split files into those to (re)parse and those reusable from the prior snapshot. */
+/**
+ * Split files into those to (re)parse and those reusable from the prior snapshot.
+ * A file is reused when its content hash matches AND it is not in `affected` — the
+ * set (C-20) whose edges a file-membership delta changed, which must re-extract
+ * despite being byte-identical. `affected` is empty when membership is unchanged.
+ */
 export function classifyForReuse(
   readFiles: readonly ReadFile[],
   idRoot: string,
   reuse: ReuseBasis | null,
+  affected: ReadonlySet<string> = new Set(),
 ): { toParse: ReadFile[]; reusedFileIds: string[] } {
   const toParse: ReadFile[] = [];
   const reusedFileIds: string[] = [];
   for (const rf of readFiles) {
     const id = fileId(idRoot, rf.filePath);
-    if (reuse && reuse.fingerprints.get(id) === rf.hash) {
+    if (reuse && reuse.fingerprints.get(id) === rf.hash && !affected.has(id)) {
       reusedFileIds.push(id);
     } else {
       toParse.push(rf);
@@ -106,6 +112,7 @@ export function classifyParsed(
   idRoot: string,
   reuse: ReuseBasis | null,
   reusedFileIds: readonly string[],
+  affected: ReadonlySet<string> = new Set(),
 ): ParsedClassification {
   const cosmeticFileIds = new Set<string>();
   const structuralByFileId = new Map<string, string>();
@@ -113,7 +120,11 @@ export function classifyParsed(
     const id = fileId(idRoot, filePath);
     const sig = structuralSignature(parsed);
     structuralByFileId.set(id, sig);
-    if (reuse && reuse.structuralHashes.get(id) === sig) cosmeticFileIds.add(id);
+    // A file affected by a membership delta (C-20) has a stale basis edge set even
+    // though its structure is unchanged, so it must NOT take the cosmetic path.
+    if (reuse && !affected.has(id) && reuse.structuralHashes.get(id) === sig) {
+      cosmeticFileIds.add(id);
+    }
   }
   if (reuse) {
     for (const id of reusedFileIds) {
@@ -268,23 +279,6 @@ export function loadReuseBasis(
     };
   }
   return null;
-}
-
-/**
- * Reuse is sound only when file membership is unchanged. Import edges resolve
- * against the *global* file set, so a byte-identical file's edges can still
- * change if a file it references is added or removed. When membership differs
- * we fall back to a full index. Returns true iff the basis can be reused.
- */
-export function membershipUnchanged(
-  basis: ReuseBasis,
-  currentFileIds: ReadonlySet<string>,
-): boolean {
-  if (basis.fingerprints.size !== currentFileIds.size) return false;
-  for (const id of currentFileIds) {
-    if (!basis.fingerprints.has(id)) return false;
-  }
-  return true;
 }
 
 /**

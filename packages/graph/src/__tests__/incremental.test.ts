@@ -204,9 +204,10 @@ describe("fingerprint-based incremental indexing", () => {
     }
   });
 
-  it("falls back to a full index when a file is added (membership change)", async () => {
+  it("reuses unaffected files when a file is ADDED (C-20 partial reuse)", async () => {
     await runGraphIndex({ rootDir: project.rootDir });
 
+    // d.ts imports a.ts; none of a/b/c reference d, so their edges are unaffected.
     await fs.writeFile(
       path.join(project.rootDir, "src", "d.ts"),
       'import { A } from "./a.js";\nexport const D = A;\n',
@@ -216,15 +217,95 @@ describe("fingerprint-based incremental indexing", () => {
       rootDir: project.rootDir,
       incremental: true,
     });
-    // Membership changed → nothing reused, every file re-parsed.
-    expect(incremental.reusedFiles).toBe(0);
-    expect(incremental.reparsedFiles).toBe(incremental.files);
+    // Only the new file is parsed; a/b/c are reused despite the membership delta.
+    expect(incremental.reparsedFiles).toBe(1);
+    expect(incremental.reusedFiles).toBe(3);
 
     const db = openDatabase(project.dbPath);
     try {
       const incrementalSnap = readSnapshot(db, incremental.snapshotId);
       const fullSnap = await fullIndexSnapshot(project.rootDir);
       expect(incrementalSnap).toEqual(fullSnap);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("re-extracts a referencer when its imported target is REMOVED, reuses the rest (C-20)", async () => {
+    const src = path.join(project.rootDir, "src");
+    await fs.writeFile(path.join(src, "y.ts"), "export const Y = 1;\n");
+    await fs.writeFile(
+      path.join(src, "x.ts"),
+      'import { Y } from "./y.js";\nexport const X = Y;\n',
+    );
+    await runGraphIndex({ rootDir: project.rootDir });
+
+    await fs.rm(path.join(src, "y.ts")); // x referenced y — x must re-extract
+    const incremental = await runGraphIndex({
+      rootDir: project.rootDir,
+      incremental: true,
+    });
+    expect(incremental.reparsedFiles).toBe(1); // x
+    expect(incremental.reusedFiles).toBe(3); // a, b, c untouched
+
+    const db = openDatabase(project.dbPath);
+    try {
+      expect(readSnapshot(db, incremental.snapshotId)).toEqual(
+        await fullIndexSnapshot(project.rootDir),
+      );
+    } finally {
+      db.close();
+    }
+  });
+
+  it("reuses independent files when an unreferenced file is REMOVED (C-20)", async () => {
+    const src = path.join(project.rootDir, "src");
+    await fs.writeFile(path.join(src, "lonely.ts"), "export const L = 1;\n");
+    await runGraphIndex({ rootDir: project.rootDir });
+
+    await fs.rm(path.join(src, "lonely.ts")); // nothing imported it
+    const incremental = await runGraphIndex({
+      rootDir: project.rootDir,
+      incremental: true,
+    });
+    expect(incremental.reparsedFiles).toBe(0);
+    expect(incremental.reusedFiles).toBe(3);
+
+    const db = openDatabase(project.dbPath);
+    try {
+      expect(readSnapshot(db, incremental.snapshotId)).toEqual(
+        await fullIndexSnapshot(project.rootDir),
+      );
+    } finally {
+      db.close();
+    }
+  });
+
+  it("re-extracts a file when an ADDED file shadows its import resolution (C-20)", async () => {
+    const src = path.join(project.rootDir, "src");
+    await fs.mkdir(path.join(src, "m"), { recursive: true });
+    await fs.writeFile(path.join(src, "m", "index.ts"), "export const M = 1;\n");
+    // w imports the directory barrel "./m" (resolves to m/index.ts).
+    await fs.writeFile(
+      path.join(src, "w.ts"),
+      'import { M } from "./m";\nexport const W = M;\n',
+    );
+    await runGraphIndex({ rootDir: project.rootDir });
+
+    // Adding m.ts shadows m/index.ts for the specifier "./m" (file beats dir).
+    await fs.writeFile(path.join(src, "m.ts"), "export const M = 2;\n");
+    const incremental = await runGraphIndex({
+      rootDir: project.rootDir,
+      incremental: true,
+    });
+    // w's resolution changed → w re-extracts; the fresh m.ts is parsed too.
+    expect(incremental.reusedFiles).toBe(4); // a, b, c, m/index.ts
+
+    const db = openDatabase(project.dbPath);
+    try {
+      expect(readSnapshot(db, incremental.snapshotId)).toEqual(
+        await fullIndexSnapshot(project.rootDir),
+      );
     } finally {
       db.close();
     }
