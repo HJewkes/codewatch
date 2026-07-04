@@ -80,13 +80,21 @@ export function topUnusedExports(
 }
 
 /**
- * Roles that seed reachability (and are never themselves "dead"): package
- * barrels (entry points / re-export hubs), tests, scripts, configs, and
- * fixtures. Everything a repo actually runs is reachable from these — with
- * dynamic `import()` edges now captured (C-65), the CLI's lazily-loaded command
- * surface is reachable too, so live commands aren't falsely flagged.
+ * Roles that seed reachability (and are never themselves "dead"): executable
+ * entries (shebang-prefixed, e.g. the CLI), package barrels (re-export hubs),
+ * tests, scripts, configs, and fixtures. Everything a repo actually runs is
+ * reachable from these — with dynamic `import()` edges now captured (C-65), the
+ * CLI's lazily-loaded command surface is reachable too, so live commands aren't
+ * falsely flagged.
  */
-const ENTRY_ROOT_ROLES = new Set(["barrel", "test", "script", "config", "fixture"]);
+const ENTRY_ROOT_ROLES = new Set([
+  "entry",
+  "barrel",
+  "test",
+  "script",
+  "config",
+  "fixture",
+]);
 
 /**
  * A file that is conventionally a bundler entry point even though nothing imports

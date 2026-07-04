@@ -203,6 +203,7 @@ const ROLE_VALUES: ReadonlySet<NodeRole> = new Set([
   "barrel",
   "types",
   "config",
+  "entry",
   "source",
 ]);
 

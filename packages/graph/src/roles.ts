@@ -16,23 +16,50 @@ export const ALL_ROLES: readonly NodeRole[] = [
   "types",
   "config",
   "script",
+  "entry",
   "source",
 ];
 
-export function classifyRole(id: string): NodeRole {
+export interface RoleHints {
+  /** File begins with a `#!` shebang, i.e. it is an executable entry point. */
+  hasShebang?: boolean;
+}
+
+export function classifyRole(id: string, hints?: RoleHints): NodeRole {
   if (TEST_RE.test(id)) return "test";
   if (FIXTURE_RE.test(id)) return "fixture";
   if (SCRIPT_RE.test(id)) return "script";
+  // A shebang-prefixed file (e.g. a CLI's index.ts) is an executable entry
+  // point, not re-export plumbing — check before the filename barrel heuristic
+  // so it doesn't get mislabeled as `barrel`. `entry` seeds reachability (like
+  // a barrel) and is exempt from the fan-out smell (an entry legitimately wires
+  // up many command modules).
+  if (hints?.hasShebang) return "entry";
   if (BARREL_RE.test(id)) return "barrel";
   if (TYPES_RE.test(id)) return "types";
   if (CONFIG_RE.test(id)) return "config";
   return "source";
 }
 
-export function annotateRoles(nodes: readonly GraphNode[]): GraphNode[] {
+export interface AnnotateRolesOptions {
+  /** Node ids whose source begins with a `#!` shebang. */
+  shebangIds?: ReadonlySet<string>;
+}
+
+export function annotateRoles(
+  nodes: readonly GraphNode[],
+  options?: AnnotateRolesOptions,
+): GraphNode[] {
   return nodes.map((n) =>
     n.kind === "file" || n.kind === "module"
-      ? { ...n, role: n.role ?? classifyRole(n.id) }
+      ? {
+          ...n,
+          role:
+            n.role ??
+            classifyRole(n.id, {
+              hasShebang: options?.shebangIds?.has(n.id) ?? false,
+            }),
+        }
       : n,
   );
 }

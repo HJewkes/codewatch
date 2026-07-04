@@ -36,6 +36,7 @@ export const ROLE_COLORS: Record<string, string> = {
   barrel: "#7c8794",
   types: "#3a8794",
   config: "#a08660",
+  entry: "#c2763f",
   source: "#4a6da7",
 };
 
@@ -45,6 +46,7 @@ export const ROLE_LABELS: Record<string, string> = {
   barrel: "Barrel",
   types: "Types",
   config: "Config",
+  entry: "Entry",
   source: "Source",
 };
 
