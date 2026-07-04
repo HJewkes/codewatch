@@ -130,3 +130,9 @@ export {
   type PruneOptions,
   type PruneResult,
 } from "./prune.js";
+export {
+  attributeCoverage,
+  COVERAGE_METRIC_NAME,
+  type IstanbulCoverage,
+  type SymbolSpan,
+} from "./coverage.js";

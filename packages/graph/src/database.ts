@@ -175,6 +175,26 @@ export class GraphDatabase {
     tx(metrics);
   }
 
+  /**
+   * Replace every metric of one `name` for a snapshot in a single transaction —
+   * for the coverage overlay (C-63), which is re-ingested wholesale and must not
+   * accumulate stale rows across runs.
+   */
+  replaceMetricsByName(
+    snapshotId: number,
+    name: string,
+    metrics: readonly GraphMetric[],
+  ): void {
+    const del = this.db.prepare(
+      "DELETE FROM metric WHERE snapshot_id = ? AND name = ?",
+    );
+    const tx = this.db.transaction(() => {
+      del.run(snapshotId, name);
+      for (const m of metrics) this.insertMetric(snapshotId, m);
+    });
+    tx();
+  }
+
   insertAliases(snapshotId: number, aliases: readonly IdAlias[]): void {
     const tx = this.db.transaction((rows: readonly IdAlias[]) => {
       for (const a of rows) this.insertAlias(snapshotId, a);

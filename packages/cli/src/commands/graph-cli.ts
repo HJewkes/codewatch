@@ -3,6 +3,7 @@ import { formatError } from "../utils/output.js";
 import { registerGraphArch } from "./graph-arch.js";
 import { registerGraphAutoUpdate } from "./graph-auto-update.js";
 import { registerGraphCoupled } from "./graph-coupled.js";
+import { registerGraphCoverage } from "./graph-coverage.js";
 import { registerGraphDashboard } from "./graph-dashboard.js";
 import { registerGraphPrune } from "./graph-prune.js";
 import { registerGraphRelevant } from "./graph-relevant.js";
@@ -43,6 +44,7 @@ export function registerGraphCommands(program: Command): void {
   registerGraphRelevant(graphCmd);
   registerGraphCoupled(graphCmd);
   registerGraphReport(graphCmd);
+  registerGraphCoverage(graphCmd);
   registerGraphDashboard(graphCmd);
   registerGraphWiki(graphCmd);
   registerGraphArch(graphCmd);
