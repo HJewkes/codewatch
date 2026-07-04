@@ -48,6 +48,11 @@ export interface RenderOptions {
   colorBy?: string;
   /** Render as a flat DAG without compound package parents (focus view). */
   flat?: boolean;
+  /**
+   * Lay the file-level graph out as an ELK compound hierarchy (files nested in
+   * package boxes) with orthogonal routing, instead of client-side cose-bilkent.
+   */
+  compound?: boolean;
 }
 
 export type LaidOutNode = GraphNode & {

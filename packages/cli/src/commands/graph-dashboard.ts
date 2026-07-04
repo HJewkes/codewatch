@@ -49,8 +49,10 @@ async function dependencyGraphHtml(opts: DashboardCommandOptions): Promise<strin
       }));
     }
     if (opts.graphScope === "file") {
-      // The file-level graph is a 500+ node hairball; opt-in only.
-      return b64(await renderHtml(raw, { title: `${repo} — file dependencies` }));
+      // The file-level graph is a 500+ node hairball; opt-in only. Lay it out as
+      // an ELK compound hierarchy (files nested in package boxes) with orthogonal
+      // routing rather than client-side cose-bilkent (C-48).
+      return b64(await renderHtml(raw, { title: `${repo} — file dependencies`, compound: true }));
     }
     if (opts.graphScope === "module") {
       return b64(await renderHtml(collapseToDirectories(raw), {

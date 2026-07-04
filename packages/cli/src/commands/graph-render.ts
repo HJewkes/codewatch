@@ -53,6 +53,10 @@ export async function runGraphRenderCommand(
       subtitle: options.subtitle,
       sizeBy: options.sizeBy,
       colorBy: options.colorBy,
+      // The file-level graph nests files inside package boxes; lay it out with
+      // ELK's INCLUDE_CHILDREN hierarchy + orthogonal routing (C-48) rather than
+      // client-side cose-bilkent, so positions and routes are deterministic.
+      compound: true,
     },
   );
   const outPath = resolve(options.out);
