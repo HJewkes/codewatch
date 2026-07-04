@@ -1,6 +1,7 @@
 {
   "name": "@codewatch/core",
-  "version": "0.0.1",
+  "version": "0.1.0",
+  "description": "Language parsing and shared primitives for codewatch",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -10,14 +11,30 @@
       "types": "./dist/index.d.ts"
     }
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "author": "Henry Jewkes",
+  "license": "MIT",
+  "homepage": "https://github.com/HJewkes/codewatch#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HJewkes/codewatch.git",
+    "directory": "packages/core"
+  },
+  "bugs": "https://github.com/HJewkes/codewatch/issues",
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
     "lint": "echo 'lint not configured yet'"
   },
-  "files": [
-    "dist"
-  ],
   "dependencies": {
     "octokit": "^5.0.5",
     "tree-sitter-python": "^0.25.0",
