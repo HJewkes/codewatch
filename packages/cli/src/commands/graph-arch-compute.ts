@@ -51,12 +51,25 @@ export function computeArch(input: ComputeArchInput): ArchResult {
   };
 }
 
+/**
+ * Roles kept out of the rendered dependency graph by default (C-63): test and
+ * fixture files import production code but aren't part of its module structure,
+ * so including them clutters the graph with test→source edges. `--exclude-role`
+ * is additive on top; there is no un-exclude (a dependency graph of tests isn't a
+ * use case). Their relationship to source is surfaced instead as the C-4
+ * linked-test-count + C-63 coverage metrics.
+ */
+const DEFAULT_GRAPH_EXCLUDED_ROLES = ["test", "fixture"];
+
 export function filteredFileIds(
   nodes: readonly GraphNode[],
   options: { exclude?: string[]; excludeRole?: string[] },
 ): string[] {
   const excluders = compilePatterns(options.exclude);
-  const excludedRoles = new Set(options.excludeRole ?? []);
+  const excludedRoles = new Set([
+    ...DEFAULT_GRAPH_EXCLUDED_ROLES,
+    ...(options.excludeRole ?? []),
+  ]);
   return nodes
     .filter((n) => n.kind === "file")
     .filter((n) => !excludedRoles.has(n.role ?? ""))

@@ -29,6 +29,7 @@ import {
   topUnusedExports,
   topDeadModules,
   topGrowthRisks,
+  topUntestedRisks,
   publicApiFiles,
 } from "./graph-report-quality-sections.js";
 import type {
@@ -132,6 +133,7 @@ export function runGraphReportCommand(
       unusedExports: topUnusedExports(symbolNodes, publicApiFiles(nodes, edges), ctx, limit),
       deadModules: topDeadModules(nodes, edges, ctx, limit),
       growthRisks: topGrowthRisks(ctx, limit),
+      untestedRisks: topUntestedRisks(ctx, limit),
     };
     if (!hasChurnSignal(metrics, windowDays)) {
       result.emptyWindow = true;
