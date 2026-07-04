@@ -278,7 +278,14 @@ export async function runGraphIndex(
       extractor,
     });
     const accumulator = mergeFragments(fragments);
-    const annotated = annotateRoles([...accumulator.nodes.values()]);
+    const shebangIds = new Set(
+      readFiles
+        .filter((rf) => rf.content.startsWith("#!"))
+        .map((rf) => fileId(idRoot, rf.filePath)),
+    );
+    const annotated = annotateRoles([...accumulator.nodes.values()], {
+      shebangIds,
+    });
     accumulator.nodes = new Map(annotated.map((n) => [n.id, n]));
     pruneDanglingReferences(accumulator.nodes, accumulator.edges);
     const tExtract = performance.now() - tExtract0;

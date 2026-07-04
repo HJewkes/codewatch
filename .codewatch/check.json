@@ -27,12 +27,13 @@
       "excludeRoles": ["test", "fixture"]
     },
     {
+      "$comment": "C-14: `entry` joins the exclude set — a shebang-prefixed executable entry (e.g. the CLI's index.ts) legitimately wires up many command modules, the same high-fan-out-is-fine rationale as a re-export barrel.",
       "id": "max-fan-out-per-file",
       "type": "metric-max",
       "metric": "fan_out",
       "kind": "file",
       "max": 15,
-      "excludeRoles": ["barrel", "test"]
+      "excludeRoles": ["barrel", "test", "entry"]
     },
     {
       "$comment": "Replaces three former forbid-import rules (render→cli, graph→cli, core→analyzer) with one declarative layer spec. New packages added to the wrong layer fail automatically without anyone remembering to add a rule. Layer strings are path prefixes — longest-prefix-match wins, consistent with no-internal-only-barrels.packageRoots. Previously written as bare names like \"core\" but those silently matched nothing on real codewatch node ids (packages/core/src/…); fixed in C-15.",
@@ -55,7 +56,7 @@
       "excludeRoles": ["test", "fixture"]
     },
     {
-      "$comment": "Flags internal sub-package barrels (role=barrel files with zero importers from outside their package). Internal barrels add an indirection without abstraction value and obscure the partition-quality picture by re-attributing edges. Public-API barrels (one per package, imported across package boundaries) are kept. Promoted from warning to error after #24 cleared all 13 carryover violations — only the public-API barrels remain, so any new internal barrel fails CI immediately. packages/cli/src/index.ts is excluded because it's the CLI executable entry (shebang-prefixed) — the role classifier labels it `barrel` based on filename but it isn't re-export plumbing.",
+      "$comment": "Flags internal sub-package barrels (role=barrel files with zero importers from outside their package). Internal barrels add an indirection without abstraction value and obscure the partition-quality picture by re-attributing edges. Public-API barrels (one per package, imported across package boundaries) are kept. Promoted from warning to error after #24 cleared all 13 carryover violations — only the public-API barrels remain, so any new internal barrel fails CI immediately. C-14: the former `exclude` of packages/cli/src/index.ts is gone — the role classifier now detects its `#!` shebang and labels it `entry` (a first-class executable-entry role, not re-export plumbing), so it never reaches this barrel-only rule.",
       "id": "no-internal-only-barrels",
       "type": "no-internal-only-barrels",
       "packageRoots": [
@@ -66,8 +67,7 @@
         "packages/graph",
         "packages/profile",
         "packages/render"
-      ],
-      "exclude": ["packages/cli/src/index.ts"]
+      ]
     }
   ]
 }

@@ -58,6 +58,19 @@ describe("classifyRole", () => {
     expect(classifyRole("__tests__/index.test.ts")).toBe("test");
     expect(classifyRole("src/__tests__/types.test.ts")).toBe("test");
   });
+
+  it("classifies a shebang-prefixed index file as entry, not barrel", () => {
+    expect(classifyRole("packages/cli/src/index.ts", { hasShebang: true })).toBe(
+      "entry",
+    );
+    // Without the shebang hint it stays a barrel (filename heuristic).
+    expect(classifyRole("packages/cli/src/index.ts")).toBe("barrel");
+  });
+
+  it("shebang hint does not override test/fixture/script roles", () => {
+    expect(classifyRole("scripts/build.ts", { hasShebang: true })).toBe("script");
+    expect(classifyRole("src/foo.test.ts", { hasShebang: true })).toBe("test");
+  });
 });
 
 describe("annotateRoles", () => {
@@ -87,5 +100,15 @@ describe("annotateRoles", () => {
       { id: "src/foo.ts", kind: "file", name: "foo", role: "config" },
     ];
     expect(annotateRoles(explicit)[0]!.role).toBe("config");
+  });
+
+  it("classifies a shebang index node as entry via shebangIds", () => {
+    const entry: GraphNode[] = [
+      { id: "packages/cli/src/index.ts", kind: "file", name: "index" },
+    ];
+    const out = annotateRoles(entry, {
+      shebangIds: new Set(["packages/cli/src/index.ts"]),
+    });
+    expect(out[0]!.role).toBe("entry");
   });
 });

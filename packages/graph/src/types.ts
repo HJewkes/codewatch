@@ -23,6 +23,7 @@ export type NodeRole =
   | "types"
   | "config"
   | "script"
+  | "entry"
   | "source";
 
 export interface GraphNode {
