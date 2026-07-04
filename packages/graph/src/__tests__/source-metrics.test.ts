@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { parseFile, type ParsedFile } from "@codewatch/core";
 import { computeSourceMetrics } from "../source-metrics.js";
+import { collectDeclaredNames } from "../declared-names.js";
 
 const idOf = (p: string): string => p;
 
@@ -200,5 +201,45 @@ describe("computeSourceMetrics — per-symbol complexity (C-58)", () => {
     const metrics = computeSourceMetrics([file], idOf, names);
     // Anonymous — no name to match "default", so no symbol metric, no throw.
     expect(metrics.some((m) => m.name === "symbol_cognitive")).toBe(false);
+  });
+});
+
+describe("collectDeclaredNames + internal-symbol complexity (C-64)", () => {
+  const sym = (file: string, name: string): string => `${file}#${name}`;
+
+  it("collects functions, methods, classes, and arrow-consts — not plain consts", async () => {
+    const file = await parseTs(
+      `export function pub() {}\n` +
+        `function helper() {}\n` +
+        `const arrow = () => 1;\n` +
+        `const CONST = 42;\n` +
+        `class Priv { run() {} }\n`,
+    );
+    expect([...collectDeclaredNames(file)].sort()).toEqual([
+      "Priv",
+      "arrow",
+      "helper",
+      "pub",
+      "run",
+    ]);
+  });
+
+  it("emits per-symbol complexity for a non-exported function once model B gives it a node", async () => {
+    const file = await parseTs(
+      `export function pub(x: number) { return x; }\n` +
+        `function helper(n: number) { let s = 0; for (let i = 0; i < n; i++) { if (i % 2) s += i; } return s; }\n`,
+    );
+    // Model B (C-64) supplies BOTH names — internal helpers now have symbol nodes.
+    const names = new Map([["f.ts", new Set(["pub", "helper"])]]);
+    const metrics = computeSourceMetrics([file], idOf, names);
+    expect(metric(metrics, sym("f.ts", "helper"), "symbol_cyclomatic")).toBeGreaterThan(1);
+    expect(metric(metrics, sym("f.ts", "pub"), "symbol_cyclomatic")).toBe(1);
+  });
+
+  it("collects python defs and classes", async () => {
+    const file = await parsePy(
+      `def a():\n    pass\nclass B:\n    def m(self):\n        pass\n`,
+    );
+    expect([...collectDeclaredNames(file)].sort()).toEqual(["B", "a", "m"]);
   });
 });

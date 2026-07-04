@@ -32,7 +32,7 @@ import type {
   IdAlias,
 } from "./types.js";
 
-const INDEX_VERSION = "0.4.0"; // C-58: +per-symbol complexity; rejects pre-0.4.0 reuse basis
+const INDEX_VERSION = "0.5.0"; // C-64: model-B symbol nodes (non-exported fns/classes + exported flag); rejects pre-0.5.0 reuse basis
 const TS_LANGUAGES = ["typescript"] as const;
 
 export interface GraphIndexOptions {
