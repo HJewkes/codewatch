@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import type { Command } from "commander";
 import chalk from "chalk";
 import {
   openDatabase,
@@ -10,7 +11,7 @@ import {
   type GraphDatabase,
   type SnapshotRow,
 } from "@codewatch/graph";
-import { snapshotVersionMismatchWarning } from "../utils/output.js";
+import { formatError, snapshotVersionMismatchWarning } from "../utils/output.js";
 
 export interface GraphCheckCommandOptions {
   db: string;
@@ -202,4 +203,52 @@ export function formatGraphCheckJson(result: GraphCheckCommandResult): string {
     null,
     2,
   );
+}
+
+export function registerGraphCheck(graphCmd: Command): void {
+  graphCmd
+    .command("check")
+    .description(
+      "Run rule checks against a snapshot (max-complexity, no-imports, …). Exits non-zero on violations.",
+    )
+    .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")
+    .option("--config <path>", "Rules file (JSON)", "./.codewatch/check.json")
+    .option(
+      "--snapshot <ref-or-id>",
+      "Snapshot to check: numeric id or ref name (default: latest)",
+    )
+    .option(
+      "--baseline <ref-or-id>",
+      "Suppress violations that already exist in this baseline snapshot",
+    )
+    .option("--json", "Output structured JSON")
+    .action(
+      async (options: {
+        db: string;
+        config: string;
+        snapshot?: string;
+        baseline?: string;
+        json?: boolean;
+      }) => {
+        try {
+          const result = await runGraphCheckCommand({
+            db: options.db,
+            config: options.config,
+            snapshot: options.snapshot,
+            baseline: options.baseline,
+          });
+          console.log(
+            options.json
+              ? formatGraphCheckJson(result)
+              : formatGraphCheckText(result),
+          );
+          process.exitCode = result.result.passed ? 0 : 1;
+        } catch (err) {
+          console.error(
+            formatError(err instanceof Error ? err.message : String(err)),
+          );
+          process.exitCode = 2;
+        }
+      },
+    );
 }
