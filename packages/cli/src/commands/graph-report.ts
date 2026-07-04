@@ -24,6 +24,7 @@ import {
   topHotspots,
   topTestCoverageRisks,
   topUnusedExports,
+  topDeadModules,
   publicApiFiles,
   type ReportContext,
 } from "./graph-report-sections.js";
@@ -126,6 +127,7 @@ export function runGraphReportCommand(
       couplingClusters: topCouplingClusters(ctx, options.repoRoot, windowDays, limit),
       centralFiles: topCentralFiles(nodes, edges, ctx, limit),
       unusedExports: topUnusedExports(symbolNodes, publicApiFiles(nodes, edges), ctx, limit),
+      deadModules: topDeadModules(nodes, edges, ctx, limit),
     };
     if (!hasChurnSignal(metrics, windowDays)) {
       result.emptyWindow = true;

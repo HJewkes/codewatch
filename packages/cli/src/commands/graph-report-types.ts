@@ -54,6 +54,15 @@ export interface UnusedExportRow {
   publicApi: boolean;
 }
 
+export interface DeadModuleRow {
+  /** The unreferenced file's node id. */
+  nodeId: string;
+  /** Its size, for ranking (a large dead file is the most worth removing). */
+  loc: number;
+  /** Its role (usually "source" or "types"). */
+  role: string;
+}
+
 export interface TestCoverageRow {
   /** Source (non-test) file whose test coverage is owner-concentrated. */
   nodeId: string;
@@ -75,6 +84,8 @@ export interface GraphReportResult {
   centralFiles: CentralRow[];
   /** Exported symbols with zero inbound references — "no reference found" (C-65). */
   unusedExports: UnusedExportRow[];
+  /** Files unreachable from entry roots (barrels/tests/scripts) — "no importer found" (C-65). */
+  deadModules: DeadModuleRow[];
   /** True when no file has churn > 0 in the window (churn sections all empty). */
   emptyWindow?: boolean;
   /** User-facing guidance shown when emptyWindow is true. */
