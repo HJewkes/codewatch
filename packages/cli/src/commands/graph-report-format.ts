@@ -9,6 +9,7 @@ import type {
   HotspotRow,
   ReportDrift,
   TestCoverageRow,
+  UnusedExportRow,
 } from "./graph-report-types.js";
 
 export function formatGraphReportMarkdown(result: GraphReportResult): string {
@@ -35,6 +36,7 @@ export function formatGraphReportMarkdown(result: GraphReportResult): string {
     pushCoupling(lines, result.couplingClusters);
   }
   pushCentral(lines, result.centralFiles);
+  pushUnusedExports(lines, result.unusedExports);
   if (result.drift) pushDrift(lines, result.drift);
   return lines.join("\n");
 }
@@ -127,6 +129,35 @@ function pushCentral(lines: string[], rows: readonly CentralRow[]): void {
   lines.push("|---|--:|");
   for (const r of rows) {
     lines.push(`| ${r.nodeId} | ${r.score.toExponential(2)} |`);
+  }
+  lines.push("");
+}
+
+/**
+ * Exported symbols nothing imports by name (C-65). Framed "no reference found",
+ * not "dead" — an internal-only or externally-consumed export legitimately reads
+ * zero here. The Confidence column splits internal (higher — safe to un-export or
+ * remove) from public-API (lower — a barrel re-exports it, so a published-package
+ * consumer might use it).
+ */
+function pushUnusedExports(
+  lines: string[],
+  rows: readonly UnusedExportRow[],
+): void {
+  lines.push("## Unused exports (no reference found)");
+  lines.push("");
+  if (rows.length === 0) {
+    lines.push("_No unreferenced exports._");
+    lines.push("");
+    return;
+  }
+  lines.push("| Export | File | Complexity | Confidence |");
+  lines.push("|---|---|--:|---|");
+  for (const r of rows) {
+    const confidence = r.publicApi ? "public API" : "internal";
+    lines.push(
+      `| \`${r.name}\` | ${r.fileId} | ${r.cognitive} | ${confidence} |`,
+    );
   }
   lines.push("");
 }

@@ -23,6 +23,8 @@ import {
   topCouplingClusters,
   topHotspots,
   topTestCoverageRisks,
+  topUnusedExports,
+  publicApiFiles,
   type ReportContext,
 } from "./graph-report-sections.js";
 import type {
@@ -104,6 +106,7 @@ export function runGraphReportCommand(
 
     const nodes = db.listNodes(snapshot.id);
     const edges = db.listEdges(snapshot.id);
+    const symbolNodes = db.listNodes(snapshot.id, { includeSymbols: true });
     const metrics = db.listMetrics(snapshot.id);
     const windowDays = resolveWindowDays(metrics, requestedWindow);
     const ctx = buildReportContext({
@@ -122,6 +125,7 @@ export function runGraphReportCommand(
       testCoverageRisks: topTestCoverageRisks(ctx, limit),
       couplingClusters: topCouplingClusters(ctx, options.repoRoot, windowDays, limit),
       centralFiles: topCentralFiles(nodes, edges, ctx, limit),
+      unusedExports: topUnusedExports(symbolNodes, publicApiFiles(nodes, edges), ctx, limit),
     };
     if (!hasChurnSignal(metrics, windowDays)) {
       result.emptyWindow = true;
