@@ -36,6 +36,24 @@ export interface CentralRow {
   score: number;
 }
 
+export interface UnusedExportRow {
+  /** The `symbol` node id (`<fileId>#<name>`). */
+  nodeId: string;
+  /** The exported name with no inbound reference. */
+  name: string;
+  /** The file that declares it. */
+  fileId: string;
+  /** The export's own cognitive complexity (C-58); 0 for a class/type/re-export. */
+  cognitive: number;
+  /**
+   * The declaring file is re-exported by a `barrel` — so this export is part of a
+   * package's public surface and may be consumed *externally* (lower confidence
+   * that it's removable). `false` ⇒ internal, no reference found anywhere
+   * (higher confidence).
+   */
+  publicApi: boolean;
+}
+
 export interface TestCoverageRow {
   /** Source (non-test) file whose test coverage is owner-concentrated. */
   nodeId: string;
@@ -55,6 +73,8 @@ export interface GraphReportResult {
   testCoverageRisks: TestCoverageRow[];
   couplingClusters: CouplingRow[];
   centralFiles: CentralRow[];
+  /** Exported symbols with zero inbound references — "no reference found" (C-65). */
+  unusedExports: UnusedExportRow[];
   /** True when no file has churn > 0 in the window (churn sections all empty). */
   emptyWindow?: boolean;
   /** User-facing guidance shown when emptyWindow is true. */
