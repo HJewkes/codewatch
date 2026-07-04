@@ -63,6 +63,14 @@ export interface DeadModuleRow {
   role: string;
 }
 
+export interface GrowthRiskRow {
+  nodeId: string;
+  /** Max lexical loop-nesting depth (C-66); a structural scaling-smell proxy. */
+  loopDepth: number;
+  /** Human-readable shape label ("quadratic-shaped", "cubic-shaped", …). */
+  shape: string;
+}
+
 export interface TestCoverageRow {
   /** Source (non-test) file whose test coverage is owner-concentrated. */
   nodeId: string;
@@ -86,6 +94,8 @@ export interface GraphReportResult {
   unusedExports: UnusedExportRow[];
   /** Files unreachable from entry roots (barrels/tests/scripts) — "no importer found" (C-65). */
   deadModules: DeadModuleRow[];
+  /** Files with structural scaling smells (deep loop nesting) — heuristic, not Big-O (C-66). */
+  growthRisks: GrowthRiskRow[];
   /** True when no file has churn > 0 in the window (churn sections all empty). */
   emptyWindow?: boolean;
   /** User-facing guidance shown when emptyWindow is true. */

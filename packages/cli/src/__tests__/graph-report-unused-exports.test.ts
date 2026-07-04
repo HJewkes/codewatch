@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
 import type { GraphEdge, GraphMetric, GraphNode } from "@codewatch/graph";
+import { buildReportContext } from "../commands/graph-report-sections.js";
 import {
-  buildReportContext,
   publicApiFiles,
   topUnusedExports,
-} from "../commands/graph-report-sections.js";
+} from "../commands/graph-report-quality-sections.js";
 
 const file = (id: string, role?: string): GraphNode => ({
   id,
