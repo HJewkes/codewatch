@@ -301,7 +301,7 @@ function isExternal(id: string): boolean {
  * pairs *do* import, so this demotes those tautologies), plus each node's
  * PageRank centrality. Window-independent — computed once per snapshot.
  */
-export function snapshotContext(dbPath: string, snapshotId: number): SnapshotContext {
+function snapshotContext(dbPath: string, snapshotId: number): SnapshotContext {
   const linkedPairs = new Set<string>();
   const centrality = new Map<string, number>();
   const connectedNodes = new Set<string>();

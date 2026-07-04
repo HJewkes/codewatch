@@ -54,6 +54,7 @@ export { diffSnapshots, type DiffSnapshotsOptions } from "./diff.js";
 export { computeMetrics } from "./metrics.js";
 export { resolveBarrelEdges, edgeWeight } from "./barrel-resolve.js";
 export { computeSourceMetrics } from "./source-metrics.js";
+export { walkSourceFiles } from "./file-walk.js";
 export { computeLcomMetrics } from "./lcom.js";
 export {
   computeChurnMetrics,
