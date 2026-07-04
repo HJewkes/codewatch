@@ -54,6 +54,15 @@ async function dependencyGraphHtml(opts: DashboardCommandOptions): Promise<strin
       // routing rather than client-side cose-bilkent (C-48).
       return b64(await renderHtml(raw, { title: `${repo} — file dependencies`, compound: true }));
     }
+    if (opts.graphScope === "nested") {
+      // Drill deeper than `file`: nest files inside their directory boxes inside
+      // their package boxes — package → subdir → file (C-56).
+      return b64(await renderHtml(raw, {
+        title: `${repo} — file dependencies (nested by directory)`,
+        compound: true,
+        nested: true,
+      }));
+    }
     if (opts.graphScope === "module") {
       return b64(await renderHtml(collapseToDirectories(raw), {
         title: `${repo} — module (directory) coupling`,
@@ -83,9 +92,9 @@ async function dependencyGraphHtml(opts: DashboardCommandOptions): Promise<strin
   }
 }
 
-/** Accept "file", "module", "focus:<pkg>", or fall back to "package". */
+/** Accept "file", "nested", "module", "focus:<pkg>", or fall back to "package". */
 function normalizeGraphScope(scope: string | undefined): string {
-  if (scope === "file" || scope === "module") return scope;
+  if (scope === "file" || scope === "nested" || scope === "module") return scope;
   if (scope && scope.startsWith("focus:")) return scope;
   return "package";
 }
@@ -134,7 +143,7 @@ export function registerGraphDashboard(graphCmd: Command): void {
     .option("--repo <name>", "Repo display name")
     .option("--include-scripts", "Include scripts/ and archive/ files")
     .option("--no-graph", "Skip the embedded Cytoscape dependency graph (smaller output)")
-    .option("--graph-scope <scope>", "Embedded graph granularity: package (default), module, file, or focus:<pkg>", "package")
+    .option("--graph-scope <scope>", "Embedded graph granularity: package (default), module, file, nested (files-in-dirs), or focus:<pkg>", "package")
     .action(async (options: {
       db: string; config: string; out: string; repoRoot?: string;
       windowDays?: string; vs?: string; repo?: string; includeScripts?: boolean; graph?: boolean;
