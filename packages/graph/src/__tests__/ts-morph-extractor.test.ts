@@ -28,6 +28,14 @@ const FILES: Record<string, string> = {
     `export const y = join("a", "b") + sub;\n`,
   "/repo/src/c.ts": `export const C = 1;\n`,
   "/repo/src/multi.ts": `export const P = 1;\nexport const Q = 2;\n`,
+  // Dynamic import (C-65): lazily loads c.ts by string literal, plus a computed
+  // specifier that must NOT resolve to an edge (unresolvable statically).
+  "/repo/src/dyn.ts":
+    `export async function load(name: string) {\n` +
+    `  const mod = await import("./c.js");\n` +
+    `  const other = await import(name);\n` +
+    `  return mod.C + (other ? 1 : 0);\n` +
+    `}\n`,
   // Model B (C-64): a mix of exported + internal declarations. `pub` is exported;
   // `helper` (function), the internal arrow-const `arrow`, the class `Priv` and
   // its method `run` all get non-exported symbol nodes. The plain const `CONST`
@@ -349,6 +357,24 @@ describe("TsMorphGraphExtractor", () => {
     it("emits no symbol node for a non-callable internal const", () => {
       const [fragment] = fixture.extract("/repo/src/model-b.ts");
       expect(symById(fragment!, "src/model-b.ts#CONST")).toBeUndefined();
+    });
+  });
+
+  describe("dynamic imports (C-65)", () => {
+    it("emits an imports edge for a string-literal dynamic import()", () => {
+      const [fragment] = fixture.extract("/repo/src/dyn.ts");
+      const edge = fragment!.edges.find(
+        (e) => e.kind === "imports" && e.dstId === "src/c.ts",
+      );
+      expect(edge).toBeDefined();
+    });
+
+    it("does not emit an edge for a computed (non-literal) dynamic import", () => {
+      const [fragment] = fixture.extract("/repo/src/dyn.ts");
+      // The only imports edge from dyn.ts is the literal ./c.js one.
+      const importEdges = fragment!.edges.filter((e) => e.kind === "imports");
+      expect(importEdges).toHaveLength(1);
+      expect(importEdges[0]!.dstId).toBe("src/c.ts");
     });
   });
 

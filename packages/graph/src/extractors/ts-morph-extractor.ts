@@ -27,6 +27,7 @@ import {
   reExportWeight,
 } from "./reference-weight.js";
 import { buildSymbolNodes } from "./symbol-nodes.js";
+import { dynamicImportSpecifiers } from "./dynamic-imports.js";
 
 /** Mutable accumulator threaded through one file's edge collection. */
 interface EdgeCollector {
@@ -148,6 +149,10 @@ export class TsMorphGraphExtractor implements Extractor<GraphFragment> {
     }
     for (const decl of sourceFile.getExportDeclarations()) {
       this.recordReExportEdge(c, decl);
+    }
+    for (const specifier of dynamicImportSpecifiers(sourceFile)) {
+      const dstId = this.resolveRelativeInternal(c.srcAbs, specifier);
+      if (dstId) addWeightedEdge(c.agg, c.srcFileId, dstId, "imports", specifier, 1);
     }
     return { edges: [...c.agg.values()], externalNodes: c.externalNodes };
   }
