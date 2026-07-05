@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
-import { createReadApi, READ_API_VERSION, type GraphReadApi, type ReadApiOptions } from "../read-api/index.js";
+import { createReadApi, READ_API_VERSION, type GraphReadApi, type ReadApiOptions } from "../read-api/reader.js";
 
 /**
  * C-81 — the codewatch **MCP server**: deterministic PULL tools an ingestor or

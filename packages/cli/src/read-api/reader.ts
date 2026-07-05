@@ -18,24 +18,41 @@ import {
 } from "./contract.js";
 import { rankSearch } from "./search.js";
 
+/**
+ * C-81 — codewatch's stable, versioned read API. Import this module (not the
+ * sqlite schema) to pull deterministic per-target context off a snapshot; the
+ * db handle lives for the instance's lifetime (an MCP server / ingestor pulls
+ * many targets against it), so callers must `close()` when done. The heavy
+ * dossier assembly is reused per pull from the shared `graph context --bundle`
+ * core; only deep AST is computed lazily.
+ */
+export {
+  READ_API_VERSION,
+  type GraphReadApi,
+  type ReadApiOptions,
+  type GetContextOptions,
+  type ContextRecord,
+  type ContextBundle,
+  type BundleEdge,
+  type BundleEdges,
+  type SourceChunk,
+  type DeepAst,
+  type SearchHit,
+  type SearchResult,
+} from "./contract.js";
+
 const DEFAULT_SEARCH_LIMIT = 20;
 
-/**
- * Open a read API bound to one graph.db. The db handle lives for the instance's
- * lifetime (an MCP server / ingestor pulls many targets against it), so callers
- * must `close()` when done. The heavy dossier assembly is reused per pull from
- * the shared `graph context --bundle` core; only deep AST is computed lazily.
- */
 export function createReadApi(options: ReadApiOptions): GraphReadApi {
   const db = openDatabase(options.db);
   const repoRoot = options.repoRoot ?? detectGitToplevel(process.cwd());
-  const ctxOptions = { db: options.db, snapshot: options.snapshot };
+  const ctx = { db: options.db, snapshot: options.snapshot };
   return {
     version: READ_API_VERSION,
-    getContext: (target, opts) => getContext(db, repoRoot, ctxOptions, target, opts),
-    getSource: (target) => bundle(db, repoRoot, ctxOptions, target).source,
-    getNeighbors: (target) => bundle(db, repoRoot, ctxOptions, target).edges,
-    search: (query, limit) => search(db, ctxOptions.snapshot, query, limit),
+    getContext: (target, opts) => getContext(db, repoRoot, ctx, target, opts),
+    getSource: (target) => bundle(db, repoRoot, ctx, target).source,
+    getNeighbors: (target) => bundle(db, repoRoot, ctx, target).edges,
+    search: (query, limit) => search(db, ctx.snapshot, query, limit),
     close: () => db.close(),
   };
 }
@@ -84,7 +101,9 @@ function search(
   limit: number | undefined,
 ): SearchResult {
   const snap =
-    snapshotId !== undefined ? db.getSnapshot(snapshotId) : (db.listSnapshots({ limit: 1 })[0] ?? null);
+    snapshotId !== undefined
+      ? db.getSnapshot(snapshotId)
+      : (db.listSnapshots({ limit: 1 })[0] ?? null);
   if (!snap) throw new Error("No snapshot found");
   const nodes = db.listNodes(snap.id, { includeSymbols: true });
   return { query, hits: rankSearch(nodes, query, limit ?? DEFAULT_SEARCH_LIMIT) };

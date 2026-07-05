@@ -14,8 +14,8 @@
       "types": "./dist/index.d.ts"
     },
     "./read-api": {
-      "import": "./dist/read-api/index.js",
-      "types": "./dist/read-api/index.d.ts"
+      "import": "./dist/read-api/reader.js",
+      "types": "./dist/read-api/reader.d.ts"
     }
   },
   "files": [

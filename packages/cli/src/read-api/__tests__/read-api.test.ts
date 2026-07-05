@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { runGraphIndex } from "@codewatch/graph";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { createReadApi, READ_API_VERSION, type GraphReadApi } from "../index.js";
+import { createReadApi, READ_API_VERSION, type GraphReadApi } from "../reader.js";
 import { buildMcpServer } from "../../mcp/server.js";
 
 const A_SRC = ["/** Increments. */", "export function foo(a: number): number {", "  return a + 1;", "}"].join("\n");
