@@ -191,6 +191,47 @@ describe("computeArchSplit — co-edit density", () => {
   });
 });
 
+describe("computeArchSplit — excludes non-source and fragmented packages", () => {
+  // A real multi-file package (barbell shape), an examples dir with the same
+  // structure, and a docs-like package whose files have no intra-package edges
+  // (every file its own singleton cluster). Only the real package survives.
+  const realPkg = { id: "packages/server", name: "@scope/server" };
+  const examplesPkg = { id: "examples/next-app", name: "next-app" };
+  const singletonPkg = { id: "packages/docsite", name: "docsite" };
+
+  const barbell = (prefix: string): { nodes: GraphNode[]; edges: GraphEdge[] } => ({
+    nodes: ["a0", "a1", "a2", "b0", "b1", "b2"].map((f) => file(`${prefix}/${f}.ts`)),
+    edges: [
+      imp(`${prefix}/a0.ts`, `${prefix}/a1.ts`),
+      imp(`${prefix}/a1.ts`, `${prefix}/a2.ts`),
+      imp(`${prefix}/a2.ts`, `${prefix}/a0.ts`),
+      imp(`${prefix}/b0.ts`, `${prefix}/b1.ts`),
+      imp(`${prefix}/b1.ts`, `${prefix}/b2.ts`),
+      imp(`${prefix}/b2.ts`, `${prefix}/b0.ts`),
+      imp(`${prefix}/a0.ts`, `${prefix}/b0.ts`),
+    ],
+  });
+
+  const real = barbell(realPkg.id);
+  const example = barbell(examplesPkg.id);
+  // docsite: six files, zero edges between them → all singletons.
+  const singletonNodes = ["d0", "d1", "d2", "d3", "d4", "d5"].map((f) =>
+    file(`${singletonPkg.id}/${f}.ts`),
+  );
+
+  it("keeps the real package, drops the examples dir and the all-singleton package", () => {
+    const result = computeArchSplit({
+      snapshot,
+      nodes: [...real.nodes, ...example.nodes, ...singletonNodes],
+      edges: [...real.edges, ...example.edges],
+      packages: [realPkg, examplesPkg, singletonPkg],
+      minFiles: 6,
+    });
+    const ids = result.packages.map((p) => p.pkgId);
+    expect(ids).toEqual([realPkg.id]);
+  });
+});
+
 describe("computeArchSplit — thresholds and rendering", () => {
   it("only analyzes packages meeting the file-count floor", () => {
     const result = computeArchSplit({

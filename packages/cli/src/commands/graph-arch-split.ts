@@ -16,6 +16,7 @@ import {
 } from "./graph-wiki-packages.js";
 import { filteredFileIds } from "./graph-arch-compute.js";
 import { detectCommunities } from "./graph-arch-community.js";
+import { isFragmented, isSourcePackage } from "./graph-arch-split-filter.js";
 import type { ArchResult } from "./graph-arch.js";
 
 /** Only packages with at least this many files are worth clustering. */
@@ -100,7 +101,6 @@ export interface ArchSplitResult {
 
 interface AnalyzeCtx {
   input: ArchSplitInput;
-  /** Barrel-resolved file→file edges, self-loops removed. */
   edges: readonly GraphEdge[];
   pkgByFile: ReadonlyMap<string, string>;
 }
@@ -126,8 +126,9 @@ export function computeArchSplit(input: ArchSplitInput): ArchSplitResult {
     pkgByFile: invertBuckets(fileByPackage),
   };
   const packages = input.packages
-    .filter((p) => (fileByPackage.get(p.id)?.length ?? 0) >= minFiles)
+    .filter((p) => isSourcePackage(p.id) && (fileByPackage.get(p.id)?.length ?? 0) >= minFiles)
     .map((p) => analyzePackage(p, fileByPackage.get(p.id)!, ctx))
+    .filter((p) => !isFragmented(p.clusters))
     .sort((a, b) => (a.pkgId < b.pkgId ? -1 : a.pkgId > b.pkgId ? 1 : 0));
   return {
     snapshot: input.snapshot,
