@@ -33,7 +33,7 @@ import type {
   IdAlias,
 } from "./types.js";
 
-const INDEX_VERSION = "0.10.0"; // C-68: destructured dynamic-import references edges; rejects pre-0.10.0 reuse basis (which lacks them)
+const INDEX_VERSION = "0.11.0"; // C-79: symbol nodes carry signature + purpose attrs; rejects pre-0.11.0 reuse basis (which lacks them)
 const TS_LANGUAGES = ["typescript"] as const;
 
 export interface GraphIndexOptions {

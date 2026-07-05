@@ -57,6 +57,17 @@ const FILES: Record<string, string> = {
     `const arrow = (a: number) => a + 1;\n` +
     `const CONST = 42;\n` +
     `class Priv { run(v: number) { return v && CONST; } }\n`,
+  // Signature + docstring fixtures (C-79): a documented annotated function, an
+  // exported arrow const, a class, and a type alias — the surface `graph context`
+  // fills its G1/G2 slots from.
+  "/repo/src/documented.ts":
+    `/** Adds two numbers together. */\n` +
+    `export function add(a: number, b: number): number {\n` +
+    `  return a + b;\n` +
+    `}\n` +
+    `export const scale = (v: number): number => v * 2;\n` +
+    `export class Box {}\n` +
+    `export type Id = string | number;\n`,
   // Reference-count fixtures (C-51): weight = how often the imported binding is
   // actually used, not how many import statements name it.
   "/repo/src/heavy.ts":
@@ -419,6 +430,51 @@ describe("TsMorphGraphExtractor", () => {
         startLine: 2,
         endLine: 2,
       });
+    });
+  });
+
+  describe("symbol signatures + docstrings (C-79)", () => {
+    const symById = (fragment: GraphFragment, id: string) =>
+      fragment.nodes.find((n) => n.kind === "symbol" && n.id === id);
+
+    it("stores a one-line signature for an annotated function", () => {
+      const [fragment] = fixture.extract("/repo/src/documented.ts");
+      expect(symById(fragment!, "src/documented.ts#add")?.attrs?.signature).toBe(
+        "add(a: number, b: number): number",
+      );
+    });
+
+    it("stores the leading JSDoc as purpose", () => {
+      const [fragment] = fixture.extract("/repo/src/documented.ts");
+      expect(symById(fragment!, "src/documented.ts#add")?.attrs?.purpose).toBe(
+        "Adds two numbers together.",
+      );
+    });
+
+    it("signs an arrow-const export, a class, and a type alias", () => {
+      const [fragment] = fixture.extract("/repo/src/documented.ts");
+      expect(symById(fragment!, "src/documented.ts#scale")?.attrs?.signature).toBe(
+        "scale(v: number): number",
+      );
+      expect(symById(fragment!, "src/documented.ts#Box")?.attrs?.signature).toBe("class Box");
+      expect(symById(fragment!, "src/documented.ts#Id")?.attrs?.signature).toBe(
+        "type Id = string | number",
+      );
+    });
+
+    it("omits signature/purpose when undocumented (attrs stay minimal)", () => {
+      const [fragment] = fixture.extract("/repo/src/documented.ts");
+      // no JSDoc on `scale` → purpose absent, not null
+      expect(symById(fragment!, "src/documented.ts#scale")?.attrs?.purpose).toBeUndefined();
+    });
+
+    it("infers a clean return type when the annotation is omitted", () => {
+      // model-b `pub(x: number)` has no return annotation; `x > 0 ? x : -x`
+      // infers to `number`, which carries no import() path so it is kept.
+      const [fragment] = fixture.extract("/repo/src/model-b.ts");
+      expect(symById(fragment!, "src/model-b.ts#pub")?.attrs?.signature).toBe(
+        "pub(x: number): number",
+      );
     });
   });
 

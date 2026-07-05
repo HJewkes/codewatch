@@ -73,6 +73,8 @@ export interface FileOwnership {
 export interface SymbolLine {
   name: string;
   exported: boolean;
+  /** One-line type signature (C-79), when indexed for this declaration. */
+  signature?: string;
   cognitive?: number;
   cyclomatic?: number;
   utilization: number;
@@ -165,8 +167,8 @@ function buildSymbolDossier(input: ContextBuildInput): SymbolDossier {
     .slice(0, 15);
   return {
     exported: input.target.attrs?.exported !== false,
-    signature: null,
-    purpose: null,
+    signature: attrString(input.target.attrs?.signature),
+    purpose: attrString(input.target.attrs?.purpose),
     complexity: { cognitive: m?.cognitiveMax, cyclomatic: m?.cyclomaticMax },
     utilization: m?.utilization ?? 0,
     consumers: splitConsumers(consumers, input.roleByFile),
@@ -177,6 +179,11 @@ function buildSymbolDossier(input: ContextBuildInput): SymbolDossier {
 
 function partner(symbolId: string, name: string, fileId: string, coImports: number) {
   return { symbolId, name, fileId, coImports };
+}
+
+/** A string symbol attr (signature/purpose, C-79) or null when not indexed. */
+function attrString(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null;
 }
 
 /** File's declared symbols, exports first (by utilization) then internals (by complexity). */
@@ -194,6 +201,7 @@ function fileSymbols(
     lines.push({
       name: n.name,
       exported,
+      signature: attrString(n.attrs?.signature) ?? undefined,
       cognitive: m?.cognitiveMax,
       cyclomatic: m?.cyclomaticMax,
       utilization: m?.utilization ?? 0,
@@ -250,7 +258,7 @@ function buildFileDossier(input: ContextBuildInput): FileDossier {
 }
 
 const SIGNATURE_NOTE =
-  "Full type signatures are not stored in the graph; open target.path at target.span for the declaration.";
+  "Type signatures and docstrings are indexed for resolvable TypeScript declarations (C-79); a null signature means it was unannotated or unresolvable — open target.path at target.span.";
 
 export function buildContextDossier(input: ContextBuildInput): ContextDossier {
   const { target, kind } = input;

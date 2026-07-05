@@ -30,7 +30,8 @@ function renderSymbol(s: SymbolDossier): string[] {
   const out = [
     "## Symbol",
     `- **exported**: ${s.exported}`,
-    `- **signature**: ${s.signature ?? "— (not indexed)"}`,
+    `- **signature**: ${s.signature ? `\`${s.signature}\`` : "— (not indexed)"}`,
+    `- **purpose**: ${s.purpose ?? "—"}`,
     `- **complexity**: cognitive ${s.complexity.cognitive ?? "—"}, cyclomatic ${s.complexity.cyclomatic ?? "—"}`,
     `- **utilization**: ${s.utilization}`,
     `- **blast radius**: ${round(s.blastRadius)}`,
@@ -63,7 +64,8 @@ function renderFile(f: FileDossier): string[] {
     out.push(`### Symbols (${f.symbols.length})`);
     for (const s of f.symbols) {
       const tag = s.exported ? "export" : "internal";
-      out.push(`- \`${s.name}\` (${tag}) — util ${s.utilization}, cog ${s.cognitive ?? "—"}, consumers ${s.consumers}`);
+      const sig = s.signature ? ` \`${s.signature}\`` : "";
+      out.push(`- \`${s.name}\` (${tag})${sig} — util ${s.utilization}, cog ${s.cognitive ?? "—"}, consumers ${s.consumers}`);
     }
     out.push("");
   }
