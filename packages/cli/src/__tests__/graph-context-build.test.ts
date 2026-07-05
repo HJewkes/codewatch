@@ -16,7 +16,16 @@ const NODES: GraphNode[] = [
   node("src/b.ts", "file"),
   node("src/c.ts", "file"),
   node("src/d.ts", "file"),
-  node("src/a.ts#foo", "symbol", { parentId: "src/a.ts", attrs: { exported: true, startLine: 3, endLine: 20 } }),
+  node("src/a.ts#foo", "symbol", {
+    parentId: "src/a.ts",
+    attrs: {
+      exported: true,
+      startLine: 3,
+      endLine: 20,
+      signature: "foo(x: number): string",
+      purpose: "Formats x for display.",
+    },
+  }),
   node("src/a.ts#helper", "symbol", { parentId: "src/a.ts", attrs: { exported: false } }),
   node("src/b.ts#bar", "symbol", { parentId: "src/b.ts", attrs: { exported: true } }),
 ];
@@ -85,10 +94,15 @@ describe("buildContextDossier — file target", () => {
     expect(d.schemaVersion).toBe("1");
   });
 
-  it("notes the missing type signature and omitted ownership", () => {
-    expect(d.notes.some((n) => /type signatures/.test(n))).toBe(true);
+  it("notes the signature-coverage caveat and omitted ownership", () => {
+    expect(d.notes.some((n) => /[Tt]ype signatures/.test(n))).toBe(true);
     expect(d.notes.some((n) => /Ownership omitted/.test(n))).toBe(true);
     expect(d.file?.ownership).toBeNull();
+  });
+
+  it("carries a symbol's indexed signature into its file-symbol line (C-79)", () => {
+    expect(d.file!.symbols[0]).toMatchObject({ name: "foo", signature: "foo(x: number): string" });
+    expect(d.file!.symbols[1].signature).toBeUndefined();
   });
 });
 
@@ -106,9 +120,15 @@ describe("buildContextDossier — symbol target", () => {
     expect(d.symbol?.blastRadius).toBe(150);
   });
 
-  it("exposes null signature/purpose slots (G1/G2, not yet indexed)", () => {
-    expect(d.symbol?.signature).toBeNull();
-    expect(d.symbol?.purpose).toBeNull();
+  it("fills the G1/G2 slots from indexed signature + purpose attrs (C-79)", () => {
+    expect(d.symbol?.signature).toBe("foo(x: number): string");
+    expect(d.symbol?.purpose).toBe("Formats x for display.");
+  });
+
+  it("leaves signature/purpose null when the symbol carries no such attrs", () => {
+    const bare = buildContextDossier(input("src/a.ts#helper", "symbol"));
+    expect(bare.symbol?.signature).toBeNull();
+    expect(bare.symbol?.purpose).toBeNull();
   });
 
   it("surfaces co-import coupling partners", () => {
