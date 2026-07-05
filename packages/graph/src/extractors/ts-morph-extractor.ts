@@ -31,6 +31,12 @@ import {
   dynamicImportSpecifiers,
   recordDynamicSymbolRefEdges,
 } from "./dynamic-imports.js";
+import { resolveReExportOrigin } from "./reexport-resolve.js";
+import {
+  inRepoFileId,
+  isRelativeSpecifier,
+  resolveRelativeAbs,
+} from "./module-resolution.js";
 
 /** Mutable accumulator threaded through one file's edge collection. */
 interface EdgeCollector {
@@ -204,8 +210,9 @@ export class TsMorphGraphExtractor implements Extractor<GraphFragment> {
    * actually *declares* it — following re-exports through barrels via ts-morph's
    * own `getExportedDeclarations`, so `import { x } from "./barrel"` credits the
    * origin file's `x`, not the barrel. When ts-morph can't resolve the specifier
-   * (e.g. an extensionless relative import), falls back to direct attribution
-   * without barrel see-through. Returns null for external / unresolved targets.
+   * (e.g. an extensionless relative import), falls back to a filesystem-based
+   * re-export walk that still sees through barrel hops (C-70). Returns null for
+   * external / unresolved targets.
    * A name that resolves to no local declaration (an aliased re-export the
    * origin doesn't export under this name) yields a dangling edge, pruned after
    * assembly (`pruneDanglingReferences`).
@@ -223,11 +230,15 @@ export class TsMorphGraphExtractor implements Extractor<GraphFragment> {
       const originId = this.inRepoFileId(remapDistToSrc(originSf.getFilePath()));
       return originId ? symbolId(originId, importedName) : null;
     }
-    const directId = this.resolveRelativeInternal(
+    // ts-morph couldn't link the specifier (extensionless / out-of-project);
+    // trace the target's re-export hops on disk so an import through an
+    // extensionless barrel still credits the origin symbol (C-70).
+    return resolveReExportOrigin(
+      { project: this.ensureProject(), repoRoot: this.repoRoot },
       c.srcAbs,
       decl.getModuleSpecifierValue(),
+      importedName,
     );
-    return directId ? symbolId(directId, importedName) : null;
   }
 
   private recordReExportEdge(c: EdgeCollector, decl: ExportDeclaration): void {
@@ -287,59 +298,17 @@ export class TsMorphGraphExtractor implements Extractor<GraphFragment> {
     srcAbs: string,
     specifier: string,
   ): string | null {
-    if (!isRelativeSpecifier(specifier)) return null;
-    const fs = this.ensureProject().getFileSystem();
-    const base = path.resolve(path.dirname(srcAbs), specifier);
-    for (const candidate of relativeResolutionCandidates(base)) {
-      if (fs.fileExistsSync(candidate)) {
-        return this.inRepoFileId(candidate);
-      }
-    }
-    return null;
+    const abs = resolveRelativeAbs(
+      this.ensureProject().getFileSystem(),
+      srcAbs,
+      specifier,
+    );
+    return abs ? inRepoFileId(this.repoRoot, abs) : null;
   }
 
   private inRepoFileId(abs: string): string | null {
-    const relative = path.relative(this.repoRoot, abs);
-    if (relative.startsWith("..") || path.isAbsolute(relative)) return null;
-    if (relative.split(path.sep).includes("node_modules")) return null;
-    return fileId(this.repoRoot, abs);
+    return inRepoFileId(this.repoRoot, abs);
   }
-}
-
-export const RESOLVABLE_EXTS = [
-  ".ts",
-  ".tsx",
-  ".mts",
-  ".cts",
-  ".js",
-  ".jsx",
-  ".mjs",
-  ".cjs",
-];
-
-function isRelativeSpecifier(specifier: string): boolean {
-  return (
-    specifier === "." ||
-    specifier === ".." ||
-    specifier.startsWith("./") ||
-    specifier.startsWith("../")
-  );
-}
-
-/**
- * Candidate on-disk paths for a resolved relative import base, in priority
- * order: an explicit extension already present, then the source extensions,
- * then a NodeNext `.js`→`.ts` remap, then `index.*` for directory imports.
- */
-function* relativeResolutionCandidates(base: string): Iterable<string> {
-  yield base;
-  for (const ext of RESOLVABLE_EXTS) yield base + ext;
-  const jsExt = /\.(?:jsx?|mjs|cjs)$/.exec(base);
-  if (jsExt) {
-    const stem = base.slice(0, base.length - jsExt[0].length);
-    for (const ext of RESOLVABLE_EXTS) yield stem + ext;
-  }
-  for (const ext of RESOLVABLE_EXTS) yield path.join(base, "index" + ext);
 }
 
 // ts-morph resolves workspace imports like `@codewatch/analyzer` to the
