@@ -44,6 +44,14 @@ export {
 } from "./extractors/ids.js";
 
 export {
+  computeDeepAst,
+  type DeepAst,
+  type DeepAstInput,
+  type ParamInfo,
+  type MemberInfo,
+} from "./extractors/deep-ast.js";
+
+export {
   runGraphIndex,
   type GraphIndexOptions,
   type GraphIndexResult,

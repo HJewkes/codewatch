@@ -11,10 +11,11 @@ import type { ArchResult } from "../commands/graph-arch.js";
 import { formatGraphCoverageJson } from "../commands/graph-coverage.js";
 
 /**
- * Operational subcommands that emit an HTML/image artifact or run as a git hook,
- * not a JSON data model — legitimately exempt from `--json`. Any OTHER graph
- * subcommand must accept `--json` (C-7 parity guarantee); adding a data command
- * without `--json` fails this test automatically.
+ * Operational subcommands that emit an HTML/image artifact, run as a git hook,
+ * or run as a long-lived server, not a JSON data model — legitimately exempt
+ * from `--json`. Any OTHER graph subcommand must accept `--json` (C-7 parity
+ * guarantee); adding a data command without `--json` fails this test
+ * automatically.
  */
 const JSON_EXEMPT = new Set([
   "dashboard",
@@ -22,6 +23,7 @@ const JSON_EXEMPT = new Set([
   "render-diff",
   "render-check-diff",
   "auto-update",
+  "mcp",
 ]);
 
 function graphSubcommands(): Command[] {

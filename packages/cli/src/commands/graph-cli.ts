@@ -10,6 +10,7 @@ import { registerGraphDashboard } from "./graph-dashboard.js";
 import { registerGraphDiff } from "./graph-diff.js";
 import { registerGraphIndex } from "./graph-index.js";
 import { registerGraphInit } from "./graph-init.js";
+import { registerGraphMcp } from "./graph-mcp.js";
 import { registerGraphPrune } from "./graph-prune.js";
 import { registerGraphRelevant } from "./graph-relevant.js";
 import { registerGraphRenderCheckDiff } from "./graph-render-check-diff.js";
@@ -42,4 +43,5 @@ export function registerGraphCommands(program: Command): void {
   registerRender(graphCmd);
   registerGraphRenderCheckDiff(graphCmd);
   registerGraphPrune(graphCmd);
+  registerGraphMcp(graphCmd);
 }
