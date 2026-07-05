@@ -2,7 +2,10 @@ import { execFileSync } from "node:child_process";
 import { realpathSync } from "node:fs";
 import * as path from "node:path";
 import { detectGitToplevel, discoveryEnv } from "./git-renames.js";
+import { windowSuffix, type ChurnWindow } from "./churn-window.js";
 import type { GraphMetric } from "./types.js";
+
+export { windowSuffix, type ChurnWindow };
 
 export interface ChurnEntry {
   commit: string;
@@ -17,7 +20,7 @@ export interface ChurnEntry {
 
 export interface ComputeChurnOptions {
   repoRoot: string;
-  windowDays?: number;
+  windowDays?: ChurnWindow;
   knownFileIds?: ReadonlySet<string>;
 }
 
@@ -124,7 +127,7 @@ export function resolveRenamedPath(rawPath: string): string {
 
 export function aggregateChurn(
   entries: readonly ChurnEntry[],
-  windowDays: number,
+  windowDays: ChurnWindow,
   knownFileIds?: ReadonlySet<string>,
 ): GraphMetric[] {
   const lines = new Map<string, number>();
@@ -136,7 +139,7 @@ export function aggregateChurn(
     setAdd(commits, e.filePath, e.commit);
     setAdd(authors, e.filePath, e.author);
   }
-  const suffix = `${windowDays}d`;
+  const suffix = windowSuffix(windowDays);
   const out: GraphMetric[] = [];
   for (const [filePath, total] of lines) {
     out.push({ nodeId: filePath, name: `churn_${suffix}`, value: total, unit: "lines" });
@@ -174,13 +177,15 @@ export function entriesWithin(
  */
 export function aggregateChurnWindows(
   entries: readonly ChurnEntry[],
-  windowsDays: readonly number[],
+  windowsDays: readonly ChurnWindow[],
   nowEpoch: number,
   knownFileIds?: ReadonlySet<string>,
 ): GraphMetric[] {
   const out: GraphMetric[] = [];
   for (const windowDays of windowsDays) {
-    const within = entriesWithin(entries, windowDays, nowEpoch);
+    // Lifetime = the whole wide log (all history); finite windows slice by time.
+    const within =
+      windowDays === "lifetime" ? entries : entriesWithin(entries, windowDays, nowEpoch);
     out.push(...aggregateChurn(within, windowDays, knownFileIds));
   }
   return out;
@@ -256,19 +261,20 @@ export function computeRecencyMetrics(
  */
 export function computeRecencyWindows(
   firstSeen: ReadonlyMap<string, number>,
-  churnedIdsByWindow: ReadonlyMap<number, ReadonlySet<string>>,
+  churnedIdsByWindow: ReadonlyMap<ChurnWindow, ReadonlySet<string>>,
   nowEpoch: number,
 ): GraphMetric[] {
   const out: GraphMetric[] = [];
   const ageEmitted = new Set<string>();
   for (const [windowDays, ids] of churnedIdsByWindow) {
-    const suffix = `${windowDays}d`;
+    const suffix = windowSuffix(windowDays);
     for (const id of ids) {
       const seen = firstSeen.get(id);
       let recency = 1;
       if (seen !== undefined) {
         const ageDays = Math.max(0, (nowEpoch - seen) / 86400);
-        recency = Math.min(1, ageDays / windowDays);
+        // Lifetime has no window to age against → recency stays 1 (no discount).
+        if (windowDays !== "lifetime") recency = Math.min(1, ageDays / windowDays);
         if (!ageEmitted.has(id)) {
           out.push({ nodeId: id, name: "file_age_days", value: Math.round(ageDays), unit: "days" });
           ageEmitted.add(id);
@@ -323,13 +329,15 @@ function runFirstSeenLog(repoRoot: string): string | null {
   }
 }
 
-function runGitLog(repoRoot: string, windowDays: number): string | null {
+function runGitLog(repoRoot: string, windowDays: ChurnWindow): string | null {
+  // Lifetime drops `--since` entirely (mirrors runFirstSeenLog) → full history.
+  const sinceArgs = windowDays === "lifetime" ? [] : [`--since=${windowDays}.days.ago`];
   try {
     return execFileSync(
       "git",
       [
         "log",
-        `--since=${windowDays}.days.ago`,
+        ...sinceArgs,
         "--no-merges",
         "--numstat",
         "-M",

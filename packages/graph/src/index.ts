@@ -62,7 +62,9 @@ export {
   parseChurnLog,
   aggregateChurn,
   resolveRenamedPath,
+  windowSuffix,
   type ChurnEntry,
+  type ChurnWindow,
   type ComputeChurnOptions,
 } from "./churn.js";
 export { detectGitToplevel, resolveGitRef } from "./git-renames.js";

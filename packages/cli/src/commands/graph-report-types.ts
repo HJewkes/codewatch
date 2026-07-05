@@ -1,4 +1,4 @@
-import type { SnapshotRow } from "@codewatch/graph";
+import type { ChurnWindow, SnapshotRow } from "@codewatch/graph";
 
 export interface HotspotRow {
   nodeId: string;
@@ -94,7 +94,8 @@ export interface TestCoverageRow {
 
 export interface GraphReportResult {
   snapshot: SnapshotRow;
-  windowDays: number;
+  /** The resolved churn window these sections were computed for (`"lifetime"` = all-time). */
+  windowDays: ChurnWindow;
   hotspots: HotspotRow[];
   busFactorRisks: BusFactorRow[];
   testCoverageRisks: TestCoverageRow[];

@@ -4,6 +4,8 @@ import {
   canonicalMetricName,
   compilePatterns,
   openDatabase,
+  windowSuffix,
+  type ChurnWindow,
   type GraphDatabase,
   type GraphMetric,
   type SnapshotRow,
@@ -54,7 +56,7 @@ export interface GraphReportCommandOptions {
   repoRoot: string;
   snapshot?: number;
   vs?: string;
-  windowDays?: number;
+  windowDays?: ChurnWindow;
   limit?: number;
   exclude?: string[];
   excludeRole?: string[];
@@ -78,9 +80,9 @@ function resolveExcludedRoles(options: GraphReportCommandOptions): Set<string> {
 
 function hasChurnSignal(
   metrics: readonly GraphMetric[],
-  windowDays: number,
+  windowDays: ChurnWindow,
 ): boolean {
-  const name = `churn_${windowDays}d`;
+  const name = `churn_${windowSuffix(windowDays)}`;
   return metrics.some((m) => m.name === name && (m.value ?? 0) > 0);
 }
 
@@ -90,11 +92,20 @@ function suggestWiderWindow(windowDays: number): number {
   return windowDays * 2;
 }
 
-function emptyWindowHint(windowDays: number): string {
+function emptyWindowHint(windowDays: ChurnWindow): string {
+  // Lifetime already spans all of history — a wider window can't help; the repo
+  // simply has no git churn (shallow clone, or non-git tree).
+  if (windowDays === "lifetime") {
+    return (
+      "No churn over the repo's full git history — churn-based sections are " +
+      "empty. Check that this is a full (non-shallow) git clone."
+    );
+  }
   const wider = suggestWiderWindow(windowDays);
   return (
     `No commits in the last ${windowDays}d — churn-based sections are ` +
-    `empty. Try a wider window: \`--window-days ${wider}\`.`
+    `empty. Try a wider window (\`--window-days ${wider}\`) or all-time ` +
+    "(`--window-days lifetime`, if the snapshot was indexed with `--lifetime`)."
   );
 }
 
@@ -233,22 +244,51 @@ function resolveSnapshot(
   throw new Error(`No snapshot matches ref or id "${refOrId}"`);
 }
 
+/**
+ * Resolve the requested churn window against what the snapshot actually stored.
+ * A snapshot only stores a fixed set of windows (default 30/90/180, plus
+ * `lifetime` when indexed with `--lifetime`), so a request for an unstored
+ * window (e.g. `--window-days 3650`, or `lifetime` without a lifetime index)
+ * can't be honored. Rather than silently substituting another window — which
+ * made an established repo read as pristine (C-71) — warn to stderr and fall
+ * back to the widest stored window.
+ */
 function resolveWindowDays(
   metrics: readonly GraphMetric[],
-  requested: number,
-): number {
+  requested: ChurnWindow,
+): ChurnWindow {
   const re = /^churn_(\d+)d$/;
-  const available = new Set<number>();
+  const available: ChurnWindow[] = [];
   for (const m of metrics) {
+    if (m.name === "churn_lifetime") available.push("lifetime");
     const match = re.exec(m.name);
-    if (match) available.add(Number(match[1]));
+    if (match) available.push(Number(match[1]));
   }
-  if (available.has(requested) || available.size === 0) return requested;
-  return [...available][0]!;
+  if (available.length === 0 || available.includes(requested)) return requested;
+  // Prefer the widest finite window as the fallback (lifetime sorts last).
+  const finite = [...new Set(available.filter((w): w is number => w !== "lifetime"))];
+  const fallback = finite.length > 0 ? Math.max(...finite) : available[0]!;
+  const hasLifetime = available.includes("lifetime");
+  const stored = [
+    ...finite.sort((a, b) => a - b).map((w) => `${w}d`),
+    ...(hasLifetime ? ["lifetime"] : []),
+  ].join(", ");
+  process.stderr.write(
+    `codewatch: churn window "${windowSuffix(requested)}" was not stored in this ` +
+      `snapshot (available: ${stored}); using "${windowSuffix(fallback)}" instead. ` +
+      "Re-index with `--churn-windows`/`--lifetime` to store it.\n",
+  );
+  return fallback;
 }
 
 function asNumber(s: string | undefined): number | undefined {
   return s !== undefined ? Number(s) : undefined;
+}
+
+/** Parse `--window-days`: a day count, or the literal `lifetime` for all-time. */
+function parseWindow(s: string | undefined): ChurnWindow | undefined {
+  if (s === undefined) return undefined;
+  return s.toLowerCase() === "lifetime" ? "lifetime" : Number(s);
 }
 
 export function registerGraphReport(graphCmd: Command): void {
@@ -264,7 +304,10 @@ export function registerGraphReport(graphCmd: Command): void {
       "--vs <ref-or-id>",
       "Add a drift section comparing the current report to this baseline snapshot.",
     )
-    .option("--window-days <n>", "Window for churn/coupling (default 30)")
+    .option(
+      "--window-days <n>",
+      "Window for churn/coupling: a day count, or `lifetime` for all-time (needs a `--lifetime` index) (default 30)",
+    )
     .option("--limit <n>", "Rows per section (default 10)")
     .option(
       "--exclude <pattern...>",
@@ -300,7 +343,7 @@ export function registerGraphReport(graphCmd: Command): void {
             repoRoot: options.repoRoot,
             snapshot: asNumber(options.snapshot),
             vs: options.vs,
-            windowDays: asNumber(options.windowDays),
+            windowDays: parseWindow(options.windowDays),
             limit: asNumber(options.limit),
             exclude: options.exclude,
             excludeRole: options.excludeRole,

@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { tmpdir } from "node:os";
@@ -262,5 +262,52 @@ describe("runGraphReportCommand", () => {
     const result = runGraphReportCommand({ db: dbPath, repoRoot: dir, vs: "previous" });
     expect(result.drift).toBeDefined();
     expect(result.drift!.baselineSnapshot.id).toBe(older);
+  });
+
+  it("resolves --window-days lifetime against stored lifetime metrics (C-71)", async () => {
+    fx = await fixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [fileNode("a.ts")]);
+      db.insertMetrics(snapshotId, [
+        // Recent window is quiet; lifetime carries the real history.
+        { nodeId: "a.ts", name: "churn_30d", value: 0 },
+        { nodeId: "a.ts", name: "churn_lifetime", value: 400 },
+        { nodeId: "a.ts", name: "recency_lifetime", value: 1 },
+        { nodeId: "a.ts", name: "cognitive_max", value: 20 },
+      ]);
+    });
+    const result = runGraphReportCommand({
+      db: fx.dbPath,
+      repoRoot: fx.dir,
+      windowDays: "lifetime",
+    });
+    expect(result.windowDays).toBe("lifetime");
+    expect(result.hotspots[0]).toMatchObject({ nodeId: "a.ts", score: 8000 });
+  });
+
+  it("warns and falls back to the widest stored window for an unstored request (C-71)", async () => {
+    fx = await fixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [fileNode("a.ts")]);
+      db.insertMetrics(snapshotId, [
+        { nodeId: "a.ts", name: "churn_30d", value: 10 },
+        { nodeId: "a.ts", name: "churn_180d", value: 90 },
+        { nodeId: "a.ts", name: "cognitive_max", value: 5 },
+      ]);
+    });
+    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    try {
+      const result = runGraphReportCommand({
+        db: fx.dbPath,
+        repoRoot: fx.dir,
+        windowDays: 3650, // never stored → must not silently substitute
+      });
+      // Falls back to the widest finite stored window (180d), not the first seen.
+      expect(result.windowDays).toBe(180);
+      expect(stderr).toHaveBeenCalledOnce();
+      const msg = String(stderr.mock.calls[0]![0]);
+      expect(msg).toContain('"3650d" was not stored');
+      expect(msg).toContain('using "180d"');
+    } finally {
+      stderr.mockRestore();
+    }
   });
 });
