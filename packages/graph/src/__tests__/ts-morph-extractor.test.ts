@@ -87,6 +87,28 @@ const FILES: Record<string, string> = {
   "/repo/src/via-barrel.ts":
     `import { A } from "./index.js";\n` +
     `export const vb = A + A;\n`, // A used 2×
+  // C-70: extensionless relative imports through a re-export barrel CHAIN (the
+  // tRPC pattern: `import { x } from './barrel'` where the barrel only
+  // re-exports x from elsewhere, extensionlessly). ts-morph's NodeNext cannot
+  // link extensionless specifiers, so resolution drops to the fs fallback — which
+  // must ALSO trace through named + wildcard re-export hops to the origin, or the
+  // origin symbol is falsely reported unused despite being referenced.
+  "/repo/src/deep/origin.ts": `export function deepFn() { return 1; }\n`,
+  // wildcard re-export, extensionless
+  "/repo/src/deep/wildcard-barrel.ts": `export * from "./origin";\n`,
+  // named re-export through the wildcard barrel, extensionless (2nd hop)
+  "/repo/src/deep/named-barrel.ts":
+    `export { deepFn } from "./wildcard-barrel";\n`,
+  // consumer imports the origin symbol via the 2-hop extensionless chain
+  "/repo/src/deep/consumer.ts":
+    `import { deepFn } from "./named-barrel";\n` +
+    `export const used = deepFn() + deepFn();\n`, // deepFn used 2×
+  // aliased re-export hop: outward `renamedFn` ← inward `deepFn` (tRPC has these)
+  "/repo/src/deep/aliased-barrel.ts":
+    `export { deepFn as renamedFn } from "./wildcard-barrel";\n`,
+  "/repo/src/deep/consumer-alias.ts":
+    `import { renamedFn } from "./aliased-barrel";\n` +
+    `export const u2 = renamedFn();\n`,
   // A directory outside the tsconfig project using extensionless,
   // bundler-style relative imports (like `dashboard/`). ts-morph's NodeNext
   // resolution cannot link these; the filesystem fallback must (C-44).
@@ -329,6 +351,22 @@ describe("TsMorphGraphExtractor", () => {
       // Credits origin src/a.ts#A, never the barrel's src/index.ts#A.
       expect(refTo(fragment!, "src/a.ts#A")?.attrs?.weight).toBe(2);
       expect(refTo(fragment!, "src/index.ts#A")).toBeUndefined();
+    });
+
+    it("sees through an extensionless multi-hop re-export chain to the origin (C-70)", () => {
+      const [fragment] = fixture.extract("/repo/src/deep/consumer.ts");
+      // deepFn is imported extensionlessly through named-barrel → wildcard-barrel
+      // → origin. The reference must credit the origin symbol, never the barrels.
+      expect(refTo(fragment!, "src/deep/origin.ts#deepFn")?.attrs?.weight).toBe(2);
+      expect(refTo(fragment!, "src/deep/named-barrel.ts#deepFn")).toBeUndefined();
+      expect(refTo(fragment!, "src/deep/wildcard-barrel.ts#deepFn")).toBeUndefined();
+    });
+
+    it("credits the origin (inward) name across an aliased extensionless re-export hop (C-70)", () => {
+      const [fragment] = fixture.extract("/repo/src/deep/consumer-alias.ts");
+      // outward `renamedFn` ← inward `deepFn`; the origin declares `deepFn`.
+      expect(refTo(fragment!, "src/deep/origin.ts#deepFn")?.attrs?.weight).toBe(1);
+      expect(refTo(fragment!, "src/deep/aliased-barrel.ts#renamedFn")).toBeUndefined();
     });
 
     it("tags an exported declaration's symbol node exported:true", () => {

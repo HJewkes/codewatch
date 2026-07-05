@@ -1,4 +1,4 @@
-import { RESOLVABLE_EXTS } from "./extractors/ts-morph-extractor.js";
+import { RESOLVABLE_EXTS } from "./extractors/module-resolution.js";
 import { parseSymbolId } from "./extractors/ids.js";
 import type { ReuseBasis } from "./incremental.js";
 import type { GraphEdge } from "./types.js";
