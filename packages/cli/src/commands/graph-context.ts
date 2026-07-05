@@ -97,6 +97,8 @@ export function runGraphContextCommand(
     const windowDays = resolveWindow(metricRows, options.windowDays);
     const centrality = new Map<string, number>();
     for (const r of computePageRank(fileNodes, fileEdges, {}).rows) centrality.set(r.nodeId, r.score);
+    const roleByFile = new Map<string, string>();
+    for (const n of fileNodes) if (n.role) roleByFile.set(n.id, n.role);
     const { node, kind } = resolveTarget(nodes, target);
     return buildContextDossier({
       target: node,
@@ -110,6 +112,7 @@ export function runGraphContextCommand(
       churnWindowDays: windowDays,
       centrality,
       ownership: null,
+      roleByFile,
     });
   } finally {
     db.close();

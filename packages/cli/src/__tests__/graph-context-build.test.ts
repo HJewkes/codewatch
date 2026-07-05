@@ -50,6 +50,7 @@ function input(target: string, kind: "file" | "symbol"): ContextBuildInput {
     churnWindowDays: 30,
     centrality: new Map([["src/a.ts", 0.4]]),
     ownership: null,
+    roleByFile: new Map([["src/d.ts", "test"]]), // d is a test file → split out of source consumers
   };
 }
 
@@ -70,10 +71,18 @@ describe("buildContextDossier — file target", () => {
     expect(d.file!.symbols[1]).toMatchObject({ exported: false, consumers: 0 });
   });
 
-  it("lists inbound consumers and drops stable/zero blast-radius symbols", () => {
-    expect(d.file?.consumers).toEqual(["src/b.ts", "src/c.ts", "src/d.ts"]);
+  it("splits inbound consumers by role and drops stable/zero blast-radius symbols", () => {
+    expect(d.file?.consumers).toMatchObject({
+      source: ["src/b.ts", "src/c.ts"],
+      test: ["src/d.ts"],
+      counts: { source: 2, test: 1, total: 3 },
+    });
     expect(d.file?.blastRadius.map((b) => b.name)).toEqual(["foo"]);
     expect(d.file?.blastRadius[0]?.score).toBe(150); // 3 × 10 × 5
+  });
+
+  it("stamps a schema version", () => {
+    expect(d.schemaVersion).toBe("1");
   });
 
   it("notes the missing type signature and omitted ownership", () => {
@@ -86,12 +95,20 @@ describe("buildContextDossier — file target", () => {
 describe("buildContextDossier — symbol target", () => {
   const d = buildContextDossier(input("src/a.ts#foo", "symbol"));
 
-  it("projects complexity, utilization and consumers", () => {
+  it("projects complexity, utilization and role-split consumers", () => {
     expect(d.target).toMatchObject({ kind: "symbol", name: "foo", path: "src/a.ts" });
     expect(d.symbol?.complexity).toEqual({ cognitive: 10, cyclomatic: 4 });
     expect(d.symbol?.utilization).toBe(3);
-    expect(d.symbol?.consumers).toEqual(["src/b.ts", "src/c.ts", "src/d.ts"]);
+    expect(d.symbol?.consumers).toMatchObject({
+      source: ["src/b.ts", "src/c.ts"],
+      test: ["src/d.ts"],
+    });
     expect(d.symbol?.blastRadius).toBe(150);
+  });
+
+  it("exposes null signature/purpose slots (G1/G2, not yet indexed)", () => {
+    expect(d.symbol?.signature).toBeNull();
+    expect(d.symbol?.purpose).toBeNull();
   });
 
   it("surfaces co-import coupling partners", () => {

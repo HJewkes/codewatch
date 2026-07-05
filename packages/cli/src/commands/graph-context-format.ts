@@ -1,4 +1,5 @@
 import type {
+  Consumers,
   ContextDossier,
   FileDossier,
   SymbolDossier,
@@ -29,11 +30,11 @@ function renderSymbol(s: SymbolDossier): string[] {
   const out = [
     "## Symbol",
     `- **exported**: ${s.exported}`,
+    `- **signature**: ${s.signature ?? "— (not indexed)"}`,
     `- **complexity**: cognitive ${s.complexity.cognitive ?? "—"}, cyclomatic ${s.complexity.cyclomatic ?? "—"}`,
     `- **utilization**: ${s.utilization}`,
     `- **blast radius**: ${round(s.blastRadius)}`,
-    `- **consumers (${s.consumers.length})**: ${list(s.consumers)}`,
-    "",
+    ...renderConsumers(s.consumers),
   ];
   if (s.coupledWith.length) {
     out.push("### Co-imported with");
@@ -56,7 +57,7 @@ function renderFile(f: FileDossier): string[] {
     `- **ownership**: ${own}`,
     "",
     ...section(`Depends on (${f.dependsOn.length})`, f.dependsOn),
-    ...section(`Consumers (${f.consumers.length})`, f.consumers),
+    ...renderConsumers(f.consumers),
   ];
   if (f.symbols.length) {
     out.push(`### Symbols (${f.symbols.length})`);
@@ -79,8 +80,11 @@ function section(title: string, items: readonly string[]): string[] {
   return [`### ${title}`, ...items.map((i) => `- \`${i}\``), ""];
 }
 
-function list(items: readonly string[]): string {
-  return items.length ? items.map((i) => `\`${i}\``).join(", ") : "none";
+/** Source consumers lead (the actionable set); test consumers are counted, not listed. */
+function renderConsumers(c: Consumers): string[] {
+  const header = `### Consumers — ${c.counts.source} source, ${c.counts.test} test (${c.counts.total} total)`;
+  const rows = c.source.map((i) => `- \`${i}\``);
+  return [header, ...(rows.length ? rows : ["- (no non-test consumers)"]), `> ${c.note}`, ""];
 }
 
 function round(n: number): number {

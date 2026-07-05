@@ -21,12 +21,46 @@ import {
  * unit-testable on synthetic graphs.
  */
 
+/** Bumped when the dossier shape changes, so a RAG store can invalidate records. */
+export const SCHEMA_VERSION = "1";
+
 export interface Provenance {
   snapshotId: number;
   ref: string;
   commitHash: string | null;
   takenAt: string;
   indexVersion: string;
+}
+
+/** `references` edges resolve cross-file imports only — flagged so a RAG query doesn't over-trust the count. */
+const CONSUMER_NOTE =
+  "cross-file import resolution only; intra-file and dynamic import() callers are excluded";
+
+/**
+ * Consumers split by declaring-file role (C-74/G3): for core exports most inbound
+ * references are test files, which is truthful but low-signal for "what production
+ * code depends on this" — so source and test consumers are separated, not flattened.
+ */
+export interface Consumers {
+  source: string[];
+  test: string[];
+  counts: { source: number; test: number; total: number };
+  note: string;
+}
+
+function splitConsumers(
+  files: readonly string[],
+  roleByFile: ReadonlyMap<string, string>,
+): Consumers {
+  const source: string[] = [];
+  const test: string[] = [];
+  for (const f of files) (roleByFile.get(f) === "test" ? test : source).push(f);
+  return {
+    source,
+    test,
+    counts: { source: source.length, test: test.length, total: files.length },
+    note: CONSUMER_NOTE,
+  };
 }
 
 export interface FileOwnership {
@@ -48,9 +82,13 @@ export interface SymbolLine {
 
 export interface SymbolDossier {
   exported: boolean;
+  /** G1 slot — the type signature string, once persisted at index time. Null today. */
+  signature: string | null;
+  /** G2 slot — leading docstring / intent. Null today. */
+  purpose: string | null;
   complexity: { cognitive?: number; cyclomatic?: number };
   utilization: number;
-  consumers: string[];
+  consumers: Consumers;
   blastRadius: number;
   coupledWith: { symbolId: string; name: string; fileId: string; coImports: number }[];
 }
@@ -62,11 +100,12 @@ export interface FileDossier {
   ownership: FileOwnership | null;
   symbols: SymbolLine[];
   dependsOn: string[];
-  consumers: string[];
+  consumers: Consumers;
   blastRadius: BlastRadiusEntry[];
 }
 
 export interface ContextDossier {
+  schemaVersion: string;
   target: {
     id: string;
     kind: "file" | "symbol";
@@ -95,6 +134,8 @@ export interface ContextBuildInput {
   churnWindowDays: number;
   centrality: ReadonlyMap<string, number>;
   ownership: ReadonlyMap<string, FileOwnership> | null;
+  /** File id → node role, for splitting consumers into source vs test (G3). */
+  roleByFile: ReadonlyMap<string, string>;
 }
 
 /** Number of distinct importing files per symbol id (inbound `references`). */
@@ -124,9 +165,11 @@ function buildSymbolDossier(input: ContextBuildInput): SymbolDossier {
     .slice(0, 15);
   return {
     exported: input.target.attrs?.exported !== false,
+    signature: null,
+    purpose: null,
     complexity: { cognitive: m?.cognitiveMax, cyclomatic: m?.cyclomaticMax },
     utilization: m?.utilization ?? 0,
-    consumers,
+    consumers: splitConsumers(consumers, input.roleByFile),
     blastRadius: (m?.utilization ?? 0) * complexity * churn,
     coupledWith,
   };
@@ -201,7 +244,7 @@ function buildFileDossier(input: ContextBuildInput): FileDossier {
     ownership: input.ownership?.get(fileId) ?? null,
     symbols: fileSymbols(fileId, input.nodes, input.metrics, consumers),
     dependsOn: fileDependsOn(fileId, input.refEdges, input.importEdges),
-    consumers: fileConsumers(fileId, input.refEdges),
+    consumers: splitConsumers(fileConsumers(fileId, input.refEdges), input.roleByFile),
     blastRadius: buildBlastRadius(symbolUtil, input.metrics, input.churnByFile, 15),
   };
 }
@@ -218,6 +261,7 @@ export function buildContextDossier(input: ContextBuildInput): ContextDossier {
     notes.push("Ownership omitted (git-derived; run without --no-ownership on a repo checkout).");
   }
   return {
+    schemaVersion: SCHEMA_VERSION,
     target: { id: target.id, kind, name: target.name, path, span },
     provenance: input.provenance,
     symbol: kind === "symbol" ? buildSymbolDossier(input) : undefined,
