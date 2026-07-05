@@ -65,6 +65,10 @@ export function keepNode(ctx: ReportContext, nodeId: string): boolean {
   if (matchesAny(nodeId, ctx.excluders)) return false;
   const node = ctx.nodeById.get(nodeId);
   if (!node || node.kind !== "file") return false;
+  // Generated code (codegen output, C-73) is always excluded here — the shared
+  // gate for hotspots, unused-exports, and the rest of the quality report — so a
+  // churning `client.gen.ts` never crowds out the files a human actually owns.
+  if (node.role === "generated") return false;
   if (node.role && ctx.excludedRoles.has(node.role)) return false;
   return true;
 }

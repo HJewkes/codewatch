@@ -61,8 +61,8 @@ export function runGraphTopCommand(
     const desired = options.limit ?? 20;
     const excluders = compilePatterns(options.exclude);
     const excludedRoles = new Set(options.excludeRole ?? []);
-    const filtering = excluders.length > 0 || excludedRoles.size > 0;
-    const oversample = filtering ? Math.max(desired * 4, 200) : desired;
+    // Generated rows are always dropped below, so backfill is always needed.
+    const oversample = Math.max(desired * 4, 200);
 
     const raw = db.topByMetric({
       snapshotId: snapshot.id,
@@ -73,6 +73,7 @@ export function runGraphTopCommand(
 
     const filtered = raw.filter(
       (r) =>
+        r.role !== "generated" &&
         !matchesAny(r.nodeId, excluders) &&
         !(r.role && excludedRoles.has(r.role)),
     );

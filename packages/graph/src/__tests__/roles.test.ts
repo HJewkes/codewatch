@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { annotateRoles, classifyRole } from "../roles.js";
+import { annotateRoles, classifyRole, computeRoleHints } from "../roles.js";
 import type { GraphNode } from "../types.js";
+
+const identityId = (_root: string, filePath: string): string => filePath;
 
 describe("classifyRole", () => {
   it("recognizes test files", () => {
@@ -110,5 +112,33 @@ describe("annotateRoles", () => {
       shebangIds: new Set(["packages/cli/src/index.ts"]),
     });
     expect(out[0]!.role).toBe("entry");
+  });
+
+  it("computeRoleHints flags shebang entries and generated files by heuristic", () => {
+    const hints = computeRoleHints(
+      [
+        { filePath: "src/cli.ts", content: "#!/usr/bin/env node\n" },
+        { filePath: "src/api.gen.ts", content: "export const x = 1;\n" },
+        { filePath: "src/plain.ts", content: "export const y = 2;\n" },
+      ],
+      "/repo",
+      identityId,
+    );
+    expect(hints.shebangIds?.has("src/cli.ts")).toBe(true);
+    expect(hints.generatedIds?.has("src/api.gen.ts")).toBe(true);
+    expect(hints.generatedIds?.has("src/plain.ts")).toBe(false);
+  });
+
+  it("classifies a generated node via generatedIds, winning over filename roles", () => {
+    // `client.gen` would read as a barrel-ish name; generated must win (C-73).
+    const gen: GraphNode[] = [
+      { id: "src/client.gen.ts", kind: "file", name: "client.gen" },
+      { id: "src/index.ts", kind: "file", name: "index" },
+    ];
+    const out = annotateRoles(gen, {
+      generatedIds: new Set(["src/client.gen.ts"]),
+    });
+    expect(out.find((n) => n.id === "src/client.gen.ts")?.role).toBe("generated");
+    expect(out.find((n) => n.id === "src/index.ts")?.role).toBe("barrel");
   });
 });

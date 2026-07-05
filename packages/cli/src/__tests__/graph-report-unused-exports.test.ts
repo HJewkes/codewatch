@@ -104,4 +104,16 @@ describe("topUnusedExports (C-65)", () => {
     const rows = topUnusedExports(symbols, publicApiFiles(nodes, edges), ctx, 10);
     expect(rows.map((r) => r.name)).not.toContain("dead");
   });
+
+  it("excludes exports declared in generated files (C-73)", () => {
+    const genNodes: GraphNode[] = [file("src/client.gen.ts", "generated")];
+    const genSymbols: GraphNode[] = [sym("src/client.gen.ts", "createClient", true)];
+    const genMetrics: GraphMetric[] = [
+      util("src/client.gen.ts#createClient", 0),
+      cx("src/client.gen.ts#createClient", 9),
+    ];
+    const ctx = ctxOf(genNodes, genMetrics);
+    const rows = topUnusedExports(genSymbols, new Set(), ctx, 10);
+    expect(rows).toHaveLength(0);
+  });
 });

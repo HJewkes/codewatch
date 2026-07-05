@@ -24,6 +24,7 @@ export type NodeRole =
   | "config"
   | "script"
   | "entry"
+  | "generated"
   | "source";
 
 export interface GraphNode {
