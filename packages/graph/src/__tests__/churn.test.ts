@@ -7,7 +7,9 @@ import {
   entriesWithin,
   parseChurnLog,
   resolveRenamedPath,
+  windowSuffix,
   type ChurnEntry,
+  type ChurnWindow,
 } from "../churn.js";
 
 describe("computeRecencyMetrics", () => {
@@ -208,6 +210,24 @@ describe("aggregateChurnWindows", () => {
     expect(churn("b.ts", 30)).toBeUndefined();
     expect(churn("b.ts", 180)).toBe(4);
   });
+
+  it("aggregates ALL entries for the lifetime window regardless of age (C-71)", () => {
+    const m = aggregateChurnWindows(entries, ["lifetime"], now);
+    const churn = (id: string) =>
+      m.find((x) => x.nodeId === id && x.name === "churn_lifetime")?.value;
+    // Every entry counts — even b.ts's 150d-old commit and a.ts's 100d one —
+    // because lifetime spans all of history with no `--since` bound.
+    expect(churn("a.ts")).toBe(10); // 3 + 7
+    expect(churn("b.ts")).toBe(4);
+  });
+});
+
+describe("windowSuffix", () => {
+  it("maps a day count to `<n>d` and lifetime to `lifetime`", () => {
+    expect(windowSuffix(30)).toBe("30d");
+    expect(windowSuffix(180)).toBe("180d");
+    expect(windowSuffix("lifetime")).toBe("lifetime");
+  });
 });
 
 describe("computeRecencyWindows", () => {
@@ -235,5 +255,18 @@ describe("computeRecencyWindows", () => {
     const m = computeRecencyWindows(new Map(), new Map([[30, new Set(["ghost.ts"])]]), now);
     expect(recency(m, "ghost.ts", 30)).toBe(1);
     expect(m.some((x) => x.name === "file_age_days")).toBe(false);
+  });
+
+  it("never age-discounts the lifetime window even for a brand-new file (C-71)", () => {
+    // A 1-day-old file would read as recency≈0 under an age/window ratio with a
+    // huge window; lifetime forces recency=1 so its full churn scores, while
+    // still emitting the (window-independent) file age.
+    const firstSeen = new Map([["fresh.ts", now - 1 * DAY]]);
+    const byWindow = new Map<ChurnWindow, ReadonlySet<string>>([
+      ["lifetime", new Set(["fresh.ts"])],
+    ]);
+    const m = computeRecencyWindows(firstSeen, byWindow, now);
+    expect(m.find((x) => x.nodeId === "fresh.ts" && x.name === "recency_lifetime")?.value).toBe(1);
+    expect(m.find((x) => x.name === "file_age_days")?.value).toBe(1);
   });
 });

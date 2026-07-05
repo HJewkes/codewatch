@@ -9,7 +9,9 @@ import {
   entriesWithin,
   loadChurnEntries,
   loadFileFirstSeen,
+  windowSuffix,
   type ChurnEntry,
+  type ChurnWindow,
 } from "./churn.js";
 import { computeChangeCoupling } from "./change-coupling.js";
 import { computeOwnershipMetrics, computeTestCoverageOwnership } from "./ownership.js";
@@ -34,20 +36,32 @@ export interface IndexerMetricsInput {
    * the dashboard switcher resolve 30/90/180 instead of snapping to one window.
    */
   churnWindows?: number[];
+  /**
+   * Also store an all-time `lifetime` window (churn/ownership over full git
+   * history, no `--since` bound) so codewatch can audit a cold external repo
+   * whose activity in any rolling window is thin relative to its whole life.
+   */
+  includeLifetime?: boolean;
 }
 
 /** Windows the dashboard switcher offers; churn is stored for each by default. */
 export const DEFAULT_CHURN_WINDOWS = [30, 90, 180];
 
-/** Effective, de-duped, sorted window set — always includes the primary window. */
+/**
+ * Effective, de-duped, sorted window set — always includes the primary window,
+ * and appends `lifetime` (widest, so the single wide git load covers it) when
+ * requested.
+ */
 function resolveChurnWindows(
   requested: number[] | undefined,
   primaryWindow: number,
-): number[] {
+  includeLifetime: boolean,
+): ChurnWindow[] {
   const base = requested && requested.length > 0 ? requested : DEFAULT_CHURN_WINDOWS;
-  return [...new Set([primaryWindow, ...base])]
+  const finite = [...new Set([primaryWindow, ...base])]
     .filter((w) => w > 0)
     .sort((a, b) => a - b);
+  return includeLifetime ? [...finite, "lifetime"] : finite;
 }
 
 /**
@@ -58,14 +72,15 @@ function resolveChurnWindows(
 function recencyMetrics(
   idRoot: string,
   churnMetrics: readonly GraphMetric[],
-  windows: readonly number[],
+  windows: readonly ChurnWindow[],
   knownFileIds: ReadonlySet<string> | undefined,
   nowEpoch: number,
 ): GraphMetric[] {
-  const churnedByWindow = new Map<number, ReadonlySet<string>>();
+  const churnedByWindow = new Map<ChurnWindow, ReadonlySet<string>>();
   for (const w of windows) {
+    const churnName = `churn_${windowSuffix(w)}`;
     const ids = new Set(
-      churnMetrics.filter((m) => m.name === `churn_${w}d`).map((m) => m.nodeId),
+      churnMetrics.filter((m) => m.name === churnName).map((m) => m.nodeId),
     );
     if (ids.size > 0) churnedByWindow.set(w, ids);
   }
@@ -130,12 +145,14 @@ export function buildIndexerMetrics(input: IndexerMetricsInput): GraphMetric[] {
   if (input.computeChurn) {
     knownFileIds = collectFileIds(input.nodes.values());
     const primaryWindow = input.churnWindowDays ?? 30;
-    const windows = resolveChurnWindows(input.churnWindows, primaryWindow);
-    const maxWindow = windows[windows.length - 1]!;
-    // Load the widest window once; slice it per window for churn/recency.
+    const includeLifetime = input.includeLifetime === true;
+    const windows = resolveChurnWindows(input.churnWindows, primaryWindow, includeLifetime);
+    const widest = windows[windows.length - 1]!;
+    // Load the widest window once; slice it per window for churn/recency. When
+    // lifetime is requested it sorts widest, so this one load is full history.
     const wide = loadChurnEntries({
       repoRoot: input.idRoot,
-      windowDays: maxWindow,
+      windowDays: widest,
       knownFileIds,
     });
     if (wide !== null) {
@@ -143,7 +160,7 @@ export function buildIndexerMetrics(input: IndexerMetricsInput): GraphMetric[] {
       const churnMetrics = aggregateChurnWindows(wide, windows, nowEpoch, knownFileIds);
       // Ownership, coupling, and coverage stay scoped to the primary window.
       entries =
-        primaryWindow === maxWindow ? wide : entriesWithin(wide, primaryWindow, nowEpoch);
+        widest === primaryWindow ? wide : entriesWithin(wide, primaryWindow, nowEpoch);
       out.push(
         ...churnMetrics,
         ...computeOwnershipMetrics(entries, {
@@ -152,6 +169,13 @@ export function buildIndexerMetrics(input: IndexerMetricsInput): GraphMetric[] {
         }),
         ...recencyMetrics(input.idRoot, churnMetrics, windows, knownFileIds, nowEpoch),
       );
+      // Lifetime ownership = dominant-owner over full history (real bus factor):
+      // `wide` IS the full-history log when lifetime is the widest window.
+      if (includeLifetime) {
+        out.push(
+          ...computeOwnershipMetrics(wide, { windowDays: "lifetime", knownFileIds }),
+        );
+      }
     }
   }
   out.push(

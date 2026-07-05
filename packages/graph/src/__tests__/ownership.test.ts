@@ -33,6 +33,23 @@ describe("computeOwnershipMetrics", () => {
     expect(findMetric(metrics, "a.ts", "top_author_share_30d")).toBe(1);
   });
 
+  it("suffixes lifetime ownership metrics with `lifetime` (C-71)", () => {
+    // Full-history bus factor = dominant-owner over all of git history. No single
+    // author clears 50% (40/40/20) → two authors needed → bus_factor 2.
+    const metrics = computeOwnershipMetrics(
+      [
+        entry("c1", "alice", "a.ts", 40),
+        entry("c2", "bob", "a.ts", 40),
+        entry("c3", "carol", "a.ts", 20),
+      ],
+      { windowDays: "lifetime" },
+    );
+    expect(findMetric(metrics, "a.ts", "bus_factor_lifetime")).toBe(2);
+    expect(findMetric(metrics, "a.ts", "top_author_share_lifetime")).toBe(0.4);
+    // The windowed suffix must NOT be emitted under lifetime.
+    expect(findMetric(metrics, "a.ts", "bus_factor_30d")).toBeUndefined();
+  });
+
   it("computes bus_factor at the 50%-threshold by default", () => {
     // alice: 60 lines, bob: 30, carol: 10. Total=100.
     // Top author share = 0.6. Bus factor: alice alone clears 50% → 1.

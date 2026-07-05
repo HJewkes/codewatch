@@ -48,6 +48,29 @@ async function commit(repoDir: string, message: string, author?: string): Promis
   }
 }
 
+/** Commit with a backdated author + committer date (ISO string), for history tests. */
+function commitAt(repoDir: string, message: string, isoDate: string, author = "alice"): void {
+  git(repoDir, ["add", "-A"]);
+  execFileSync(
+    "git",
+    [
+      "-c",
+      `user.name=${author}`,
+      "-c",
+      `user.email=${author}@example.com`,
+      "commit",
+      "-q",
+      "-m",
+      message,
+    ],
+    {
+      cwd: repoDir,
+      stdio: "ignore",
+      env: { ...process.env, GIT_AUTHOR_DATE: isoDate, GIT_COMMITTER_DATE: isoDate },
+    },
+  );
+}
+
 describe("runGraphIndex with churn metrics", () => {
   let repo: Repo;
 
@@ -137,6 +160,52 @@ describe("runGraphIndex with churn metrics", () => {
       expect(names.has("churn_30d")).toBe(true);
       expect(names.has("churn_90d")).toBe(false);
       expect(names.has("churn_180d")).toBe(false);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("captures churn/ownership OLDER than the rolling window under --lifetime (C-71)", async () => {
+    // A file whose only churn is a ~2-year-old commit is invisible to the 180d
+    // window but must appear in the lifetime aggregate — the whole point of
+    // cold-auditing an established repo.
+    await writeFile(repo.dir, "src/ancient.ts", "export const a = 1;\n");
+    commitAt(repo.dir, "ancient work", "2023-01-01T12:00:00", "alice");
+    await writeFile(repo.dir, "src/ancient.ts", ["export const a = 1;", "export const b = 2;", ""].join("\n"));
+    commitAt(repo.dir, "ancient follow-up", "2023-02-01T12:00:00", "bob");
+    await writeFile(repo.dir, "src/ancient.ts", ["export const a = 1;", "export const b = 2;", "export const c = 3;", ""].join("\n"));
+    commitAt(repo.dir, "ancient third", "2023-03-01T12:00:00", "carol");
+
+    const result = await runGraphIndex({ rootDir: repo.dir, ref: "head", lifetime: true });
+    const db = openDatabase(repo.dbPath);
+    try {
+      const all = db.listMetrics(result.snapshotId);
+      const byKey = (id: string, name: string): number | undefined =>
+        all.find((m) => m.nodeId === id && m.name === name)?.value ?? undefined;
+
+      // The rolling 180d window sees nothing (commits are ~2 years old) ...
+      expect(byKey("src/ancient.ts", "churn_180d")).toBeUndefined();
+      // ... but the lifetime window captures the full history, including a real
+      // three-author bus factor a windowed view could never surface (no single
+      // author clears 50% of the churn → bus factor 2).
+      expect(byKey("src/ancient.ts", "churn_lifetime")).toBeGreaterThan(0);
+      expect(byKey("src/ancient.ts", "churn_lifetime_authors")).toBe(3);
+      expect(byKey("src/ancient.ts", "bus_factor_lifetime")).toBe(2);
+      // Lifetime recency must NOT age-discount old files (recency = 1).
+      expect(byKey("src/ancient.ts", "recency_lifetime")).toBe(1);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("does not store any lifetime metrics without --lifetime", async () => {
+    await writeFile(repo.dir, "src/a.ts", "export const a = 1;\n");
+    await commit(repo.dir, "init");
+    const result = await runGraphIndex({ rootDir: repo.dir, ref: "head" });
+    const db = openDatabase(repo.dbPath);
+    try {
+      const names = new Set(db.listMetrics(result.snapshotId).map((m) => m.name));
+      expect([...names].some((n) => n.includes("lifetime"))).toBe(false);
     } finally {
       db.close();
     }

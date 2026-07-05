@@ -3,6 +3,8 @@ import {
   computePageRank,
   loadChurnEntries,
   matchesAny,
+  windowSuffix,
+  type ChurnWindow,
   type CoEditPair,
   type GraphEdge,
   type GraphMetric,
@@ -24,7 +26,9 @@ export interface ReportContext {
   metricsByName: Map<string, Map<string, number>>;
   excluders: readonly RegExp[];
   excludedRoles: ReadonlySet<string>;
-  windowDays: number;
+  windowDays: ChurnWindow;
+  /** Metric-name suffix for {@link windowDays} (`30d` … or `lifetime`). */
+  windowSuffix: string;
 }
 
 export interface ReportContextInput {
@@ -32,7 +36,7 @@ export interface ReportContextInput {
   metrics: readonly GraphMetric[];
   excluders: readonly RegExp[];
   excludedRoles: ReadonlySet<string>;
-  windowDays: number;
+  windowDays: ChurnWindow;
 }
 
 export function buildReportContext(input: ReportContextInput): ReportContext {
@@ -53,6 +57,7 @@ export function buildReportContext(input: ReportContextInput): ReportContext {
     excluders: input.excluders,
     excludedRoles: input.excludedRoles,
     windowDays: input.windowDays,
+    windowSuffix: windowSuffix(input.windowDays),
   };
 }
 
@@ -83,7 +88,7 @@ export function topHotspots(
   ctx: ReportContext,
   limit: number,
 ): HotspotRow[] {
-  const churnName = `churn_${ctx.windowDays}d`;
+  const churnName = `churn_${ctx.windowSuffix}`;
   const complexityName = pickComplexityMetric(ctx);
   const rows: HotspotRow[] = [];
   for (const node of ctx.nodes) {
@@ -91,7 +96,7 @@ export function topHotspots(
     const churn = lookupMetric(ctx, churnName, node.id) ?? 0;
     const complexity = lookupMetric(ctx, complexityName, node.id) ?? 0;
     if (churn === 0 || complexity === 0) continue;
-    const recency = lookupMetric(ctx, `recency_${ctx.windowDays}d`, node.id) ?? 1;
+    const recency = lookupMetric(ctx, `recency_${ctx.windowSuffix}`, node.id) ?? 1;
     rows.push({ nodeId: node.id, churn, complexity, recency, score: Math.round(churn * complexity * recency) });
   }
   rows.sort((a, b) => b.score - a.score);
@@ -100,7 +105,7 @@ export function topHotspots(
 
 export function hotspotScoreOf(ctx: ReportContext, nodeId: string): number {
   if (!keepNode(ctx, nodeId)) return 0;
-  const churn = lookupMetric(ctx, `churn_${ctx.windowDays}d`, nodeId) ?? 0;
+  const churn = lookupMetric(ctx, `churn_${ctx.windowSuffix}`, nodeId) ?? 0;
   const complexity = lookupMetric(ctx, pickComplexityMetric(ctx), nodeId) ?? 0;
   if (churn === 0 || complexity === 0) return 0;
   return hotspotScore(ctx, nodeId, churn, complexity);
@@ -113,7 +118,7 @@ export function hotspotScoreOf(ctx: ReportContext, nodeId: string): number {
  * supply an age. Rounded to keep scores integer-friendly for display/thresholds.
  */
 function hotspotScore(ctx: ReportContext, nodeId: string, churn: number, complexity: number): number {
-  const recency = lookupMetric(ctx, `recency_${ctx.windowDays}d`, nodeId) ?? 1;
+  const recency = lookupMetric(ctx, `recency_${ctx.windowSuffix}`, nodeId) ?? 1;
   return Math.round(churn * complexity * recency);
 }
 
@@ -121,16 +126,16 @@ export function busFactorOf(
   ctx: ReportContext,
   nodeId: string,
 ): number | undefined {
-  return lookupMetric(ctx, `bus_factor_${ctx.windowDays}d`, nodeId);
+  return lookupMetric(ctx, `bus_factor_${ctx.windowSuffix}`, nodeId);
 }
 
 export function topBusFactorRisks(
   ctx: ReportContext,
   limit: number,
 ): BusFactorRow[] {
-  const churnName = `churn_${ctx.windowDays}d`;
-  const bfName = `bus_factor_${ctx.windowDays}d`;
-  const shareName = `top_author_share_${ctx.windowDays}d`;
+  const churnName = `churn_${ctx.windowSuffix}`;
+  const bfName = `bus_factor_${ctx.windowSuffix}`;
+  const shareName = `top_author_share_${ctx.windowSuffix}`;
   const rows: BusFactorRow[] = [];
   for (const node of ctx.nodes) {
     if (!keepNode(ctx, node.id)) continue;
@@ -156,8 +161,8 @@ export function topTestCoverageRisks(
   ctx: ReportContext,
   limit: number,
 ): TestCoverageRow[] {
-  const bfName = `test_bus_factor_${ctx.windowDays}d`;
-  const shareName = `test_top_author_share_${ctx.windowDays}d`;
+  const bfName = `test_bus_factor_${ctx.windowSuffix}`;
+  const shareName = `test_top_author_share_${ctx.windowSuffix}`;
   const rows: TestCoverageRow[] = [];
   for (const node of ctx.nodes) {
     if (!keepNode(ctx, node.id)) continue;
@@ -177,7 +182,7 @@ export function topTestCoverageRisks(
 export function topCouplingClusters(
   ctx: ReportContext,
   repoRoot: string,
-  windowDays: number,
+  windowDays: ChurnWindow,
   limit: number,
 ): CouplingRow[] {
   const entries = loadChurnEntries({

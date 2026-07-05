@@ -19,9 +19,12 @@ export function formatGraphReportMarkdown(result: GraphReportResult): string {
   const lines: string[] = [];
   lines.push(`# Codebase health report`);
   lines.push("");
+  const windowLabel =
+    result.windowDays === "lifetime"
+      ? "all-time (lifetime) window"
+      : `${result.windowDays}-day window`;
   lines.push(
-    `Snapshot ${result.snapshot.id} (${result.snapshot.ref}), ` +
-      `${result.windowDays}-day window.`,
+    `Snapshot ${result.snapshot.id} (${result.snapshot.ref}), ${windowLabel}.`,
   );
   lines.push("");
   if (result.emptyWindow && result.hint) {

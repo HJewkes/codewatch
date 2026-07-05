@@ -1,4 +1,4 @@
-import type { ChurnEntry } from "./churn.js";
+import { windowSuffix, type ChurnEntry, type ChurnWindow } from "./churn.js";
 import { groupTestsBySource, type TestSourceLink } from "./test-linker.js";
 import type { GraphMetric } from "./types.js";
 
@@ -12,7 +12,7 @@ export interface OwnershipForFile {
 }
 
 export interface ComputeOwnershipOptions {
-  windowDays?: number;
+  windowDays?: ChurnWindow;
   knownFileIds?: ReadonlySet<string>;
   /** Coverage threshold for bus_factor (default 0.5 = 50% of churn). */
   busFactorThreshold?: number;
@@ -29,7 +29,7 @@ export function computeOwnershipMetrics(
   const threshold =
     options.busFactorThreshold ?? DEFAULT_BUS_FACTOR_THRESHOLD;
   const linesByAuthor = groupByFileAndAuthor(entries, options.knownFileIds);
-  const suffix = `${windowDays}d`;
+  const suffix = windowSuffix(windowDays);
   const out: GraphMetric[] = [];
   for (const [filePath, byAuthor] of linesByAuthor) {
     const summary = summarizeFile(byAuthor, threshold);
@@ -74,7 +74,7 @@ export function computeTestCoverageOwnership(
     for (const t of tests) testIds.add(t);
   }
   const linesByTest = groupByFileAndAuthor(entries, testIds);
-  const suffix = `${windowDays}d`;
+  const suffix = windowSuffix(windowDays);
   const out: GraphMetric[] = [];
   for (const [sourceId, tests] of testsBySource) {
     const byAuthor = mergeAuthorChurn(tests, linesByTest);

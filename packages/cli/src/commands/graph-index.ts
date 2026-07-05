@@ -128,6 +128,10 @@ export function registerGraphIndex(graphCmd: Command): void {
       "Comma- or space-separated windows to store churn for so the dashboard switcher can resolve each (default 30,90,180)",
     )
     .option(
+      "--lifetime",
+      "Also compute an all-time churn/ownership window over full git history (real bus factor, lifetime hotspots) for cold-auditing an unfamiliar repo",
+    )
+    .option(
       "--no-incremental",
       "Force a full index — disable byte-identical file reuse (default: reuse the prior snapshot for unchanged files, falling back to a full index when files are added or removed)",
     )
@@ -144,6 +148,7 @@ export function registerGraphIndex(graphCmd: Command): void {
           churn?: boolean;
           churnWindow?: string;
           churnWindows?: string[];
+          lifetime?: boolean;
           incremental?: boolean;
           json?: boolean;
         },
@@ -159,6 +164,7 @@ export function registerGraphIndex(graphCmd: Command): void {
             computeChurn: options.churn,
             churnWindowDays: asNumber(options.churnWindow),
             churnWindows: asNumberList(options.churnWindows),
+            lifetime: options.lifetime,
             incremental: options.incremental,
             json: options.json,
           });

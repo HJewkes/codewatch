@@ -59,6 +59,7 @@ export interface GraphIndexOptions {
   /** Churn windows to store so the dashboard switcher can resolve each (default
    * 30/90/180; the primary `churnWindowDays` is always included). */
   churnWindows?: number[];
+  lifetime?: boolean; // also compute an all-time `lifetime` churn/ownership window — full git history, for cold-audit (C-71)
   /**
    * Reuse the prior snapshot for byte-identical files: skip their tree-sitter
    * parse + ts-morph extract and carry their nodes/edges/source-metrics
@@ -322,6 +323,7 @@ export async function runGraphIndex(
             computeChurn: options.computeChurn !== false,
             churnWindowDays: options.churnWindowDays,
             churnWindows: options.churnWindows,
+            includeLifetime: options.lifetime === true,
           });
     const tMetrics = performance.now() - tMetrics0;
 
