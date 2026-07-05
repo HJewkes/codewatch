@@ -223,6 +223,7 @@ interface ArchCliOptions {
   maxPackageSize?: string;
   domains?: string;
   split?: boolean;
+  json?: boolean;
 }
 
 async function runArchAction(options: ArchCliOptions): Promise<void> {
@@ -243,7 +244,9 @@ async function runArchAction(options: ArchCliOptions): Promise<void> {
       split: options.split,
     });
     const output = await renderArchOutput(result, options);
-    const rich = Boolean(options.health || options.domains || options.split);
+    const rich = Boolean(
+      options.health || options.domains || options.split || options.json,
+    );
     await emitArchOutput(output, options.out, result, rich);
   } catch (err) {
     console.error(
@@ -259,9 +262,12 @@ async function renderArchOutput(
 ): Promise<string> {
   if (options.split && result.split) {
     const splitFmt = await import("./graph-arch-split-format.js");
-    return splitFmt.formatArchSplit(result.split);
+    return options.json
+      ? splitFmt.formatArchSplitJson(result.split)
+      : splitFmt.formatArchSplit(result.split);
   }
   const fmt = await import("./graph-arch-format.js");
+  if (options.json) return fmt.formatArchJson(result);
   if (options.domains) return fmt.formatArchDomains(result);
   if (options.health) return fmt.formatArchHealth(result);
   return formatArchMermaid(result);
@@ -347,5 +353,6 @@ export function registerGraphArch(graphCmd: Command): void {
       "--split",
       "Split diagnostic: per package (≥15 files), report internal clusters, bridge edges, sub-modularity Q, and per-cluster coupling as evidence (no verdict)",
     )
+    .option("--json", "Output structured JSON")
     .action(runArchAction);
 }

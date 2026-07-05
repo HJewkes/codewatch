@@ -3,9 +3,12 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { tmpdir } from "node:os";
 import { Command } from "commander";
-import { validateRules } from "@codewatch/graph";
+import { validateRules, type SnapshotRow } from "@codewatch/graph";
 import { registerGraphCommands } from "../commands/graph-cli.js";
 import { runGraphInitCommand } from "../commands/graph-init.js";
+import { formatArchJson } from "../commands/graph-arch-format.js";
+import type { ArchResult } from "../commands/graph-arch.js";
+import { formatGraphCoverageJson } from "../commands/graph-coverage.js";
 
 /**
  * Operational subcommands that emit an HTML/image artifact or run as a git hook,
@@ -45,6 +48,30 @@ describe("graph --json parity (C-7)", () => {
   it("exempt subcommands are all still registered (allowlist not stale)", () => {
     const names = new Set(graphSubcommands().map((c) => c.name()));
     for (const exempt of JSON_EXEMPT) expect(names.has(exempt)).toBe(true);
+  });
+});
+
+describe("new --json formatters round-trip valid JSON (C-7)", () => {
+  const snapshot = { id: 1, ref: "main" } as SnapshotRow;
+
+  it("graph arch --json emits the documented data-model keys", () => {
+    const result: ArchResult = {
+      snapshot,
+      packages: [],
+      edges: [],
+      includesExternal: false,
+    };
+    const json = JSON.parse(formatArchJson(result));
+    expect(json.snapshot).toMatchObject({ id: 1, ref: "main" });
+    expect(json.packages).toEqual([]);
+    expect(json.edges).toEqual([]);
+  });
+
+  it("graph coverage --json emits snapshotId/files/symbols", () => {
+    const json = JSON.parse(
+      formatGraphCoverageJson({ snapshotId: 7, files: 3, symbols: 12 }),
+    );
+    expect(json).toEqual({ snapshotId: 7, files: 3, symbols: 12 });
   });
 });
 

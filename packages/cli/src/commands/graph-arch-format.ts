@@ -11,6 +11,15 @@ import type {
 import { formatArchMermaid } from "./graph-arch.js";
 
 /**
+ * Serialize the architecture data model (packages, edges, quality/health,
+ * partition-fit) as JSON. Used by `graph arch --json`; render-only fields stay
+ * out of the human diagram but are the stable structured surface for tooling.
+ */
+export function formatArchJson(result: ArchResult): string {
+  return JSON.stringify(result, null, 2);
+}
+
+/**
  * Format the architecture diagram + partition-quality analysis as a single
  * markdown document. Used by `graph arch --health`.
  */
