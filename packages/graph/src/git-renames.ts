@@ -28,6 +28,11 @@ export function detectGitToplevel(cwd: string): string | null {
   return runGit(cwd, ["rev-parse", "--show-toplevel"]);
 }
 
+/** Resolve a ref (branch, tag, sha) to its current commit sha, or null. */
+export function resolveGitRef(repoRoot: string, ref: string): string | null {
+  return runGit(repoRoot, ["rev-parse", ref]);
+}
+
 export function detectRenames(
   options: DetectRenamesOptions,
 ): RenamePair[] {
