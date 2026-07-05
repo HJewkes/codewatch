@@ -226,6 +226,25 @@ describe("runGraphTopCommand", () => {
     expect(result.rows.every((r) => r.nodeId.startsWith("keep/"))).toBe(true);
   });
 
+  it("always excludes generated-role nodes from hotspots (C-73)", async () => {
+    fixture = await createFixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [
+        { id: "src/generate.ts", kind: "file", name: "generate.ts", role: "source" },
+        { id: "src/client.gen.ts", kind: "file", name: "client.gen.ts", role: "generated" },
+      ]);
+      db.insertMetrics(snapshotId, [
+        { nodeId: "src/generate.ts", name: "churn_180d", value: 50 },
+        { nodeId: "src/client.gen.ts", name: "churn_180d", value: 290 },
+      ]);
+    });
+
+    const result = runGraphTopCommand({
+      db: fixture.dbPath,
+      metric: "churn_180d",
+    });
+    expect(result.rows.map((r) => r.nodeId)).toEqual(["src/generate.ts"]);
+  });
+
   it("emits JSON when requested", async () => {
     fixture = await createFixture((db, snapshotId) => {
       db.insertNode(snapshotId, { id: "f.ts", kind: "file", name: "" });

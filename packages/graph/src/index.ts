@@ -130,6 +130,12 @@ export {
 } from "./check-diff.js";
 export { classifyRole, annotateRoles, ALL_ROLES } from "./roles.js";
 export {
+  isGeneratedFile,
+  isGeneratedByHeuristic,
+  parseGeneratedPatterns,
+  loadGeneratedPatterns,
+} from "./generated.js";
+export {
   canonicalMetricName,
   canonicalRole,
   canonicalEdgeKind,

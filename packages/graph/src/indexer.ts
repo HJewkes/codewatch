@@ -11,7 +11,7 @@ import {
   detectRenames,
   isInsideGitRepo,
 } from "./git-renames.js";
-import { annotateRoles } from "./roles.js";
+import { annotateRoles, computeRoleHints } from "./roles.js";
 import { walkSourceFiles } from "./file-walk.js";
 import { pruneDanglingReferences } from "./barrel-resolve.js";
 import { fileId } from "./extractors/ids.js";
@@ -295,14 +295,8 @@ export async function runGraphIndex(
       extractor,
     });
     const accumulator = mergeFragments(fragments);
-    const shebangIds = new Set(
-      readFiles
-        .filter((rf) => rf.content.startsWith("#!"))
-        .map((rf) => fileId(idRoot, rf.filePath)),
-    );
-    const annotated = annotateRoles([...accumulator.nodes.values()], {
-      shebangIds,
-    });
+    const roleHints = computeRoleHints(readFiles, idRoot, fileId);
+    const annotated = annotateRoles([...accumulator.nodes.values()], roleHints);
     accumulator.nodes = new Map(annotated.map((n) => [n.id, n]));
     pruneDanglingReferences(accumulator.nodes, accumulator.edges);
     const tExtract = performance.now() - tExtract0;

@@ -1,4 +1,5 @@
 import type { GraphNode, NodeRole } from "./types.js";
+import { isGeneratedFile, loadGeneratedPatterns } from "./generated.js";
 
 const TEST_RE = /(?:^|\/)(?:__tests__\/|tests?\/)|\.(?:test|spec)(?:\.[a-z]+)?$/;
 const FIXTURE_RE = /(?:^|\/)fixtures(?:\/|$)/;
@@ -17,15 +18,22 @@ export const ALL_ROLES: readonly NodeRole[] = [
   "config",
   "script",
   "entry",
+  "generated",
   "source",
 ];
 
 export interface RoleHints {
   /** File begins with a `#!` shebang, i.e. it is an executable entry point. */
   hasShebang?: boolean;
+  /** File is codegen output (`.gitattributes linguist-generated` or heuristic). */
+  isGenerated?: boolean;
 }
 
 export function classifyRole(id: string, hints?: RoleHints): NodeRole {
+  // Generated wins outright: codegen output is noise for every human-facing
+  // signal, so labeling it `generated` (not, say, `barrel` for a `.gen` index)
+  // is what lets hotspots/unused-exports exclude it at one shared boundary.
+  if (hints?.isGenerated) return "generated";
   if (TEST_RE.test(id)) return "test";
   if (FIXTURE_RE.test(id)) return "fixture";
   if (SCRIPT_RE.test(id)) return "script";
@@ -44,6 +52,35 @@ export function classifyRole(id: string, hints?: RoleHints): NodeRole {
 export interface AnnotateRolesOptions {
   /** Node ids whose source begins with a `#!` shebang. */
   shebangIds?: ReadonlySet<string>;
+  /** Node ids detected as generated (codegen output). */
+  generatedIds?: ReadonlySet<string>;
+}
+
+interface ReadFileLike {
+  filePath: string;
+  content: string;
+}
+
+/**
+ * Derive per-file role hints for a batch of read files in one pass: the shebang
+ * set (executable entries) and the generated set (codegen output, detected via
+ * `.gitattributes linguist-generated` under `idRoot` plus filename/path
+ * heuristics). Lives here so the indexer stays at its file-size ceiling.
+ */
+export function computeRoleHints(
+  readFiles: readonly ReadFileLike[],
+  idRoot: string,
+  toId: (root: string, filePath: string) => string,
+): AnnotateRolesOptions {
+  const patterns = loadGeneratedPatterns(idRoot);
+  const shebangIds = new Set<string>();
+  const generatedIds = new Set<string>();
+  for (const rf of readFiles) {
+    const id = toId(idRoot, rf.filePath);
+    if (rf.content.startsWith("#!")) shebangIds.add(id);
+    if (isGeneratedFile(id, patterns)) generatedIds.add(id);
+  }
+  return { shebangIds, generatedIds };
 }
 
 export function annotateRoles(
@@ -58,6 +95,7 @@ export function annotateRoles(
             n.role ??
             classifyRole(n.id, {
               hasShebang: options?.shebangIds?.has(n.id) ?? false,
+              isGenerated: options?.generatedIds?.has(n.id) ?? false,
             }),
         }
       : n,
