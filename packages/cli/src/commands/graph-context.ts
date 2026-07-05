@@ -153,22 +153,36 @@ export function runGraphContextCommand(
   }
 }
 
+/**
+ * Assemble a bundle from an already-open db — the reusable core the read API
+ * (C-81) drives against a long-lived handle without re-opening the snapshot per
+ * pull. `runGraphContextBundle` is the one-shot CLI wrapper over it.
+ */
+export function contextBundleFromDb(
+  db: GraphDatabase,
+  target: string,
+  options: GraphContextCommandOptions,
+  repoRoot: string | null,
+): ContextBundle {
+  const ctx = loadContext(db, target, options);
+  return buildContextBundle({
+    dossier: ctx.dossier,
+    target: ctx.target,
+    kind: ctx.kind,
+    refEdges: ctx.refEdges,
+    importEdges: ctx.importEdges,
+    repoRoot,
+    coveragePct: ctx.coveragePct,
+  });
+}
+
 export function runGraphContextBundle(
   target: string,
   options: GraphContextCommandOptions,
 ): ContextBundle {
   const db = openDatabase(options.db);
   try {
-    const ctx = loadContext(db, target, options);
-    return buildContextBundle({
-      dossier: ctx.dossier,
-      target: ctx.target,
-      kind: ctx.kind,
-      refEdges: ctx.refEdges,
-      importEdges: ctx.importEdges,
-      repoRoot: detectGitToplevel(process.cwd()),
-      coveragePct: ctx.coveragePct,
-    });
+    return contextBundleFromDb(db, target, options, detectGitToplevel(process.cwd()));
   } finally {
     db.close();
   }
