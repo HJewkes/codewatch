@@ -24,6 +24,11 @@ import {
   type DomainValidation,
   type PartitionFit,
 } from "./graph-arch-domains.js";
+import {
+  loadCoEditPairs,
+  runArchSplit,
+  type ArchSplitResult,
+} from "./graph-arch-split.js";
 
 export type { ComputeArchInput };
 export { computeArch };
@@ -45,6 +50,8 @@ export interface GraphArchCommandOptions {
   maxPackageSize?: number;
   /** Path to a JSON domains config; aggregates the diagram at domain level. */
   domains?: string;
+  /** Emit the per-package split diagnostic (internal clusters + bridge edges). */
+  split?: boolean;
 }
 
 /** A top-level sub-directory of a drilled package, rendered inside its cluster. */
@@ -81,6 +88,8 @@ export interface ArchResult {
   domainValidation?: DomainValidation;
   /** Present when options.domains is set: domain vs package vs detected Q. */
   partitionFit?: PartitionFit;
+  /** Present when options.split is set: per-package cluster evidence. */
+  split?: ArchSplitResult;
 }
 
 export function runGraphArchCommand(
@@ -92,6 +101,17 @@ export function runGraphArchCommand(
     const nodes = db.listNodes(snapshot.id);
     const edges = db.listEdges(snapshot.id);
     const packages = detectPackages(options.repoRoot);
+    if (options.split) {
+      return runArchSplit({
+        snapshot,
+        nodes,
+        edges,
+        packages,
+        exclude: options.exclude,
+        excludeRole: options.excludeRole,
+        coEditPairs: loadCoEditPairs(options.repoRoot, nodes),
+      });
+    }
     if (options.domains) {
       return computeArchDomains(
         {
@@ -202,6 +222,7 @@ interface ArchCliOptions {
   depth?: string;
   maxPackageSize?: string;
   domains?: string;
+  split?: boolean;
 }
 
 async function runArchAction(options: ArchCliOptions): Promise<void> {
@@ -219,9 +240,10 @@ async function runArchAction(options: ArchCliOptions): Promise<void> {
       depth: options.depth === "modules" ? "modules" : undefined,
       maxPackageSize: asNumber(options.maxPackageSize),
       domains: options.domains,
+      split: options.split,
     });
     const output = await renderArchOutput(result, options);
-    const rich = Boolean(options.health || options.domains);
+    const rich = Boolean(options.health || options.domains || options.split);
     await emitArchOutput(output, options.out, result, rich);
   } catch (err) {
     console.error(
@@ -235,6 +257,10 @@ async function renderArchOutput(
   result: ArchResult,
   options: ArchCliOptions,
 ): Promise<string> {
+  if (options.split && result.split) {
+    const splitFmt = await import("./graph-arch-split-format.js");
+    return splitFmt.formatArchSplit(result.split);
+  }
   const fmt = await import("./graph-arch-format.js");
   if (options.domains) return fmt.formatArchDomains(result);
   if (options.health) return fmt.formatArchHealth(result);
@@ -260,6 +286,9 @@ async function emitArchOutput(
 }
 
 function archSummary(result: ArchResult): string {
+  if (result.split) {
+    return `split diagnostic (${result.split.packages.length} package(s))`;
+  }
   if (result.partitionFit) {
     return `domain partition-fit analysis (Q ${result.partitionFit.domainQ.toFixed(3)})`;
   }
@@ -313,6 +342,10 @@ export function registerGraphArch(graphCmd: Command): void {
     .option(
       "--domains <config>",
       "Path to a JSON config mapping path globs to domain names; aggregates the diagram at domain level and compares partition fit (domain vs package vs detected Q)",
+    )
+    .option(
+      "--split",
+      "Split diagnostic: per package (≥15 files), report internal clusters, bridge edges, sub-modularity Q, and per-cluster coupling as evidence (no verdict)",
     )
     .action(runArchAction);
 }
