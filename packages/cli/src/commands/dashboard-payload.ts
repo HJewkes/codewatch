@@ -1,9 +1,10 @@
-import { loadChurnEntries, openDatabase, computePageRank } from "@codewatch/graph";
+import { loadChurnEntries, openDatabase, computePageRank, windowSuffix, type ChurnWindow } from "@codewatch/graph";
 import {
   buildSymbolCouplingPayload,
   type SymbolCouplingPayload,
 } from "./dashboard-symbol-coupling.js";
 import { computeHealth } from "./dashboard-health.js";
+import { storedChurnWindows } from "./dashboard-windows.js";
 import { runGraphReportCommand } from "./graph-report.js";
 import { runGraphCheckCommand } from "./graph-check.js";
 import { runGraphArchCommand } from "./graph-arch.js";
@@ -31,7 +32,7 @@ export interface DashboardCommandOptions {
   out: string;
   graph?: boolean;
   repoRoot?: string;
-  windowDays?: number;
+  windowDays?: ChurnWindow;
   vs?: string;
   repo?: string;
   includeScripts?: boolean;
@@ -198,7 +199,17 @@ export function computeWindowPayloads(
   arch: ArchInfo,
 ): { windows: Record<string, DashboardPayload>; primaryKey: string; snapshotId: number } {
   const primaryWindow = opts.windowDays ?? 30;
-  const windowsList = Array.from(new Set([primaryWindow, ...DEFAULT_WINDOWS])).sort((a, b) => a - b);
+  const stored = storedChurnWindows(opts.db);
+  // Offer the default dashboard windows that were ACTUALLY stored (so a snapshot
+  // indexed with a narrow --churn-windows set doesn't probe — and warn about —
+  // windows it never computed), plus the primary window as requested.
+  const primaryFinite = primaryWindow === "lifetime" ? [] : [primaryWindow];
+  const finite = Array.from(
+    new Set([...primaryFinite, ...DEFAULT_WINDOWS.filter((w) => stored.finite.has(w))]),
+  ).sort((a, b) => a - b);
+  // Lifetime sorts last; offered when the snapshot stored it or it's the primary.
+  const wantsLifetime = primaryWindow === "lifetime" || stored.lifetime;
+  const windowsList: ChurnWindow[] = wantsLifetime ? [...finite, "lifetime"] : finite;
   const windows: Record<string, DashboardPayload> = {};
   const sigToKey = new Map<string, string>();
   let snapshotId = 0;
@@ -278,11 +289,12 @@ export function windowSignature(p: DashboardPayload): string {
  * the dashboard uses to suppress degenerate bus-factor widgets. `undefined` when
  * git is unavailable — the guard then stays off rather than falsely claiming solo.
  */
-export function windowAuthorCount(repoRoot: string, windowDays: number): number | undefined {
+export function windowAuthorCount(repoRoot: string, windowDays: ChurnWindow): number | undefined {
   const entries = loadChurnEntries({ repoRoot, windowDays });
   if (entries === null) return undefined;
   return new Set(entries.map((e) => e.author)).size;
 }
+
 
 /** Order-independent key for an undirected file pair (JSON tuple; no in-band separator). */
 function pairKey(a: string, b: string): string {

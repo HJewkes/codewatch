@@ -12,7 +12,8 @@ export interface DashboardMeta {
   repo: string;
   snapshotId: number;
   ref: string;
-  windowDays: number;
+  /** Churn window: a day count, or `"lifetime"` for the all-time window (C-71). */
+  windowDays: number | "lifetime";
   generatedAt: string;
   indexVersion?: string;
   fileCount?: number;
