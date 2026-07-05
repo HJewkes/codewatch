@@ -117,7 +117,12 @@ export function computePartitionQuality(
   return { modularityQ, totalEdges, perPackage, pairCoupling, flagsCount };
 }
 
-function invertBuckets(
+/**
+ * Invert a package→files bucket map into a file→package lookup, skipping the
+ * empty-string "unassigned" bucket. Shared by partition-quality and the CLI's
+ * arch/wiki package rollups, which all need the same file→package direction.
+ */
+export function invertBuckets(
   fileByPackage: ReadonlyMap<string, ReadonlyArray<string>>,
 ): Map<string, string> {
   const out = new Map<string, string>();

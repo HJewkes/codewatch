@@ -1,5 +1,6 @@
 import {
   compilePatterns,
+  invertBuckets,
   matchesAny,
   type GraphEdge,
   type GraphNode,
@@ -89,17 +90,6 @@ export function filteredFileIds(
     .filter((n) => !excludedRoles.has(n.role ?? ""))
     .filter((n) => !matchesAny(n.id, excluders))
     .map((n) => n.id);
-}
-
-export function invertBuckets(
-  fileByPackage: ReadonlyMap<string, ReadonlyArray<string>>,
-): Map<string, string> {
-  const out = new Map<string, string>();
-  for (const [pkgId, files] of fileByPackage) {
-    if (pkgId === "") continue;
-    for (const f of files) out.set(f, pkgId);
-  }
-  return out;
 }
 
 export function aggregateEdges(
