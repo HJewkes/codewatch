@@ -8,6 +8,7 @@ import { registerGraphCoverage } from "./graph-coverage.js";
 import { registerGraphDashboard } from "./graph-dashboard.js";
 import { registerGraphDiff } from "./graph-diff.js";
 import { registerGraphIndex } from "./graph-index.js";
+import { registerGraphInit } from "./graph-init.js";
 import { registerGraphPrune } from "./graph-prune.js";
 import { registerGraphRelevant } from "./graph-relevant.js";
 import { registerGraphRenderCheckDiff } from "./graph-render-check-diff.js";
@@ -21,6 +22,7 @@ export function registerGraphCommands(program: Command): void {
     .command("graph")
     .description("Code graph commands (index, query, render, check)");
 
+  registerGraphInit(graphCmd);
   registerGraphIndex(graphCmd);
   registerGraphAutoUpdate(graphCmd);
   registerGraphDiff(graphCmd);

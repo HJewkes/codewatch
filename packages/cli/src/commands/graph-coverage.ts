@@ -18,12 +18,17 @@ export interface GraphCoverageOptions {
   db: string;
   root: string;
   snapshot?: string;
+  json?: boolean;
 }
 
 export interface GraphCoverageResult {
   snapshotId: number;
   files: number;
   symbols: number;
+}
+
+export function formatGraphCoverageJson(result: GraphCoverageResult): string {
+  return JSON.stringify(result, null, 2);
 }
 
 /**
@@ -103,11 +108,14 @@ export function registerGraphCoverage(graphCmd: Command): void {
     .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")
     .option("--root <path>", "Repo root for path mapping (default: cwd)", ".")
     .option("--snapshot <id>", "Snapshot id to attach coverage to (default: latest)")
+    .option("--json", "Output structured JSON")
     .action((coverageFile: string, options: GraphCoverageOptions) => {
       try {
         const r = runGraphCoverageCommand(coverageFile, options);
         console.log(
-          `Coverage ingested into snapshot ${r.snapshotId}: ${r.files} files, ${r.symbols} symbols.`,
+          options.json
+            ? formatGraphCoverageJson(r)
+            : `Coverage ingested into snapshot ${r.snapshotId}: ${r.files} files, ${r.symbols} symbols.`,
         );
       } catch (err) {
         console.error(formatError(err instanceof Error ? err.message : String(err)));
