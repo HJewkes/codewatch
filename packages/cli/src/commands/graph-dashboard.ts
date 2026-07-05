@@ -138,7 +138,7 @@ export function registerGraphDashboard(graphCmd: Command): void {
     .option("--config <path>", "check.json for fitness violations", "./.codewatch/check.json")
     .option("--out <path>", "Output HTML path", "codewatch-dashboard.html")
     .option("--repo-root <path>", "Repo root for package/churn resolution")
-    .option("--window-days <n>", "Churn window in days")
+    .option("--window-days <n>", "Primary churn window in days, or `lifetime` for all-time (needs a `--lifetime` index)")
     .option("--vs <ref>", "Baseline snapshot ref for deltas")
     .option("--repo <name>", "Repo display name")
     .option("--include-scripts", "Include scripts/ and archive/ files")
@@ -154,7 +154,11 @@ export function registerGraphDashboard(graphCmd: Command): void {
         config: options.config,
         out: options.out,
         repoRoot: options.repoRoot,
-        windowDays: options.windowDays ? Number(options.windowDays) : undefined,
+        windowDays: options.windowDays
+          ? options.windowDays.toLowerCase() === "lifetime"
+            ? "lifetime"
+            : Number(options.windowDays)
+          : undefined,
         vs: options.vs,
         repo: options.repo ?? basename(process.cwd()),
         includeScripts: options.includeScripts,

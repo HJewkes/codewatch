@@ -36,6 +36,18 @@ const NAV: { id: ViewId; label: string; icon: any }[] = [
 ];
 const VIEW_IDS = NAV.map((n) => n.id);
 
+/** Label a churn-window switcher key: `30d` … or `lifetime` (all-time, C-71). */
+function windowKeyLabel(k: string): string {
+  return k === "lifetime" ? "lifetime" : `${k}d`;
+}
+
+/** Order window keys ascending by day count, with `lifetime` (all-time) last. */
+function compareWindowKeys(a: string, b: string): number {
+  if (a === "lifetime") return 1;
+  if (b === "lifetime") return -1;
+  return Number(a) - Number(b);
+}
+
 function useViewport() {
   const [w, setW] = useState(typeof window !== "undefined" ? window.innerWidth : 1280);
   useEffect(() => {
@@ -162,7 +174,7 @@ export function App({ data }: { data: CodewatchData }) {
           q={loc.q}
           onQuery={(q) => update({ q })}
           searchRef={searchRef}
-          windowKeys={windows ? Object.keys(windows).sort((a, b) => Number(a) - Number(b)) : []}
+          windowKeys={windows ? Object.keys(windows).sort(compareWindowKeys) : []}
           windowKey={windowKey}
           onWindow={(w) => update({ w })}
         />
@@ -204,12 +216,12 @@ function TopBar({ data, view, q, onQuery, searchRef, windowKeys, windowKey, onWi
           <View style={{ flexDirection: "row", gap: 4 }}>
             {windowKeys.map((k) => (
               <Pressable key={k} onPress={() => onWindow(k)}>
-                <Pillet text={`${k}d`} color={k === windowKey ? cw.brand : cw.textFaint} />
+                <Pillet text={windowKeyLabel(k)} color={k === windowKey ? cw.brand : cw.textFaint} />
               </Pressable>
             ))}
           </View>
         ) : (
-          <Pillet text={`${data.meta.windowDays}d window`} color={cw.info} />
+          <Pillet text={`${windowKeyLabel(String(data.meta.windowDays))} window`} color={cw.info} />
         )}
         <Pillet text={`v${data.meta.indexVersion ?? "?"}`} color={cw.textFaint} />
         {data.meta.baseline ? <Pillet text={`vs ${data.meta.baseline.ref}`} color={cw.textFaint} /> : null}

@@ -150,4 +150,42 @@ describe("runGraphDashboardCommand", () => {
     expect(find("a.ts", "b.ts")?.hidden).toBe(false); // import-backed → expected
     expect(find("c.ts", "d.ts")?.hidden).toBe(true); // no edge → hidden
   });
+
+  it("offers a lifetime window in the switcher when the snapshot stored one (C-71)", async () => {
+    const dirLocal = await fs.mkdtemp(path.join(tmpdir(), "codewatch-dashboard-life-"));
+    dir = dirLocal;
+    const dbPath = path.join(dirLocal, "graph.db");
+    const db = openDatabase(dbPath);
+    const snap = db.createSnapshot({ ref: "main", indexVersion: "0.2.0" });
+    db.insertNodes(snap, [{ id: "src/a.ts", kind: "file", name: "a", role: "source" }]);
+    db.insertMetrics(snap, [
+      { nodeId: "src/a.ts", name: "churn_30d", value: 20 },
+      { nodeId: "src/a.ts", name: "cognitive_max", value: 12 },
+      // Lifetime carries different (heavier) churn → its payload differs from the
+      // rolling windows → kept as a distinct, switchable window.
+      { nodeId: "src/a.ts", name: "churn_lifetime", value: 400 },
+      { nodeId: "src/a.ts", name: "recency_lifetime", value: 1 },
+    ]);
+    db.close();
+    const out = path.join(dirLocal, "out.html");
+    await runGraphDashboardCommand({ db: dbPath, config: "/nope/check.json", out, repoRoot: dirLocal, repo: "fx" });
+    const html = await fs.readFile(out, "utf8");
+    const wm = html.match(/window\.__CODEWATCH_WINDOWS__ = (\{.*?\});(?:window\.__CODEWATCH|<\/script>)/s);
+    expect(wm).not.toBeNull();
+    const windows = JSON.parse(wm![1]!);
+    expect(Object.keys(windows)).toContain("lifetime");
+    expect(windows.lifetime.meta.windowDays).toBe("lifetime");
+    // The lifetime hotspot uses churn_lifetime × complexity (400 × 12).
+    expect(windows.lifetime.hotspots[0]).toMatchObject({ nodeId: "src/a.ts", score: 4800 });
+  });
+
+  it("omits the lifetime window when the snapshot never stored one", async () => {
+    const fx = await fixture(); // only churn_30d — no lifetime metrics
+    dir = fx.dir;
+    await runGraphDashboardCommand({ db: fx.dbPath, config: "/nope/check.json", out: fx.out, repoRoot: fx.dir, repo: "fx" });
+    const html = await fs.readFile(fx.out, "utf8");
+    const wm = html.match(/window\.__CODEWATCH_WINDOWS__ = (\{.*?\});(?:window\.__CODEWATCH|<\/script>)/s);
+    const keys = wm ? Object.keys(JSON.parse(wm[1]!)) : [];
+    expect(keys).not.toContain("lifetime");
+  });
 });
