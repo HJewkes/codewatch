@@ -4,6 +4,7 @@ import type { Command } from "commander";
 import chalk from "chalk";
 import {
   openDatabase,
+  resolveGitRef,
   runChecks,
   validateRules,
   type CheckResult,
@@ -87,14 +88,70 @@ function resolveSnapshot(
     if (!snap) throw new Error(`${flag}: no snapshot with id ${spec}`);
     return snap;
   }
-  const snap = db.getLatestSnapshotByRef(spec);
-  if (!snap) {
+  return resolveRefSnapshot(db, spec, flag);
+}
+
+/**
+ * Map a ref name to a snapshot indexed at the ref's CURRENT commit. Falls back
+ * to the newest snapshot for the ref (and warns) when the cached snapshot lags
+ * the ref's real HEAD, so `--baseline main` never silently compares against a
+ * months-old snapshot.
+ */
+function resolveRefSnapshot(
+  db: GraphDatabase,
+  ref: string,
+  flag: string,
+): SnapshotRow {
+  const candidates = db.listSnapshots({ ref, limit: 50 });
+  if (candidates.length === 0) {
     throw new Error(
-      `${flag}: no snapshot found for ref "${spec}". ` +
-        `Run \`codewatch graph index --ref ${spec} <path>\` against this DB first.`,
+      `${flag}: no snapshot found for ref "${ref}". ` +
+        `Run \`codewatch graph index --ref ${ref} <path>\` against this DB first.`,
     );
   }
-  return snap;
+  const currentCommit = resolveGitRef(process.cwd(), ref);
+  const { snapshot, stale } = selectRefSnapshot(candidates, currentCommit);
+  if (stale) console.warn(staleBaselineWarning(ref, snapshot, currentCommit!));
+  return snapshot;
+}
+
+export interface RefSnapshotSelection {
+  snapshot: SnapshotRow;
+  stale: boolean;
+}
+
+/**
+ * Pure ref-to-snapshot picker. `snapshots` must be newest-first (as
+ * listSnapshots returns). Prefers the snapshot indexed at `currentCommit`;
+ * otherwise returns the newest and flags it stale. `currentCommit` null (git
+ * could not resolve the ref) or a null-commitHash snapshot (pre-commit-tracking)
+ * skip the staleness check.
+ */
+export function selectRefSnapshot(
+  snapshots: readonly SnapshotRow[],
+  currentCommit: string | null,
+): RefSnapshotSelection {
+  if (currentCommit) {
+    const match = snapshots.find((s) => s.commitHash === currentCommit);
+    if (match) return { snapshot: match, stale: false };
+  }
+  const latest = snapshots[0]!;
+  const stale = currentCommit !== null && latest.commitHash !== null;
+  return { snapshot: latest, stale };
+}
+
+function staleBaselineWarning(
+  ref: string,
+  snapshot: SnapshotRow,
+  currentCommit: string,
+): string {
+  const cached = (snapshot.commitHash ?? "unknown").slice(0, 8);
+  const head = currentCommit.slice(0, 8);
+  return (
+    `⚠ baseline "${ref}" resolves to snapshot ${snapshot.id} at commit ${cached} ` +
+    `but ${ref} is currently at ${head} — the cached baseline is stale; re-index ` +
+    `with \`codewatch graph index --ref ${ref}\` for an accurate comparison.`
+  );
 }
 
 async function loadRules(path: string): Promise<readonly CheckRule[]> {

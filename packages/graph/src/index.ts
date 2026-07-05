@@ -65,7 +65,7 @@ export {
   type ChurnEntry,
   type ComputeChurnOptions,
 } from "./churn.js";
-export { detectGitToplevel } from "./git-renames.js";
+export { detectGitToplevel, resolveGitRef } from "./git-renames.js";
 export {
   computeChangeCoupling,
   couplingFor,

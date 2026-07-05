@@ -7,7 +7,9 @@ import {
   runGraphCheckCommand,
   formatGraphCheckText,
   formatGraphCheckJson,
+  selectRefSnapshot,
 } from "../commands/graph-check.js";
+import type { SnapshotRow } from "@codewatch/graph";
 
 interface Fixture {
   dir: string;
@@ -321,5 +323,46 @@ describe("runGraphCheckCommand", () => {
     const json = JSON.parse(formatGraphCheckJson(result));
     expect(json.result.passed).toBe(false);
     expect(json.result.violations).toHaveLength(1);
+  });
+});
+
+describe("selectRefSnapshot (C-69 stale-baseline guard)", () => {
+  function snap(id: number, commitHash: string | null): SnapshotRow {
+    return {
+      id,
+      ref: "main",
+      commitHash,
+      takenAt: "",
+      indexVersion: "0.1.0",
+      attrs: {},
+    };
+  }
+
+  it("picks the snapshot indexed at the ref's current commit, stale=false", () => {
+    const snapshots = [snap(3, "ccccccc"), snap(2, "bbbbbbb"), snap(1, "aaaaaaa")];
+    const { snapshot, stale } = selectRefSnapshot(snapshots, "aaaaaaa");
+    expect(snapshot.id).toBe(1);
+    expect(stale).toBe(false);
+  });
+
+  it("falls back to the newest and flags stale when no snapshot matches HEAD", () => {
+    const snapshots = [snap(3, "ccccccc"), snap(1, "aaaaaaa")];
+    const { snapshot, stale } = selectRefSnapshot(snapshots, "ddddddd");
+    expect(snapshot.id).toBe(3);
+    expect(stale).toBe(true);
+  });
+
+  it("skips the staleness check when the newest snapshot has a null commitHash", () => {
+    const snapshots = [snap(3, null), snap(1, "aaaaaaa")];
+    const { snapshot, stale } = selectRefSnapshot(snapshots, "ddddddd");
+    expect(snapshot.id).toBe(3);
+    expect(stale).toBe(false);
+  });
+
+  it("skips the staleness check when git cannot resolve the ref (null commit)", () => {
+    const snapshots = [snap(3, "ccccccc"), snap(1, "aaaaaaa")];
+    const { snapshot, stale } = selectRefSnapshot(snapshots, null);
+    expect(snapshot.id).toBe(3);
+    expect(stale).toBe(false);
   });
 });
