@@ -354,6 +354,11 @@ export class GraphDatabase {
     return out;
   }
 
+  /** Raw sqlite handle for companion modules that own their own tables (e.g. embeddings.ts). */
+  get raw(): Database.Database {
+    return this.db;
+  }
+
   close(): void {
     this.db.close();
   }

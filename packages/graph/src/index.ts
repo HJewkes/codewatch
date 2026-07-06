@@ -164,3 +164,17 @@ export {
   type IstanbulCoverage,
   type SymbolSpan,
 } from "./coverage.js";
+export {
+  buildEmbedText,
+  hashEmbedText,
+  listEmbeddableSymbols,
+  embedSnapshot,
+  findSimilarCapability,
+  DEFAULT_EMBEDDING_MODEL,
+  type Embedder,
+  type EmbeddableSymbol,
+  type EmbedCoverage,
+  type EmbedSnapshotResult,
+  type SimilarCandidate,
+  type SimilarResult,
+} from "./embeddings.js";

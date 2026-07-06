@@ -1,8 +1,15 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { createHash } from "node:crypto";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runGraphIndex } from "@codewatch/graph";
+import {
+  embedSnapshot,
+  listEmbeddableSymbols,
+  openDatabase,
+  runGraphIndex,
+  type Embedder,
+} from "@codewatch/graph";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createReadApi, READ_API_VERSION, type GraphReadApi } from "../reader.js";
@@ -13,9 +20,22 @@ const B_SRC = ['import { foo } from "./a.js";', "export const two = foo(1);"].jo
 
 const SYMBOL = "src/a.ts#foo";
 
+/** Deterministic hash-based embedder: identical text → identical vector. */
+const fakeEmbedder: Embedder = {
+  model: "fake-model",
+  embed: (texts) =>
+    Promise.resolve(
+      texts.map((t) => {
+        const bytes = createHash("sha256").update(t, "utf8").digest();
+        return Float32Array.from(bytes.subarray(0, 8), (b) => b / 255 - 0.5);
+      }),
+    ),
+};
+
 let dir: string;
 let dbPath: string;
 let api: GraphReadApi;
+let fooEmbedText: string;
 
 beforeAll(async () => {
   dir = mkdtempSync(join(tmpdir(), "c81-read-"));
@@ -24,7 +44,11 @@ beforeAll(async () => {
   writeFileSync(join(dir, "src", "b.ts"), B_SRC);
   const result = await runGraphIndex({ rootDir: dir, ref: "test", computeChurn: false, detectRenames: false });
   dbPath = result.dbPath;
-  api = createReadApi({ db: dbPath, repoRoot: dir });
+  const db = openDatabase(dbPath);
+  await embedSnapshot(db, result.snapshotId, fakeEmbedder);
+  fooEmbedText = listEmbeddableSymbols(db, result.snapshotId).find((s) => s.id === SYMBOL)!.text;
+  db.close();
+  api = createReadApi({ db: dbPath, repoRoot: dir, embedder: fakeEmbedder });
 });
 
 afterAll(() => {
@@ -38,8 +62,8 @@ describe("read API — versioned contract", () => {
     expect(READ_API_VERSION).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
-  it("exposes exactly the four stable read functions", () => {
-    for (const fn of ["getContext", "getSource", "getNeighbors", "search"] as const) {
+  it("exposes the stable read functions", () => {
+    for (const fn of ["getContext", "getSource", "getNeighbors", "search", "findSimilar"] as const) {
       expect(typeof api[fn]).toBe("function");
     }
   });
@@ -77,6 +101,14 @@ describe("read API — the four reads over a fixture graph", () => {
   it("getContext (no deep AST) equals the bundle a fresh read yields", () => {
     expect(api.getContext(SYMBOL)).toEqual(api.getContext(SYMBOL));
   });
+
+  it("findSimilar ranks an exact capability text at ~1.0 with coverage", async () => {
+    const result = await api.findSimilar(fooEmbedText);
+    expect(result.coverage.embedded).toBeGreaterThan(0);
+    expect(result.candidates[0]!.id).toBe(SYMBOL);
+    expect(result.candidates[0]!.score).toBeCloseTo(1, 5);
+    expect(result.candidates[0]!.signature).toContain("a: number");
+  });
 });
 
 describe("MCP server — the four pull tools end to end (no client file reads)", () => {
@@ -95,10 +127,18 @@ describe("MCP server — the four pull tools end to end (no client file reads)",
     return { client, call };
   }
 
-  it("exposes the four tools", async () => {
+  it("exposes the pull tools", async () => {
     const { client } = await connectClient();
     const names = (await client.listTools()).tools.map((t) => t.name).sort();
-    expect(names).toEqual(["get_context", "get_neighbors", "get_source", "search"]);
+    expect(names).toEqual(["find_similar", "get_context", "get_neighbors", "get_source", "search"]);
+    await client.close();
+  });
+
+  it("find_similar returns ranked capability candidates over MCP", async () => {
+    const { client, call } = await connectClient();
+    const result = await call("find_similar", { query: fooEmbedText, limit: 3 });
+    expect(result.candidates[0].id).toBe(SYMBOL);
+    expect(result.coverage.symbols).toBeGreaterThan(0);
     await client.close();
   });
 
