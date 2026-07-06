@@ -58,6 +58,24 @@ const migrations: Migration[] = [
       }
     },
   },
+  {
+    // C-88: capability embeddings over exported symbols' signature+purpose.
+    // Content-addressed by (model, text_hash) — deliberately NOT snapshot-scoped:
+    // a vector is a pure function of its text, so unchanged symbols across
+    // snapshots share one row and re-embedding is a cache miss, not a policy.
+    version: 5,
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS embedding (
+          model     TEXT NOT NULL,
+          text_hash TEXT NOT NULL,
+          dims      INTEGER NOT NULL,
+          vector    BLOB NOT NULL,
+          PRIMARY KEY (model, text_hash)
+        );
+      `);
+    },
+  },
 ];
 
 function ensureMigrationTable(db: Database.Database): void {

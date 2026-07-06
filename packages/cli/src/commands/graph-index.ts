@@ -9,16 +9,48 @@ import { formatError } from "../utils/output.js";
 
 export interface GraphIndexCommandOptions extends GraphIndexOptions {
   json?: boolean;
+  /** C-88: also precompute capability embeddings for the new snapshot. */
+  embed?: boolean;
+  embedModel?: string;
 }
 
 export async function runGraphIndexCommand(
   options: GraphIndexCommandOptions,
 ): Promise<{ result: GraphIndexResult; output: string }> {
   const result = await runGraphIndex(options);
-  const output = options.json
+  let output = options.json
     ? formatGraphIndexJson(result)
     : formatGraphIndexText(result);
+  if (options.embed) {
+    output += "\n\n" + (await embedNewSnapshot(result, options));
+  }
   return { result, output };
+}
+
+/**
+ * The `--embed` post-pass. An embed failure (ollama down, model missing) must
+ * not fail the index — the snapshot is already persisted and valid without it.
+ */
+async function embedNewSnapshot(
+  result: GraphIndexResult,
+  options: GraphIndexCommandOptions,
+): Promise<string> {
+  const { runGraphEmbedCommand, formatGraphEmbedText } = await import(
+    "./graph-embed.js"
+  );
+  try {
+    const embedResult = await runGraphEmbedCommand({
+      db: result.dbPath,
+      snapshot: result.snapshotId,
+      model: options.embedModel,
+    });
+    return options.json
+      ? JSON.stringify(embedResult, null, 2)
+      : formatGraphEmbedText(embedResult);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return chalk.yellow(`Embeddings skipped: ${message}`);
+  }
 }
 
 function formatKindBreakdown(byKind: Record<string, number>): string {
@@ -135,6 +167,11 @@ export function registerGraphIndex(graphCmd: Command): void {
       "--no-incremental",
       "Force a full index — disable byte-identical file reuse (default: reuse the prior snapshot for unchanged files, falling back to a full index when files are added or removed)",
     )
+    .option(
+      "--embed",
+      "Also precompute capability embeddings for `graph similar` (needs a local ollama; only new/changed symbol texts are embedded)",
+    )
+    .option("--embed-model <name>", "Embedding model (default: nomic-embed-text)")
     .option("--json", "Output structured JSON")
     .action(
       async (
@@ -150,6 +187,8 @@ export function registerGraphIndex(graphCmd: Command): void {
           churnWindows?: string[];
           lifetime?: boolean;
           incremental?: boolean;
+          embed?: boolean;
+          embedModel?: string;
           json?: boolean;
         },
       ) => {
@@ -166,6 +205,8 @@ export function registerGraphIndex(graphCmd: Command): void {
             churnWindows: asNumberList(options.churnWindows),
             lifetime: options.lifetime,
             incremental: options.incremental,
+            embed: options.embed,
+            embedModel: options.embedModel,
             json: options.json,
           });
           console.log(output);

@@ -2,10 +2,14 @@ import * as path from "node:path";
 import {
   computeDeepAst,
   detectGitToplevel,
+  findSimilarCapability,
   openDatabase,
   type DeepAst,
+  type Embedder,
   type GraphDatabase,
+  type SimilarResult,
 } from "@codewatch/graph";
+import { createOllamaEmbedder } from "../utils/ollama-embedder.js";
 import { contextBundleFromDb } from "../commands/graph-context.js";
 import type { ContextBundle } from "../commands/graph-context-bundle.js";
 import {
@@ -39,6 +43,8 @@ export {
   type DeepAst,
   type SearchHit,
   type SearchResult,
+  type SimilarCandidate,
+  type SimilarResult,
 } from "./contract.js";
 
 const DEFAULT_SEARCH_LIMIT = 20;
@@ -47,12 +53,15 @@ export function createReadApi(options: ReadApiOptions): GraphReadApi {
   const db = openDatabase(options.db);
   const repoRoot = options.repoRoot ?? detectGitToplevel(process.cwd());
   const ctx = { db: options.db, snapshot: options.snapshot };
+  const embedder = options.embedder ?? createOllamaEmbedder();
   return {
     version: READ_API_VERSION,
     getContext: (target, opts) => getContext(db, repoRoot, ctx, target, opts),
     getSource: (target) => bundle(db, repoRoot, ctx, target).source,
     getNeighbors: (target) => bundle(db, repoRoot, ctx, target).edges,
     search: (query, limit) => search(db, ctx.snapshot, query, limit),
+    findSimilar: (query, limit) =>
+      findSimilar(db, ctx.snapshot, embedder, query, limit),
     close: () => db.close(),
   };
 }
@@ -100,11 +109,30 @@ function search(
   query: string,
   limit: number | undefined,
 ): SearchResult {
+  const snap = resolveSnapshot(db, snapshotId);
+  const nodes = db.listNodes(snap, { includeSymbols: true });
+  return { query, hits: rankSearch(nodes, query, limit ?? DEFAULT_SEARCH_LIMIT) };
+}
+
+function findSimilar(
+  db: GraphDatabase,
+  snapshotId: number | undefined,
+  embedder: Embedder,
+  query: string,
+  limit: number | undefined,
+): Promise<SimilarResult> {
+  const snap = resolveSnapshot(db, snapshotId);
+  return findSimilarCapability(db, snap, query, embedder, { limit });
+}
+
+function resolveSnapshot(
+  db: GraphDatabase,
+  snapshotId: number | undefined,
+): number {
   const snap =
     snapshotId !== undefined
       ? db.getSnapshot(snapshotId)
       : (db.listSnapshots({ limit: 1 })[0] ?? null);
   if (!snap) throw new Error("No snapshot found");
-  const nodes = db.listNodes(snap.id, { includeSymbols: true });
-  return { query, hits: rankSearch(nodes, query, limit ?? DEFAULT_SEARCH_LIMIT) };
+  return snap.id;
 }

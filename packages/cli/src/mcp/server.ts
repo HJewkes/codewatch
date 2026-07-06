@@ -37,6 +37,9 @@ const SERVER_INSTRUCTIONS = [
   "     what it depends on and what depends on it, tests) in one call.",
   "  3. `get_neighbors` to trace relationships — callers/importers (the blast",
   "     radius of a change) and dependencies — including through barrels.",
+  "Before WRITING a new function or helper, call `find_similar` with the intent",
+  "or a pseudo-signature — it surfaces existing symbols with similar capability",
+  "so you extend or reuse instead of duplicating.",
   "Reach for these before manually reading files to discover how code connects:",
   "the graph already knows the resolved edges.",
 ].join("\n");
@@ -87,6 +90,21 @@ function registerTools(server: McpServer, api: GraphReadApi): void {
     },
     ({ query, limit }) => run(() => api.search(query, limit)),
   );
+  server.registerTool(
+    "find_similar",
+    {
+      description:
+        "Before implementing a new function/helper/type, check whether a similar capability already exists in this repo. Pass the intent in natural language, a pseudo-signature, or both (e.g. \"formatDuration(ms: number): string -- render a duration as 1h30m\"); returns the top-K exported symbols ranked by semantic similarity of their signature+docstring, with locations. Candidates, not duplicate verdicts — inspect a promising hit with get_context before reusing it. Use at PLAN time, before writing code that might already exist.",
+      inputSchema: { query: z.string(), limit: z.number().int().positive().optional() },
+    },
+    async ({ query, limit }) => {
+      try {
+        return json(await api.findSimilar(query, limit));
+      } catch (err) {
+        return failure(err);
+      }
+    },
+  );
 }
 
 /** Invoke a read-API call, projecting the result — or the error — as a tool result. */
@@ -94,8 +112,12 @@ function run(fn: () => unknown): CallToolResult {
   try {
     return json(fn());
   } catch (err) {
-    return { isError: true, content: [{ type: "text", text: err instanceof Error ? err.message : String(err) }] };
+    return failure(err);
   }
+}
+
+function failure(err: unknown): CallToolResult {
+  return { isError: true, content: [{ type: "text", text: err instanceof Error ? err.message : String(err) }] };
 }
 
 function json(value: unknown): CallToolResult {

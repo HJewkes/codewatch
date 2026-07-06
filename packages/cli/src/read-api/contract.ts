@@ -1,4 +1,9 @@
-import type { DeepAst } from "@codewatch/graph";
+import type {
+  DeepAst,
+  Embedder,
+  SimilarCandidate,
+  SimilarResult,
+} from "@codewatch/graph";
 import type {
   BundleEdge,
   BundleEdges,
@@ -17,7 +22,7 @@ import type {
  * fields/functions backward-compatibly; PATCH is non-behavioural. Consumers
  * assert `major(api.version) === expected`.
  */
-export const READ_API_VERSION = "1.1.0";
+export const READ_API_VERSION = "1.2.0";
 
 export type {
   ContextBundle,
@@ -25,6 +30,8 @@ export type {
   BundleEdges,
   SourceChunk,
   DeepAst,
+  SimilarCandidate,
+  SimilarResult,
 };
 
 export interface ReadApiOptions {
@@ -34,6 +41,11 @@ export interface ReadApiOptions {
   repoRoot?: string | null;
   /** Snapshot id to read; defaults to the latest. */
   snapshot?: number;
+  /**
+   * Embedding backend for `findSimilar` (C-88); defaults to a local ollama
+   * `nomic-embed-text`. Vectors must have been precomputed (`graph embed`).
+   */
+  embedder?: Embedder;
 }
 
 export interface GetContextOptions {
@@ -70,5 +82,12 @@ export interface GraphReadApi {
   getSource(target: string): SourceChunk;
   getNeighbors(target: string): BundleEdges;
   search(query: string, limit?: number): SearchResult;
+  /**
+   * C-88 — "about to write X: does a similar capability already exist?" Ranks
+   * exported symbols by semantic similarity of their signature+docstring to an
+   * intent or pseudo-signature. Async (embeds the query); candidates, not
+   * duplicate verdicts.
+   */
+  findSimilar(query: string, limit?: number): Promise<SimilarResult>;
   close(): void;
 }

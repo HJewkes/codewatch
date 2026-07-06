@@ -8,6 +8,7 @@ import { registerGraphCoupled } from "./graph-coupled.js";
 import { registerGraphCoverage } from "./graph-coverage.js";
 import { registerGraphDashboard } from "./graph-dashboard.js";
 import { registerGraphDiff } from "./graph-diff.js";
+import { registerGraphEmbed } from "./graph-embed.js";
 import { registerGraphIndex } from "./graph-index.js";
 import { registerGraphInit } from "./graph-init.js";
 import { registerGraphMcp } from "./graph-mcp.js";
@@ -16,6 +17,7 @@ import { registerGraphRelevant } from "./graph-relevant.js";
 import { registerGraphRenderCheckDiff } from "./graph-render-check-diff.js";
 import { registerRender, registerRenderDiff } from "./graph-render-cli.js";
 import { registerGraphReport } from "./graph-report.js";
+import { registerGraphSimilar } from "./graph-similar.js";
 import { registerGraphTop } from "./graph-top.js";
 import { registerGraphWiki } from "./graph-wiki.js";
 
@@ -33,6 +35,8 @@ export function registerGraphCommands(program: Command): void {
   registerGraphTop(graphCmd);
   registerGraphRelevant(graphCmd);
   registerGraphContext(graphCmd);
+  registerGraphEmbed(graphCmd);
+  registerGraphSimilar(graphCmd);
   registerGraphCoupled(graphCmd);
   registerGraphReport(graphCmd);
   registerGraphCoverage(graphCmd);
