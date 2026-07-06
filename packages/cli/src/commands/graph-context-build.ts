@@ -22,7 +22,7 @@ import {
  */
 
 /** Bumped when the dossier shape changes, so a RAG store can invalidate records. */
-export const SCHEMA_VERSION = "1";
+export const SCHEMA_VERSION = "2";
 
 export interface Provenance {
   snapshotId: number;
@@ -80,6 +80,12 @@ export interface SymbolLine {
   utilization: number;
   /** Distinct files that reference this symbol (inbound `references`). */
   consumers: number;
+  /**
+   * Symbol-level importance (C-89): the declaring file's PageRank centrality
+   * redistributed across its symbols by utilization share, so a graph-central
+   * file's rank lands on the definitions actually carrying its inbound use.
+   */
+  importance?: number;
 }
 
 export interface SymbolDossier {
@@ -222,6 +228,21 @@ function sortSymbols(lines: (SymbolLine & { rank: number })[]): SymbolLine[] {
   return [...exported, ...internal].map(({ rank: _rank, ...line }) => line);
 }
 
+/**
+ * Split the declaring file's centrality across its symbols proportional to each
+ * symbol's utilization (C-89) — the file's graph importance flows onto the
+ * definitions that actually carry its inbound use. When no symbol is used
+ * (Σutil = 0) there is no basis to redistribute, so importance is left unset.
+ */
+function redistributeImportance(symbols: SymbolLine[], fileCentrality: number): SymbolLine[] {
+  const totalUtil = symbols.reduce((sum, s) => sum + s.utilization, 0);
+  if (totalUtil <= 0 || fileCentrality <= 0) return symbols;
+  return symbols.map((s) => ({
+    ...s,
+    importance: Math.round(fileCentrality * (s.utilization / totalUtil) * 1e6) / 1e6,
+  }));
+}
+
 function fileConsumers(fileId: string, refEdges: readonly ReferenceEdgeLite[]): string[] {
   const set = new Set<string>();
   for (const e of refEdges) if (fileIdOf(e.dstId) === fileId) set.add(e.srcId);
@@ -245,12 +266,16 @@ function buildFileDossier(input: ContextBuildInput): FileDossier {
   const consumers = consumerCounts(input.refEdges);
   const symbolUtil: SymbolUtil[] = collectSymbolUtil(input.nodes, input.metrics).filter((s) => s.fileId === fileId);
   const churnValue = input.churnByFile.get(fileId);
+  const centrality = input.centrality.get(fileId) ?? 0;
   return {
     metrics: input.metrics.get(fileId) ?? {},
     churn: churnValue === undefined ? null : { windowDays: input.churnWindowDays, value: churnValue },
-    centrality: input.centrality.get(fileId) ?? 0,
+    centrality,
     ownership: input.ownership?.get(fileId) ?? null,
-    symbols: fileSymbols(fileId, input.nodes, input.metrics, consumers),
+    symbols: redistributeImportance(
+      fileSymbols(fileId, input.nodes, input.metrics, consumers),
+      centrality,
+    ),
     dependsOn: fileDependsOn(fileId, input.refEdges, input.importEdges),
     consumers: splitConsumers(fileConsumers(fileId, input.refEdges), input.roleByFile),
     blastRadius: buildBlastRadius(symbolUtil, input.metrics, input.churnByFile, 15),

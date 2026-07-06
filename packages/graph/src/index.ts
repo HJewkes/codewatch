@@ -113,6 +113,7 @@ export {
   type PageRankResult,
   type PageRankRow,
 } from "./pagerank.js";
+export { computeRelevance, type RelevanceOptions } from "./relevance.js";
 export {
   computePartitionQuality,
   invertBuckets,

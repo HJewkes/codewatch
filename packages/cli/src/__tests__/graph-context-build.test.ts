@@ -90,8 +90,14 @@ describe("buildContextDossier — file target", () => {
     expect(d.file?.blastRadius[0]?.score).toBe(150); // 3 × 10 × 5
   });
 
+  it("redistributes file centrality onto symbols by utilization share (C-89)", () => {
+    // centrality 0.4, symbols foo (util 3) + helper (util 0) → foo gets all of it.
+    expect(d.file!.symbols[0]).toMatchObject({ name: "foo", importance: 0.4 });
+    expect(d.file!.symbols[1]).toMatchObject({ name: "helper", importance: 0 });
+  });
+
   it("stamps a schema version", () => {
-    expect(d.schemaVersion).toBe("1");
+    expect(d.schemaVersion).toBe("2");
   });
 
   it("notes the signature-coverage caveat and omitted ownership", () => {

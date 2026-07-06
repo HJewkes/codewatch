@@ -65,7 +65,8 @@ function renderFile(f: FileDossier): string[] {
     for (const s of f.symbols) {
       const tag = s.exported ? "export" : "internal";
       const sig = s.signature ? ` \`${s.signature}\`` : "";
-      out.push(`- \`${s.name}\` (${tag})${sig} — util ${s.utilization}, cog ${s.cognitive ?? "—"}, consumers ${s.consumers}`);
+      const imp = s.importance !== undefined ? `, importance ${s.importance}` : "";
+      out.push(`- \`${s.name}\` (${tag})${sig} — util ${s.utilization}, cog ${s.cognitive ?? "—"}, consumers ${s.consumers}${imp}`);
     }
     out.push("");
   }
