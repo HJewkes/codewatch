@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { shouldIncludeFile, getLanguageFromPath } from "../ingest/file-filter.js";
+import { shouldIncludeFile, getLanguageFromPath, isExcludedDir } from "../ingest/file-filter.js";
 
 describe("shouldIncludeFile", () => {
   const languages = ["typescript", "python"];
@@ -58,6 +58,29 @@ describe("shouldIncludeFile", () => {
 
   it("excludes .d.ts declaration files", () => {
     expect(shouldIncludeFile("src/types.d.ts", languages)).toBe(false);
+  });
+});
+
+describe("isExcludedDir", () => {
+  it("prunes the excluded directory names a source walk should skip recursing into", () => {
+    for (const d of ["node_modules", "dist", "build", ".git", ".next", "vendor", "coverage"]) {
+      expect(isExcludedDir(d)).toBe(true);
+    }
+  });
+
+  it("does not prune ordinary source directories", () => {
+    for (const d of ["src", "packages", "lib", "server", "node_modules_helper"]) {
+      expect(isExcludedDir(d)).toBe(false);
+    }
+  });
+
+  it("matches the file-level exclusion (a pruned dir yields no included files)", () => {
+    // The prune is a speedup that must change no output: any dir isExcludedDir
+    // prunes must also be one shouldIncludeFile rejects a file under.
+    for (const d of ["node_modules", "dist", ".git"]) {
+      expect(isExcludedDir(d)).toBe(true);
+      expect(shouldIncludeFile(`${d}/foo/index.ts`, ["typescript"])).toBe(false);
+    }
   });
 });
 

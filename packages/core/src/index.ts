@@ -26,5 +26,5 @@ export type {
   IngestMetadata,
 } from "./ingest/types.js";
 export { GitHubService } from "./ingest/github-service.js";
-export { shouldIncludeFile, getLanguageFromPath } from "./ingest/file-filter.js";
+export { shouldIncludeFile, getLanguageFromPath, isExcludedDir } from "./ingest/file-filter.js";
 export { FileCache } from "./ingest/cache.js";

@@ -1,6 +1,6 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { shouldIncludeFile } from "@codewatch/core";
+import { isExcludedDir, shouldIncludeFile } from "@codewatch/core";
 
 /**
  * Recursively collect the source files under `rootDirs` that pass the ingest
@@ -34,10 +34,15 @@ async function collectFiles(
   const entries = await fs.readdir(dir, { withFileTypes: true });
   for (const entry of entries) {
     const full = path.join(dir, entry.name);
-    // Directories are always recursed; the ingest filter gates only files, so
-    // an excluded path simply yields no collected files beneath it (behaviour
-    // preserved verbatim from the indexer's original two-branch walker).
+    // Prune excluded directories (node_modules, dist, .git, …) instead of
+    // recursing into them: `shouldIncludeFile` already rejects every file
+    // beneath them, so descending only pays to `readdir` a potentially multi-GB
+    // tree and discard all of it. Pruning here changes no output but makes
+    // `graph index` on a repo with installed dependencies orders of magnitude
+    // faster (found dogfooding on a pnpm monorepo — a whole-repo index hung in
+    // node_modules for minutes).
     if (entry.isDirectory()) {
+      if (isExcludedDir(entry.name)) continue;
       await collectFiles(full, rootDir, languages, seen, out);
     } else if (entry.isFile() && !seen.has(full)) {
       const relative = path.relative(rootDir, full);
