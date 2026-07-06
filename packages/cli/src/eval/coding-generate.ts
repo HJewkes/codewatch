@@ -290,7 +290,16 @@ export function generateCodingSuite(
 
   let installedHash: string | null = null;
   const gate: GateFn = (c) => {
-    installOnce(workdir, c, () => installedHash, (h) => (installedHash = h));
+    try {
+      installOnce(workdir, c, () => installedHash, (h) => (installedHash = h));
+    } catch {
+      // A failed `pnpm install` (lockfile drift, flaky postinstall, registry
+      // outage) is an environment failure for this candidate, not a fatal run
+      // error — record it in the funnel and move to the next candidate rather
+      // than crashing the whole generation.
+      installedHash = null;
+      return { outcome: "env-error", failToPass: [], passToPass: [] };
+    }
     return runAdmissionGate(workdir, {
       runs: opts.gateRuns,
       testFiles: c.testFiles,
@@ -334,7 +343,12 @@ function installOnce(
     stdio: "ignore",
   });
   execFileSync("git", ["clean", "-fdq"], { cwd: workdir, stdio: "ignore" });
-  execFileSync("pnpm", ["install", "--frozen-lockfile"], {
+  // `--ignore-scripts`: the tests run against SOURCE via the repo's vitest alias
+  // map (Stage 0 — no build needed), so package build/postinstall scripts are
+  // irrelevant to grading AND a source of flakiness (e.g. tRPC's `www`
+  // postinstall fetches from the network). Skipping them makes install fast and
+  // deterministic; pnpm 10 already blocks build scripts by default anyway.
+  execFileSync("pnpm", ["install", "--frozen-lockfile", "--ignore-scripts"], {
     cwd: workdir,
     stdio: "ignore",
     timeout: 600_000,
