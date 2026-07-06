@@ -11,10 +11,35 @@ import { createReadApi, READ_API_VERSION, type GraphReadApi, type ReadApiOptions
  * the snapshot + repo and returns a self-contained record.
  */
 export function buildMcpServer(api: GraphReadApi): McpServer {
-  const server = new McpServer({ name: "codewatch", version: READ_API_VERSION });
+  const server = new McpServer(
+    { name: "codewatch", version: READ_API_VERSION },
+    { instructions: SERVER_INSTRUCTIONS },
+  );
   registerTools(server, api);
   return server;
 }
+
+/**
+ * Server-level guidance surfaced at initialize — the intended workflow, so an
+ * agent reaches for the resolved-graph tools instead of treating `search` as a
+ * grep. Guidance lives in the tool (here + the per-tool descriptions), never in
+ * the caller's prompt.
+ */
+const SERVER_INSTRUCTIONS = [
+  "codewatch serves a resolved dependency graph of this codebase. Unlike text",
+  "search, its edges are resolved through re-export barrels and index files, so",
+  "it finds who-uses-what and what-depends-on-what that grep cannot follow.",
+  "",
+  "Typical workflow for a code task:",
+  "  1. `search` to turn a name into an exact id (a lookup step only — it returns",
+  "     ids, not code or relationships).",
+  "  2. `get_context` on that id to understand a symbol/file (signature, source,",
+  "     what it depends on and what depends on it, tests) in one call.",
+  "  3. `get_neighbors` to trace relationships — callers/importers (the blast",
+  "     radius of a change) and dependencies — including through barrels.",
+  "Reach for these before manually reading files to discover how code connects:",
+  "the graph already knows the resolved edges.",
+].join("\n");
 
 /** Create a read API and serve it over stdio until the transport closes. */
 export async function startMcpServer(options: ReadApiOptions): Promise<void> {
@@ -33,7 +58,7 @@ function registerTools(server: McpServer, api: GraphReadApi): void {
     "get_context",
     {
       description:
-        "Full per-target context bundle: dossier + source chunk + resolved edges + coverage, plus deep AST (class members, param/return types). The client needs no file reads.",
+        "Understand a symbol or file in one call: its signature and docstring, source, the code it depends on AND the code that depends on it (resolved through re-export barrels), test coverage, and members (class fields, param/return types). Prefer this over reading files by hand when you need to know what a piece of code is and how it connects to the rest of the codebase.",
       inputSchema: { target: TARGET, includeDeepAst: z.boolean().optional() },
     },
     ({ target, includeDeepAst }) =>
@@ -41,13 +66,14 @@ function registerTools(server: McpServer, api: GraphReadApi): void {
   );
   server.registerTool(
     "get_source",
-    { description: "The exact source span (text + line range) for a symbol or file.", inputSchema: { target: TARGET } },
+    { description: "The exact source text and line range for a symbol or file id.", inputSchema: { target: TARGET } },
     ({ target }) => run(() => api.getSource(target)),
   );
   server.registerTool(
     "get_neighbors",
     {
-      description: "Resolved graph edges for a target: callers (inbound), dependencies (outbound), and co-import coupling.",
+      description:
+        "Trace what connects to a target: its callers/importers (what would break if you change it — the blast radius) and its dependencies (what it relies on). Edges are resolved through re-export barrels and index files, so this finds usage relationships that text search misses. Use for 'who uses X', 'what does X depend on', 'what's affected if I change X'.",
       inputSchema: { target: TARGET },
     },
     ({ target }) => run(() => api.getNeighbors(target)),
@@ -55,7 +81,8 @@ function registerTools(server: McpServer, api: GraphReadApi): void {
   server.registerTool(
     "search",
     {
-      description: "Symbol/file lookup over the graph, ranked by match specificity.",
+      description:
+        "Find the exact id of a symbol or file by name or path when you don't already have it. A lookup step only: it returns candidate ids to pass to get_context / get_neighbors — NOT source code or relationships. To explore how code connects, use get_neighbors/get_context on the id, not repeated searches.",
       inputSchema: { query: z.string(), limit: z.number().int().positive().optional() },
     },
     ({ query, limit }) => run(() => api.search(query, limit)),

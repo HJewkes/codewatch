@@ -28,6 +28,18 @@ const LANGUAGE_EXTENSIONS: Record<string, string[]> = {
   python: [".py"],
 };
 
+/**
+ * True when a directory NAME should be pruned from a recursive source walk
+ * (node_modules, dist, .git, …). File discovery already rejects files under
+ * these via `shouldIncludeFile`, but a walker that recurses into them anyway
+ * pays to `readdir` the entire tree (e.g. a multi-GB `node_modules`) only to
+ * discard every file — so pruning at the directory level is a large speedup and
+ * changes no output. Kept in sync with `EXCLUDED_DIRS`.
+ */
+export function isExcludedDir(dirName: string): boolean {
+  return EXCLUDED_DIRS.includes(dirName);
+}
+
 export function shouldIncludeFile(
   filePath: string,
   languages: string[],
