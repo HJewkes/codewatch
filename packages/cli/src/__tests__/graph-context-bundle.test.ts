@@ -91,9 +91,40 @@ describe("buildContextBundle — symbol target", () => {
     ]);
   });
 
+  it("ranks dependencies by seeded relevance and annotates each edge (C-89)", () => {
+    // src/c.ts is far more relevant to the target than src/e.ts, despite lower weight.
+    const input = symbolInput(dir);
+    input.refEdges = [
+      ...REF_EDGES,
+      edge("src/a.ts", "src/e.ts#baz", "references", 9), // heavy but low-relevance
+    ];
+    input.relevanceByFile = new Map([
+      ["src/a.ts", 0.5],
+      ["src/c.ts", 0.4],
+      ["src/e.ts", 0.01],
+      ["src/b.ts", 0.3],
+    ]);
+    input.targetFileId = "src/a.ts";
+    const b = buildContextBundle(input);
+    // c.ts (rel 0.4) leads e.ts (rel 0.01) even though e.ts has weight 9 vs 2.
+    expect(b.edges.dependencies.map((e) => e.to)).toEqual([
+      "src/c.ts#bar",
+      "src/c.ts",
+      "src/e.ts#baz",
+    ]);
+    expect(b.edges.dependencies[0]?.relevance).toBe(0.4);
+    // The single caller (b.ts) is annotated with its neighbour's relevance.
+    expect(b.edges.callers[0]).toMatchObject({ from: "src/b.ts", relevance: 0.3 });
+  });
+
+  it("falls back to weight ordering with no relevance (cold path)", () => {
+    const b = buildContextBundle(symbolInput(dir));
+    expect(b.edges.callers[0]?.relevance).toBeUndefined();
+  });
+
   it("flags absent coverage and stamps the schema version", () => {
     const b = buildContextBundle(symbolInput(dir));
-    expect(b.schemaVersion).toBe("1");
+    expect(b.schemaVersion).toBe("2");
     expect(b.coverage.pct).toBeNull();
     expect(b.coverage.note).toMatch(/coverage_pct/);
   });

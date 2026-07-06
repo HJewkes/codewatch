@@ -17,7 +17,7 @@ import type {
  * fields/functions backward-compatibly; PATCH is non-behavioural. Consumers
  * assert `major(api.version) === expected`.
  */
-export const READ_API_VERSION = "1.0.0";
+export const READ_API_VERSION = "1.1.0";
 
 export type {
   ContextBundle,

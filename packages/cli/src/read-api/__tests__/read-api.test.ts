@@ -53,7 +53,7 @@ describe("read API — the four reads over a fixture graph", () => {
 
   it("getContext returns the C-80 bundle with a resolved target and source chunk", () => {
     const ctx = api.getContext(SYMBOL);
-    expect(ctx.schemaVersion).toBe("1");
+    expect(ctx.schemaVersion).toBe("2");
     expect(ctx.dossier.target.id).toBe(SYMBOL);
     expect(ctx.source.text).toContain("function foo");
     expect("deepAst" in ctx).toBe(false);
@@ -105,7 +105,7 @@ describe("MCP server — the four pull tools end to end (no client file reads)",
   it("get_context returns a full self-contained bundle with deep AST", async () => {
     const { client, call } = await connectClient();
     const ctx = await call("get_context", { target: SYMBOL });
-    expect(ctx.schemaVersion).toBe("1");
+    expect(ctx.schemaVersion).toBe("2");
     expect(ctx.source.text).toContain("function foo");
     expect(ctx.deepAst.returnType).toBe("number");
     await client.close();

@@ -13,7 +13,7 @@ import { renderContextMarkdown } from "./graph-context-format.js";
  * coupled-with — not just counts), and **coverage** (C-63, when the overlay is
  * ingested). No LLM; a pure projection of the graph + the working-tree source.
  */
-export const BUNDLE_SCHEMA_VERSION = "1";
+export const BUNDLE_SCHEMA_VERSION = "2";
 
 export interface SourceChunk {
   /** Repo-relative file id the chunk was read from. */
@@ -31,6 +31,13 @@ export interface BundleEdge {
   to: string;
   kind: string;
   weight: number;
+  /**
+   * Seeded-PageRank relevance of this edge's neighbour to the target (C-89).
+   * Present only when the target was seeded (the bundle path); the neighbour is
+   * whichever endpoint is not the target's file. Edges are ordered by it, so the
+   * most target-relevant linkages lead, not the globally-famous ones.
+   */
+  relevance?: number;
 }
 
 export interface BundleEdges {
@@ -68,6 +75,10 @@ export interface BundleBuildInput {
   repoRoot: string | null;
   /** `coverage_pct` for the target node, or null when the overlay is absent. */
   coveragePct: number | null;
+  /** File id → seeded-relevance score (C-89); absent/empty ⇒ weight-ordered cold path. */
+  relevanceByFile?: ReadonlyMap<string, number>;
+  /** The target's declaring file id, for locating each edge's neighbour (C-89). */
+  targetFileId?: string;
 }
 
 const EDGE_NOTE =
@@ -81,16 +92,58 @@ function weightOf(e: GraphEdge): number {
   return typeof w === "number" ? w : 1;
 }
 
-function sortEdges(edges: BundleEdge[]): BundleEdge[] {
+/** Seeded-relevance ranking context, or null on the no-seed cold path. */
+interface RelevanceCtx {
+  relevanceByFile: ReadonlyMap<string, number>;
+  targetFileId: string;
+}
+
+function relevanceCtx(input: BundleBuildInput): RelevanceCtx | null {
+  const { relevanceByFile, targetFileId } = input;
+  if (!relevanceByFile || relevanceByFile.size === 0 || targetFileId === undefined) return null;
+  return { relevanceByFile, targetFileId };
+}
+
+/** File that declares a node (itself for a file, its parent for a symbol). */
+function fileOf(id: string): string {
+  return parseSymbolId(id)?.fileId ?? id;
+}
+
+/**
+ * Order the edges. With a seed (bundle path) rank by relevance-to-target — the
+ * seeded-PageRank score of whichever endpoint is not the target's file — so the
+ * closest linkages lead; without one, fall back to raw edge weight (global fame).
+ */
+function rankEdges(edges: BundleEdge[], ctx: RelevanceCtx | null): BundleEdge[] {
+  if (!ctx) return sortByWeight(edges);
+  const annotated = edges.map((e) => {
+    const neighbor = fileOf(e.from) === ctx.targetFileId ? fileOf(e.to) : fileOf(e.from);
+    return { ...e, relevance: round4(ctx.relevanceByFile.get(neighbor) ?? 0) };
+  });
+  return annotated.sort(
+    (a, b) =>
+      (b.relevance ?? 0) - (a.relevance ?? 0) ||
+      b.weight - a.weight ||
+      a.from.localeCompare(b.from) ||
+      a.to.localeCompare(b.to),
+  );
+}
+
+function sortByWeight(edges: BundleEdge[]): BundleEdge[] {
   return edges.sort(
     (a, b) => b.weight - a.weight || a.from.localeCompare(b.from) || a.to.localeCompare(b.to),
   );
+}
+
+function round4(n: number): number {
+  return Math.round(n * 1e6) / 1e6;
 }
 
 /** Explicit resolved edges for a symbol target: inbound refs, its file's outbound refs, coupling. */
 function symbolEdges(input: BundleBuildInput): BundleEdges {
   const id = input.target.id;
   const fileId = parseSymbolId(id)?.fileId ?? "";
+  const ctx = relevanceCtx(input);
   const callers = input.refEdges
     .filter((e) => e.dstId === id)
     .map((e) => ({ from: e.srcId, to: id, kind: "references", weight: weightOf(e) }));
@@ -104,12 +157,18 @@ function symbolEdges(input: BundleBuildInput): BundleEdges {
     kind: "coupled-with",
     weight: c.coImports,
   }));
-  return { callers: sortEdges(callers), dependencies: sortEdges(dependencies), coupledWith: sortEdges(coupledWith), note: EDGE_NOTE };
+  return {
+    callers: rankEdges(callers, ctx),
+    dependencies: rankEdges(dependencies, ctx),
+    coupledWith: rankEdges(coupledWith, ctx),
+    note: EDGE_NOTE,
+  };
 }
 
 /** Explicit resolved edges for a file target: inbound + outbound refs and imports. */
 function fileEdges(input: BundleBuildInput): BundleEdges {
   const id = input.target.id;
+  const ctx = relevanceCtx(input);
   const inbound = (e: GraphEdge) => parseSymbolId(e.dstId)?.fileId === id;
   const callers = [
     ...input.refEdges.filter(inbound).map((e) => edge(e, "references")),
@@ -119,7 +178,12 @@ function fileEdges(input: BundleBuildInput): BundleEdges {
     ...input.refEdges.filter((e) => e.srcId === id).map((e) => edge(e, "references")),
     ...input.importEdges.filter((e) => e.srcId === id).map((e) => edge(e, "imports")),
   ];
-  return { callers: sortEdges(callers), dependencies: sortEdges(dependencies), coupledWith: [], note: EDGE_NOTE };
+  return {
+    callers: rankEdges(callers, ctx),
+    dependencies: rankEdges(dependencies, ctx),
+    coupledWith: [],
+    note: EDGE_NOTE,
+  };
 }
 
 function edge(e: GraphEdge, kind: string): BundleEdge {
@@ -179,5 +243,10 @@ export function renderBundleText(bundle: ContextBundle): string {
 
 function renderEdgeSection(title: string, edges: readonly BundleEdge[]): string[] {
   if (!edges.length) return [];
-  return [`### ${title}`, ...edges.map((e) => `- \`${e.from}\` → \`${e.to}\` (${e.kind} ×${e.weight})`), ""];
+  return [`### ${title}`, ...edges.map(renderEdgeLine), ""];
+}
+
+function renderEdgeLine(e: BundleEdge): string {
+  const rel = e.relevance !== undefined ? `, rel ${e.relevance}` : "";
+  return `- \`${e.from}\` → \`${e.to}\` (${e.kind} ×${e.weight}${rel})`;
 }

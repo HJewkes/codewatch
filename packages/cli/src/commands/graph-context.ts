@@ -2,6 +2,7 @@ import type { Command } from "commander";
 import {
   COVERAGE_METRIC_NAME,
   computePageRank,
+  computeRelevance,
   detectGitToplevel,
   openDatabase,
   parseSymbolId,
@@ -41,6 +42,15 @@ interface LoadedContext {
   refEdges: GraphEdge[];
   importEdges: GraphEdge[];
   coveragePct: number | null;
+  /** File id → seeded-relevance score, personalized on the target (C-89). */
+  relevanceByFile: ReadonlyMap<string, number>;
+  /** The target's declaring file id (the relevance seed). */
+  targetFileId: string;
+}
+
+/** The file that declares a target node (itself for a file, its parent for a symbol). */
+function fileIdOfTarget(node: GraphNode, kind: "file" | "symbol"): string {
+  return kind === "symbol" ? (parseSymbolId(node.id)?.fileId ?? node.id) : node.id;
 }
 
 /** Resolve a snapshot by id, else the latest. */
@@ -118,6 +128,8 @@ function loadContext(
   const roleByFile = new Map<string, string>();
   for (const n of fileNodes) if (n.role) roleByFile.set(n.id, n.role);
   const { node, kind } = resolveTarget(nodes, target);
+  const targetFileId = fileIdOfTarget(node, kind);
+  const relevanceByFile = computeRelevance(fileNodes, fileEdges, [targetFileId]);
   const dossier = buildContextDossier({
     target: node,
     kind,
@@ -132,7 +144,16 @@ function loadContext(
     ownership: null,
     roleByFile,
   });
-  return { dossier, target: node, kind, refEdges, importEdges, coveragePct: coverageOf(metricRows, node.id) };
+  return {
+    dossier,
+    target: node,
+    kind,
+    refEdges,
+    importEdges,
+    coveragePct: coverageOf(metricRows, node.id),
+    relevanceByFile,
+    targetFileId,
+  };
 }
 
 /** The `coverage_pct` overlay for a node (C-63), or null when not ingested. */
@@ -173,6 +194,8 @@ export function contextBundleFromDb(
     importEdges: ctx.importEdges,
     repoRoot,
     coveragePct: ctx.coveragePct,
+    relevanceByFile: ctx.relevanceByFile,
+    targetFileId: ctx.targetFileId,
   });
 }
 
