@@ -37,10 +37,11 @@
   },
   "dependencies": {
     "@codewatch/core": "workspace:*",
-    "@codewatch/profile": "workspace:*",
     "@jscpd/core": "3.5.10",
     "@jscpd/tokenizer": "3.5.4",
-    "web-tree-sitter": "^0.26.6"
+    "@titan-design/style-profile": "^0.1.0",
+    "web-tree-sitter": "^0.26.6",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^25.3.2"

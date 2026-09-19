@@ -2,10 +2,8 @@ import { readFile } from "node:fs/promises"
 import { join, dirname } from "node:path"
 import { fileURLToPath } from "node:url"
 import { describe, it, expect, beforeAll } from "vitest"
-import { ProfileSchema } from "../../../packages/profile/src/schema/profile.js"
-import { generateSkillFiles } from "../../../packages/profile/src/exporters/skill.js"
-import type { Profile } from "../../../packages/profile/src/schema/profile.js"
-import type { GeneratedFile } from "../../../packages/profile/src/exporters/types.js"
+import { ProfileSchema, generateSkillFiles } from "@titan-design/style-profile"
+import type { Profile, GeneratedFile } from "@titan-design/style-profile"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 

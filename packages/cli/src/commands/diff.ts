@@ -1,6 +1,6 @@
 import { execSync } from "node:child_process";
-import { PROFILE_CATEGORIES } from "@codewatch/profile";
-import type { Profile, ProfileCategory } from "@codewatch/profile";
+import { PROFILE_CATEGORIES } from "@titan-design/style-profile";
+import type { Profile, ProfileCategory } from "@titan-design/style-profile";
 import type { Observation } from "@codewatch/analyzer";
 
 export interface Deviation {

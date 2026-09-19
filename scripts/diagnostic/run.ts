@@ -148,9 +148,7 @@ async function phaseSetup(config: RunConfig): Promise<SetupResult> {
   }
 
   log("setup", "Exporting skill from profile...")
-  const { readProfile, exportProfile } = await import(
-    join(PROJECT_DIR, "packages/profile/src/index.js")
-  )
+  const { readProfile, exportProfile } = await import("@titan-design/style-profile")
   const profile = await readProfile(profileAbs)
   const files: Array<{ path: string; content: string }> = exportProfile(profile, "skill")
 
@@ -313,9 +311,7 @@ async function phaseCheck(
     log("check", `Checking ${result.promptId}: ${absFiles.length} file(s)`)
 
     try {
-      const { readProfile } = await import(
-        join(PROJECT_DIR, "packages/profile/src/index.js")
-      )
+      const { readProfile } = await import("@titan-design/style-profile")
       const { orchestrate } = await import(
         join(PROJECT_DIR, "packages/checker/src/index.js")
       )

@@ -8,7 +8,7 @@ export {
   parseEslintJsonOutput,
   parseRuffJsonOutput,
 } from "./formatters/unified.js";
-export type { Severity } from "@codewatch/profile";
+export type { Severity } from "@titan-design/style-profile";
 export type {
   CheckDiagnostic,
   CheckResult,

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { createRequire } from "node:module";
 import { Command } from "commander";
-import { readProfile, writeProfile } from "@codewatch/profile";
+import { readProfile, writeProfile } from "@titan-design/style-profile";
 import type {
   CodeCorpus,
   Observation,

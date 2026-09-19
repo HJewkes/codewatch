@@ -2,9 +2,8 @@ import { readFile } from "node:fs/promises"
 import { join, dirname } from "node:path"
 import { fileURLToPath } from "node:url"
 import { describe, it, expect, beforeAll } from "vitest"
-import { ProfileSchema } from "../../../packages/profile/src/schema/profile.js"
-import { generateEditorConfigExport } from "../../../packages/profile/src/exporters/editorconfig.js"
-import type { Profile } from "../../../packages/profile/src/schema/profile.js"
+import { ProfileSchema, generateEditorConfigExport } from "@titan-design/style-profile"
+import type { Profile } from "@titan-design/style-profile"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 

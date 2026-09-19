@@ -2,10 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { tmpdir } from "node:os";
-import type { ExportFormat } from "@codewatch/profile";
+import type { ExportFormat } from "@titan-design/style-profile";
 
-vi.mock("@codewatch/profile", async () => {
-  const actual = await vi.importActual("@codewatch/profile");
+vi.mock("@titan-design/style-profile", async () => {
+  const actual = await vi.importActual("@titan-design/style-profile");
   return {
     ...actual,
     readProfile: vi.fn().mockResolvedValue({
@@ -56,7 +56,7 @@ describe("runExport", () => {
   });
 
   it("creates nested directories for file paths with subdirs", async () => {
-    const { exportProfile } = await import("@codewatch/profile");
+    const { exportProfile } = await import("@titan-design/style-profile");
     vi.mocked(exportProfile).mockReturnValue([
       { path: ".claude/rules/typescript.md", content: "# rules" },
     ]);

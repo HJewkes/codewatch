@@ -36,6 +36,7 @@
     "lint": "echo 'lint not configured yet'"
   },
   "dependencies": {
-    "@codewatch/profile": "workspace:*"
+    "@titan-design/style-profile": "^0.1.0",
+    "zod": "^4.3.6"
   }
 }

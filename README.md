@@ -39,8 +39,10 @@ set of `@codewatch/*` library packages, all versioned and released together.
 | `@codewatch/analyzer` | Code-corpus analysis + observation extractors |
 | `@codewatch/render` | Graph rendering + dashboard generation |
 | `@codewatch/checker` | Style / architecture checks |
-| `@codewatch/profile` | Coding-style profile schema + exporters |
 | `@codewatch/core` | Language parsing + shared primitives |
+
+The style-profile schema and exporters come from
+[`@titan-design/style-profile`](https://www.npmjs.com/package/@titan-design/style-profile).
 
 ## Develop
 

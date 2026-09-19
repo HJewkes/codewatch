@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { formatProfileText, formatProfileJson } from "../commands/show.js";
-import type { Profile } from "@codewatch/profile";
+import type { Profile } from "@titan-design/style-profile";
 
 const sampleProfile: Profile = {
   schemaVersion: "1.0.0",

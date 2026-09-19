@@ -1,7 +1,7 @@
 # codewatch
 
 pnpm monorepo of `@codewatch/*` packages (`core`, `analyzer`, `checker`, `graph`, `cli`,
-`profile`, `render`) plus the `codewatch` CLI. Read `README.md` for what the tool does; this
+`render`) plus the `codewatch` CLI. Read `README.md` for what the tool does; this
 file is the short version for agents.
 
 ## Direction: this repo is becoming a thin composition

@@ -2,10 +2,9 @@ import { readFile } from "node:fs/promises"
 import { join, dirname } from "node:path"
 import { fileURLToPath } from "node:url"
 import { describe, it, expect, beforeAll } from "vitest"
-import { ProfileSchema } from "../../../packages/profile/src/schema/profile.js"
-import { generateEslintExport } from "../../../packages/profile/src/exporters/eslint.js"
+import { ProfileSchema, generateEslintExport } from "@titan-design/style-profile"
 import { generateEslintConfig } from "../../../packages/checker/src/generators/eslint.js"
-import type { Profile } from "../../../packages/profile/src/schema/profile.js"
+import type { Profile } from "@titan-design/style-profile"
 import type { EslintFlatConfigEntry } from "../../../packages/checker/src/generators/eslint.js"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))

@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import type { StyleRule } from "@codewatch/profile";
+import type { StyleRule } from "@titan-design/style-profile";
 
 export function presentRule(
   category: string,
