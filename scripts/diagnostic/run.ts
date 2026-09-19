@@ -312,9 +312,7 @@ async function phaseCheck(
 
     try {
       const { readProfile } = await import("@titan-design/style-profile")
-      const { orchestrate } = await import(
-        join(PROJECT_DIR, "packages/checker/src/index.js")
-      )
+      const { orchestrate } = await import("@titan-design/style-checker")
       const profile = await readProfile(profileAbs)
       const checkResult = await orchestrate({
         profile,

@@ -43,7 +43,7 @@
       "layers": [
         ["packages/core"],
         ["packages/analyzer", "packages/graph"],
-        ["packages/checker", "packages/render"],
+        ["packages/render"],
         ["packages/cli"]
       ]
     },
@@ -62,7 +62,6 @@
       "type": "no-internal-only-barrels",
       "packageRoots": [
         "packages/analyzer",
-        "packages/checker",
         "packages/cli",
         "packages/core",
         "packages/graph",

@@ -28,8 +28,8 @@ import type {
   ProfileCategory,
   StyleRule,
 } from "@titan-design/style-profile"
-import { diffAgainstProfile } from "../../../packages/cli/src/commands/diff.js"
-import type { DiffResult } from "../../../packages/cli/src/commands/diff.js"
+import { diffAgainstProfile } from "@titan-design/style-checker"
+import type { DiffResult } from "@titan-design/style-checker"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const CORPUS_DIR = join(__dirname, "../fixtures/corpus/typescript")
