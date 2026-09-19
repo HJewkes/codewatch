@@ -1,9 +1,11 @@
 name: Release
 
-# Manual only. Publishing is never automatic — it runs when a maintainer
-# triggers this workflow from the Actions tab, and only if an NPM_TOKEN secret
-# with publish rights to the @codewatch scope is configured. This keeps the
-# distribution pipeline "ready" without risking an accidental publish on merge.
+# Manual only. Publishing is never automatic: it runs when a maintainer triggers this
+# workflow from the Actions tab. Authentication is npm trusted publishing (OIDC), so no
+# NPM_TOKEN secret exists and none should be added. Each @codewatch/* package needs a
+# trusted publisher on npmjs.com pointing at HJewkes/codewatch and release.yml. npm will
+# not accept one for a package it has never seen, so a package's first version is
+# published by hand (see docs/releasing.md).
 on:
   workflow_dispatch:
     inputs:
@@ -15,6 +17,9 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v6
         with:
@@ -24,11 +29,12 @@ jobs:
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
+      # Trusted publishing needs npm >= 11.5.1 and Node 22 ships an older npm. Stay on 11.x:
+      # changesets passes pnpm's --git-checks flag to npm publish, which npm 12 rejects.
+      - run: npm install -g npm@11 && npm --version
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r run build
       - name: Publish (or dry-run) @codewatch/* to npm
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           if [ "${{ inputs.dry_run }}" = "true" ]; then
             pnpm -r publish --dry-run --no-git-checks
