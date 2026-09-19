@@ -7,7 +7,11 @@ import type { CodeCorpus } from "@codewatch/core";
 import type { Observation } from "@titan-design/style-analyzer";
 import { promptForInitOptions, runInitPipeline } from "./commands/init.js";
 import { formatProfileText, formatProfileJson } from "./commands/show.js";
-import { getChangedFiles } from "./commands/diff.js";
+import {
+  formatSkippedNoParser,
+  getChangedFiles,
+  selectParseableFiles,
+} from "./commands/diff.js";
 import { getDefaultProfilePath } from "./utils/config.js";
 import { formatError } from "./utils/output.js";
 import { extractFromFiles } from "./utils/pipeline.js";
@@ -167,12 +171,17 @@ program
       const analyzer = await import("@titan-design/style-analyzer");
       const fs = await import("node:fs/promises");
       const extractors = analyzer.createStyleExtractors();
+      const { parseable, skippedNoParser } = selectParseableFiles(
+        files,
+        parser.getLanguageFromPath,
+      );
+      if (skippedNoParser.length > 0) {
+        console.error(formatSkippedNoParser(skippedNoParser));
+      }
       const fileInputs: { content: string; path: string; language: string }[] = [];
-      for (const filePath of files) {
-        const lang = parser.getLanguageFromPath(filePath);
-        if (!lang) continue;
-        const content = await fs.readFile(filePath, "utf-8");
-        fileInputs.push({ content, path: filePath, language: lang });
+      for (const file of parseable) {
+        const content = await fs.readFile(file.path, "utf-8");
+        fileInputs.push({ ...file, content });
       }
       const observations = await extractFromFiles(
         fileInputs,

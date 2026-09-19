@@ -36,13 +36,23 @@ export interface AnalyzeResult {
   };
 }
 
-const DEFAULT_LANGUAGES = ["typescript", "python"];
+const SUPPORTED_LANGUAGES = ["typescript", "python"];
+
+function assertSupportedLanguages(languages: readonly string[]): void {
+  const unsupported = languages.filter((l) => !SUPPORTED_LANGUAGES.includes(l));
+  if (unsupported.length > 0) {
+    throw new Error(
+      `Unsupported language: ${unsupported.join(", ")} (supported: ${SUPPORTED_LANGUAGES.join(", ")})`,
+    );
+  }
+}
 
 export async function runAnalyze(
   options: AnalyzeOptions,
 ): Promise<AnalyzeResult> {
   const rootDir = path.resolve(options.rootDir);
-  const languages = options.languages ?? DEFAULT_LANGUAGES;
+  const languages = options.languages ?? SUPPORTED_LANGUAGES;
+  assertSupportedLanguages(languages);
   const extractors = options.extractors ?? createStyleExtractors();
 
   const filePaths = await walkSourceFiles([rootDir], languages);

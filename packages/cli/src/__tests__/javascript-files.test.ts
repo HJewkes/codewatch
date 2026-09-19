@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { execFileSync, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-// End to end through the built CLI: codewatch has no JavaScript grammar, so .js and .jsx files are skipped.
+// End to end through the built CLI: codewatch has no JavaScript grammar, so .js and .jsx files are skipped or rejected.
 const CLI = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../dist/index.js");
 const PROFILE = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -16,6 +16,7 @@ const FILES: Record<string, string> = {
   "src/add.ts": "export function add(a: number, b: number): number {\n  return a + b;\n}\n",
   "src/twice.js": "export function twice(x) {\n  return x * 2;\n}\n",
   "src/Badge.jsx": "export function Badge({ label }) {\n  return <span>{label}</span>;\n}\n",
+  "README.md": "# fixture\n",
 };
 
 function runCli(args: string[], cwd: string) {
@@ -42,13 +43,14 @@ describe("a repo with .js and .jsx files next to TypeScript", () => {
     await fs.rm(repo, { recursive: true, force: true });
   });
 
-  it("diff checks the staged TypeScript file and skips the .js and .jsx files instead of aborting", () => {
-    const { stdout, stderr } = runCli(["diff", "--profile", PROFILE], repo);
+  it("diff checks the staged TypeScript file and names the skipped .js and .jsx files on stderr", () => {
+    const { status, stdout, stderr } = runCli(["diff", "--profile", PROFILE], repo);
 
-    expect(stderr).not.toContain("Unsupported language");
-    expect(stdout).toContain("src/add.ts:");
-    expect(stdout).not.toMatch(/twice\.js|Badge\.jsx/);
+    expect(stderr.trim()).toBe("Skipped 2 file(s) with no parser: src/Badge.jsx, src/twice.js");
+    expect(stdout).toContain("src/add.ts:1 ERROR");
+    expect(stdout).not.toMatch(/twice\.js|Badge\.jsx|README/);
     expect(stdout).toMatch(/deviation\(s\) in \d+ observations\./);
+    expect(status).toBe(1);
   });
 
   it("analyze counts only the TypeScript file", () => {
@@ -58,11 +60,12 @@ describe("a repo with .js and .jsx files next to TypeScript", () => {
     expect(JSON.parse(stdout).files).toEqual({ total: 1, byLanguage: { typescript: 1 } });
   });
 
-  it("analyze --lang javascript finds no files to parse", () => {
-    const { status, stdout } = runCli(["analyze", repo, "--json", "--lang", "javascript"], repo);
+  it("analyze --lang javascript is rejected with the supported languages", () => {
+    const { status, stdout, stderr } = runCli(["analyze", repo, "--json", "--lang", "javascript"], repo);
 
-    expect(status).toBe(0);
-    expect(JSON.parse(stdout).files).toEqual({ total: 0, byLanguage: {} });
+    expect(status).toBe(1);
+    expect(stderr).toContain("Unsupported language: javascript (supported: typescript, python)");
+    expect(stdout).toBe("");
   });
 
   it("graph index indexes the TypeScript file and no .js or .jsx file", async () => {

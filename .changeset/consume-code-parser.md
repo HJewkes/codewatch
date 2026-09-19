@@ -30,8 +30,14 @@ Every number computed from those trees changes for `.tsx` files only:
 
 `.js` and `.jsx` files are no longer recognised as a language. codewatch never had a
 JavaScript grammar: before, a `.js` or `.jsx` file was classed as `javascript` and then
-failed to parse, which stopped the whole run with `Unsupported language: javascript`. That
-happened in `codewatch diff` whenever a `.js` file was staged or changed, in
-`codewatch analyze --lang javascript`, and in `init` and `update` when `javascript` was among
-the requested languages. Now those files are skipped and the run finishes with the other
-files.
+failed to parse, which stopped the whole run with `Unsupported language: javascript`.
+
+- `codewatch diff` no longer stops when a `.js` or `.jsx` file is staged or changed. It checks
+  the other files and prints `Skipped N file(s) with no parser: <paths>` to stderr. The exit
+  code still depends only on the deviations found.
+- `codewatch analyze --lang` rejects any language it cannot parse, before reading any file:
+  `Unsupported language: javascript (supported: typescript, python)`, exit 1. Before, it
+  failed only when the tree held a `.js` or `.jsx` file, and other unknown languages found
+  no files and exited 0.
+- `init` and `update` leave `.js` and `.jsx` files out of the ingested corpus instead of
+  failing on them.
