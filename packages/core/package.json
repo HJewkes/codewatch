@@ -1,7 +1,7 @@
 {
   "name": "@codewatch/core",
   "version": "0.1.0",
-  "description": "Language parsing and shared primitives for codewatch",
+  "description": "GitHub ingest, LLM providers and the file cache for codewatch",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -36,9 +36,8 @@
     "lint": "echo 'lint not configured yet'"
   },
   "dependencies": {
+    "@titan-design/code-parser": "^0.1.0",
     "octokit": "^5.0.5",
-    "tree-sitter-python": "^0.25.0",
-    "tree-sitter-typescript": "^0.23.2",
     "web-tree-sitter": "^0.26.6"
   },
   "devDependencies": {

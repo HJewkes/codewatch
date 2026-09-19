@@ -11,6 +11,9 @@ importers:
       '@changesets/cli':
         specifier: ^2.27.0
         version: 2.31.0(@types/node@25.3.2)
+      '@titan-design/code-parser':
+        specifier: ^0.1.0
+        version: 0.1.0(web-tree-sitter@0.26.6)
       '@titan-design/style-analyzer':
         specifier: ^0.1.0
         version: 0.1.0(web-tree-sitter@0.26.6)(zod@4.3.6)
@@ -53,6 +56,9 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@4.3.6)
+      '@titan-design/code-parser':
+        specifier: ^0.1.0
+        version: 0.1.0(web-tree-sitter@0.26.6)
       '@titan-design/style-analyzer':
         specifier: ^0.1.0
         version: 0.1.0(web-tree-sitter@0.26.6)(zod@4.3.6)
@@ -81,15 +87,12 @@ importers:
 
   packages/core:
     dependencies:
+      '@titan-design/code-parser':
+        specifier: ^0.1.0
+        version: 0.1.0(web-tree-sitter@0.26.6)
       octokit:
         specifier: ^5.0.5
         version: 5.0.5
-      tree-sitter-python:
-        specifier: ^0.25.0
-        version: 0.25.0
-      tree-sitter-typescript:
-        specifier: ^0.23.2
-        version: 0.23.2
       web-tree-sitter:
         specifier: ^0.26.6
         version: 0.26.6
@@ -100,15 +103,18 @@ importers:
 
   packages/graph:
     dependencies:
-      '@codewatch/core':
-        specifier: workspace:*
-        version: link:../core
+      '@titan-design/code-parser':
+        specifier: ^0.1.0
+        version: 0.1.0(web-tree-sitter@0.26.6)
       better-sqlite3:
         specifier: ^11.7.0
         version: 11.10.0
       ts-morph:
         specifier: ^25.0.0
         version: 25.0.1
+      web-tree-sitter:
+        specifier: ^0.26.6
+        version: 0.26.6
     devDependencies:
       '@types/better-sqlite3':
         specifier: ^7.6.12

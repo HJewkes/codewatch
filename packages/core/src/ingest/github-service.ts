@@ -7,7 +7,7 @@ import type {
   PullRequestFile,
   ReviewComment,
 } from "./types.js";
-import { shouldIncludeFile, getLanguageFromPath } from "./file-filter.js";
+import { shouldIncludeFile, getLanguageFromPath } from "@titan-design/code-parser";
 import { FileCache } from "./cache.js";
 
 function splitRepo(fullName: string): { owner: string; repo: string } {

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { tmpdir } from "node:os";
-import { parseFile } from "@codewatch/core";
+import { parseFile } from "@titan-design/code-parser";
 import { openDatabase, GraphDatabase } from "../database.js";
 import { runGraphIndex } from "../indexer.js";
 import { computeSourceMetrics, SOURCE_METRIC_NAMES } from "../source-metrics.js";

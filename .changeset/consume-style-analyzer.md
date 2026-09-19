@@ -3,8 +3,8 @@
 ---
 
 Depend on `@titan-design/style-analyzer@^0.1.0` instead of `@codewatch/analyzer`, which is
-no longer built from this repo. Files are still parsed by `@codewatch/core`, so the same
-files produce the same observation counts. The package carries three fixes that change what
+no longer built from this repo. The switch does not change how files are parsed, so the
+same files produce the same observation counts. The package carries three fixes that change what
 `codewatch analyze`, `init` and `update` report:
 
 - Stability ratings now match the observation types the extractors emit. Fourteen types

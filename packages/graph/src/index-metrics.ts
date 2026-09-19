@@ -1,4 +1,4 @@
-import type { ParsedFile } from "@codewatch/core";
+import type { ParsedFile } from "@titan-design/code-parser";
 import { computeMetrics } from "./metrics.js";
 import { computeSourceMetrics } from "./source-metrics.js";
 import { computeDeadCodeMetrics } from "./dead-code.js";

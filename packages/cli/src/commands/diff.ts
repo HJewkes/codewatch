@@ -1,4 +1,5 @@
 import { execSync } from "node:child_process";
+import * as path from "node:path";
 
 export function getStagedFiles(): string[] {
   try {
@@ -37,4 +38,32 @@ export function getChangedFiles(): string[] {
     }
     throw error;
   }
+}
+
+// Source files codewatch recognises but has no grammar for; other unparsed files (docs, config) are not reported.
+const NO_PARSER_EXTENSIONS = [".js", ".jsx"];
+
+export interface ChangedFileSelection {
+  parseable: { path: string; language: string }[];
+  skippedNoParser: string[];
+}
+
+export function selectParseableFiles(
+  files: readonly string[],
+  languageOf: (filePath: string) => string | null,
+): ChangedFileSelection {
+  const selection: ChangedFileSelection = { parseable: [], skippedNoParser: [] };
+  for (const filePath of files) {
+    const language = languageOf(filePath);
+    if (language) {
+      selection.parseable.push({ path: filePath, language });
+    } else if (NO_PARSER_EXTENSIONS.includes(path.extname(filePath))) {
+      selection.skippedNoParser.push(filePath);
+    }
+  }
+  return selection;
+}
+
+export function formatSkippedNoParser(skipped: readonly string[]): string {
+  return `Skipped ${skipped.length} file(s) with no parser: ${skipped.join(", ")}`;
 }
