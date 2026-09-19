@@ -64,25 +64,8 @@ export { resolveBarrelEdges, edgeWeight } from "./barrel-resolve.js";
 export { computeSourceMetrics } from "./source-metrics.js";
 export { walkSourceFiles } from "./file-walk.js";
 export { computeLcomMetrics } from "./lcom.js";
-export {
-  computeChurnMetrics,
-  loadChurnEntries,
-  parseChurnLog,
-  aggregateChurn,
-  resolveRenamedPath,
-  windowSuffix,
-  type ChurnEntry,
-  type ChurnWindow,
-  type ComputeChurnOptions,
-} from "./churn.js";
+export { windowSuffix } from "./history-adapter.js";
 export { detectGitToplevel, resolveGitRef } from "./git-renames.js";
-export {
-  computeChangeCoupling,
-  couplingFor,
-  type CoEditPair,
-  type ChangeCouplingResult,
-  type ComputeChangeCouplingOptions,
-} from "./change-coupling.js";
 export {
   computeSymbolConsumers,
   computeSymbolCoupling,
@@ -91,12 +74,6 @@ export {
   type SymbolCouplingPair,
   type SymbolCouplingOptions,
 } from "./symbol-coupling.js";
-export {
-  computeOwnershipMetrics,
-  computeTestCoverageOwnership,
-  type ComputeOwnershipOptions,
-  type OwnershipForFile,
-} from "./ownership.js";
 export {
   linkTestsToSources,
   testCoverageCountMetrics,

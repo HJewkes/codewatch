@@ -5,11 +5,11 @@ import {
   compilePatterns,
   openDatabase,
   windowSuffix,
-  type ChurnWindow,
   type GraphDatabase,
   type GraphMetric,
   type SnapshotRow,
 } from "@codewatch/graph";
+import type { ChurnWindow } from "@titan-design/code-graph/history";
 import { formatError, snapshotVersionMismatchWarning } from "../utils/output.js";
 import { computeReportDrift } from "./graph-report-drift.js";
 import {

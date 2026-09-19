@@ -37,6 +37,7 @@
     "lint": "echo 'lint not configured yet'"
   },
   "dependencies": {
+    "@titan-design/code-graph": "^0.2.0",
     "@titan-design/code-parser": "^0.1.0",
     "better-sqlite3": "^11.7.0",
     "ts-morph": "^25.0.0",

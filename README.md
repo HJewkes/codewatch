@@ -48,6 +48,9 @@ The style-profile schema and exporters come from
 The style checks behind `codewatch check` and `codewatch diff` (ruff and ESLint runners,
 config generators, profile diffing) come from
 [`@titan-design/style-checker`](https://www.npmjs.com/package/@titan-design/style-checker).
+Git history mining (churn, ownership, first-seen dates and change coupling) comes from the
+`./history` entry of
+[`@titan-design/code-graph`](https://www.npmjs.com/package/@titan-design/code-graph).
 
 ## Develop
 

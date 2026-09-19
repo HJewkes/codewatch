@@ -2,14 +2,16 @@ import type { Command } from "commander";
 import chalk from "chalk";
 import {
   compilePatterns,
+  matchesAny,
+  openDatabase,
+  type SnapshotRow,
+} from "@codewatch/graph";
+import {
   computeChangeCoupling,
   couplingFor,
   loadChurnEntries,
-  matchesAny,
-  openDatabase,
   type CoEditPair,
-  type SnapshotRow,
-} from "@codewatch/graph";
+} from "@titan-design/code-graph/history";
 import { formatError, formatWarning } from "../utils/output.js";
 import { padLeft, padRight } from "../utils/table.js";
 
@@ -61,12 +63,11 @@ export function runGraphCoupledCommand(
 ): GraphCoupledResult {
   const windowDays = options.windowDays ?? DEFAULT_WINDOW_DAYS;
   const snapshot = pickSnapshot(options);
-  const knownFileIds = snapshot ? collectFileIds(options.db, snapshot.id) : undefined;
+  const knownPaths = snapshot ? collectFileIds(options.db, snapshot.id) : undefined;
 
   const entries = loadChurnEntries({
     repoRoot: options.repoRoot,
     windowDays,
-    knownFileIds,
   });
   if (entries === null) {
     throw new Error(
@@ -77,7 +78,7 @@ export function runGraphCoupledCommand(
   const coupling = computeChangeCoupling(entries, {
     minCount: options.minCount,
     largeCommitThreshold: options.largeCommitThreshold,
-    knownFileIds,
+    knownPaths,
   });
 
   const excluders = compilePatterns(options.exclude);

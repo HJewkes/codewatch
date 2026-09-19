@@ -1,4 +1,4 @@
-import { couplingFor, type CoEditPair } from "./change-coupling.js";
+import { couplingFor, type CoEditPair } from "@titan-design/code-graph/history";
 import type { GraphMetric, GraphNode } from "./types.js";
 
 /** How a test↔source pairing was inferred. */

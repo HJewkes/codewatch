@@ -3,18 +3,8 @@ import { computeMetrics } from "./metrics.js";
 import { computeSourceMetrics } from "./source-metrics.js";
 import { computeDeadCodeMetrics } from "./dead-code.js";
 import { computeGrowthRiskMetrics } from "./growth-risk.js";
-import {
-  aggregateChurnWindows,
-  computeRecencyWindows,
-  entriesWithin,
-  loadChurnEntries,
-  loadFileFirstSeen,
-  windowSuffix,
-  type ChurnEntry,
-  type ChurnWindow,
-} from "./churn.js";
-import { computeChangeCoupling } from "./change-coupling.js";
-import { computeOwnershipMetrics, computeTestCoverageOwnership } from "./ownership.js";
+import { computeChangeCoupling, type ChurnEntry } from "@titan-design/code-graph/history";
+import { computeTestCoverageOwnership, loadHistoryMetrics } from "./history-adapter.js";
 import { linkTestsToSources, testCoverageCountMetrics } from "./test-linker.js";
 import { fileId } from "./extractors/ids.js";
 import type { GraphEdge, GraphMetric, GraphNode } from "./types.js";
@@ -32,7 +22,7 @@ export interface IndexerMetricsInput {
   churnWindowDays?: number;
   /**
    * Windows to store churn (and per-window recency) for. Defaults to
-   * {@link DEFAULT_CHURN_WINDOWS}; the primary window is always included. Lets
+   * 30, 90 and 180 days; the primary window is always included. Lets
    * the dashboard switcher resolve 30/90/180 instead of snapping to one window.
    */
   churnWindows?: number[];
@@ -42,53 +32,6 @@ export interface IndexerMetricsInput {
    * whose activity in any rolling window is thin relative to its whole life.
    */
   includeLifetime?: boolean;
-}
-
-/** Windows the dashboard switcher offers; churn is stored for each by default. */
-export const DEFAULT_CHURN_WINDOWS = [30, 90, 180];
-
-/**
- * Effective, de-duped, sorted window set — always includes the primary window,
- * and appends `lifetime` (widest, so the single wide git load covers it) when
- * requested.
- */
-function resolveChurnWindows(
-  requested: number[] | undefined,
-  primaryWindow: number,
-  includeLifetime: boolean,
-): ChurnWindow[] {
-  const base = requested && requested.length > 0 ? requested : DEFAULT_CHURN_WINDOWS;
-  const finite = [...new Set([primaryWindow, ...base])]
-    .filter((w) => w > 0)
-    .sort((a, b) => a - b);
-  return includeLifetime ? [...finite, "lifetime"] : finite;
-}
-
-/**
- * Age-discount metrics for the files that churned in each window, from their
- * first-commit dates. Skipped silently when git can't supply first-seen dates
- * (the hotspot score then falls back to an undiscounted churn × complexity).
- */
-function recencyMetrics(
-  idRoot: string,
-  churnMetrics: readonly GraphMetric[],
-  windows: readonly ChurnWindow[],
-  knownFileIds: ReadonlySet<string> | undefined,
-  nowEpoch: number,
-): GraphMetric[] {
-  const churnedByWindow = new Map<ChurnWindow, ReadonlySet<string>>();
-  for (const w of windows) {
-    const churnName = `churn_${windowSuffix(w)}`;
-    const ids = new Set(
-      churnMetrics.filter((m) => m.name === churnName).map((m) => m.nodeId),
-    );
-    if (ids.size > 0) churnedByWindow.set(w, ids);
-  }
-  if (churnedByWindow.size === 0) return [];
-  // Fall back to an empty map when git can't supply first-seen dates: recency
-  // still emits (=1) for every churned file, so scary-hotspots keeps firing.
-  const firstSeen = loadFileFirstSeen({ repoRoot: idRoot, knownFileIds }) ?? new Map<string, number>();
-  return computeRecencyWindows(firstSeen, churnedByWindow, nowEpoch);
 }
 
 function collectFileIds(nodes: Iterable<GraphNode>): Set<string> {
@@ -140,46 +83,16 @@ export function buildIndexerMetrics(input: IndexerMetricsInput): GraphMetric[] {
     ...computeGrowthRiskMetrics(input.parsedFiles, (p) => fileId(input.idRoot, p)),
     ...input.reusedSourceMetrics,
   ];
-  let entries: readonly ChurnEntry[] | null = null;
-  let knownFileIds: Set<string> | undefined;
-  if (input.computeChurn) {
-    knownFileIds = collectFileIds(input.nodes.values());
-    const primaryWindow = input.churnWindowDays ?? 30;
-    const includeLifetime = input.includeLifetime === true;
-    const windows = resolveChurnWindows(input.churnWindows, primaryWindow, includeLifetime);
-    const widest = windows[windows.length - 1]!;
-    // Load the widest window once; slice it per window for churn/recency. When
-    // lifetime is requested it sorts widest, so this one load is full history.
-    const wide = loadChurnEntries({
-      repoRoot: input.idRoot,
-      windowDays: widest,
-      knownFileIds,
-    });
-    if (wide !== null) {
-      const nowEpoch = Math.floor(Date.now() / 1000);
-      const churnMetrics = aggregateChurnWindows(wide, windows, nowEpoch, knownFileIds);
-      // Ownership, coupling, and coverage stay scoped to the primary window.
-      entries =
-        widest === primaryWindow ? wide : entriesWithin(wide, primaryWindow, nowEpoch);
-      out.push(
-        ...churnMetrics,
-        ...computeOwnershipMetrics(entries, {
-          windowDays: input.churnWindowDays,
-          knownFileIds,
-        }),
-        ...recencyMetrics(input.idRoot, churnMetrics, windows, knownFileIds, nowEpoch),
-      );
-      // Lifetime ownership = dominant-owner over full history (real bus factor):
-      // `wide` IS the full-history log when lifetime is the widest window.
-      if (includeLifetime) {
-        out.push(
-          ...computeOwnershipMetrics(wide, { windowDays: "lifetime", knownFileIds }),
-        );
-      }
-    }
-  }
+  const history = input.computeChurn
+    ? loadHistoryMetrics(nodeList, input.idRoot, {
+        churnWindowDays: input.churnWindowDays,
+        churnWindows: input.churnWindows,
+        includeLifetime: input.includeLifetime,
+      })
+    : null;
+  out.push(...(history?.metrics ?? []));
   out.push(
-    ...computeTestCoverage(nodeList, entries, input.churnWindowDays, knownFileIds),
+    ...computeTestCoverage(nodeList, history?.primaryEntries ?? null, input.churnWindowDays),
   );
   return out;
 }
@@ -194,10 +107,9 @@ function computeTestCoverage(
   nodes: readonly GraphNode[],
   entries: readonly ChurnEntry[] | null,
   windowDays: number | undefined,
-  knownFileIds: ReadonlySet<string> | undefined,
 ): GraphMetric[] {
   const coEditPairs = entries
-    ? computeChangeCoupling(entries, { knownFileIds }).pairs
+    ? computeChangeCoupling(entries, { knownPaths: collectFileIds(nodes) }).pairs
     : [];
   const links = linkTestsToSources(nodes, coEditPairs);
   if (links.length === 0) return [];
