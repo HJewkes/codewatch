@@ -133,13 +133,14 @@ program
   .action(async (paths: string[], options) => {
     try {
       const { runCheck } = await import("./commands/check.js");
-      const { output, exitCode } = await runCheck(paths, {
+      const { output, exitCode, stderr } = await runCheck(paths, {
         fix: options.fix,
         format: options.format,
         profile: options.profile,
         language: options.language,
       });
       console.log(output);
+      if (stderr) console.error(stderr);
       process.exitCode = exitCode;
     } catch (err) {
       console.error(
