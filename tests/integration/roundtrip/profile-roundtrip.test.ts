@@ -2,8 +2,8 @@ import { readdir, readFile } from "node:fs/promises"
 import { join, dirname } from "node:path"
 import { fileURLToPath } from "node:url"
 import { describe, it, expect, beforeAll } from "vitest"
+import { parseFile } from "../../../packages/core/src/index.js"
 import {
-  parseFile,
   NamingExtractor,
   StructureExtractor,
   ControlFlowExtractor,
@@ -12,11 +12,9 @@ import {
   Aggregator,
   type AggregatorResult,
   type AggregatedFeature,
-} from "../../../packages/analyzer/src/index.js"
-import type {
-  Observation,
-  Extractor,
-} from "../../../packages/analyzer/src/extractors/types.js"
+  type Observation,
+  type Extractor,
+} from "@titan-design/style-analyzer"
 import {
   ProfileSchema,
   SCHEMA_VERSION,

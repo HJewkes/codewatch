@@ -42,7 +42,7 @@
       "type": "layered-deps",
       "layers": [
         ["packages/core"],
-        ["packages/analyzer", "packages/graph"],
+        ["packages/graph"],
         ["packages/render"],
         ["packages/cli"]
       ]
@@ -61,7 +61,6 @@
       "id": "no-internal-only-barrels",
       "type": "no-internal-only-barrels",
       "packageRoots": [
-        "packages/analyzer",
         "packages/cli",
         "packages/core",
         "packages/graph",

@@ -1,15 +1,14 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import chalk from "chalk";
+import { parseFile, getLanguageFromPath } from "@codewatch/core";
 import {
   Aggregator,
   createStyleExtractors,
-  parseFile,
-  getLanguageFromPath,
   type AggregatedFeature,
   type Extractor,
   type Observation,
-} from "@codewatch/analyzer";
+} from "@titan-design/style-analyzer";
 import { walkSourceFiles } from "@codewatch/graph";
 
 export interface AnalyzeOptions {

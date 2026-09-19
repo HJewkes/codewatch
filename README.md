@@ -36,10 +36,11 @@ set of `@codewatch/*` library packages, all versioned and released together.
 | --- | --- |
 | [`@codewatch/cli`](packages/cli) | The `codewatch` command (published binary) |
 | `@codewatch/graph` | Dependency-graph indexer + architectural metrics |
-| `@codewatch/analyzer` | Code-corpus analysis + observation extractors |
 | `@codewatch/render` | Graph rendering + dashboard generation |
 | `@codewatch/core` | Language parsing + shared primitives |
 
+The style extractors and aggregator behind `codewatch analyze`, `init` and `update` come from
+[`@titan-design/style-analyzer`](https://www.npmjs.com/package/@titan-design/style-analyzer).
 The style-profile schema and exporters come from
 [`@titan-design/style-profile`](https://www.npmjs.com/package/@titan-design/style-profile).
 The style checks behind `codewatch check` and `codewatch diff` (ruff and ESLint runners,
