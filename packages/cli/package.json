@@ -53,7 +53,7 @@
   },
   "dependencies": {
     "@codewatch/analyzer": "workspace:*",
-    "@codewatch/checker": "workspace:*",
+    "@titan-design/style-checker": "^0.1.0",
     "@codewatch/graph": "workspace:*",
     "@codewatch/render": "workspace:*",
     "@inquirer/prompts": "^8.3.0",

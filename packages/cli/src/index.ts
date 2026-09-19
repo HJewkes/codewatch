@@ -2,16 +2,14 @@
 import { createRequire } from "node:module";
 import { Command } from "commander";
 import { readProfile, writeProfile } from "@titan-design/style-profile";
+import { diffAgainstProfile } from "@titan-design/style-checker";
 import type {
   CodeCorpus,
   Observation,
 } from "@codewatch/analyzer";
 import { promptForInitOptions, runInitPipeline } from "./commands/init.js";
 import { formatProfileText, formatProfileJson } from "./commands/show.js";
-import {
-  diffAgainstProfile,
-  getChangedFiles,
-} from "./commands/diff.js";
+import { getChangedFiles } from "./commands/diff.js";
 import { getDefaultProfilePath } from "./utils/config.js";
 import { formatError } from "./utils/output.js";
 import { extractFromFiles } from "./utils/pipeline.js";

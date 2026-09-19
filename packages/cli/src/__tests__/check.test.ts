@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { OrchestratorResult } from "@codewatch/checker";
+import type { OrchestratorResult } from "@titan-design/style-checker";
 
 describe("formatCheckOutput", () => {
   it("formats text output with colored severity and unified format", async () => {
@@ -27,6 +27,8 @@ describe("formatCheckOutput", () => {
           fixable: false,
         },
       ],
+      failures: [],
+      skippedRules: [],
       summary: { total: 2, errors: 1, warnings: 1, infos: 0, fixed: 0 },
     };
 
@@ -52,6 +54,8 @@ describe("formatCheckOutput", () => {
           fixable: false,
         },
       ],
+      failures: [],
+      skippedRules: [],
       summary: { total: 1, errors: 1, warnings: 0, infos: 0, fixed: 0 },
     };
 
@@ -77,6 +81,8 @@ describe("formatCheckOutput", () => {
           fixable: false,
         },
       ],
+      failures: [],
+      skippedRules: [],
       summary: { total: 1, errors: 1, warnings: 0, infos: 0, fixed: 0 },
     };
 
@@ -109,6 +115,8 @@ describe("formatCheckOutput", () => {
           fixable: false,
         },
       ],
+      failures: [],
+      skippedRules: [],
       summary: { total: 2, errors: 1, warnings: 1, infos: 0, fixed: 0 },
     };
 
@@ -121,6 +129,8 @@ describe("formatCheckOutput", () => {
     const { formatCheckOutput } = await import("../commands/check.js");
     const result: OrchestratorResult = {
       diagnostics: [],
+      failures: [],
+      skippedRules: [],
       summary: { total: 0, errors: 0, warnings: 0, infos: 0, fixed: 0 },
     };
 
@@ -134,6 +144,8 @@ describe("determineExitCode", () => {
     const { determineExitCode } = await import("../commands/check.js");
     const result: OrchestratorResult = {
       diagnostics: [],
+      failures: [],
+      skippedRules: [],
       summary: { total: 0, errors: 0, warnings: 0, infos: 0, fixed: 0 },
     };
     expect(determineExitCode(result)).toBe(0);
@@ -154,6 +166,8 @@ describe("determineExitCode", () => {
           fixable: false,
         },
       ],
+      failures: [],
+      skippedRules: [],
       summary: { total: 1, errors: 1, warnings: 0, infos: 0, fixed: 0 },
     };
     expect(determineExitCode(result)).toBe(1);
@@ -174,6 +188,8 @@ describe("determineExitCode", () => {
           fixable: false,
         },
       ],
+      failures: [],
+      skippedRules: [],
       summary: { total: 1, errors: 0, warnings: 1, infos: 0, fixed: 0 },
     };
     expect(determineExitCode(result)).toBe(0);

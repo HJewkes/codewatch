@@ -11,6 +11,9 @@ importers:
       '@changesets/cli':
         specifier: ^2.27.0
         version: 2.31.0(@types/node@25.3.2)
+      '@titan-design/style-checker':
+        specifier: ^0.1.0
+        version: 0.1.0(web-tree-sitter@0.26.6)(zod@4.3.6)
       '@titan-design/style-profile':
         specifier: ^0.1.0
         version: 0.1.0(zod@4.3.6)
@@ -55,23 +58,11 @@ importers:
         specifier: ^25.3.2
         version: 25.3.2
 
-  packages/checker:
-    dependencies:
-      '@titan-design/style-profile':
-        specifier: ^0.1.0
-        version: 0.1.0(zod@4.3.6)
-      zod:
-        specifier: ^4.3.6
-        version: 4.3.6
-
   packages/cli:
     dependencies:
       '@codewatch/analyzer':
         specifier: workspace:*
         version: link:../analyzer
-      '@codewatch/checker':
-        specifier: workspace:*
-        version: link:../checker
       '@codewatch/graph':
         specifier: workspace:*
         version: link:../graph
@@ -84,6 +75,9 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@4.3.6)
+      '@titan-design/style-checker':
+        specifier: ^0.1.0
+        version: 0.1.0(web-tree-sitter@0.26.6)(zod@4.3.6)
       '@titan-design/style-profile':
         specifier: ^0.1.0
         version: 0.1.0(zod@4.3.6)
@@ -851,6 +845,25 @@ packages:
     resolution: {integrity: sha512-2HRCml6OztYXyJXAvdDXPKcawukWY2GpR5/nxKp4iBgiO3wcoEGkAaqctIbZcNB6KlUQBIqt8VYkNSj2397EfA==}
     cpu: [x64]
     os: [win32]
+
+  '@titan-design/code-parser@0.1.0':
+    resolution: {integrity: sha512-fDOwZ04YwfAbDOnx2n8c2IQ305nt6FI0iWRvZpmMj8Kp3clkuB+UOpjAb7pYoA9/8ipcL7cXvcHbrOpNJEkACg==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      web-tree-sitter: ^0.26.6
+
+  '@titan-design/style-analyzer@0.1.0':
+    resolution: {integrity: sha512-LksKhTNCnuQDUpxTyRdNQA/WdDm91tEnom9mWQrXCjYlU2Nwv1/D064o5djwEod0yOe49ysDkXVeQ1E8ZwHKJA==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      web-tree-sitter: ^0.26.6
+      zod: ^4.0.0
+
+  '@titan-design/style-checker@0.1.0':
+    resolution: {integrity: sha512-Ypv24w59nlf5oX/s7KP0rTcyd97pKZBK4t4dQdqd+nUnU81m+TySlmyp7/VI7k65l2xpLDhKkeB+0Pwesd5rcA==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      zod: ^4.0.0
 
   '@titan-design/style-profile@0.1.0':
     resolution: {integrity: sha512-e0KsuLWleG9SiAqAEJVuVxreFryYhJsDOO4N5k62VMhQrMXrH8csqhfVkLXvo9U9UjFdHDYLdokeTyGxrAoOBw==}
@@ -2975,6 +2988,34 @@ snapshots:
 
   '@rollup/rollup-win32-x64-msvc@4.59.0':
     optional: true
+
+  '@titan-design/code-parser@0.1.0(web-tree-sitter@0.26.6)':
+    dependencies:
+      tree-sitter-python: 0.25.0
+      tree-sitter-typescript: 0.23.2
+      web-tree-sitter: 0.26.6
+    transitivePeerDependencies:
+      - tree-sitter
+
+  '@titan-design/style-analyzer@0.1.0(web-tree-sitter@0.26.6)(zod@4.3.6)':
+    dependencies:
+      '@jscpd/core': 3.5.10
+      '@jscpd/tokenizer': 3.5.4
+      '@titan-design/code-parser': 0.1.0(web-tree-sitter@0.26.6)
+      '@titan-design/style-profile': 0.1.0(zod@4.3.6)
+      web-tree-sitter: 0.26.6
+      zod: 4.3.6
+    transitivePeerDependencies:
+      - tree-sitter
+
+  '@titan-design/style-checker@0.1.0(web-tree-sitter@0.26.6)(zod@4.3.6)':
+    dependencies:
+      '@titan-design/style-analyzer': 0.1.0(web-tree-sitter@0.26.6)(zod@4.3.6)
+      '@titan-design/style-profile': 0.1.0(zod@4.3.6)
+      zod: 4.3.6
+    transitivePeerDependencies:
+      - tree-sitter
+      - web-tree-sitter
 
   '@titan-design/style-profile@0.1.0(zod@4.3.6)':
     dependencies:

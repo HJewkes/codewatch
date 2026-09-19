@@ -3,9 +3,9 @@ import { join, dirname } from "node:path"
 import { fileURLToPath } from "node:url"
 import { describe, it, expect, beforeAll } from "vitest"
 import { ProfileSchema, generateEslintExport } from "@titan-design/style-profile"
-import { generateEslintConfig } from "../../../packages/checker/src/generators/eslint.js"
+import { generateEslintConfig } from "@titan-design/style-checker"
 import type { Profile } from "@titan-design/style-profile"
-import type { EslintFlatConfigEntry } from "../../../packages/checker/src/generators/eslint.js"
+import type { EslintFlatConfigEntry } from "@titan-design/style-checker"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 

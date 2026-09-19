@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import type { OrchestratorResult, CheckDiagnostic } from "@codewatch/checker";
+import type { OrchestratorResult, CheckDiagnostic } from "@titan-design/style-checker";
 
 export type OutputFormat = "text" | "json" | "reviewdog";
 
@@ -88,7 +88,7 @@ export async function runCheck(
   options: CheckCommandOptions,
 ): Promise<{ output: string; exitCode: number }> {
   const { readProfile } = await import("@titan-design/style-profile");
-  const { orchestrate } = await import("@codewatch/checker");
+  const { orchestrate } = await import("@titan-design/style-checker");
   const { getDefaultProfilePath } = await import("../utils/config.js");
 
   const profilePath = options.profile ?? getDefaultProfilePath();
