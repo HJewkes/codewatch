@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import type { Profile } from "@codewatch/profile";
+import type { Profile } from "@titan-design/style-profile";
 
 const PROFILE_CATEGORIES = [
   "naming",

@@ -1,5 +1,5 @@
-import type { Severity, SeverityThresholds } from "@codewatch/profile";
-import { DEFAULT_SEVERITY_THRESHOLDS } from "@codewatch/profile";
+import type { Severity, SeverityThresholds } from "@titan-design/style-profile";
+import { DEFAULT_SEVERITY_THRESHOLDS } from "@titan-design/style-profile";
 import type { Stability } from "./stability.js";
 
 export type { Severity, SeverityThresholds };

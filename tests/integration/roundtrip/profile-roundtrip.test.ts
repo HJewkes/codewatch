@@ -22,12 +22,12 @@ import {
   SCHEMA_VERSION,
   DEFAULT_SEVERITY_THRESHOLDS,
   PROFILE_CATEGORIES,
-} from "../../../packages/profile/src/schema/profile.js"
+} from "@titan-design/style-profile"
 import type {
   Profile,
   ProfileCategory,
-} from "../../../packages/profile/src/schema/profile.js"
-import type { StyleRule } from "../../../packages/profile/src/schema/style-rule.js"
+  StyleRule,
+} from "@titan-design/style-profile"
 import { diffAgainstProfile } from "../../../packages/cli/src/commands/diff.js"
 import type { DiffResult } from "../../../packages/cli/src/commands/diff.js"
 

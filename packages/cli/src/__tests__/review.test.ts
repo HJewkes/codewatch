@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import type { StyleRule, Profile } from "@codewatch/profile";
+import type { StyleRule, Profile } from "@titan-design/style-profile";
 import type { ReviewPromptDeps } from "../interactive/types.js";
 
 describe("presentRule", () => {

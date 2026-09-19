@@ -1,5 +1,5 @@
 import type { Extractor as CoreExtractor } from "@codewatch/core";
-import type { ProfileCategory } from "@codewatch/profile";
+import type { ProfileCategory } from "@titan-design/style-profile";
 
 export type { ParsedFile } from "@codewatch/core";
 

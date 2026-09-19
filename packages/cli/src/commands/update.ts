@@ -1,4 +1,4 @@
-import type { Profile, StyleRule } from "@codewatch/profile";
+import type { Profile, StyleRule } from "@titan-design/style-profile";
 
 export interface MergeOptions {
   keepOverrides: boolean;
@@ -70,7 +70,7 @@ export interface UpdateCommandOptions {
 }
 
 export async function runUpdate(options: UpdateCommandOptions): Promise<void> {
-  const { readProfile, writeProfile } = await import("@codewatch/profile");
+  const { readProfile, writeProfile } = await import("@titan-design/style-profile");
   const { getDefaultProfilePath, loadConfig, getDefaultConfigPath } = await import("../utils/config.js");
   const { formatStep, formatSuccess } = await import("../utils/output.js");
 

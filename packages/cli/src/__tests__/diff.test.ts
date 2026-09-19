@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { diffAgainstProfile } from "../commands/diff.js";
-import type { Profile } from "@codewatch/profile";
+import type { Profile } from "@titan-design/style-profile";
 import type { Observation } from "@codewatch/analyzer";
 
 const sampleProfile: Profile = {

@@ -87,7 +87,7 @@ export async function runCheck(
   paths: string[],
   options: CheckCommandOptions,
 ): Promise<{ output: string; exitCode: number }> {
-  const { readProfile } = await import("@codewatch/profile");
+  const { readProfile } = await import("@titan-design/style-profile");
   const { orchestrate } = await import("@codewatch/checker");
   const { getDefaultProfilePath } = await import("../utils/config.js");
 

@@ -1,11 +1,11 @@
-import type { Profile } from "@codewatch/profile";
+import type { Profile } from "@titan-design/style-profile";
 import {
   buildNamingConventionRule,
   buildImportOrderRule,
   buildFunctionLengthRule,
   buildFileNamingRule,
   buildJsdocRules,
-} from "@codewatch/profile";
+} from "@titan-design/style-profile";
 
 export interface EslintFlatConfigEntry {
   plugins?: Record<string, unknown>;
