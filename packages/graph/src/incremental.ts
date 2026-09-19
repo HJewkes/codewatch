@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import * as fs from "node:fs/promises";
 import type { Node } from "web-tree-sitter";
-import { getLanguageFromPath, type ParsedFile } from "@codewatch/core";
+import { getLanguageFromPath, type ParsedFile } from "@titan-design/code-parser";
 import type { GraphDatabase } from "./database.js";
 import {
   buildFileModuleNodes,

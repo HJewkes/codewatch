@@ -1,7 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import chalk from "chalk";
-import { parseFile, getLanguageFromPath } from "@codewatch/core";
+import { parseFile, getLanguageFromPath } from "@titan-design/code-parser";
 import {
   Aggregator,
   createStyleExtractors,

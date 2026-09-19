@@ -1,7 +1,7 @@
 import * as fs from "node:fs/promises";
 import { realpathSync } from "node:fs";
 import * as path from "node:path";
-import { parseFile, type ParsedFile } from "@codewatch/core";
+import { parseFile, type ParsedFile } from "@titan-design/code-parser";
 import { openDatabase, GraphDatabase } from "./database.js";
 import { TsMorphGraphExtractor } from "./extractors/ts-morph-extractor.js";
 import {
@@ -33,7 +33,7 @@ import type {
   IdAlias,
 } from "./types.js";
 
-const INDEX_VERSION = "0.11.0"; // C-79: symbol nodes carry signature + purpose attrs; rejects pre-0.11.0 reuse basis (which lacks them)
+const INDEX_VERSION = "0.12.0"; // .tsx now parses with the tsx grammar, so its tree-sitter metrics change for the same bytes; rejects pre-0.12.0 reuse basis
 const TS_LANGUAGES = ["typescript"] as const;
 
 export interface GraphIndexOptions {

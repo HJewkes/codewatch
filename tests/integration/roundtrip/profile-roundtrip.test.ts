@@ -2,7 +2,7 @@ import { readdir, readFile } from "node:fs/promises"
 import { join, dirname } from "node:path"
 import { fileURLToPath } from "node:url"
 import { describe, it, expect, beforeAll } from "vitest"
-import { parseFile } from "../../../packages/core/src/index.js"
+import { parseFile } from "@titan-design/code-parser"
 import {
   NamingExtractor,
   StructureExtractor,

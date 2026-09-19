@@ -20,6 +20,7 @@
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.0",
+    "@titan-design/code-parser": "^0.1.0",
     "@titan-design/style-analyzer": "^0.1.0",
     "@titan-design/style-checker": "^0.1.0",
     "@titan-design/style-profile": "^0.1.0",

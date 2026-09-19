@@ -1,4 +1,4 @@
-import type { ParsedFile } from "@codewatch/core";
+import type { ParsedFile } from "@titan-design/code-parser";
 import type { Node } from "web-tree-sitter";
 import type { GraphMetric } from "./types.js";
 

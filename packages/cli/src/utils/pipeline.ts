@@ -1,4 +1,4 @@
-import type { ParsedFile } from "@codewatch/core";
+import type { ParsedFile } from "@titan-design/code-parser";
 import type { Extractor, Observation } from "@titan-design/style-analyzer";
 
 type ParseFn = (

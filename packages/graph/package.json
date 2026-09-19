@@ -37,9 +37,10 @@
     "lint": "echo 'lint not configured yet'"
   },
   "dependencies": {
-    "@codewatch/core": "workspace:*",
+    "@titan-design/code-parser": "^0.1.0",
     "better-sqlite3": "^11.7.0",
-    "ts-morph": "^25.0.0"
+    "ts-morph": "^25.0.0",
+    "web-tree-sitter": "^0.26.6"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.12",

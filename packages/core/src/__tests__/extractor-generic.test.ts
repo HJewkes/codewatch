@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { Extractor, ParsedFile } from "../parser/types.js";
+import type { Extractor, ParsedFile } from "@titan-design/code-parser";
 
 /**
  * Phase 4 acceptance: Extractor<T> in core must be specializable for any

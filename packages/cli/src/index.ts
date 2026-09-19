@@ -48,6 +48,7 @@ program
       });
 
       const core = await import("@codewatch/core");
+      const parser = await import("@titan-design/code-parser");
       const analyzer = await import("@titan-design/style-analyzer");
 
       await runInitPipeline({
@@ -73,7 +74,7 @@ program
               language: f.language,
             })),
             extractors,
-            core.parseFile,
+            parser.parseFile,
           );
         },
         aggregate: async (observations) => {
@@ -162,13 +163,13 @@ program
         console.log("No changed files to check.");
         return;
       }
-      const core = await import("@codewatch/core");
+      const parser = await import("@titan-design/code-parser");
       const analyzer = await import("@titan-design/style-analyzer");
       const fs = await import("node:fs/promises");
       const extractors = analyzer.createStyleExtractors();
       const fileInputs: { content: string; path: string; language: string }[] = [];
       for (const filePath of files) {
-        const lang = core.getLanguageFromPath(filePath);
+        const lang = parser.getLanguageFromPath(filePath);
         if (!lang) continue;
         const content = await fs.readFile(filePath, "utf-8");
         fileInputs.push({ content, path: filePath, language: lang });
@@ -176,7 +177,7 @@ program
       const observations = await extractFromFiles(
         fileInputs,
         extractors,
-        core.parseFile,
+        parser.parseFile,
       );
       const result = diffAgainstProfile(profile, observations);
 
