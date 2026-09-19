@@ -75,7 +75,7 @@ Layer strings are path prefixes (longest-prefix-match wins). A new package place
 in the wrong layer fails automatically — no per-edge rule needed.
 
 ```json
-{ "id": "package-layers", "type": "layered-deps", "layers": [ ["packages/core"], ["packages/analyzer", "packages/graph"], ["packages/cli"] ] }
+{ "id": "package-layers", "type": "layered-deps", "layers": [ ["packages/core"], ["packages/graph"], ["packages/cli"] ] }
 ```
 
 ### `forbid-import` — ban a specific dependency edge

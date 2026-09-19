@@ -85,11 +85,12 @@ export async function runUpdate(options: UpdateCommandOptions): Promise<void> {
 
   const repos = options.repos ?? existing.sources;
 
-  const analyzer = await import("@codewatch/analyzer");
+  const core = await import("@codewatch/core");
+  const analyzer = await import("@titan-design/style-analyzer");
   const { runReviewSession } = await import("../interactive/review.js");
 
   console.log(formatStep(1, 5, "Ingesting repositories..."));
-  const service = new analyzer.GitHubService({
+  const service = new core.GitHubService({
     repos,
     languages: ["ts", "js"],
     githubToken: token,
@@ -106,7 +107,7 @@ export async function runUpdate(options: UpdateCommandOptions): Promise<void> {
   ] as const;
   const observations: unknown[] = [];
   for (const file of corpus.files) {
-    const parsed = await analyzer.parseFile(file.content, file.path, file.language);
+    const parsed = await core.parseFile(file.content, file.path, file.language);
     if (!parsed) continue;
     for (const extractor of extractors) {
       observations.push(...extractor.extract(parsed));

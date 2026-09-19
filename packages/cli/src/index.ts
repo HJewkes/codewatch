@@ -3,10 +3,8 @@ import { createRequire } from "node:module";
 import { Command } from "commander";
 import { readProfile, writeProfile } from "@titan-design/style-profile";
 import { diffAgainstProfile } from "@titan-design/style-checker";
-import type {
-  CodeCorpus,
-  Observation,
-} from "@codewatch/analyzer";
+import type { CodeCorpus } from "@codewatch/core";
+import type { Observation } from "@titan-design/style-analyzer";
 import { promptForInitOptions, runInitPipeline } from "./commands/init.js";
 import { formatProfileText, formatProfileJson } from "./commands/show.js";
 import { getChangedFiles } from "./commands/diff.js";
@@ -49,13 +47,14 @@ program
         languages: options.languages,
       });
 
-      const analyzer = await import("@codewatch/analyzer");
+      const core = await import("@codewatch/core");
+      const analyzer = await import("@titan-design/style-analyzer");
 
       await runInitPipeline({
         githubToken: token,
         repos,
         ingest: async (t, r) => {
-          const service = new analyzer.GitHubService({
+          const service = new core.GitHubService({
             repos: r,
             languages: options.languages ?? ["ts", "js"],
             githubToken: t,
@@ -74,7 +73,7 @@ program
               language: f.language,
             })),
             extractors,
-            analyzer.parseFile,
+            core.parseFile,
           );
         },
         aggregate: async (observations) => {
@@ -163,12 +162,13 @@ program
         console.log("No changed files to check.");
         return;
       }
-      const analyzer = await import("@codewatch/analyzer");
+      const core = await import("@codewatch/core");
+      const analyzer = await import("@titan-design/style-analyzer");
       const fs = await import("node:fs/promises");
       const extractors = analyzer.createStyleExtractors();
       const fileInputs: { content: string; path: string; language: string }[] = [];
       for (const filePath of files) {
-        const lang = analyzer.getLanguageFromPath(filePath);
+        const lang = core.getLanguageFromPath(filePath);
         if (!lang) continue;
         const content = await fs.readFile(filePath, "utf-8");
         fileInputs.push({ content, path: filePath, language: lang });
@@ -176,7 +176,7 @@ program
       const observations = await extractFromFiles(
         fileInputs,
         extractors,
-        analyzer.parseFile,
+        core.parseFile,
       );
       const result = diffAgainstProfile(profile, observations);
 

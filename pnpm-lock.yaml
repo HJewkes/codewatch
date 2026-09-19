@@ -11,6 +11,9 @@ importers:
       '@changesets/cli':
         specifier: ^2.27.0
         version: 2.31.0(@types/node@25.3.2)
+      '@titan-design/style-analyzer':
+        specifier: ^0.1.0
+        version: 0.1.0(web-tree-sitter@0.26.6)(zod@4.3.6)
       '@titan-design/style-checker':
         specifier: ^0.1.0
         version: 0.1.0(web-tree-sitter@0.26.6)(zod@4.3.6)
@@ -33,36 +36,11 @@ importers:
         specifier: ^3.0.0
         version: 3.2.4(@types/node@25.3.2)(tsx@4.21.0)
 
-  packages/analyzer:
+  packages/cli:
     dependencies:
       '@codewatch/core':
         specifier: workspace:*
         version: link:../core
-      '@jscpd/core':
-        specifier: 3.5.10
-        version: 3.5.10
-      '@jscpd/tokenizer':
-        specifier: 3.5.4
-        version: 3.5.4
-      '@titan-design/style-profile':
-        specifier: ^0.1.0
-        version: 0.1.0(zod@4.3.6)
-      web-tree-sitter:
-        specifier: ^0.26.6
-        version: 0.26.6
-      zod:
-        specifier: ^4.3.6
-        version: 4.3.6
-    devDependencies:
-      '@types/node':
-        specifier: ^25.3.2
-        version: 25.3.2
-
-  packages/cli:
-    dependencies:
-      '@codewatch/analyzer':
-        specifier: workspace:*
-        version: link:../analyzer
       '@codewatch/graph':
         specifier: workspace:*
         version: link:../graph
@@ -75,6 +53,9 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@4.3.6)
+      '@titan-design/style-analyzer':
+        specifier: ^0.1.0
+        version: 0.1.0(web-tree-sitter@0.26.6)(zod@4.3.6)
       '@titan-design/style-checker':
         specifier: ^0.1.0
         version: 0.1.0(web-tree-sitter@0.26.6)(zod@4.3.6)
@@ -87,6 +68,9 @@ importers:
       commander:
         specifier: ^14.0.3
         version: 14.0.3
+      web-tree-sitter:
+        specifier: ^0.26.6
+        version: 0.26.6
       zod:
         specifier: 4.3.6
         version: 4.3.6

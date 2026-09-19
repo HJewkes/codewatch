@@ -1,5 +1,4 @@
 ---
-"@codewatch/analyzer": patch
 "@codewatch/cli": patch
 ---
 

@@ -311,7 +311,7 @@ export class TsMorphGraphExtractor implements Extractor<GraphFragment> {
   }
 }
 
-// ts-morph resolves workspace imports like `@codewatch/analyzer` to the
+// ts-morph resolves workspace imports like `@codewatch/core` to the
 // package's `types` entry (`<pkg>/dist/index.d.ts`), but the indexer's file
 // walker excludes `dist/` and `.d.ts`. Without remapping, every cross-package
 // edge points to a nonexistent node and the rendered graph fails to construct.

@@ -1,8 +1,5 @@
-import type {
-  Extractor,
-  Observation,
-  ParsedFile,
-} from "@codewatch/analyzer";
+import type { ParsedFile } from "@codewatch/core";
+import type { Extractor, Observation } from "@titan-design/style-analyzer";
 
 type ParseFn = (
   content: string,
