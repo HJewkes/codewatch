@@ -1,5 +1,7 @@
 // Copy of @titan-design/code-graph's history-recency.test.ts and history-metrics.test.ts at titan-platform 6b1876a; delete with ../history-adapter.ts.
 import { describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { aggregateChurn, type ChurnEntry, type ChurnWindow } from "@titan-design/code-graph/history";
 import type { TestSourceLink } from "../test-linker.js";
 import {
@@ -203,5 +205,19 @@ describe("computeTestCoverageOwnership", () => {
       { windowDays: 90 },
     );
     expect(valueOf(metrics, "a.ts", "test_bus_factor_90d")).toBe(1);
+  });
+});
+
+// Guards codewatch-side edits to the copy; drift on the titan-platform side is TP-250's concern.
+describe("history-adapter.ts is an unedited copy", () => {
+  it("still hashes to the body copied from titan-platform 6b1876a", () => {
+    const file = new URL("../history-adapter.ts", import.meta.url);
+    const body = readFileSync(file, "utf8").split("\n").slice(1).join("\n");
+    expect(
+      createHash("sha256").update(body).digest("hex"),
+      "history-adapter.ts is a verbatim copy of @titan-design/code-graph's history-recency.ts and " +
+        "history-metrics.ts at titan-platform 6b1876a. Do not edit it. Delete it, with this test and " +
+        "the copied cases above, once TP-250 exports loadHistoryMetrics from the package root.",
+    ).toBe("3bd4f0f8cda13f47af8694e50204f2dd44d0c7ef06e4767642d1f34669b00ac6");
   });
 });
