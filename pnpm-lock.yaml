@@ -56,6 +56,9 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@4.3.6)
+      '@titan-design/code-graph':
+        specifier: ^0.2.0
+        version: 0.2.0
       '@titan-design/code-parser':
         specifier: ^0.1.0
         version: 0.1.0(web-tree-sitter@0.26.6)
@@ -103,6 +106,9 @@ importers:
 
   packages/graph:
     dependencies:
+      '@titan-design/code-graph':
+        specifier: ^0.2.0
+        version: 0.2.0
       '@titan-design/code-parser':
         specifier: ^0.1.0
         version: 0.1.0(web-tree-sitter@0.26.6)
@@ -836,11 +842,37 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@titan-design/code-graph@0.2.0':
+    resolution: {integrity: sha512-4OAQVz4WKXnTBw34f7qEmhc/DYC2DnVMYJgxv6K26Aj3pR0u1JHFD476YRyxGA/5zze6LPUkBBF17qdm5WlDrg==}
+    engines: {node: '>=20'}
+
   '@titan-design/code-parser@0.1.0':
     resolution: {integrity: sha512-fDOwZ04YwfAbDOnx2n8c2IQ305nt6FI0iWRvZpmMj8Kp3clkuB+UOpjAb7pYoA9/8ipcL7cXvcHbrOpNJEkACg==}
     engines: {node: '>=20'}
     peerDependencies:
       web-tree-sitter: ^0.26.6
+
+  '@titan-design/embed@0.2.0':
+    resolution: {integrity: sha512-dBc/fiPocizMxU2JInDt9UszxbIiiVv4C4zFvWh4VlUgLVqssshpYemmkaPVYZV5Lco3+UbCKeGwUPyyfv/9KA==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      '@huggingface/transformers': ^3.0.0
+    peerDependenciesMeta:
+      '@huggingface/transformers':
+        optional: true
+
+  '@titan-design/retrieval@0.3.0':
+    resolution: {integrity: sha512-jrsOcJu64L9RhgzN288tCBA5+tppTwggFp62fhLYP0mIYH8FQdnA0+yuVW/9ST7te+eRs852vNI2hNmoopZxtQ==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      '@huggingface/transformers': ^3.0.0
+    peerDependenciesMeta:
+      '@huggingface/transformers':
+        optional: true
+
+  '@titan-design/store-sqlite@0.3.0':
+    resolution: {integrity: sha512-E9fw4au90t+vauchWvsRORyJqSGn4LccWYtRWhsxBtIoiyYU/+xBe43UE8aSshEeJ5yjm2qudwtiuOrOHmTCAw==}
+    engines: {node: '>=20'}
 
   '@titan-design/style-analyzer@0.1.0':
     resolution: {integrity: sha512-LksKhTNCnuQDUpxTyRdNQA/WdDm91tEnom9mWQrXCjYlU2Nwv1/D064o5djwEod0yOe49ysDkXVeQ1E8ZwHKJA==}
@@ -1006,6 +1038,10 @@ packages:
 
   better-sqlite3@11.10.0:
     resolution: {integrity: sha512-EwhOpyXiOEL/lKzHz9AW1msWFNzGc/z+LzeB3/jnFJpxu+th2yqvzsSWas1v9jgs9+xiXJcD5A8CJxAG2TaghQ==}
+
+  better-sqlite3@13.0.3:
+    resolution: {integrity: sha512-RbOBxmLBG8uvFUc15X9+9SFemKcQ0WBuISBVkpuiaUB2qblC8UWlHEjdWVoZ8AdhSwmoEgsiXKfopX0CQxaACQ==}
+    engines: {node: '>=22'}
 
   bindings@1.5.0:
     resolution: {integrity: sha512-p2q/t/mhvuOj/UeLlV6566GD/guowlr0hHxClI0W9m7MWYkL1F0hLo+0Aexs9HSPCtR1SXQ0TD3MMKrXZajbiQ==}
@@ -2979,6 +3015,18 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.59.0':
     optional: true
 
+  '@titan-design/code-graph@0.2.0':
+    dependencies:
+      '@titan-design/code-parser': 0.1.0(web-tree-sitter@0.26.6)
+      '@titan-design/embed': 0.2.0
+      '@titan-design/retrieval': 0.3.0
+      '@titan-design/store-sqlite': 0.3.0
+      ts-morph: 25.0.1
+      web-tree-sitter: 0.26.6
+    transitivePeerDependencies:
+      - '@huggingface/transformers'
+      - tree-sitter
+
   '@titan-design/code-parser@0.1.0(web-tree-sitter@0.26.6)':
     dependencies:
       tree-sitter-python: 0.25.0
@@ -2986,6 +3034,17 @@ snapshots:
       web-tree-sitter: 0.26.6
     transitivePeerDependencies:
       - tree-sitter
+
+  '@titan-design/embed@0.2.0': {}
+
+  '@titan-design/retrieval@0.3.0':
+    dependencies:
+      '@titan-design/embed': 0.2.0
+      '@titan-design/store-sqlite': 0.3.0
+
+  '@titan-design/store-sqlite@0.3.0':
+    dependencies:
+      better-sqlite3: 13.0.3
 
   '@titan-design/style-analyzer@0.1.0(web-tree-sitter@0.26.6)(zod@4.3.6)':
     dependencies:
@@ -3168,6 +3227,10 @@ snapshots:
     dependencies:
       bindings: 1.5.0
       prebuild-install: 7.1.3
+
+  better-sqlite3@13.0.3:
+    dependencies:
+      node-addon-api: 8.6.0
 
   bindings@1.5.0:
     dependencies:

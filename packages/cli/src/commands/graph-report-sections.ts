@@ -1,11 +1,13 @@
 import {
   computeChangeCoupling,
-  computePageRank,
   loadChurnEntries,
-  matchesAny,
-  windowSuffix,
   type ChurnWindow,
   type CoEditPair,
+} from "@titan-design/code-graph/history";
+import {
+  computePageRank,
+  matchesAny,
+  windowSuffix,
   type GraphEdge,
   type GraphMetric,
   type GraphNode,
@@ -189,11 +191,7 @@ export function topCouplingClusters(
   windowDays: ChurnWindow,
   limit: number,
 ): CouplingRow[] {
-  const entries = loadChurnEntries({
-    repoRoot,
-    windowDays,
-    knownFileIds: collectKeptFileIds(ctx),
-  });
+  const entries = loadChurnEntries({ repoRoot, windowDays });
   if (entries === null) return [];
   const { pairs } = computeChangeCoupling(entries, { minCount: 2 });
   const filtered = pairs.filter(
@@ -220,10 +218,4 @@ export function topCentralFiles(
     if (rows.length >= limit) break;
   }
   return rows;
-}
-
-function collectKeptFileIds(ctx: ReportContext): Set<string> {
-  const out = new Set<string>();
-  for (const node of ctx.nodes) if (keepNode(ctx, node.id)) out.add(node.id);
-  return out;
 }

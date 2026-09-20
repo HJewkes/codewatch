@@ -1,4 +1,5 @@
-import { loadChurnEntries, openDatabase, computePageRank, windowSuffix, type ChurnWindow } from "@codewatch/graph";
+import { openDatabase, computePageRank, windowSuffix } from "@codewatch/graph";
+import { loadChurnEntries, type ChurnWindow } from "@titan-design/code-graph/history";
 import {
   buildSymbolCouplingPayload,
   type SymbolCouplingPayload,

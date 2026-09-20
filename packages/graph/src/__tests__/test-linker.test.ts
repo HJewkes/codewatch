@@ -4,7 +4,7 @@ import {
   testCoverageCountMetrics,
   type TestSourceLink,
 } from "../test-linker.js";
-import type { CoEditPair } from "../change-coupling.js";
+import type { CoEditPair } from "@titan-design/code-graph/history";
 import type { GraphNode, NodeRole } from "../types.js";
 
 function file(id: string, role: NodeRole): GraphNode {

@@ -1,10 +1,10 @@
 import {
   detectGitToplevel,
   getEdgeWeight,
-  loadChurnEntries,
   type EdgeKind,
   type GraphEdge,
 } from "@codewatch/graph";
+import { loadChurnEntries } from "@titan-design/code-graph/history";
 
 export interface RelevantVia {
   nodeId: string;

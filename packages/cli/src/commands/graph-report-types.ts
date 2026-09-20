@@ -1,4 +1,5 @@
-import type { ChurnWindow, SnapshotRow } from "@codewatch/graph";
+import type { SnapshotRow } from "@codewatch/graph";
+import type { ChurnWindow } from "@titan-design/code-graph/history";
 
 export interface HotspotRow {
   nodeId: string;

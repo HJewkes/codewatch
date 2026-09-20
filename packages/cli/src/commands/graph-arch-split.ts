@@ -1,15 +1,17 @@
 import * as path from "node:path";
 import {
-  computeChangeCoupling,
   computePartitionQuality,
   invertBuckets,
-  loadChurnEntries,
   resolveBarrelEdges,
-  type CoEditPair,
   type GraphEdge,
   type GraphNode,
   type SnapshotRow,
 } from "@codewatch/graph";
+import {
+  computeChangeCoupling,
+  loadChurnEntries,
+  type CoEditPair,
+} from "@titan-design/code-graph/history";
 import {
   bucketFilesByPackage,
   type PackageRoot,
@@ -32,12 +34,12 @@ export function loadCoEditPairs(
   repoRoot: string,
   nodes: readonly GraphNode[],
 ): CoEditPair[] | null {
-  const knownFileIds = new Set(
+  const knownPaths = new Set(
     nodes.filter((n) => n.kind === "file").map((n) => n.id),
   );
-  const entries = loadChurnEntries({ repoRoot, knownFileIds });
+  const entries = loadChurnEntries({ repoRoot });
   if (entries === null) return null;
-  return computeChangeCoupling(entries, { minCount: 1, knownFileIds }).pairs;
+  return computeChangeCoupling(entries, { minCount: 1, knownPaths }).pairs;
 }
 
 export interface ArchSplitInput {
