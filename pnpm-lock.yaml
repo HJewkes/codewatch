@@ -41,12 +41,6 @@ importers:
 
   packages/cli:
     dependencies:
-      '@codewatch/core':
-        specifier: workspace:*
-        version: link:../core
-      '@codewatch/render':
-        specifier: workspace:*
-        version: link:../render
       '@inquirer/prompts':
         specifier: ^8.3.0
         version: 8.3.0(@types/node@25.3.2)
@@ -80,6 +74,24 @@ importers:
       commander:
         specifier: ^14.0.3
         version: 14.0.3
+      cose-base:
+        specifier: ^1.0.3
+        version: 1.0.3
+      cytoscape:
+        specifier: ^3.30.0
+        version: 3.33.3
+      cytoscape-cose-bilkent:
+        specifier: ^4.1.0
+        version: 4.1.0(cytoscape@3.33.3)
+      elkjs:
+        specifier: ^0.10.0
+        version: 0.10.2
+      layout-base:
+        specifier: ^1.0.2
+        version: 1.0.2
+      octokit:
+        specifier: ^5.0.5
+        version: 5.0.5
       web-tree-sitter:
         specifier: ^0.26.6
         version: 0.26.6
@@ -87,6 +99,12 @@ importers:
         specifier: 4.3.6
         version: 4.3.6
     devDependencies:
+      '@codewatch/core':
+        specifier: workspace:*
+        version: link:../core
+      '@codewatch/render':
+        specifier: workspace:*
+        version: link:../render
       '@types/node':
         specifier: ^25.3.2
         version: 25.3.2

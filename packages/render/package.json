@@ -1,6 +1,7 @@
 {
   "name": "@codewatch/render",
   "version": "0.1.0",
+  "private": true,
   "description": "Dependency-graph rendering and dashboard generation for codewatch",
   "type": "module",
   "main": "./dist/index.js",
@@ -26,9 +27,6 @@
   "bugs": "https://github.com/HJewkes/codewatch/issues",
   "engines": {
     "node": ">=20"
-  },
-  "publishConfig": {
-    "access": "public"
   },
   "scripts": {
     "build": "tsup",

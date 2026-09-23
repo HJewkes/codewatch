@@ -1,7 +1,9 @@
 # codewatch
 
-pnpm monorepo of `@codewatch/*` packages (`core`, `cli`, `render`)
-plus the `codewatch` CLI. Read `README.md` for what the tool does; this file is the short
+pnpm monorepo that publishes one package, `@codewatch/cli` (the `codewatch` CLI). The
+other two workspace packages, `@codewatch/core` and `@codewatch/render`, are private and
+bundled into the CLI build; never give them a `publishConfig` or add a new published name
+(see `docs/releasing.md`). Read `README.md` for what the tool does; this file is the short
 version for agents.
 
 ## Direction: this repo is becoming a thin composition
