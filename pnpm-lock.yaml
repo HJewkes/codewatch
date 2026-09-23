@@ -48,8 +48,8 @@ importers:
         specifier: ^1.29.0
         version: 1.29.0(zod@4.3.6)
       '@titan-design/code-graph':
-        specifier: ^0.4.0
-        version: 0.4.0
+        specifier: ^0.5.0
+        version: 0.5.0
       '@titan-design/code-parser':
         specifier: ^0.1.0
         version: 0.1.0(web-tree-sitter@0.26.6)
@@ -63,8 +63,8 @@ importers:
         specifier: ^0.1.0
         version: 0.1.0(web-tree-sitter@0.26.6)(zod@4.3.6)
       '@titan-design/style-checker':
-        specifier: ^0.1.0
-        version: 0.1.0(web-tree-sitter@0.26.6)(zod@4.3.6)
+        specifier: ^0.2.0
+        version: 0.2.0(web-tree-sitter@0.26.6)(zod@4.3.6)
       '@titan-design/style-profile':
         specifier: ^0.1.0
         version: 0.1.0(zod@4.3.6)
@@ -842,6 +842,10 @@ packages:
     resolution: {integrity: sha512-3JVcQdvBgdX8pj9XuTVFrXsbcGXyYnI/dpjg8/mIvfkWJoQvxMaQe7ykl2+rxHl3U1ikquMZryQlIVyaspb2pw==}
     engines: {node: '>=20'}
 
+  '@titan-design/code-graph@0.5.0':
+    resolution: {integrity: sha512-7oZbNNxzC51Ef1AhuZckqcs46bT3dNp3UbmkLSWfTekw6J1kuBBWsWGFtgVV/5tPqed6yHFy2PXk78CAKVchvA==}
+    engines: {node: '>=20'}
+
   '@titan-design/code-parser@0.1.0':
     resolution: {integrity: sha512-fDOwZ04YwfAbDOnx2n8c2IQ305nt6FI0iWRvZpmMj8Kp3clkuB+UOpjAb7pYoA9/8ipcL7cXvcHbrOpNJEkACg==}
     engines: {node: '>=20'}
@@ -879,6 +883,12 @@ packages:
 
   '@titan-design/style-checker@0.1.0':
     resolution: {integrity: sha512-Ypv24w59nlf5oX/s7KP0rTcyd97pKZBK4t4dQdqd+nUnU81m+TySlmyp7/VI7k65l2xpLDhKkeB+0Pwesd5rcA==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      zod: ^4.0.0
+
+  '@titan-design/style-checker@0.2.0':
+    resolution: {integrity: sha512-cbf74cEn/neRg8LrgUM214tXmHWqRXkgU+bF9Wz1arf3Nbjxad3ZwjPkTrHOM35BMQzLkisECKWl4LFfcDLNrg==}
     engines: {node: '>=20'}
     peerDependencies:
       zod: ^4.0.0
@@ -2908,6 +2918,18 @@ snapshots:
       - '@huggingface/transformers'
       - tree-sitter
 
+  '@titan-design/code-graph@0.5.0':
+    dependencies:
+      '@titan-design/code-parser': 0.1.0(web-tree-sitter@0.26.6)
+      '@titan-design/embed': 0.2.0
+      '@titan-design/retrieval': 0.3.0
+      '@titan-design/store-sqlite': 0.3.1
+      ts-morph: 25.0.1
+      web-tree-sitter: 0.26.6
+    transitivePeerDependencies:
+      - '@huggingface/transformers'
+      - tree-sitter
+
   '@titan-design/code-parser@0.1.0(web-tree-sitter@0.26.6)':
     dependencies:
       tree-sitter-python: 0.25.0
@@ -2939,6 +2961,15 @@ snapshots:
       - tree-sitter
 
   '@titan-design/style-checker@0.1.0(web-tree-sitter@0.26.6)(zod@4.3.6)':
+    dependencies:
+      '@titan-design/style-analyzer': 0.1.0(web-tree-sitter@0.26.6)(zod@4.3.6)
+      '@titan-design/style-profile': 0.1.0(zod@4.3.6)
+      zod: 4.3.6
+    transitivePeerDependencies:
+      - tree-sitter
+      - web-tree-sitter
+
+  '@titan-design/style-checker@0.2.0(web-tree-sitter@0.26.6)(zod@4.3.6)':
     dependencies:
       '@titan-design/style-analyzer': 0.1.0(web-tree-sitter@0.26.6)(zod@4.3.6)
       '@titan-design/style-profile': 0.1.0(zod@4.3.6)
