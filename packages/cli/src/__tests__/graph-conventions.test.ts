@@ -74,6 +74,16 @@ describe("graph conventions command", () => {
     expect(text).toContain("Summary of src/util.");
   });
 
+  it("--offline never calls the summarizer, even when no summary is cached", async () => {
+    const summarizer: Summarizer = {
+      model: "never-called",
+      summarize: () => Promise.reject(new Error("summarizer called in offline mode")),
+    };
+    const result = await runGraphConventionsCommand({ db: dbPath, summarizer, offline: true });
+    expect(result.coverage.summarized).toBe(0);
+    expect(result.newlySummarized).toBe(0);
+  });
+
   it("query mode ensures summaries then ranks areas", async () => {
     const summarizer = fakeSummarizer();
     const result = await runGraphConventionsQuery({
