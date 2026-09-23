@@ -7,6 +7,8 @@ import {
   embedSnapshot,
   listEmbeddableSymbols,
   openCodeGraph,
+  summarizeConventions,
+  type Summarizer,
 } from "@titan-design/code-graph";
 import type { Embedder } from "@titan-design/embed";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -17,8 +19,18 @@ import { runGraphIndex } from "../../commands/graph-index-run.js";
 
 const A_SRC = ["/** Increments. */", "export function foo(a: number): number {", "  return a + 1;", "}"].join("\n");
 const B_SRC = ['import { foo } from "./a.js";', "export const two = foo(1);"].join("\n");
+const C_SRC = ['import { foo } from "./a.js";', "export const three = foo(2);"].join("\n");
 
 const SYMBOL = "src/a.ts#foo";
+
+/** Canned summarizer keyed by the area label line, so ranking is testable. */
+const fakeSummarizer: Summarizer = {
+  model: "fake-summary",
+  summarize: (prompt) => {
+    const label = prompt.match(/^Capability area: (.+)$/m)?.[1] ?? "?";
+    return Promise.resolve(`Summary of ${label}.`);
+  },
+};
 
 /** Deterministic hash-based embedder: identical text → identical vector. */
 const fakeEmbedder: Embedder = {
@@ -43,13 +55,15 @@ beforeAll(async () => {
   mkdirSync(join(dir, "src"), { recursive: true });
   writeFileSync(join(dir, "src", "a.ts"), A_SRC);
   writeFileSync(join(dir, "src", "b.ts"), B_SRC);
+  writeFileSync(join(dir, "src", "c.ts"), C_SRC);
   const result = await runGraphIndex({ rootDir: dir, ref: "test", computeChurn: false, detectRenames: false });
   dbPath = result.dbPath;
   const db = openCodeGraph(dbPath);
   await embedSnapshot(db, result.snapshotId, fakeEmbedder);
+  await summarizeConventions(db, result.snapshotId, fakeSummarizer);
   fooEmbedText = listEmbeddableSymbols(db, result.snapshotId).find((s) => s.id === SYMBOL)!.text;
   db.close();
-  api = createReadApi({ db: dbPath, repoRoot: dir, embedder: fakeEmbedder });
+  api = createReadApi({ db: dbPath, repoRoot: dir, embedder: fakeEmbedder, summaryModel: fakeSummarizer.model });
 });
 
 afterAll(() => {
@@ -64,7 +78,7 @@ describe("read API — versioned contract", () => {
   });
 
   it("exposes the stable read functions", () => {
-    for (const fn of ["getContext", "getSource", "getNeighbors", "search", "findSimilar"] as const) {
+    for (const fn of ["getContext", "getSource", "getNeighbors", "search", "findSimilar", "getConventions", "findConventions"] as const) {
       expect(typeof api[fn]).toBe("function");
     }
   });
@@ -103,6 +117,20 @@ describe("read API — the four reads over a fixture graph", () => {
     expect(api.getContext(SYMBOL)).toEqual(api.getContext(SYMBOL));
   });
 
+  it("getConventions returns the precomputed convention map", () => {
+    const map = api.getConventions();
+    expect(map.coverage.areas).toBe(1);
+    expect(map.areas[0]!.label).toBe("src");
+    expect(map.areas[0]!.summary).toBe("Summary of src.");
+    expect(map.areas[0]!.files).toHaveLength(3);
+  });
+
+  it("findConventions ranks areas against a question", async () => {
+    const result = await api.findConventions("Summary of src.", 1);
+    expect(result.matches[0]!.label).toBe("src");
+    expect(result.matches[0]!.score).toBeCloseTo(1, 5);
+  });
+
   it("findSimilar ranks an exact capability text at ~1.0 with coverage", async () => {
     const result = await api.findSimilar(fooEmbedText);
     expect(result.coverage.embedded).toBeGreaterThan(0);
@@ -131,7 +159,7 @@ describe("MCP server — the four pull tools end to end (no client file reads)",
   it("exposes the pull tools", async () => {
     const { client } = await connectClient();
     const names = (await client.listTools()).tools.map((t) => t.name).sort();
-    expect(names).toEqual(["find_similar", "get_context", "get_neighbors", "get_source", "search"]);
+    expect(names).toEqual(["find_similar", "get_context", "get_conventions", "get_neighbors", "get_source", "search"]);
     await client.close();
   });
 
@@ -140,6 +168,15 @@ describe("MCP server — the four pull tools end to end (no client file reads)",
     const result = await call("find_similar", { query: fooEmbedText, limit: 3 });
     expect(result.candidates[0].id).toBe(SYMBOL);
     expect(result.coverage.symbols).toBeGreaterThan(0);
+    await client.close();
+  });
+
+  it("get_conventions returns the map, and ranks with a query", async () => {
+    const { client, call } = await connectClient();
+    const map = await call("get_conventions", {});
+    expect(map.areas[0].summary).toBe("Summary of src.");
+    const ranked = await call("get_conventions", { query: "Summary of src.", limit: 1 });
+    expect(ranked.matches[0].label).toBe("src");
     await client.close();
   });
 

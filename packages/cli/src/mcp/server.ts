@@ -40,6 +40,9 @@ const SERVER_INSTRUCTIONS = [
   "Before WRITING a new function or helper, call `find_similar` with the intent",
   "or a pseudo-signature — it surfaces existing symbols with similar capability",
   "so you extend or reuse instead of duplicating.",
+  "Before deciding WHERE new code belongs or how to approach a feature, call",
+  "`get_conventions` — it returns the repo's capability areas with summaries of",
+  "how each does things (optionally ranked against a question).",
   "Reach for these before manually reading files to discover how code connects:",
   "the graph already knows the resolved edges.",
 ].join("\n");
@@ -100,6 +103,25 @@ function registerTools(server: McpServer, api: GraphReadApi): void {
     async ({ query, limit }) => {
       try {
         return json(await api.findSimilar(query, limit));
+      } catch (err) {
+        return failure(err);
+      }
+    },
+  );
+  server.registerTool(
+    "get_conventions",
+    {
+      description:
+        "Learn how this repo does things and where new code belongs. Returns the repo's convention map — coarse capability areas of the resolved dependency graph, each with a summary of what it does and the conventions to follow when adding related code. Pass `query` (e.g. \"how does this repo parse dates\", \"where do CLI commands live\") to rank the areas against a question; omit it for the full map. Use at PLAN time, before deciding where to put new code.",
+      inputSchema: {
+        query: z.string().optional(),
+        limit: z.number().int().positive().optional(),
+      },
+    },
+    async ({ query, limit }) => {
+      try {
+        if (query) return json(await api.findConventions(query, limit));
+        return json(api.getConventions());
       } catch (err) {
         return failure(err);
       }
