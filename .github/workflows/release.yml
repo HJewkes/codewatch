@@ -2,10 +2,9 @@ name: Release
 
 # Manual only. Publishing is never automatic: it runs when a maintainer triggers this
 # workflow from the Actions tab. Authentication is npm trusted publishing (OIDC), so no
-# NPM_TOKEN secret exists and none should be added. Each @codewatch/* package needs a
-# trusted publisher on npmjs.com pointing at HJewkes/codewatch and release.yml. npm will
-# not accept one for a package it has never seen, so a package's first version is
-# published by hand (see docs/releasing.md).
+# NPM_TOKEN secret exists and none should be added. Only @codewatch/cli is published; the
+# other workspace packages are private and bundled into it. Its trusted publisher on
+# npmjs.com points at HJewkes/codewatch and release.yml (see docs/releasing.md).
 on:
   workflow_dispatch:
     inputs:
@@ -34,10 +33,10 @@ jobs:
       - run: npm install -g npm@11 && npm --version
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r run build
-      - name: Publish (or dry-run) @codewatch/* to npm
+      - name: Publish (or dry-run) @codewatch/cli to npm
         run: |
           if [ "${{ inputs.dry_run }}" = "true" ]; then
-            pnpm -r publish --dry-run --no-git-checks
+            pnpm -r --filter @codewatch/cli publish --dry-run --no-git-checks
           else
             pnpm changeset publish
           fi
