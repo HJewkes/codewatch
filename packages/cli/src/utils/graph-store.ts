@@ -32,11 +32,18 @@ export function openGraphStore(dbPath: string): CodeGraphStore {
   return openCodeGraph(dbPath);
 }
 
+/** Never overwrite an earlier aside file: append -2, -3, ... until the name is free. */
+function freeAsidePath(base: string): string {
+  let candidate = base;
+  for (let n = 2; existsSync(candidate); n++) candidate = `${base}-${n}`;
+  return candidate;
+}
+
 /** Rename a legacy file aside so `graph index` starts a fresh store; returns the new path. */
 export function moveLegacyGraphDbAside(dbPath: string): string | null {
   const version = legacyGraphDbVersion(dbPath);
   if (version === null) return null;
-  const aside = `${dbPath}.legacy-${version}`;
+  const aside = freeAsidePath(`${dbPath}.legacy-${version}`);
   for (const suffix of ["", "-wal", "-shm"]) {
     if (existsSync(dbPath + suffix)) renameSync(dbPath + suffix, aside + suffix);
   }

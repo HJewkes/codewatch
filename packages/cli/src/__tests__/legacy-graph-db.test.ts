@@ -86,6 +86,22 @@ describe("a graph.db written before the code-graph store", () => {
     expect(existsSync(`${dbPath}.legacy-0.12.0`)).toBe(true);
   });
 
+  it("never overwrites an earlier aside file of the same version", async () => {
+    const first = `${dbPath}.legacy-0.12.0`;
+    await runGraphIndex({ rootDir: dir, computeChurn: false, onNotice: () => undefined });
+    for (const s of ["", "-wal", "-shm"]) await fs.rm(dbPath + s, { force: true });
+    writeLegacyDb(dbPath);
+    const notices: string[] = [];
+
+    await runGraphIndex({ rootDir: dir, computeChurn: false, onNotice: (l) => notices.push(l) });
+
+    expect(legacyGraphDbVersion(first)).toBe("0.12.0");
+    expect(legacyGraphDbVersion(`${first}-2`)).toBe("0.12.0");
+    expect(notices).toEqual([
+      `codewatch: ${dbPath} predates codewatch 0.2; renamed it to ${first}-2 and started a fresh index`,
+    ]);
+  });
+
   it("makes a read command fail with the reindex instruction and leaves the file untouched", async () => {
     const before = await fs.readFile(dbPath);
 
