@@ -1,6 +1,7 @@
 import * as path from "node:path";
 import {
   computePartitionQuality,
+  detectCommunities,
   invertBuckets,
   resolveBarrelEdges,
   type GraphEdge,
@@ -17,7 +18,6 @@ import {
   type PackageRoot,
 } from "./graph-wiki-packages.js";
 import { filteredFileIds } from "./graph-arch-compute.js";
-import { detectCommunities } from "./graph-arch-community.js";
 import { isFragmented, isSourcePackage } from "./graph-arch-split-filter.js";
 import type { ArchResult } from "./graph-arch.js";
 

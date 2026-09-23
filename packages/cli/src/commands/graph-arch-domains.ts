@@ -1,5 +1,6 @@
 import {
   computePartitionQuality,
+  detectCommunities,
   patternToRegex,
 } from "@titan-design/code-graph";
 import { bucketFilesByPackage } from "./graph-wiki-packages.js";
@@ -10,7 +11,6 @@ import {
   toSortedEdges,
   type ComputeArchInput,
 } from "./graph-arch-compute.js";
-import { detectCommunities } from "./graph-arch-community.js";
 import type { ArchPackage, ArchResult } from "./graph-arch.js";
 
 /** One domain: a display name and the path globs whose files belong to it. */

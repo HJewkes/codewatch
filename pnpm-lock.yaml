@@ -48,8 +48,8 @@ importers:
         specifier: ^1.29.0
         version: 1.29.0(zod@4.3.6)
       '@titan-design/code-graph':
-        specifier: ^0.3.0
-        version: 0.3.0
+        specifier: ^0.4.0
+        version: 0.4.0
       '@titan-design/code-parser':
         specifier: ^0.1.0
         version: 0.1.0(web-tree-sitter@0.26.6)
@@ -128,8 +128,8 @@ importers:
   packages/render:
     dependencies:
       '@titan-design/code-graph':
-        specifier: ^0.3.0
-        version: 0.3.0
+        specifier: ^0.4.0
+        version: 0.4.0
       cose-base:
         specifier: ^1.0.3
         version: 1.0.3
@@ -838,8 +838,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@titan-design/code-graph@0.3.0':
-    resolution: {integrity: sha512-OC3n2zo+81+I7kJCqV2bmMdD0alhkRU5hbx9pfHCV61ib7s9M87Z9ME4Hc8J6jWz2MDQ9fMlRwZFDK5yZIBK1g==}
+  '@titan-design/code-graph@0.4.0':
+    resolution: {integrity: sha512-3JVcQdvBgdX8pj9XuTVFrXsbcGXyYnI/dpjg8/mIvfkWJoQvxMaQe7ykl2+rxHl3U1ikquMZryQlIVyaspb2pw==}
     engines: {node: '>=20'}
 
   '@titan-design/code-parser@0.1.0':
@@ -2896,7 +2896,7 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.59.0':
     optional: true
 
-  '@titan-design/code-graph@0.3.0':
+  '@titan-design/code-graph@0.4.0':
     dependencies:
       '@titan-design/code-parser': 0.1.0(web-tree-sitter@0.26.6)
       '@titan-design/embed': 0.2.0
