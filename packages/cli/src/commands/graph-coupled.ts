@@ -10,8 +10,10 @@ import {
   computeChangeCoupling,
   couplingFor,
   loadChurnEntries,
+  type ChurnWindow,
   type CoEditPair,
 } from "@titan-design/code-graph/history";
+import { describeChurnWindow, parseChurnWindow } from "../utils/churn-window.js";
 import { formatError, formatWarning } from "../utils/output.js";
 import { padLeft, padRight } from "../utils/table.js";
 
@@ -22,7 +24,7 @@ export interface GraphCoupledCommandOptions {
   seed?: string;
   limit?: number;
   minCount?: number;
-  windowDays?: number;
+  windowDays?: ChurnWindow;
   largeCommitThreshold?: number;
   exclude?: string[];
   json?: boolean;
@@ -48,7 +50,7 @@ export type GraphCoupledRow = GraphCoupledSeedRow | GraphCoupledTopRow;
 export interface GraphCoupledResult {
   snapshot: SnapshotRow | null;
   seed: string | null;
-  windowDays: number;
+  windowDays: ChurnWindow;
   rows: GraphCoupledRow[];
   totalPairs: number;
   skippedLargeCommits: number;
@@ -182,9 +184,10 @@ function visualWidth(s: string): number {
 }
 
 export function formatGraphCoupledText(result: GraphCoupledResult): string {
+  const window = describeChurnWindow(result.windowDays);
   const header = result.seed
-    ? `Co-edited with ${result.seed} — last ${result.windowDays}d`
-    : `Top co-edited pairs — last ${result.windowDays}d`;
+    ? `Co-edited with ${result.seed} — ${window}`
+    : `Top co-edited pairs — ${window}`;
   const lines: string[] = [];
   lines.push(chalk.bold.underline(header));
   lines.push(
@@ -265,7 +268,7 @@ export function registerGraphCoupled(graphCmd: Command): void {
     )
     .option("--limit <n>", "Max rows to return (default 25)", "25")
     .option("--min-count <n>", "Skip pairs with fewer than n co-edits (default 2)")
-    .option("--window-days <n>", "Days of git history to scan (default 30)")
+    .option("--window-days <n>", "Days of git history to scan (default 30), or `lifetime` for all-time")
     .option(
       "--large-commit-threshold <n>",
       "Skip commits touching more than n files (default 50)",
@@ -296,7 +299,7 @@ export function registerGraphCoupled(graphCmd: Command): void {
             seed: options.seed,
             limit: asNumber(options.limit),
             minCount: asNumber(options.minCount),
-            windowDays: asNumber(options.windowDays),
+            windowDays: parseChurnWindow(options.windowDays),
             largeCommitThreshold: asNumber(options.largeCommitThreshold),
             exclude: options.exclude,
           });

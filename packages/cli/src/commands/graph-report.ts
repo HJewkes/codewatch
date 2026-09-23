@@ -10,6 +10,7 @@ import {
   type SnapshotRow,
 } from "@codewatch/graph";
 import type { ChurnWindow } from "@titan-design/code-graph/history";
+import { parseChurnWindow } from "../utils/churn-window.js";
 import { formatError, snapshotVersionMismatchWarning } from "../utils/output.js";
 import { computeReportDrift } from "./graph-report-drift.js";
 import {
@@ -285,12 +286,6 @@ function asNumber(s: string | undefined): number | undefined {
   return s !== undefined ? Number(s) : undefined;
 }
 
-/** Parse `--window-days`: a day count, or the literal `lifetime` for all-time. */
-function parseWindow(s: string | undefined): ChurnWindow | undefined {
-  if (s === undefined) return undefined;
-  return s.toLowerCase() === "lifetime" ? "lifetime" : Number(s);
-}
-
 export function registerGraphReport(graphCmd: Command): void {
   graphCmd
     .command("report")
@@ -343,7 +338,7 @@ export function registerGraphReport(graphCmd: Command): void {
             repoRoot: options.repoRoot,
             snapshot: asNumber(options.snapshot),
             vs: options.vs,
-            windowDays: parseWindow(options.windowDays),
+            windowDays: parseChurnWindow(options.windowDays),
             limit: asNumber(options.limit),
             exclude: options.exclude,
             excludeRole: options.excludeRole,
