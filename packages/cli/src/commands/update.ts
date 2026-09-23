@@ -1,4 +1,6 @@
 import type { Profile, StyleRule } from "@titan-design/style-profile";
+import { profileFromAggregation } from "./profile-from-aggregation.js";
+import { resolveLanguages } from "../utils/languages.js";
 
 export interface MergeOptions {
   keepOverrides: boolean;
@@ -67,6 +69,7 @@ export interface UpdateCommandOptions {
   keepOverrides?: boolean;
   profile?: string;
   githubToken?: string;
+  languages?: string[];
 }
 
 export async function runUpdate(options: UpdateCommandOptions): Promise<void> {
@@ -93,7 +96,7 @@ export async function runUpdate(options: UpdateCommandOptions): Promise<void> {
   console.log(formatStep(1, 5, "Ingesting repositories..."));
   const service = new core.GitHubService({
     repos,
-    languages: ["ts", "js"],
+    languages: resolveLanguages(options.languages),
     githubToken: token,
   });
   const corpus = await service.ingest();
@@ -120,8 +123,9 @@ export async function runUpdate(options: UpdateCommandOptions): Promise<void> {
   const aggregated = await aggregator.aggregate(observations as Parameters<typeof aggregator.aggregate>[0]);
 
   console.log(formatStep(4, 5, "Enriching and reviewing..."));
-  const reviewed = await runReviewSession(aggregated);
-  const incoming = reviewed as Profile;
+  const incoming = await runReviewSession(
+    profileFromAggregation(aggregated, { author: existing.author, sources: repos }),
+  );
 
   console.log(formatStep(5, 5, "Merging profiles..."));
   const merged = mergeProfiles(existing, incoming, {

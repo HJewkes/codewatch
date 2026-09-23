@@ -13,7 +13,7 @@ export interface InitPipelineDeps {
   ingest: (token: string, repos: string[]) => Promise<unknown>;
   extract: (corpus: unknown) => Promise<unknown[]>;
   aggregate: (observations: unknown[]) => Promise<unknown>;
-  enrich: (aggregated: unknown) => Promise<unknown>;
+  enrich: (aggregated: unknown, corpus: unknown) => Promise<unknown>;
   review: (enriched: unknown) => Promise<unknown>;
   writeProfile: (filePath: string, profile: unknown) => Promise<void>;
   profilePath: string;
@@ -42,7 +42,7 @@ export async function runInitPipeline(deps: InitPipelineDeps): Promise<void> {
   const aggregated = await aggregate(observations);
 
   console.log(formatStep(4, 6, "Enriching with AI analysis..."));
-  const enriched = await enrich(aggregated);
+  const enriched = await enrich(aggregated, corpus);
 
   console.log(formatStep(5, 6, "Interactive review..."));
   const reviewed = await review(enriched);
