@@ -1,6 +1,6 @@
 {
   "name": "@codewatch/core",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "description": "GitHub ingest, LLM providers and the file cache for codewatch",
   "type": "module",
