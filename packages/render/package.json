@@ -35,7 +35,7 @@
     "lint": "echo 'lint not configured yet'"
   },
   "dependencies": {
-    "@titan-design/code-graph": "^0.3.0",
+    "@titan-design/code-graph": "^0.4.0",
     "cose-base": "^1.0.3",
     "cytoscape": "^3.30.0",
     "cytoscape-cose-bilkent": "^4.1.0",

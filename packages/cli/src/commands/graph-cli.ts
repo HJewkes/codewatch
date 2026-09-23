@@ -4,6 +4,7 @@ import { registerGraphAutoUpdate } from "./graph-auto-update.js";
 import { registerGraphCheck } from "./graph-check.js";
 import { registerGraphCheckDiff } from "./graph-check-diff.js";
 import { registerGraphContext } from "./graph-context.js";
+import { registerGraphConventions } from "./graph-conventions.js";
 import { registerGraphCoupled } from "./graph-coupled.js";
 import { registerGraphCoverage } from "./graph-coverage.js";
 import { registerGraphDashboard } from "./graph-dashboard.js";
@@ -37,6 +38,7 @@ export function registerGraphCommands(program: Command): void {
   registerGraphContext(graphCmd);
   registerGraphEmbed(graphCmd);
   registerGraphSimilar(graphCmd);
+  registerGraphConventions(graphCmd);
   registerGraphCoupled(graphCmd);
   registerGraphReport(graphCmd);
   registerGraphCoverage(graphCmd);

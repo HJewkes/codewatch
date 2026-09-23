@@ -2,7 +2,9 @@ import * as path from "node:path";
 import {
   computeDeepAst,
   detectGitToplevel,
+  findConventions as findConventionAreas,
   findSimilarCapability,
+  getConventionMap,
   type DeepAst,
   type CodeGraphStore,
   type SimilarResult,
@@ -20,6 +22,7 @@ import {
 } from "./contract.js";
 import { rankSearch } from "./search.js";
 import { openGraphStore } from "../utils/graph-store.js";
+import { DEFAULT_SUMMARY_MODEL } from "../utils/claude-summarizer.js";
 
 /**
  * C-81 — codewatch's stable, versioned read API. Import this module (not the
@@ -44,6 +47,9 @@ export {
   type SearchResult,
   type SimilarCandidate,
   type SimilarResult,
+  type ConventionMap,
+  type ConventionMatch,
+  type ConventionQueryResult,
 } from "./contract.js";
 
 const DEFAULT_SEARCH_LIMIT = 20;
@@ -53,6 +59,7 @@ export function createReadApi(options: ReadApiOptions): GraphReadApi {
   const repoRoot = options.repoRoot ?? detectGitToplevel(process.cwd());
   const ctx = { db: options.db, snapshot: options.snapshot };
   const embedder = options.embedder ?? new OllamaEmbedder();
+  const summaryModel = options.summaryModel ?? DEFAULT_SUMMARY_MODEL;
   return {
     version: READ_API_VERSION,
     getContext: (target, opts) => getContext(db, repoRoot, ctx, target, opts),
@@ -61,6 +68,10 @@ export function createReadApi(options: ReadApiOptions): GraphReadApi {
     search: (query, limit) => search(db, ctx.snapshot, query, limit),
     findSimilar: (query, limit) =>
       findSimilar(db, ctx.snapshot, embedder, query, limit),
+    getConventions: () =>
+      getConventionMap(db, resolveSnapshot(db, ctx.snapshot), summaryModel),
+    findConventions: (query, limit) =>
+      findConventionAreas(db, resolveSnapshot(db, ctx.snapshot), query, embedder, summaryModel, { limit }),
     close: () => db.close(),
   };
 }

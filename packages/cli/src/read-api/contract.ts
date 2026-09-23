@@ -1,4 +1,7 @@
 import type {
+  ConventionMap,
+  ConventionMatch,
+  ConventionQueryResult,
   DeepAst,
   SimilarCandidate,
   SimilarResult,
@@ -22,7 +25,7 @@ import type {
  * fields/functions backward-compatibly; PATCH is non-behavioural. Consumers
  * assert `major(api.version) === expected`.
  */
-export const READ_API_VERSION = "1.2.0";
+export const READ_API_VERSION = "1.3.0";
 
 export type {
   ContextBundle,
@@ -32,6 +35,9 @@ export type {
   DeepAst,
   SimilarCandidate,
   SimilarResult,
+  ConventionMap,
+  ConventionMatch,
+  ConventionQueryResult,
 };
 
 export interface ReadApiOptions {
@@ -46,6 +52,12 @@ export interface ReadApiOptions {
    * `nomic-embed-text`. Vectors must have been precomputed (`graph embed`).
    */
   embedder?: Embedder;
+  /**
+   * Summary-cache model key for `getConventions` (C-88 gate b); defaults to
+   * the CLI summarizer's key. Summaries must have been precomputed
+   * (`graph conventions`) — the read API never calls a summarizer.
+   */
+  summaryModel?: string;
 }
 
 export interface GetContextOptions {
@@ -89,5 +101,14 @@ export interface GraphReadApi {
    * duplicate verdicts.
    */
   findSimilar(query: string, limit?: number): Promise<SimilarResult>;
+  /**
+   * C-88 gate(b) — the repo's convention map: coarse capability areas of the
+   * resolved file graph with precomputed LLM summaries ("how does this repo do
+   * X / where does code like this belong"). Summaries must have been
+   * precomputed (`graph conventions`); this read never calls a summarizer.
+   */
+  getConventions(): ConventionMap;
+  /** Rank convention areas against a "how does this repo do X" question (async: embeds the query). */
+  findConventions(query: string, limit?: number): Promise<ConventionQueryResult>;
   close(): void;
 }
