@@ -49,15 +49,18 @@ from the package directory. Then add a trusted publisher on
 
 ## Retired names
 
-Six names published at 0.1.0 are no longer released from this repo. Run these once,
-after the 0.2.0 release of `@codewatch/cli` is on npm, logged in with
-`npm login --auth-type=web`:
+Six names published at 0.1.0 are no longer released from this repo: `@codewatch/profile`,
+`@codewatch/checker`, `@codewatch/analyzer`, `@codewatch/graph`, `@codewatch/core` and
+`@codewatch/render`. They are not deprecated on npm and there is no plan to deprecate
+them: `npm deprecate` demands a fresh two-factor code for every write, and the owner
+chose not to run six of them. Nothing depends on the deprecation. Anyone who wants to
+run it later needs `npm login --auth-type=web` and one code per command:
 
 ```sh
-npm deprecate @codewatch/profile "Merged into @titan-design/style-profile; install that package instead. The codewatch CLI (@codewatch/cli) no longer uses @codewatch/profile."
-npm deprecate @codewatch/checker "Merged into @titan-design/style-checker; install that package instead. The codewatch CLI (@codewatch/cli) no longer uses @codewatch/checker."
-npm deprecate @codewatch/analyzer "Merged into @titan-design/style-analyzer; install that package instead. The codewatch CLI (@codewatch/cli) no longer uses @codewatch/analyzer."
-npm deprecate @codewatch/graph "Merged into @titan-design/code-graph; install that package instead. The codewatch CLI (@codewatch/cli) no longer uses @codewatch/graph."
+npm deprecate @codewatch/profile "Merged into @titan-design/style-profile; install that package instead."
+npm deprecate @codewatch/checker "Merged into @titan-design/style-checker; install that package instead."
+npm deprecate @codewatch/analyzer "Merged into @titan-design/style-analyzer; install that package instead."
+npm deprecate @codewatch/graph "Merged into @titan-design/code-graph; install that package instead."
 npm deprecate @codewatch/core "Bundled into @codewatch/cli; install that package instead."
 npm deprecate @codewatch/render "Bundled into @codewatch/cli; install that package instead."
 ```
