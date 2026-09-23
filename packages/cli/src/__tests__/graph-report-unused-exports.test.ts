@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import type { GraphEdge, GraphMetric, GraphNode } from "@codewatch/graph";
+import type {
+  GraphEdge,
+  GraphMetric,
+  GraphNode,
+} from "@titan-design/code-graph";
 import { buildReportContext } from "../commands/graph-report-sections.js";
 import {
   publicApiFiles,

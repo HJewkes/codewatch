@@ -4,16 +4,16 @@ import type { Command } from "commander";
 import chalk from "chalk";
 import {
   diffCheckResults,
-  openDatabase,
   validateRules,
   type CheckDiff,
   type CheckRule,
   type CheckViolation,
-  type GraphDatabase,
+  type CodeGraphStore,
   type SnapshotRow,
   type UnchangedViolation,
-} from "@codewatch/graph";
+} from "@titan-design/code-graph";
 import { formatError } from "../utils/output.js";
+import { openGraphStore } from "../utils/graph-store.js";
 
 export interface GraphCheckDiffCommandOptions {
   db: string;
@@ -36,7 +36,7 @@ export async function runGraphCheckDiffCommand(
 ): Promise<GraphCheckDiffCommandResult> {
   const configPath = resolve(options.config);
   const rules = await loadRules(configPath);
-  const db = openDatabase(options.db);
+  const db = openGraphStore(options.db);
   try {
     const fromSnapshot = resolveSnapshot(db, options.from, "--from");
     const toSnapshot = resolveSnapshot(db, options.to, "--to");
@@ -72,7 +72,7 @@ async function loadRules(path: string): Promise<readonly CheckRule[]> {
 }
 
 function resolveSnapshot(
-  db: GraphDatabase,
+  db: CodeGraphStore,
   spec: string,
   flag: string,
 ): SnapshotRow {

@@ -1,4 +1,4 @@
-import type { GraphEdge } from "@codewatch/graph";
+import type { GraphEdge } from "@titan-design/code-graph";
 
 /**
  * The reference-count weight the extractor stamps on a file-level import edge

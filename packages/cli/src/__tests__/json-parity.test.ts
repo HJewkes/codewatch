@@ -3,7 +3,10 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { tmpdir } from "node:os";
 import { Command } from "commander";
-import { validateRules, type SnapshotRow } from "@codewatch/graph";
+import {
+  validateRules,
+  type SnapshotRow,
+} from "@titan-design/code-graph";
 import { registerGraphCommands } from "../commands/graph-cli.js";
 import { runGraphInitCommand } from "../commands/graph-init.js";
 import { formatArchJson } from "../commands/graph-arch-format.js";

@@ -8,7 +8,7 @@ import type {
   NewHotspot,
   ReportDrift,
 } from "./graph-report-types.js";
-import type { SnapshotRow } from "@codewatch/graph";
+import type { SnapshotRow } from "@titan-design/code-graph";
 
 export interface ComputeDriftInput {
   baselineSnapshot: SnapshotRow;

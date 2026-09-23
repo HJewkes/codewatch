@@ -9,7 +9,7 @@ import {
   type Extractor,
   type Observation,
 } from "@titan-design/style-analyzer";
-import { walkSourceFiles } from "@codewatch/graph";
+import { walkSourceFiles } from "@titan-design/code-graph";
 
 export interface AnalyzeOptions {
   rootDir: string;

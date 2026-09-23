@@ -2,12 +2,11 @@ import type { Command } from "commander";
 import chalk from "chalk";
 import {
   embedSnapshot,
-  openDatabase,
   type EmbedSnapshotResult,
-  type Embedder,
-} from "@codewatch/graph";
-import { createOllamaEmbedder } from "../utils/ollama-embedder.js";
+} from "@titan-design/code-graph";
+import { OllamaEmbedder, type Embedder } from "@titan-design/embed";
 import { formatError } from "../utils/output.js";
+import { openGraphStore } from "../utils/graph-store.js";
 
 export interface GraphEmbedOptions {
   db: string;
@@ -23,7 +22,7 @@ export type GraphEmbedResult = EmbedSnapshotResult & { snapshotId: number };
 export async function runGraphEmbedCommand(
   options: GraphEmbedOptions,
 ): Promise<GraphEmbedResult> {
-  const db = openDatabase(options.db);
+  const db = openGraphStore(options.db);
   try {
     const snap =
       options.snapshot !== undefined
@@ -32,7 +31,7 @@ export async function runGraphEmbedCommand(
     if (!snap) throw new Error(`No snapshot found in ${options.db}`);
     const embedder =
       options.embedder ??
-      createOllamaEmbedder({ baseUrl: options.ollamaUrl, model: options.model });
+      new OllamaEmbedder({ url: options.ollamaUrl, model: options.model });
     const result = await embedSnapshot(db, snap.id, embedder);
     return { ...result, snapshotId: snap.id };
   } finally {
@@ -69,7 +68,7 @@ export function registerGraphEmbed(graphCmd: Command): void {
     .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")
     .option("--snapshot <id>", "Snapshot id (default: latest)")
     .option("--model <name>", "Embedding model (default: nomic-embed-text)")
-    .option("--ollama-url <url>", "Ollama base URL (default: http://localhost:11434)")
+    .option("--ollama-url <url>", "Ollama base URL (default: http://127.0.0.1:11434)")
     .option("--json", "Output structured JSON")
     .action(
       async (options: {

@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   buildSymbolCouplingPayload,
 } from "../commands/dashboard-symbol-coupling.js";
-import type { ReferenceEdgeLite } from "@codewatch/graph";
+import type { ReferenceEdgeLite } from "@titan-design/code-graph";
 
 function ref(srcId: string, dstId: string): ReferenceEdgeLite {
   return { srcId, dstId };

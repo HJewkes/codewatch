@@ -1,11 +1,7 @@
 import type { Command } from "commander";
 import chalk from "chalk";
-import {
-  runGraphIndex,
-  type GraphIndexOptions,
-  type GraphIndexResult,
-} from "@codewatch/graph";
 import { formatError } from "../utils/output.js";
+import { runGraphIndex, type GraphIndexOptions, type GraphIndexResult } from "./graph-index-run.js";
 
 export interface GraphIndexCommandOptions extends GraphIndexOptions {
   json?: boolean;
@@ -94,18 +90,7 @@ function formatGraphIndexText(result: GraphIndexResult): string {
     );
   }
   lines.push("");
-  const d = result.durationMs;
-  lines.push(
-    chalk.dim(
-      `walk ${d.walk.toFixed(0)}ms  ` +
-        `read ${d.read.toFixed(0)}ms  ` +
-        `parse ${d.parse.toFixed(0)}ms  ` +
-        `extract ${d.extract.toFixed(0)}ms  ` +
-        `metrics ${d.metrics.toFixed(0)}ms  ` +
-        `persist ${d.persist.toFixed(0)}ms  ` +
-        `total ${d.total.toFixed(0)}ms`,
-    ),
-  );
+  lines.push(chalk.dim(`total ${result.durationMs.total.toFixed(0)}ms`));
   return lines.join("\n");
 }
 

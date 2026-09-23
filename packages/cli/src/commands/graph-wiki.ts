@@ -5,11 +5,10 @@ import {
   compilePatterns,
   computePageRank,
   matchesAny,
-  openDatabase,
-  type GraphDatabase,
+  type CodeGraphStore,
   type GraphMetric,
   type SnapshotRow,
-} from "@codewatch/graph";
+} from "@titan-design/code-graph";
 import { formatError } from "../utils/output.js";
 import { computeArch } from "./graph-arch.js";
 import { buildReportContext } from "./graph-report-sections.js";
@@ -24,6 +23,7 @@ import {
   type WikiResult,
 } from "./graph-wiki-sections.js";
 import { formatWiki, pageFilename } from "./graph-wiki-format.js";
+import { openGraphStore } from "../utils/graph-store.js";
 
 export type { PackageWiki, WikiResult };
 export { pageFilename };
@@ -47,7 +47,7 @@ const DEFAULT_LIMIT = 10;
 export function runGraphWikiCommand(
   options: GraphWikiCommandOptions,
 ): WikiResult {
-  const db = openDatabase(options.db);
+  const db = openGraphStore(options.db);
   try {
     const snapshot = pickSnapshot(db, options.snapshot);
     const limit = options.limit ?? DEFAULT_LIMIT;
@@ -100,7 +100,7 @@ export function runGraphWikiCommand(
   }
 }
 
-function pickSnapshot(db: GraphDatabase, id: number | undefined): SnapshotRow {
+function pickSnapshot(db: CodeGraphStore, id: number | undefined): SnapshotRow {
   const snapshot =
     id !== undefined
       ? db.getSnapshot(id)

@@ -2,7 +2,7 @@ import {
   computeSymbolConsumers,
   computeSymbolCoupling,
   type ReferenceEdgeLite,
-} from "@codewatch/graph";
+} from "@titan-design/code-graph";
 
 /**
  * Dashboard payload assembly for symbol-level coupling (C-60). Turns the raw

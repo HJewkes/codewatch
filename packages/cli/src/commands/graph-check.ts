@@ -3,16 +3,16 @@ import { resolve } from "node:path";
 import type { Command } from "commander";
 import chalk from "chalk";
 import {
-  openDatabase,
   resolveGitRef,
   runChecks,
   validateRules,
   type CheckResult,
   type CheckRule,
-  type GraphDatabase,
+  type CodeGraphStore,
   type SnapshotRow,
-} from "@codewatch/graph";
+} from "@titan-design/code-graph";
 import { formatError, snapshotVersionMismatchWarning } from "../utils/output.js";
+import { openGraphStore } from "../utils/graph-store.js";
 
 export interface GraphCheckCommandOptions {
   db: string;
@@ -35,7 +35,7 @@ export async function runGraphCheckCommand(
 ): Promise<GraphCheckCommandResult> {
   const configPath = resolve(options.config);
   const rules = await loadRules(configPath);
-  const db = openDatabase(options.db);
+  const db = openGraphStore(options.db);
   try {
     const snapshot =
       options.snapshot !== undefined
@@ -67,7 +67,7 @@ export async function runGraphCheckCommand(
 }
 
 function resolveSnapshot(
-  db: GraphDatabase,
+  db: CodeGraphStore,
   spec: string,
   flag: string,
   headSnapshotId?: number,
@@ -98,7 +98,7 @@ function resolveSnapshot(
  * months-old snapshot.
  */
 function resolveRefSnapshot(
-  db: GraphDatabase,
+  db: CodeGraphStore,
   ref: string,
   flag: string,
 ): SnapshotRow {

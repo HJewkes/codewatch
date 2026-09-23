@@ -1,10 +1,7 @@
 import * as fs from "node:fs/promises";
 import type { Command } from "commander";
-import {
-  runGraphIndex,
-  type GraphIndexResult,
-} from "@codewatch/graph";
 import { formatError } from "../utils/output.js";
+import { runGraphIndex, type GraphIndexResult } from "./graph-index-run.js";
 
 export const DEFAULT_CONFIG_PATH = "./.codewatch/check.json";
 

@@ -1,4 +1,7 @@
-import type { GraphEdge, GraphNode } from "@codewatch/graph";
+import type {
+  GraphEdge,
+  GraphNode,
+} from "@titan-design/code-graph";
 import type {
   DeadModuleRow,
   GrowthRiskRow,

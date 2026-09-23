@@ -1,10 +1,10 @@
-import { invertBuckets } from "@codewatch/graph";
+import { invertBuckets } from "@titan-design/code-graph";
 import type {
   GraphEdge,
   GraphNode,
   PageRankRow,
   SnapshotRow,
-} from "@codewatch/graph";
+} from "@titan-design/code-graph";
 import {
   topBusFactorRisks,
   topCouplingClusters,

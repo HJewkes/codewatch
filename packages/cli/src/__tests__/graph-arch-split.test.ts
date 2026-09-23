@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import type { GraphEdge, GraphNode, SnapshotRow } from "@codewatch/graph";
+import type {
+  GraphEdge,
+  GraphNode,
+  SnapshotRow,
+} from "@titan-design/code-graph";
 import type { CoEditPair } from "@titan-design/code-graph/history";
 import {
   computeArchSplit,

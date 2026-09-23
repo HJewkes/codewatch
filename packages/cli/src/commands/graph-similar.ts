@@ -2,12 +2,11 @@ import type { Command } from "commander";
 import chalk from "chalk";
 import {
   findSimilarCapability,
-  openDatabase,
-  type Embedder,
   type SimilarResult,
-} from "@codewatch/graph";
-import { createOllamaEmbedder } from "../utils/ollama-embedder.js";
+} from "@titan-design/code-graph";
+import { OllamaEmbedder, type Embedder } from "@titan-design/embed";
 import { formatError } from "../utils/output.js";
+import { openGraphStore } from "../utils/graph-store.js";
 
 export interface GraphSimilarOptions {
   db: string;
@@ -23,7 +22,7 @@ export interface GraphSimilarOptions {
 export async function runGraphSimilarCommand(
   options: GraphSimilarOptions,
 ): Promise<SimilarResult> {
-  const db = openDatabase(options.db);
+  const db = openGraphStore(options.db);
   try {
     const snap =
       options.snapshot !== undefined
@@ -32,7 +31,7 @@ export async function runGraphSimilarCommand(
     if (!snap) throw new Error(`No snapshot found in ${options.db}`);
     const embedder =
       options.embedder ??
-      createOllamaEmbedder({ baseUrl: options.ollamaUrl, model: options.model });
+      new OllamaEmbedder({ url: options.ollamaUrl, model: options.model });
     return await findSimilarCapability(db, snap.id, options.query, embedder, {
       limit: options.limit,
     });
@@ -84,7 +83,7 @@ export function registerGraphSimilar(graphCmd: Command): void {
     .option("--snapshot <id>", "Snapshot id (default: latest)")
     .option("-k, --limit <n>", "Number of candidates to return", "10")
     .option("--model <name>", "Embedding model (default: nomic-embed-text)")
-    .option("--ollama-url <url>", "Ollama base URL (default: http://localhost:11434)")
+    .option("--ollama-url <url>", "Ollama base URL (default: http://127.0.0.1:11434)")
     .option("--json", "Output structured JSON")
     .action(
       async (

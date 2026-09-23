@@ -4,7 +4,7 @@ import type { ElkExtendedEdge, ElkNode, ELK } from "elkjs/lib/elk-api.js";
 // elk.bundled exposes the constructor as its default export, but the bundled
 // .js has no companion .d.ts. Re-cast through the typed constructor from elk-api.
 const ELKCtor = ElkBundled as unknown as new () => ELK;
-import type { GraphNode } from "@codewatch/graph";
+import type { GraphNode } from "@titan-design/code-graph";
 import type { LaidOutNode, LayoutResult, RenderInput } from "./types.js";
 
 const NODE_WIDTH = 180;

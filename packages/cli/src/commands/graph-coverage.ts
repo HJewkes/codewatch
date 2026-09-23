@@ -5,14 +5,14 @@ import {
   COVERAGE_METRIC_NAME,
   detectGitToplevel,
   fileId,
-  openDatabase,
-  type GraphDatabase,
+  type CodeGraphStore,
   type GraphNode,
   type IstanbulCoverage,
   type SnapshotRow,
   type SymbolSpan,
-} from "@codewatch/graph";
+} from "@titan-design/code-graph";
 import { formatError } from "../utils/output.js";
+import { openGraphStore } from "../utils/graph-store.js";
 
 export interface GraphCoverageOptions {
   db: string;
@@ -42,7 +42,7 @@ export function runGraphCoverageCommand(
   coverageFile: string,
   options: GraphCoverageOptions,
 ): GraphCoverageResult {
-  const db = openDatabase(options.db);
+  const db = openGraphStore(options.db);
   try {
     const snapshot = pickSnapshot(db, options.snapshot ? Number(options.snapshot) : undefined);
     const coverage = JSON.parse(readFileSync(coverageFile, "utf8")) as IstanbulCoverage;
@@ -87,7 +87,7 @@ function indexNodes(nodes: readonly GraphNode[]): {
   return { symbolsByFile, knownFiles };
 }
 
-function pickSnapshot(db: GraphDatabase, id: number | undefined): SnapshotRow {
+function pickSnapshot(db: CodeGraphStore, id: number | undefined): SnapshotRow {
   if (id !== undefined) {
     const snap = db.getSnapshot(id);
     if (!snap) throw new Error(`No snapshot with id ${id}`);

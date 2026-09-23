@@ -1,14 +1,14 @@
 import type { Command } from "commander";
 import chalk from "chalk";
 import {
-  openDatabase,
   planPrune,
   runPrune,
   type PruneResult,
   type PrunePlan,
   type SnapshotRow,
-} from "@codewatch/graph";
+} from "@titan-design/code-graph";
 import { formatError } from "../utils/output.js";
+import { openGraphStore } from "../utils/graph-store.js";
 
 export interface GraphPruneCommandOptions {
   db: string;
@@ -29,7 +29,7 @@ export interface GraphPruneCommandResult {
 export function runGraphPruneCommand(
   options: GraphPruneCommandOptions,
 ): GraphPruneCommandResult {
-  const db = openDatabase(options.db);
+  const db = openGraphStore(options.db);
   try {
     if (options.dryRun) {
       const plan = planPrune(db, {

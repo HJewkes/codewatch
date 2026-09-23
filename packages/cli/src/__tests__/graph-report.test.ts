@@ -2,7 +2,10 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { tmpdir } from "node:os";
-import { openDatabase, type GraphDatabase } from "@codewatch/graph";
+import {
+  openCodeGraph,
+  type CodeGraphStore,
+} from "@titan-design/code-graph";
 import {
   runGraphReportCommand,
   formatGraphReportJson,
@@ -15,11 +18,11 @@ interface Fixture {
 }
 
 async function fixture(
-  populate: (db: GraphDatabase, snapshotId: number) => void,
+  populate: (db: CodeGraphStore, snapshotId: number) => void,
 ): Promise<Fixture> {
   const dir = await fs.mkdtemp(path.join(tmpdir(), "codewatch-report-"));
   const dbPath = path.join(dir, "graph.db");
-  const db = openDatabase(dbPath);
+  const db = openCodeGraph(dbPath);
   const snapshotId = db.createSnapshot({ ref: "main", indexVersion: "0.1.0" });
   populate(db, snapshotId);
   db.close();
@@ -69,7 +72,7 @@ describe("runGraphReportCommand", () => {
 
   it("falls back to cyclomatic_max when cognitive_max isn't present", async () => {
     fx = await fixture((db, snapshotId) => {
-      db.insertNode(snapshotId, fileNode("a.ts"));
+      db.insertNodes(snapshotId, [fileNode("a.ts")]);
       db.insertMetrics(snapshotId, [
         { nodeId: "a.ts", name: "churn_30d", value: 10 },
         { nodeId: "a.ts", name: "cyclomatic_max", value: 4 },
@@ -122,7 +125,7 @@ describe("runGraphReportCommand", () => {
   });
 
   it("excludes script-role files by default, keeps them with --include-scripts", async () => {
-    const populate = (db: GraphDatabase, snapshotId: number) => {
+    const populate = (db: CodeGraphStore, snapshotId: number) => {
       db.insertNodes(snapshotId, [
         { id: "src/a.ts", kind: "file", name: "a", role: "source" },
         { id: "scripts/oneoff.ts", kind: "file", name: "oneoff", role: "script" },
@@ -151,7 +154,7 @@ describe("runGraphReportCommand", () => {
 
   it("flags an empty churn window with a hint (markdown + JSON)", async () => {
     fx = await fixture((db, snapshotId) => {
-      db.insertNode(snapshotId, fileNode("a.ts"));
+      db.insertNodes(snapshotId, [fileNode("a.ts")]);
       db.insertMetrics(snapshotId, [
         { nodeId: "a.ts", name: "cognitive_max", value: 40 }, // no churn signal
       ]);
@@ -168,7 +171,7 @@ describe("runGraphReportCommand", () => {
 
   it("suppresses churn-derived sections on an empty window, keeping centrality", async () => {
     fx = await fixture((db, snapshotId) => {
-      db.insertNode(snapshotId, fileNode("a.ts"));
+      db.insertNodes(snapshotId, [fileNode("a.ts")]);
       db.insertMetrics(snapshotId, [
         { nodeId: "a.ts", name: "cognitive_max", value: 40 }, // no churn signal
       ]);
@@ -190,7 +193,7 @@ describe("runGraphReportCommand", () => {
 
   it("omits the empty-window hint when there is churn signal", async () => {
     fx = await fixture((db, snapshotId) => {
-      db.insertNode(snapshotId, fileNode("a.ts"));
+      db.insertNodes(snapshotId, [fileNode("a.ts")]);
       db.insertMetrics(snapshotId, [
         { nodeId: "a.ts", name: "churn_30d", value: 12 },
         { nodeId: "a.ts", name: "cognitive_max", value: 4 },
@@ -203,7 +206,7 @@ describe("runGraphReportCommand", () => {
 
   it("falls back to a single available churn window when requested doesn't match", async () => {
     fx = await fixture((db, snapshotId) => {
-      db.insertNode(snapshotId, fileNode("a.ts"));
+      db.insertNodes(snapshotId, [fileNode("a.ts")]);
       db.insertMetrics(snapshotId, [
         { nodeId: "a.ts", name: "churn_90d", value: 100 },
         { nodeId: "a.ts", name: "cognitive_max", value: 4 },
@@ -220,7 +223,7 @@ describe("runGraphReportCommand", () => {
 
   it("emits markdown with all four sections", async () => {
     fx = await fixture((db, snapshotId) => {
-      db.insertNode(snapshotId, fileNode("a.ts"));
+      db.insertNodes(snapshotId, [fileNode("a.ts")]);
       db.insertMetrics(snapshotId, [
         { nodeId: "a.ts", name: "churn_30d", value: 5 }, // non-empty window
       ]);
@@ -236,7 +239,7 @@ describe("runGraphReportCommand", () => {
 
   it("emits structured JSON", async () => {
     fx = await fixture((db, snapshotId) => {
-      db.insertNode(snapshotId, fileNode("a.ts"));
+      db.insertNodes(snapshotId, [fileNode("a.ts")]);
     });
     const result = runGraphReportCommand({ db: fx.dbPath, repoRoot: fx.dir });
     const parsed = JSON.parse(formatGraphReportJson(result));
@@ -251,11 +254,11 @@ describe("runGraphReportCommand", () => {
     // knew ids/refs and threw on the "previous" alias.
     const dir = await fs.mkdtemp(path.join(tmpdir(), "codewatch-report-vs-"));
     const dbPath = path.join(dir, "graph.db");
-    const db = openDatabase(dbPath);
+    const db = openCodeGraph(dbPath);
     const older = db.createSnapshot({ ref: "wd", indexVersion: "0.2.0" });
-    db.insertNode(older, fileNode("a.ts"));
+    db.insertNodes(older, [fileNode("a.ts")]);
     const head = db.createSnapshot({ ref: "wd", indexVersion: "0.2.0" });
-    db.insertNode(head, fileNode("a.ts"));
+    db.insertNodes(head, [fileNode("a.ts")]);
     db.close();
     fx = { dir, dbPath };
 

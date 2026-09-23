@@ -2,7 +2,11 @@ import { describe, it, expect, afterEach } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { tmpdir } from "node:os";
-import { openDatabase, type GraphDatabase, type GraphNode } from "@codewatch/graph";
+import {
+  openCodeGraph,
+  type CodeGraphStore,
+  type GraphNode,
+} from "@titan-design/code-graph";
 import { runGraphCoverageCommand } from "../commands/graph-coverage.js";
 
 interface Fixture {
@@ -20,10 +24,10 @@ const symNode = (file: string, name: string, startLine: number, endLine: number)
   attrs: { exported: true, startLine, endLine },
 });
 
-async function fixture(populate: (db: GraphDatabase, snapshotId: number) => void): Promise<Fixture> {
+async function fixture(populate: (db: CodeGraphStore, snapshotId: number) => void): Promise<Fixture> {
   const dir = await fs.mkdtemp(path.join(tmpdir(), "codewatch-coverage-"));
   const dbPath = path.join(dir, "graph.db");
-  const db = openDatabase(dbPath);
+  const db = openCodeGraph(dbPath);
   const snapshotId = db.createSnapshot({ ref: "main", indexVersion: "0.9.0" });
   populate(db, snapshotId);
   db.close();
@@ -61,7 +65,7 @@ describe("runGraphCoverageCommand (C-63)", () => {
     const result = runGraphCoverageCommand(cov, { db: fx.dbPath, root: fx.dir });
     expect(result).toMatchObject({ files: 1, symbols: 2 });
 
-    const db = openDatabase(fx.dbPath);
+    const db = openCodeGraph(fx.dbPath);
     try {
       const pct = (id: string) =>
         db.listMetrics(fx.snapshotId).find((m) => m.nodeId === id && m.name === "coverage_pct")?.value;
@@ -84,7 +88,7 @@ describe("runGraphCoverageCommand (C-63)", () => {
     const second = await writeCoverage(fx.dir, { [covPath]: { fnMap: { "0": fn(3) }, f: { "0": 9 } } });
     runGraphCoverageCommand(second, { db: fx.dbPath, root: fx.dir });
 
-    const db = openDatabase(fx.dbPath);
+    const db = openCodeGraph(fx.dbPath);
     try {
       const rows = db.listMetrics(fx.snapshotId).filter((m) => m.name === "coverage_pct" && m.nodeId === "src/a.ts#foo");
       expect(rows).toHaveLength(1); // replaced, not duplicated

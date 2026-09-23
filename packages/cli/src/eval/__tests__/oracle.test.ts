@@ -1,12 +1,12 @@
 import { describe, it, expect } from "vitest";
 import {
-  openDatabase,
-  type GraphDatabase,
+  openCodeGraph,
+  type CodeGraphStore,
   type GraphEdge,
   type GraphMetric,
   type GraphNode,
   type NodeRole,
-} from "@codewatch/graph";
+} from "@titan-design/code-graph";
 import { generateSuite } from "../oracle.js";
 import type { OracleTask } from "../types.js";
 
@@ -40,7 +40,7 @@ function metric(nodeId: string, name: string, value: number): GraphMetric {
   return { nodeId, name, value };
 }
 
-function seedGraph(db: GraphDatabase): number {
+function seedGraph(db: CodeGraphStore): number {
   const snap = db.createSnapshot({ ref: "HEAD", indexVersion: "test" });
   db.insertNodes(snap, [
     file("src/a.ts"),
@@ -84,7 +84,7 @@ function byId(tasks: OracleTask[], id: string): OracleTask {
 
 describe("generateSuite", () => {
   function suiteOf() {
-    const db = openDatabase(":memory:");
+    const db = openCodeGraph(":memory:");
     seedGraph(db);
     const suite = generateSuite(db, { perTypeCap: 10 });
     db.close();

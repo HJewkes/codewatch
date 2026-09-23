@@ -1,4 +1,4 @@
-import { openDatabase } from "@codewatch/graph";
+import { openGraphStore } from "../utils/graph-store.js";
 
 /**
  * The churn windows the latest snapshot actually stored — its finite day-counts
@@ -11,7 +11,7 @@ export function storedChurnWindows(dbPath: string): {
   finite: Set<number>;
   lifetime: boolean;
 } {
-  const db = openDatabase(dbPath);
+  const db = openGraphStore(dbPath);
   try {
     const snap = db.listSnapshots({ limit: 1 })[0];
     const finite = new Set<number>();

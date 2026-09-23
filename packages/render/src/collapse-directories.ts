@@ -1,4 +1,8 @@
-import { resolveBarrelEdges, type GraphEdge, type GraphNode } from "@codewatch/graph";
+import {
+  resolveBarrelEdges,
+  type GraphEdge,
+  type GraphNode,
+} from "@titan-design/code-graph";
 import { edgeWeight } from "./edge-weight.js";
 import type { RenderInput } from "./types.js";
 

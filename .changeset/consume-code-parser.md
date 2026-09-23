@@ -1,6 +1,5 @@
 ---
 "@codewatch/core": minor
-"@codewatch/graph": minor
 "@codewatch/cli": minor
 ---
 

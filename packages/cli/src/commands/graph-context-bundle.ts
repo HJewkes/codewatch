@@ -1,6 +1,10 @@
 import { readFileSync } from "node:fs";
 import * as path from "node:path";
-import { parseSymbolId, type GraphEdge, type GraphNode } from "@codewatch/graph";
+import {
+  parseSymbolId,
+  type GraphEdge,
+  type GraphNode,
+} from "@titan-design/code-graph";
 import type { ContextDossier } from "./graph-context-build.js";
 import { renderContextMarkdown } from "./graph-context-format.js";
 

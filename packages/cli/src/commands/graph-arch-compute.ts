@@ -5,7 +5,7 @@ import {
   type GraphEdge,
   type GraphNode,
   type SnapshotRow,
-} from "@codewatch/graph";
+} from "@titan-design/code-graph";
 import {
   bucketFilesByPackage,
   type PackageRoot,
