@@ -120,4 +120,15 @@ describe("GitHubService", () => {
     expect(corpus.metadata.fetchedAt).toBeDefined();
     expect(corpus.reviewComments).toBeDefined();
   });
+
+  it("ingests TypeScript files when languages use the parser's filter keys", async () => {
+    const corpus = await service.ingest();
+    expect(corpus.files.map((f) => f.path)).toContain("src/index.ts");
+  });
+
+  it("ingests nothing when languages are short codes the filter does not recognise", async () => {
+    const legacy = new GitHubService({ ...config, languages: ["ts", "js"] });
+    const corpus = await legacy.ingest();
+    expect(corpus.files).toHaveLength(0);
+  });
 });

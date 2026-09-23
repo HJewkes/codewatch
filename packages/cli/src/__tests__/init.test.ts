@@ -200,7 +200,7 @@ describe("Init command", () => {
 
     expect(extract).toHaveBeenCalledWith(corpusResult);
     expect(aggregate).toHaveBeenCalledWith(extractResult);
-    expect(enrich).toHaveBeenCalledWith(aggregateResult);
+    expect(enrich).toHaveBeenCalledWith(aggregateResult, corpusResult);
     expect(review).toHaveBeenCalledWith(enrichResult);
     expect(writeProfile).toHaveBeenCalledWith("/tmp/test-profile.json", reviewResult);
   });

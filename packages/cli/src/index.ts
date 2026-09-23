@@ -4,8 +4,9 @@ import { Command } from "commander";
 import { readProfile, writeProfile } from "@titan-design/style-profile";
 import { diffAgainstProfile } from "@titan-design/style-checker";
 import type { CodeCorpus } from "@codewatch/core";
-import type { Observation } from "@titan-design/style-analyzer";
+import type { AggregatorResult, Observation } from "@titan-design/style-analyzer";
 import { promptForInitOptions, runInitPipeline } from "./commands/init.js";
+import { profileFromAggregation } from "./commands/profile-from-aggregation.js";
 import { formatProfileText, formatProfileJson } from "./commands/show.js";
 import {
   formatSkippedNoParser,
@@ -15,6 +16,7 @@ import {
 import { getDefaultProfilePath } from "./utils/config.js";
 import { formatError } from "./utils/output.js";
 import { extractFromFiles } from "./utils/pipeline.js";
+import { LANGUAGE_OPTION_HELP, resolveLanguages } from "./utils/languages.js";
 import { registerGraphCommands } from "./commands/graph-cli.js";
 import { registerHookCommands } from "./commands/hook-cli.js";
 
@@ -40,9 +42,10 @@ program
   .option("--github-token <token>", "GitHub personal access token")
   .option("--since <date>", "Analyze commits since this date")
   .option("--until <date>", "Analyze commits until this date")
-  .option("--languages <langs...>", "Languages to analyze (ts, py)")
+  .option("--languages <langs...>", LANGUAGE_OPTION_HELP)
   .action(async (options) => {
     try {
+      const languages = resolveLanguages(options.languages);
       const { token, repos } = await promptForInitOptions({
         githubToken: options.githubToken,
         repos: options.repos,
@@ -61,7 +64,7 @@ program
         ingest: async (t, r) => {
           const service = new core.GitHubService({
             repos: r,
-            languages: options.languages ?? ["ts", "js"],
+            languages,
             githubToken: t,
             since: options.since,
             until: options.until,
@@ -85,11 +88,14 @@ program
           const aggregator = new analyzer.Aggregator();
           return aggregator.aggregate(observations as Observation[]);
         },
-        enrich: async (aggregated) => {
-          return aggregated;
-        },
+        enrich: async (aggregated, corpus) =>
+          profileFromAggregation(aggregated as AggregatorResult, {
+            author: (corpus as CodeCorpus).metadata.author,
+            sources: repos,
+          }),
         review: async (enriched) => {
-          return enriched;
+          const { runReviewSession } = await import("./interactive/review.js");
+          return runReviewSession(enriched);
         },
         writeProfile: async (filePath, profile) => {
           await writeProfile(filePath, profile);
@@ -228,6 +234,7 @@ program
   .option("--keep-overrides", "Preserve existing overrides", true)
   .option("--profile <path>", "Path to profile file")
   .option("--github-token <token>", "GitHub personal access token")
+  .option("--languages <langs...>", LANGUAGE_OPTION_HELP)
   .action(async (options) => {
     try {
       const { runUpdate } = await import("./commands/update.js");
