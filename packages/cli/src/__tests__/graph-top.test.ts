@@ -2,7 +2,10 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { tmpdir } from "node:os";
-import { openDatabase, type GraphDatabase } from "@codewatch/graph";
+import {
+  openCodeGraph,
+  type CodeGraphStore,
+} from "@titan-design/code-graph";
 import {
   runGraphTopCommand,
   formatGraphTopText,
@@ -16,11 +19,11 @@ interface Fixture {
 }
 
 async function createFixture(
-  populate: (db: GraphDatabase, snapshotId: number) => void,
+  populate: (db: CodeGraphStore, snapshotId: number) => void,
 ): Promise<Fixture> {
   const dir = await fs.mkdtemp(path.join(tmpdir(), "codewatch-graph-top-"));
   const dbPath = path.join(dir, "graph.db");
-  const db = openDatabase(dbPath);
+  const db = openCodeGraph(dbPath);
   const snapshotId = db.createSnapshot({
     ref: "main",
     indexVersion: "0.1.0",
@@ -64,12 +67,12 @@ describe("runGraphTopCommand", () => {
   it("respects --limit", async () => {
     fixture = await createFixture((db, snapshotId) => {
       for (let i = 0; i < 5; i++) {
-        db.insertNode(snapshotId, { id: `f${i}.ts`, kind: "file", name: "" });
-        db.insertMetric(snapshotId, {
+        db.insertNodes(snapshotId, [{ id: `f${i}.ts`, kind: "file", name: "" }]);
+        db.insertMetrics(snapshotId, [{
           nodeId: `f${i}.ts`,
           name: "loc",
           value: i,
-        });
+        }]);
       }
     });
 
@@ -105,12 +108,12 @@ describe("runGraphTopCommand", () => {
 
   it("throws a helpful error listing available metrics when the name is unknown", async () => {
     fixture = await createFixture((db, snapshotId) => {
-      db.insertNode(snapshotId, { id: "f.ts", kind: "file", name: "" });
-      db.insertMetric(snapshotId, {
+      db.insertNodes(snapshotId, [{ id: "f.ts", kind: "file", name: "" }]);
+      db.insertMetrics(snapshotId, [{
         nodeId: "f.ts",
         name: "loc",
         value: 1,
-      });
+      }]);
     });
 
     expect(() =>
@@ -123,13 +126,13 @@ describe("runGraphTopCommand", () => {
 
   it("renders a text table with rank/value/kind/id columns", async () => {
     fixture = await createFixture((db, snapshotId) => {
-      db.insertNode(snapshotId, { id: "f.ts", kind: "file", name: "" });
-      db.insertMetric(snapshotId, {
+      db.insertNodes(snapshotId, [{ id: "f.ts", kind: "file", name: "" }]);
+      db.insertMetrics(snapshotId, [{
         nodeId: "f.ts",
         name: "loc",
         value: 42,
         unit: "lines",
-      });
+      }]);
     });
 
     const result = runGraphTopCommand({
@@ -148,8 +151,8 @@ describe("runGraphTopCommand", () => {
 
   it("renders empty state when nothing matches", async () => {
     fixture = await createFixture((db, snapshotId) => {
-      db.insertNode(snapshotId, { id: "f.ts", kind: "file", name: "" });
-      db.insertMetric(snapshotId, { nodeId: "f.ts", name: "loc", value: 1 });
+      db.insertNodes(snapshotId, [{ id: "f.ts", kind: "file", name: "" }]);
+      db.insertMetrics(snapshotId, [{ nodeId: "f.ts", name: "loc", value: 1 }]);
     });
 
     const result = runGraphTopCommand({
@@ -211,8 +214,8 @@ describe("runGraphTopCommand", () => {
     fixture = await createFixture((db, snapshotId) => {
       for (let i = 0; i < 10; i++) {
         const id = i % 2 === 0 ? `keep/f${i}.ts` : `drop/f${i}.ts`;
-        db.insertNode(snapshotId, { id, kind: "file", name: "" });
-        db.insertMetric(snapshotId, { nodeId: id, name: "loc", value: i });
+        db.insertNodes(snapshotId, [{ id, kind: "file", name: "" }]);
+        db.insertMetrics(snapshotId, [{ nodeId: id, name: "loc", value: i }]);
       }
     });
 
@@ -247,8 +250,8 @@ describe("runGraphTopCommand", () => {
 
   it("emits JSON when requested", async () => {
     fixture = await createFixture((db, snapshotId) => {
-      db.insertNode(snapshotId, { id: "f.ts", kind: "file", name: "" });
-      db.insertMetric(snapshotId, { nodeId: "f.ts", name: "loc", value: 5 });
+      db.insertNodes(snapshotId, [{ id: "f.ts", kind: "file", name: "" }]);
+      db.insertMetrics(snapshotId, [{ nodeId: "f.ts", name: "loc", value: 5 }]);
     });
 
     const result = runGraphTopCommand({

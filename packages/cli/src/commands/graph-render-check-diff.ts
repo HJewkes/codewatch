@@ -5,14 +5,14 @@ import chalk from "chalk";
 import { renderHtml } from "@codewatch/render";
 import {
   diffCheckResults,
-  openDatabase,
   runChecks,
   validateRules,
   type CheckRule,
-  type GraphDatabase,
+  type CodeGraphStore,
   type SnapshotRow,
-} from "@codewatch/graph";
+} from "@titan-design/code-graph";
 import { formatError } from "../utils/output.js";
+import { openGraphStore } from "../utils/graph-store.js";
 
 export interface GraphRenderCheckDiffCommandOptions {
   db: string;
@@ -43,7 +43,7 @@ export async function runGraphRenderCheckDiffCommand(
 ): Promise<GraphRenderCheckDiffResult> {
   const start = performance.now();
   const rules = await loadRulesFile(options.config);
-  const db = openDatabase(options.db);
+  const db = openGraphStore(options.db);
   try {
     const fromSnap = resolveSnapshot(db, options.from, "--from");
     const toSnap = resolveSnapshot(db, options.to, "--to");
@@ -118,7 +118,7 @@ async function loadRulesFile(path: string): Promise<readonly CheckRule[]> {
 }
 
 function resolveSnapshot(
-  db: GraphDatabase,
+  db: CodeGraphStore,
   spec: string,
   flag: string,
 ): SnapshotRow {

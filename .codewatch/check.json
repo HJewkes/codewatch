@@ -42,7 +42,6 @@
       "type": "layered-deps",
       "layers": [
         ["packages/core"],
-        ["packages/graph"],
         ["packages/render"],
         ["packages/cli"]
       ]
@@ -63,7 +62,6 @@
       "packageRoots": [
         "packages/cli",
         "packages/core",
-        "packages/graph",
         "packages/render"
       ]
     }

@@ -1,4 +1,7 @@
-import type { GraphEdge, GraphNode } from "@codewatch/graph";
+import type {
+  GraphEdge,
+  GraphNode,
+} from "@titan-design/code-graph";
 import { edgeWeight } from "./edge-weight.js";
 import type { RenderInput } from "./types.js";
 

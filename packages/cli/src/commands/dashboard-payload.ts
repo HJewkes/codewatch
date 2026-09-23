@@ -1,4 +1,7 @@
-import { openDatabase, computePageRank, windowSuffix } from "@codewatch/graph";
+import {
+  computePageRank,
+  windowSuffix,
+} from "@titan-design/code-graph";
 import { loadChurnEntries, type ChurnWindow } from "@titan-design/code-graph/history";
 import {
   buildSymbolCouplingPayload,
@@ -20,6 +23,7 @@ import {
   buildBlastRadius,
   referencedNodes,
 } from "./dashboard-node-metrics.js";
+import { openGraphStore } from "../utils/graph-store.js";
 
 /**
  * Payload assembly for `graph dashboard`. Kept separate from the command wiring
@@ -322,7 +326,7 @@ function snapshotContext(dbPath: string, snapshotId: number): SnapshotContext {
   let metrics = new Map<string, NodeMetrics>();
   let symbols: SymbolUtil[] = [];
   let symbolCoupling: SymbolCouplingPayload | undefined;
-  const db = openDatabase(dbPath);
+  const db = openGraphStore(dbPath);
   try {
     const nodes = db.listNodes(snapshotId);
     const edges = db.listEdges(snapshotId);

@@ -3,11 +3,10 @@ import * as fs from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import {
   computePartitionQuality,
-  openDatabase,
-  type GraphDatabase,
+  type CodeGraphStore,
   type PartitionQualityResult,
   type SnapshotRow,
-} from "@codewatch/graph";
+} from "@titan-design/code-graph";
 import { formatError } from "../utils/output.js";
 import {
   bucketFilesByPackage,
@@ -29,6 +28,7 @@ import {
   runArchSplit,
   type ArchSplitResult,
 } from "./graph-arch-split.js";
+import { openGraphStore } from "../utils/graph-store.js";
 
 export type { ComputeArchInput };
 export { computeArch };
@@ -95,7 +95,7 @@ export interface ArchResult {
 export function runGraphArchCommand(
   options: GraphArchCommandOptions,
 ): ArchResult {
-  const db = openDatabase(options.db);
+  const db = openGraphStore(options.db);
   try {
     const snapshot = pickSnapshot(db, options.snapshot);
     const nodes = db.listNodes(snapshot.id);
@@ -154,7 +154,7 @@ export function runGraphArchCommand(
   }
 }
 
-function pickSnapshot(db: GraphDatabase, id: number | undefined): SnapshotRow {
+function pickSnapshot(db: CodeGraphStore, id: number | undefined): SnapshotRow {
   const snapshot =
     id !== undefined
       ? db.getSnapshot(id)

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { tmpdir } from "node:os";
-import { openDatabase } from "@codewatch/graph";
+import { openCodeGraph } from "@titan-design/code-graph";
 
 interface Project {
   rootDir: string;
@@ -76,16 +76,16 @@ describe("runGraphRenderCommand", () => {
   });
 
   it("renders the latest snapshot when --snapshot is omitted", async () => {
-    const db = openDatabase(project.dbPath);
+    const db = openCodeGraph(project.dbPath);
     const newerId = db.createSnapshot({
       ref: "newer",
       indexVersion: "0.1.0",
     });
-    db.insertNode(newerId, {
+    db.insertNodes(newerId, [{
       id: "lonely-node-id",
       kind: "file",
       name: "lonely.ts",
-    });
+    }]);
     db.close();
 
     const outPath = path.join(project.rootDir, "latest.html");

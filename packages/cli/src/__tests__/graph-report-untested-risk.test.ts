@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import type { GraphMetric, GraphNode } from "@codewatch/graph";
+import type {
+  GraphMetric,
+  GraphNode,
+} from "@titan-design/code-graph";
 import { buildReportContext } from "../commands/graph-report-sections.js";
 import { topUntestedRisks } from "../commands/graph-report-quality-sections.js";
 import { filteredFileIds } from "../commands/graph-arch-compute.js";

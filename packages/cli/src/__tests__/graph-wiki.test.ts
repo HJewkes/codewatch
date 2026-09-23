@@ -2,7 +2,10 @@ import { describe, it, expect, afterEach } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { tmpdir } from "node:os";
-import { openDatabase, type GraphDatabase } from "@codewatch/graph";
+import {
+  openCodeGraph,
+  type CodeGraphStore,
+} from "@titan-design/code-graph";
 import {
   runGraphWikiCommand,
   writeWikiFiles,
@@ -39,11 +42,11 @@ async function makeRepo(): Promise<string> {
 }
 
 async function fixture(
-  populate: (db: GraphDatabase, snapshotId: number) => void,
+  populate: (db: CodeGraphStore, snapshotId: number) => void,
 ): Promise<Fixture> {
   const dir = await makeRepo();
   const dbPath = path.join(dir, "graph.db");
-  const db = openDatabase(dbPath);
+  const db = openCodeGraph(dbPath);
   const snapshotId = db.createSnapshot({ ref: "main", indexVersion: "0.1.0" });
   populate(db, snapshotId);
   db.close();
@@ -191,7 +194,7 @@ describe("runGraphWikiCommand", () => {
 
   it("omits empty packages (no files indexed)", async () => {
     fx = await fixture((db, snapshotId) => {
-      db.insertNode(snapshotId, fileNode("packages/cli/src/a.ts"));
+      db.insertNodes(snapshotId, [fileNode("packages/cli/src/a.ts")]);
     });
     const result = runGraphWikiCommand({
       db: fx.dbPath,
@@ -258,7 +261,7 @@ describe("formatWiki + writeWikiFiles", () => {
 
   it("writeWikiFiles creates the directory and writes each file", async () => {
     fx = await fixture((db, snapshotId) => {
-      db.insertNode(snapshotId, fileNode("packages/cli/src/a.ts"));
+      db.insertNodes(snapshotId, [fileNode("packages/cli/src/a.ts")]);
     });
     const result = runGraphWikiCommand({
       db: fx.dbPath,

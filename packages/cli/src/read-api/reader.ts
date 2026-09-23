@@ -3,13 +3,11 @@ import {
   computeDeepAst,
   detectGitToplevel,
   findSimilarCapability,
-  openDatabase,
   type DeepAst,
-  type Embedder,
-  type GraphDatabase,
+  type CodeGraphStore,
   type SimilarResult,
-} from "@codewatch/graph";
-import { createOllamaEmbedder } from "../utils/ollama-embedder.js";
+} from "@titan-design/code-graph";
+import { OllamaEmbedder, type Embedder } from "@titan-design/embed";
 import { contextBundleFromDb } from "../commands/graph-context.js";
 import type { ContextBundle } from "../commands/graph-context-bundle.js";
 import {
@@ -21,6 +19,7 @@ import {
   type SearchResult,
 } from "./contract.js";
 import { rankSearch } from "./search.js";
+import { openGraphStore } from "../utils/graph-store.js";
 
 /**
  * C-81 — codewatch's stable, versioned read API. Import this module (not the
@@ -50,10 +49,10 @@ export {
 const DEFAULT_SEARCH_LIMIT = 20;
 
 export function createReadApi(options: ReadApiOptions): GraphReadApi {
-  const db = openDatabase(options.db);
+  const db = openGraphStore(options.db);
   const repoRoot = options.repoRoot ?? detectGitToplevel(process.cwd());
   const ctx = { db: options.db, snapshot: options.snapshot };
-  const embedder = options.embedder ?? createOllamaEmbedder();
+  const embedder = options.embedder ?? new OllamaEmbedder();
   return {
     version: READ_API_VERSION,
     getContext: (target, opts) => getContext(db, repoRoot, ctx, target, opts),
@@ -72,7 +71,7 @@ interface CtxOptions {
 }
 
 function bundle(
-  db: GraphDatabase,
+  db: CodeGraphStore,
   repoRoot: string | null,
   opts: CtxOptions,
   target: string,
@@ -81,7 +80,7 @@ function bundle(
 }
 
 function getContext(
-  db: GraphDatabase,
+  db: CodeGraphStore,
   repoRoot: string | null,
   opts: CtxOptions,
   target: string,
@@ -104,7 +103,7 @@ function deepAstFor(record: ContextBundle, repoRoot: string | null): DeepAst | n
 }
 
 function search(
-  db: GraphDatabase,
+  db: CodeGraphStore,
   snapshotId: number | undefined,
   query: string,
   limit: number | undefined,
@@ -115,7 +114,7 @@ function search(
 }
 
 function findSimilar(
-  db: GraphDatabase,
+  db: CodeGraphStore,
   snapshotId: number | undefined,
   embedder: Embedder,
   query: string,
@@ -126,7 +125,7 @@ function findSimilar(
 }
 
 function resolveSnapshot(
-  db: GraphDatabase,
+  db: CodeGraphStore,
   snapshotId: number | undefined,
 ): number {
   const snap =

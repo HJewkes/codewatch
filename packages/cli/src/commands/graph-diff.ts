@@ -2,12 +2,12 @@ import type { Command } from "commander";
 import chalk from "chalk";
 import {
   diffSnapshots,
-  openDatabase,
-  type GraphDatabase,
+  type CodeGraphStore,
   type GraphDiff,
   type SnapshotRow,
-} from "@codewatch/graph";
+} from "@titan-design/code-graph";
 import { formatError } from "../utils/output.js";
+import { openGraphStore } from "../utils/graph-store.js";
 
 export interface GraphDiffCommandOptions {
   db: string;
@@ -27,7 +27,7 @@ export async function runGraphDiffCommand(
   options: GraphDiffCommandOptions,
 ): Promise<GraphDiffCommandResult> {
   const start = performance.now();
-  const db = openDatabase(options.db);
+  const db = openGraphStore(options.db);
   try {
     const fromSnapshot = resolveSnapshot(db, options.from, "--from");
     const toSnapshot = resolveSnapshot(db, options.to, "--to");
@@ -47,7 +47,7 @@ export async function runGraphDiffCommand(
 }
 
 function resolveSnapshot(
-  db: GraphDatabase,
+  db: CodeGraphStore,
   spec: string,
   flag: string,
 ): SnapshotRow {

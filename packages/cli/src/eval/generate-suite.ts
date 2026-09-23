@@ -1,6 +1,6 @@
 import { writeFileSync } from "node:fs";
-import { openDatabase } from "@codewatch/graph";
 import { generateSuite } from "./oracle.js";
+import { openGraphStore } from "../utils/graph-store.js";
 
 /**
  * Standalone runner (C-82): generate the comprehension suite from a graph.db and
@@ -17,7 +17,7 @@ function main(): void {
   const dbPath = arg("db", "./.codewatch/graph.db")!;
   const out = arg("out");
   const cap = arg("cap");
-  const db = openDatabase(dbPath);
+  const db = openGraphStore(dbPath);
   try {
     const suite = generateSuite(db, { perTypeCap: cap ? Number(cap) : undefined });
     const json = JSON.stringify(suite, null, 2);

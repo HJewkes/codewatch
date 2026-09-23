@@ -2,7 +2,7 @@ import type {
   PackageStats,
   PairCoupling,
   PartitionQualityResult,
-} from "@codewatch/graph";
+} from "@titan-design/code-graph";
 import type { ArchResult } from "./graph-arch.js";
 import type {
   DomainValidation,

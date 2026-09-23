@@ -3,12 +3,12 @@ import chalk from "chalk";
 import {
   compilePatterns,
   matchesAny,
-  openDatabase,
   type NodeRole,
   type SnapshotRow,
-} from "@codewatch/graph";
+} from "@titan-design/code-graph";
 import { formatError } from "../utils/output.js";
 import { padLeft, padRight, visualWidth } from "../utils/table.js";
+import { openGraphStore } from "../utils/graph-store.js";
 
 export interface GraphTopCommandOptions {
   db: string;
@@ -40,7 +40,7 @@ export interface GraphTopResult {
 export function runGraphTopCommand(
   options: GraphTopCommandOptions,
 ): GraphTopResult {
-  const db = openDatabase(options.db);
+  const db = openGraphStore(options.db);
   try {
     const snapshot =
       options.snapshot !== undefined

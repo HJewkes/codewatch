@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { tmpdir } from "node:os";
-import { openDatabase } from "@codewatch/graph";
+import { openCodeGraph } from "@titan-design/code-graph";
 import { runGraphAutoUpdate } from "../commands/graph-auto-update.js";
 
 let rootDir: string;
@@ -14,7 +14,7 @@ async function writeConfig(value: unknown): Promise<void> {
 }
 
 function snapshotCount(): number {
-  const db = openDatabase(dbPath);
+  const db = openCodeGraph(dbPath);
   try {
     return db.listSnapshots().length;
   } finally {

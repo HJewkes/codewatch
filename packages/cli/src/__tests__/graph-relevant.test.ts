@@ -2,7 +2,10 @@ import { describe, it, expect, afterEach } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { tmpdir } from "node:os";
-import { openDatabase, type GraphDatabase } from "@codewatch/graph";
+import {
+  openCodeGraph,
+  type CodeGraphStore,
+} from "@titan-design/code-graph";
 import {
   runGraphRelevantCommand,
   formatGraphRelevantText,
@@ -16,11 +19,11 @@ interface Fixture {
 }
 
 async function createFixture(
-  populate: (db: GraphDatabase, snapshotId: number) => void,
+  populate: (db: CodeGraphStore, snapshotId: number) => void,
 ): Promise<Fixture> {
   const dir = await fs.mkdtemp(path.join(tmpdir(), "codewatch-relevant-"));
   const dbPath = path.join(dir, "graph.db");
-  const db = openDatabase(dbPath);
+  const db = openCodeGraph(dbPath);
   const snapshotId = db.createSnapshot({
     ref: "main",
     indexVersion: "0.1.0",
@@ -104,7 +107,7 @@ describe("runGraphRelevantCommand", () => {
 
   it("throws a helpful error when seed matches no nodes", async () => {
     fixture = await createFixture((db, snapshotId) => {
-      db.insertNode(snapshotId, { id: "a.ts", kind: "file", name: "a.ts" });
+      db.insertNodes(snapshotId, [{ id: "a.ts", kind: "file", name: "a.ts" }]);
     });
 
     expect(() =>
@@ -115,7 +118,7 @@ describe("runGraphRelevantCommand", () => {
   it("respects --limit", async () => {
     fixture = await createFixture((db, snapshotId) => {
       for (let i = 0; i < 5; i++) {
-        db.insertNode(snapshotId, { id: `f${i}.ts`, kind: "file", name: "" });
+        db.insertNodes(snapshotId, [{ id: `f${i}.ts`, kind: "file", name: "" }]);
       }
     });
 
@@ -230,9 +233,9 @@ describe("runGraphRelevantCommand", () => {
 
   it("uses specified snapshot when --snapshot given", async () => {
     fixture = await createFixture((_db, _snapshotId) => {});
-    const db = openDatabase(fixture.dbPath);
+    const db = openCodeGraph(fixture.dbPath);
     const secondId = db.createSnapshot({ ref: "feature", indexVersion: "0.1.0" });
-    db.insertNode(secondId, { id: "x.ts", kind: "file", name: "x.ts" });
+    db.insertNodes(secondId, [{ id: "x.ts", kind: "file", name: "x.ts" }]);
     db.close();
 
     const result = runGraphRelevantCommand({
@@ -354,7 +357,7 @@ describe("runGraphRelevantCommand", () => {
 
   it("--explain returns null topAuthor when repoRoot is not a git repo", async () => {
     fixture = await createFixture((db, snapshotId) => {
-      db.insertNode(snapshotId, { id: "a.ts", kind: "file", name: "a.ts" });
+      db.insertNodes(snapshotId, [{ id: "a.ts", kind: "file", name: "a.ts" }]);
     });
 
     const result = runGraphRelevantCommand({

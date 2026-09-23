@@ -1,4 +1,4 @@
-import type { GraphEdge } from "@codewatch/graph";
+import type { GraphEdge } from "@titan-design/code-graph";
 
 /**
  * Greedy-modularity (Clauset-Newman-Moore) community detection over the

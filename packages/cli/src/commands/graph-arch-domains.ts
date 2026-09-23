@@ -1,7 +1,7 @@
 import {
   computePartitionQuality,
   patternToRegex,
-} from "@codewatch/graph";
+} from "@titan-design/code-graph";
 import { bucketFilesByPackage } from "./graph-wiki-packages.js";
 import {
   aggregateEdges,

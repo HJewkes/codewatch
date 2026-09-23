@@ -4,7 +4,7 @@ import {
   parseSymbolId,
   type GraphNode,
   type ReferenceEdgeLite,
-} from "@codewatch/graph";
+} from "@titan-design/code-graph";
 import {
   buildBlastRadius,
   collectSymbolUtil,

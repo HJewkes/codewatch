@@ -3,7 +3,7 @@ import {
   getEdgeWeight,
   type EdgeKind,
   type GraphEdge,
-} from "@codewatch/graph";
+} from "@titan-design/code-graph";
 import { loadChurnEntries } from "@titan-design/code-graph/history";
 
 export interface RelevantVia {

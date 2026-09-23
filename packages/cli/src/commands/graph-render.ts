@@ -3,12 +3,13 @@ import { dirname, resolve } from "node:path";
 import chalk from "chalk";
 import { loadSnapshot, renderHtml } from "@codewatch/render";
 import {
-  openDatabase,
   runChecks,
   validateRules,
   type CheckResult,
   type CheckRule,
-} from "@codewatch/graph";
+  type CodeGraphStore,
+} from "@titan-design/code-graph";
+import { openGraphStore } from "../utils/graph-store.js";
 
 export interface GraphRenderCommandOptions {
   db: string;
@@ -87,7 +88,7 @@ async function runCheckAgainstSnapshot(
   baselineSpec: string | undefined,
 ): Promise<CheckResult> {
   const rules = await loadRulesFile(configPath);
-  const db = openDatabase(dbPath);
+  const db = openGraphStore(dbPath);
   try {
     const baselineId = baselineSpec
       ? resolveBaselineId(db, baselineSpec, snapshotId)
@@ -110,7 +111,7 @@ async function loadRulesFile(path: string): Promise<readonly CheckRule[]> {
 }
 
 function resolveBaselineId(
-  db: ReturnType<typeof openDatabase>,
+  db: CodeGraphStore,
   spec: string,
   headSnapshotId: number,
 ): number {

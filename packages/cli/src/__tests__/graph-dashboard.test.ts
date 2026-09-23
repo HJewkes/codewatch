@@ -3,7 +3,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
-import { openDatabase } from "@codewatch/graph";
+import { openCodeGraph } from "@titan-design/code-graph";
 import { runGraphDashboardCommand } from "../commands/graph-dashboard.js";
 
 /** Parse the `window.__CODEWATCH__ = {...};` payload out of the generated HTML. */
@@ -16,7 +16,7 @@ function extractPayload(html: string): Record<string, any> {
 async function fixture(): Promise<{ dir: string; dbPath: string; out: string }> {
   const dir = await fs.mkdtemp(path.join(tmpdir(), "codewatch-dashboard-"));
   const dbPath = path.join(dir, "graph.db");
-  const db = openDatabase(dbPath);
+  const db = openCodeGraph(dbPath);
   const snapshotId = db.createSnapshot({ ref: "main", indexVersion: "0.2.0" });
   db.insertNodes(snapshotId, [
     { id: "src/a.ts", kind: "file", name: "a", role: "source" },
@@ -129,7 +129,7 @@ describe("runGraphDashboardCommand", () => {
     git("add", "c.ts", "d.ts"); git("commit", "-qm", "cd2");
 
     const dbPath = path.join(dirLocal, "graph.db");
-    const db = openDatabase(dbPath);
+    const db = openCodeGraph(dbPath);
     const sid = db.createSnapshot({ ref: "main", indexVersion: "0.2.0" });
     db.insertNodes(sid, ["a.ts", "b.ts", "c.ts", "d.ts"].map((id) => ({ id, kind: "file" as const, name: id, role: "source" as const })));
     db.insertEdges(sid, [
@@ -155,7 +155,7 @@ describe("runGraphDashboardCommand", () => {
     const dirLocal = await fs.mkdtemp(path.join(tmpdir(), "codewatch-dashboard-life-"));
     dir = dirLocal;
     const dbPath = path.join(dirLocal, "graph.db");
-    const db = openDatabase(dbPath);
+    const db = openCodeGraph(dbPath);
     const snap = db.createSnapshot({ ref: "main", indexVersion: "0.2.0" });
     db.insertNodes(snap, [{ id: "src/a.ts", kind: "file", name: "a", role: "source" }]);
     db.insertMetrics(snap, [

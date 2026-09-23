@@ -2,14 +2,17 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { tmpdir } from "node:os";
-import { openDatabase, type GraphDatabase } from "@codewatch/graph";
+import {
+  openCodeGraph,
+  type CodeGraphStore,
+} from "@titan-design/code-graph";
 import {
   runGraphCheckCommand,
   formatGraphCheckText,
   formatGraphCheckJson,
   selectRefSnapshot,
 } from "../commands/graph-check.js";
-import type { SnapshotRow } from "@codewatch/graph";
+import type { SnapshotRow } from "@titan-design/code-graph";
 
 interface Fixture {
   dir: string;
@@ -19,13 +22,13 @@ interface Fixture {
 }
 
 async function createFixture(
-  populate: (db: GraphDatabase, snapshotId: number) => void,
+  populate: (db: CodeGraphStore, snapshotId: number) => void,
   config: object,
 ): Promise<Fixture> {
   const dir = await fs.mkdtemp(path.join(tmpdir(), "codewatch-check-cli-"));
   const dbPath = path.join(dir, "graph.db");
   const configPath = path.join(dir, "check.json");
-  const db = openDatabase(dbPath);
+  const db = openCodeGraph(dbPath);
   const snapshotId = db.createSnapshot({ ref: "main", indexVersion: "0.1.0" });
   populate(db, snapshotId);
   db.close();
@@ -43,8 +46,8 @@ describe("runGraphCheckCommand", () => {
   it("returns passed=true when nothing violates", async () => {
     fixture = await createFixture(
       (db, snapshotId) => {
-        db.insertNode(snapshotId, { id: "f.ts", kind: "file", name: "" });
-        db.insertMetric(snapshotId, { nodeId: "f.ts", name: "loc", value: 10 });
+        db.insertNodes(snapshotId, [{ id: "f.ts", kind: "file", name: "" }]);
+        db.insertMetrics(snapshotId, [{ nodeId: "f.ts", name: "loc", value: 10 }]);
       },
       { rules: [{ id: "r", type: "metric-max", metric: "loc", max: 100 }] },
     );
@@ -60,8 +63,8 @@ describe("runGraphCheckCommand", () => {
   it("returns passed=false with violations when threshold breached", async () => {
     fixture = await createFixture(
       (db, snapshotId) => {
-        db.insertNode(snapshotId, { id: "huge.ts", kind: "file", name: "" });
-        db.insertMetric(snapshotId, { nodeId: "huge.ts", name: "loc", value: 9999 });
+        db.insertNodes(snapshotId, [{ id: "huge.ts", kind: "file", name: "" }]);
+        db.insertMetrics(snapshotId, [{ nodeId: "huge.ts", name: "loc", value: 9999 }]);
       },
       { rules: [{ id: "max-loc", type: "metric-max", metric: "loc", max: 500 }] },
     );
@@ -78,7 +81,7 @@ describe("runGraphCheckCommand", () => {
   it("throws on missing config file", async () => {
     fixture = await createFixture(
       (db, snapshotId) => {
-        db.insertNode(snapshotId, { id: "f", kind: "file", name: "" });
+        db.insertNodes(snapshotId, [{ id: "f", kind: "file", name: "" }]);
       },
       { rules: [] },
     );
@@ -94,7 +97,7 @@ describe("runGraphCheckCommand", () => {
   it("throws on invalid JSON", async () => {
     fixture = await createFixture(
       (db, snapshotId) => {
-        db.insertNode(snapshotId, { id: "f", kind: "file", name: "" });
+        db.insertNodes(snapshotId, [{ id: "f", kind: "file", name: "" }]);
       },
       { rules: [] },
     );
@@ -111,8 +114,8 @@ describe("runGraphCheckCommand", () => {
   it("renders a human-readable text summary on pass", async () => {
     fixture = await createFixture(
       (db, snapshotId) => {
-        db.insertNode(snapshotId, { id: "ok.ts", kind: "file", name: "" });
-        db.insertMetric(snapshotId, { nodeId: "ok.ts", name: "loc", value: 1 });
+        db.insertNodes(snapshotId, [{ id: "ok.ts", kind: "file", name: "" }]);
+        db.insertMetrics(snapshotId, [{ nodeId: "ok.ts", name: "loc", value: 1 }]);
       },
       { rules: [{ id: "r", type: "metric-max", metric: "loc", max: 100 }] },
     );
@@ -156,10 +159,10 @@ describe("runGraphCheckCommand", () => {
     const dir = await fs.mkdtemp(path.join(tmpdir(), "codewatch-baseline-cli-"));
     const dbPath = path.join(dir, "graph.db");
     const configPath = path.join(dir, "check.json");
-    const db = openDatabase(dbPath);
+    const db = openCodeGraph(dbPath);
     const baselineId = db.createSnapshot({ ref: "base", indexVersion: "0.1.0" });
-    db.insertNode(baselineId, { id: "huge.ts", kind: "file", name: "" });
-    db.insertMetric(baselineId, { nodeId: "huge.ts", name: "loc", value: 9000 });
+    db.insertNodes(baselineId, [{ id: "huge.ts", kind: "file", name: "" }]);
+    db.insertMetrics(baselineId, [{ nodeId: "huge.ts", name: "loc", value: 9000 }]);
     const headId = db.createSnapshot({ ref: "head", indexVersion: "0.1.0" });
     db.insertNodes(headId, [
       { id: "huge.ts", kind: "file", name: "" },
@@ -199,16 +202,16 @@ describe("runGraphCheckCommand", () => {
     const dir = await fs.mkdtemp(path.join(tmpdir(), "codewatch-snapref-cli-"));
     const dbPath = path.join(dir, "graph.db");
     const configPath = path.join(dir, "check.json");
-    const db = openDatabase(dbPath);
+    const db = openCodeGraph(dbPath);
     const headId = db.createSnapshot({ ref: "head", indexVersion: "0.1.0" });
-    db.insertNode(headId, { id: "new.ts", kind: "file", name: "" });
-    db.insertMetric(headId, { nodeId: "new.ts", name: "loc", value: 9001 });
+    db.insertNodes(headId, [{ id: "new.ts", kind: "file", name: "" }]);
+    db.insertMetrics(headId, [{ nodeId: "new.ts", name: "loc", value: 9001 }]);
     const baselineId = db.createSnapshot({
       ref: "baseline",
       indexVersion: "0.1.0",
     });
-    db.insertNode(baselineId, { id: "ok.ts", kind: "file", name: "" });
-    db.insertMetric(baselineId, { nodeId: "ok.ts", name: "loc", value: 1 });
+    db.insertNodes(baselineId, [{ id: "ok.ts", kind: "file", name: "" }]);
+    db.insertMetrics(baselineId, [{ nodeId: "ok.ts", name: "loc", value: 1 }]);
     db.close();
     await fs.writeFile(
       configPath,
@@ -247,13 +250,13 @@ describe("runGraphCheckCommand", () => {
     const dir = await fs.mkdtemp(path.join(tmpdir(), "codewatch-prev-cli-"));
     const dbPath = path.join(dir, "graph.db");
     const configPath = path.join(dir, "check.json");
-    const db = openDatabase(dbPath);
+    const db = openCodeGraph(dbPath);
     const olderId = db.createSnapshot({ ref: "old", indexVersion: "0.1.0" });
-    db.insertNode(olderId, { id: "f.ts", kind: "file", name: "" });
-    db.insertMetric(olderId, { nodeId: "f.ts", name: "loc", value: 9000 });
+    db.insertNodes(olderId, [{ id: "f.ts", kind: "file", name: "" }]);
+    db.insertMetrics(olderId, [{ nodeId: "f.ts", name: "loc", value: 9000 }]);
     const newerId = db.createSnapshot({ ref: "new", indexVersion: "0.1.0" });
-    db.insertNode(newerId, { id: "f.ts", kind: "file", name: "" });
-    db.insertMetric(newerId, { nodeId: "f.ts", name: "loc", value: 9000 });
+    db.insertNodes(newerId, [{ id: "f.ts", kind: "file", name: "" }]);
+    db.insertMetrics(newerId, [{ nodeId: "f.ts", name: "loc", value: 9000 }]);
     db.close();
     await fs.writeFile(
       configPath,
@@ -278,7 +281,7 @@ describe("runGraphCheckCommand", () => {
   it("--baseline previous errors on the very first run with no prior snapshot", async () => {
     fixture = await createFixture(
       (db, snapshotId) => {
-        db.insertNode(snapshotId, { id: "f.ts", kind: "file", name: "" });
+        db.insertNodes(snapshotId, [{ id: "f.ts", kind: "file", name: "" }]);
       },
       { rules: [] },
     );
@@ -294,7 +297,7 @@ describe("runGraphCheckCommand", () => {
   it("throws a helpful error when --baseline ref is unknown", async () => {
     fixture = await createFixture(
       (db, snapshotId) => {
-        db.insertNode(snapshotId, { id: "f.ts", kind: "file", name: "" });
+        db.insertNodes(snapshotId, [{ id: "f.ts", kind: "file", name: "" }]);
       },
       { rules: [] },
     );
@@ -310,8 +313,8 @@ describe("runGraphCheckCommand", () => {
   it("emits structured JSON when requested", async () => {
     fixture = await createFixture(
       (db, snapshotId) => {
-        db.insertNode(snapshotId, { id: "f.ts", kind: "file", name: "" });
-        db.insertMetric(snapshotId, { nodeId: "f.ts", name: "loc", value: 200 });
+        db.insertNodes(snapshotId, [{ id: "f.ts", kind: "file", name: "" }]);
+        db.insertMetrics(snapshotId, [{ nodeId: "f.ts", name: "loc", value: 200 }]);
       },
       { rules: [{ id: "r", type: "metric-max", metric: "loc", max: 100 }] },
     );

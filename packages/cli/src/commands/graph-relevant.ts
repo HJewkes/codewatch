@@ -3,11 +3,10 @@ import {
   compilePatterns,
   computePageRank,
   matchesAny,
-  openDatabase,
   type GraphNode,
   type NodeRole,
   type SnapshotRow,
-} from "@codewatch/graph";
+} from "@titan-design/code-graph";
 import { formatError } from "../utils/output.js";
 import {
   buildExplanations,
@@ -18,6 +17,7 @@ import {
   formatGraphRelevantJson,
   formatGraphRelevantText,
 } from "./graph-relevant-format.js";
+import { openGraphStore } from "../utils/graph-store.js";
 
 export { formatGraphRelevantJson, formatGraphRelevantText };
 
@@ -66,7 +66,7 @@ const CHARS_PER_TOKEN = 4;
 export function runGraphRelevantCommand(
   options: GraphRelevantCommandOptions,
 ): GraphRelevantResult {
-  const db = openDatabase(options.db);
+  const db = openGraphStore(options.db);
   try {
     const snapshot =
       options.snapshot !== undefined

@@ -6,14 +6,14 @@ import { join } from "node:path";
 import {
   embedSnapshot,
   listEmbeddableSymbols,
-  openDatabase,
-  runGraphIndex,
-  type Embedder,
-} from "@codewatch/graph";
+  openCodeGraph,
+} from "@titan-design/code-graph";
+import type { Embedder } from "@titan-design/embed";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createReadApi, READ_API_VERSION, type GraphReadApi } from "../reader.js";
 import { buildMcpServer } from "../../mcp/server.js";
+import { runGraphIndex } from "../../commands/graph-index-run.js";
 
 const A_SRC = ["/** Increments. */", "export function foo(a: number): number {", "  return a + 1;", "}"].join("\n");
 const B_SRC = ['import { foo } from "./a.js";', "export const two = foo(1);"].join("\n");
@@ -23,11 +23,12 @@ const SYMBOL = "src/a.ts#foo";
 /** Deterministic hash-based embedder: identical text → identical vector. */
 const fakeEmbedder: Embedder = {
   model: "fake-model",
-  embed: (texts) =>
+  dimensions: 8,
+  embed: (texts: string[]) =>
     Promise.resolve(
       texts.map((t) => {
         const bytes = createHash("sha256").update(t, "utf8").digest();
-        return Float32Array.from(bytes.subarray(0, 8), (b) => b / 255 - 0.5);
+        return Array.from(bytes.subarray(0, 8), (byte) => byte / 255 - 0.5);
       }),
     ),
 };
@@ -44,7 +45,7 @@ beforeAll(async () => {
   writeFileSync(join(dir, "src", "b.ts"), B_SRC);
   const result = await runGraphIndex({ rootDir: dir, ref: "test", computeChurn: false, detectRenames: false });
   dbPath = result.dbPath;
-  const db = openDatabase(dbPath);
+  const db = openCodeGraph(dbPath);
   await embedSnapshot(db, result.snapshotId, fakeEmbedder);
   fooEmbedText = listEmbeddableSymbols(db, result.snapshotId).find((s) => s.id === SYMBOL)!.text;
   db.close();

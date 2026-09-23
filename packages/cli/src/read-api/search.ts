@@ -1,4 +1,7 @@
-import { parseSymbolId, type GraphNode } from "@codewatch/graph";
+import {
+  parseSymbolId,
+  type GraphNode,
+} from "@titan-design/code-graph";
 import type { SearchHit } from "./contract.js";
 
 /**

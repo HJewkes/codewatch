@@ -1,4 +1,4 @@
-import { resolveBarrelEdges } from "@codewatch/graph";
+import { resolveBarrelEdges } from "@titan-design/code-graph";
 import type { RenderInput } from "./types.js";
 
 /**

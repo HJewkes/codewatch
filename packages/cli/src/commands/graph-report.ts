@@ -3,12 +3,11 @@ import * as fs from "node:fs/promises";
 import {
   canonicalMetricName,
   compilePatterns,
-  openDatabase,
   windowSuffix,
-  type GraphDatabase,
+  type CodeGraphStore,
   type GraphMetric,
   type SnapshotRow,
-} from "@codewatch/graph";
+} from "@titan-design/code-graph";
 import type { ChurnWindow } from "@titan-design/code-graph/history";
 import { parseChurnWindow } from "../utils/churn-window.js";
 import { formatError, snapshotVersionMismatchWarning } from "../utils/output.js";
@@ -42,6 +41,7 @@ import type {
   GraphReportResult,
   HotspotRow,
 } from "./graph-report-types.js";
+import { openGraphStore } from "../utils/graph-store.js";
 
 export { formatGraphReportJson, formatGraphReportMarkdown };
 export type {
@@ -113,7 +113,7 @@ function emptyWindowHint(windowDays: ChurnWindow): string {
 export function runGraphReportCommand(
   options: GraphReportCommandOptions,
 ): GraphReportResult {
-  const db = openDatabase(options.db);
+  const db = openGraphStore(options.db);
   try {
     const snapshot = pickSnapshot(db, options.snapshot);
     const limit = options.limit ?? DEFAULT_LIMIT;
@@ -172,7 +172,7 @@ function canonicalizeMetricNames(metrics: GraphMetric[]): GraphMetric[] {
 }
 
 function computeDrift(
-  db: GraphDatabase,
+  db: CodeGraphStore,
   options: GraphReportCommandOptions,
   currentCtx: ReportContext,
   current: GraphReportResult,
@@ -213,7 +213,7 @@ function computeDrift(
   });
 }
 
-function pickSnapshot(db: GraphDatabase, id: number | undefined): SnapshotRow {
+function pickSnapshot(db: CodeGraphStore, id: number | undefined): SnapshotRow {
   const snapshot =
     id !== undefined ? db.getSnapshot(id) : (db.listSnapshots({ limit: 1 })[0] ?? null);
   if (!snapshot) throw new Error("No snapshot found");
@@ -221,7 +221,7 @@ function pickSnapshot(db: GraphDatabase, id: number | undefined): SnapshotRow {
 }
 
 function resolveSnapshot(
-  db: GraphDatabase,
+  db: CodeGraphStore,
   refOrId: string,
   currentId?: number,
 ): SnapshotRow {

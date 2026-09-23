@@ -11,7 +11,7 @@ import {
   type GraphEdge,
   type GraphMetric,
   type GraphNode,
-} from "@codewatch/graph";
+} from "@titan-design/code-graph";
 import type {
   BusFactorRow,
   CentralRow,

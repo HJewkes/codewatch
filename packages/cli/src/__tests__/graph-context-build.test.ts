@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { GraphNode } from "@codewatch/graph";
+import type { GraphNode } from "@titan-design/code-graph";
 import {
   buildContextDossier,
   type ContextBuildInput,

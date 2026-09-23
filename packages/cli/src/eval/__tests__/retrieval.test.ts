@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
 import {
-  openDatabase,
-  type GraphDatabase,
+  openCodeGraph,
+  type CodeGraphStore,
   type GraphEdge,
   type GraphNode,
   type NodeRole,
-} from "@codewatch/graph";
+} from "@titan-design/code-graph";
 import { generateRetrievalSuite } from "../retrieval.js";
 import { gradeRetrieval } from "../retrieval-grader.js";
 import type { RetrievalTask } from "../retrieval-types.js";
@@ -31,7 +31,7 @@ function imp(srcId: string, dstId: string): GraphEdge {
   return { srcId, dstId, kind: "imports", attrs: { specifier: dstId, weight: 1 } };
 }
 
-function seedGraph(db: GraphDatabase): void {
+function seedGraph(db: CodeGraphStore): void {
   const snap = db.createSnapshot({ ref: "HEAD", indexVersion: "test" });
   db.insertNodes(snap, [
     file("src/a.ts"),
@@ -68,7 +68,7 @@ function stratumOf(t: RetrievalTask, fileId: string): string {
 
 describe("generateRetrievalSuite", () => {
   function suiteOf() {
-    const db = openDatabase(":memory:");
+    const db = openCodeGraph(":memory:");
     seedGraph(db);
     const suite = generateRetrievalSuite(db, { cap: 10 });
     db.close();

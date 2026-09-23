@@ -1,4 +1,4 @@
-import { parseSymbolId } from "@codewatch/graph";
+import { parseSymbolId } from "@titan-design/code-graph";
 import type { Stratum } from "./types.js";
 
 /**

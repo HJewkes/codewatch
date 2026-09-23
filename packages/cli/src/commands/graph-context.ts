@@ -4,14 +4,13 @@ import {
   computePageRank,
   computeRelevance,
   detectGitToplevel,
-  openDatabase,
   parseSymbolId,
-  type GraphDatabase,
+  type CodeGraphStore,
   type GraphEdge,
   type GraphMetric,
   type GraphNode,
   type SnapshotRow,
-} from "@codewatch/graph";
+} from "@titan-design/code-graph";
 import { formatError } from "../utils/output.js";
 import {
   buildContextDossier,
@@ -25,6 +24,7 @@ import {
   type ContextBundle,
 } from "./graph-context-bundle.js";
 import { collectNodeMetrics } from "./dashboard-node-metrics.js";
+import { openGraphStore } from "../utils/graph-store.js";
 
 const DEFAULT_WINDOW_DAYS = 30;
 
@@ -54,7 +54,7 @@ function fileIdOfTarget(node: GraphNode, kind: "file" | "symbol"): string {
 }
 
 /** Resolve a snapshot by id, else the latest. */
-function pickSnapshot(db: GraphDatabase, id: number | undefined): SnapshotRow {
+function pickSnapshot(db: CodeGraphStore, id: number | undefined): SnapshotRow {
   const snapshot =
     id !== undefined ? db.getSnapshot(id) : (db.listSnapshots({ limit: 1 })[0] ?? null);
   if (!snapshot) throw new Error("No snapshot found");
@@ -110,7 +110,7 @@ function refEdgesOf(edges: readonly GraphEdge[]): { srcId: string; dstId: string
 
 /** Assemble the dossier and retain the weighted edges + coverage a bundle needs. */
 function loadContext(
-  db: GraphDatabase,
+  db: CodeGraphStore,
   target: string,
   options: GraphContextCommandOptions,
 ): LoadedContext {
@@ -166,7 +166,7 @@ export function runGraphContextCommand(
   target: string,
   options: GraphContextCommandOptions,
 ): ContextDossier {
-  const db = openDatabase(options.db);
+  const db = openGraphStore(options.db);
   try {
     return loadContext(db, target, options).dossier;
   } finally {
@@ -180,7 +180,7 @@ export function runGraphContextCommand(
  * pull. `runGraphContextBundle` is the one-shot CLI wrapper over it.
  */
 export function contextBundleFromDb(
-  db: GraphDatabase,
+  db: CodeGraphStore,
   target: string,
   options: GraphContextCommandOptions,
   repoRoot: string | null,
@@ -203,7 +203,7 @@ export function runGraphContextBundle(
   target: string,
   options: GraphContextCommandOptions,
 ): ContextBundle {
-  const db = openDatabase(options.db);
+  const db = openGraphStore(options.db);
   try {
     return contextBundleFromDb(db, target, options, detectGitToplevel(process.cwd()));
   } finally {

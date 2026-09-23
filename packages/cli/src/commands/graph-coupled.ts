@@ -3,9 +3,8 @@ import chalk from "chalk";
 import {
   compilePatterns,
   matchesAny,
-  openDatabase,
   type SnapshotRow,
-} from "@codewatch/graph";
+} from "@titan-design/code-graph";
 import {
   computeChangeCoupling,
   couplingFor,
@@ -16,6 +15,7 @@ import {
 import { describeChurnWindow, parseChurnWindow } from "../utils/churn-window.js";
 import { formatError, formatWarning } from "../utils/output.js";
 import { padLeft, padRight } from "../utils/table.js";
+import { openGraphStore } from "../utils/graph-store.js";
 
 export interface GraphCoupledCommandOptions {
   db: string;
@@ -106,7 +106,7 @@ export function runGraphCoupledCommand(
 function pickSnapshot(
   options: GraphCoupledCommandOptions,
 ): SnapshotRow | null {
-  const db = openDatabase(options.db);
+  const db = openGraphStore(options.db);
   try {
     if (options.snapshot !== undefined) return db.getSnapshot(options.snapshot);
     return db.listSnapshots({ limit: 1 })[0] ?? null;
@@ -116,7 +116,7 @@ function pickSnapshot(
 }
 
 function collectFileIds(dbPath: string, snapshotId: number): Set<string> {
-  const db = openDatabase(dbPath);
+  const db = openGraphStore(dbPath);
   try {
     const out = new Set<string>();
     for (const node of db.listNodes(snapshotId)) {

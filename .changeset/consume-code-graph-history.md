@@ -1,5 +1,4 @@
 ---
-"@codewatch/graph": minor
 "@codewatch/cli": patch
 ---
 

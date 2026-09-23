@@ -1,9 +1,9 @@
 import type {
   DeepAst,
-  Embedder,
   SimilarCandidate,
   SimilarResult,
-} from "@codewatch/graph";
+} from "@titan-design/code-graph";
+import type { Embedder } from "@titan-design/embed";
 import type {
   BundleEdge,
   BundleEdges,

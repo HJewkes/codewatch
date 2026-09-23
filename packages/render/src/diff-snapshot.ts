@@ -1,11 +1,11 @@
 import {
   diffSnapshots,
-  openDatabase,
-  type GraphDatabase,
+  openCodeGraph,
+  type CodeGraphStore,
   type GraphEdge,
   type GraphNode,
   type SnapshotRow,
-} from "@codewatch/graph";
+} from "@titan-design/code-graph";
 import type {
   EdgeStatus,
   NodeStatus,
@@ -22,7 +22,7 @@ export interface LoadDiffOptions {
 export async function loadDiff(
   options: LoadDiffOptions,
 ): Promise<RenderInput> {
-  const db = openDatabase(options.dbPath);
+  const db = openCodeGraph(options.dbPath);
   try {
     const fromSnapshot = resolveSnapshot(db, options.from, "from");
     const toSnapshot = resolveSnapshot(db, options.to, "to");
@@ -67,7 +67,7 @@ export async function loadDiff(
 }
 
 function resolveSnapshot(
-  db: GraphDatabase,
+  db: CodeGraphStore,
   spec: string,
   flag: string,
 ): SnapshotRow {

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { tmpdir } from "node:os";
-import { openDatabase } from "@codewatch/graph";
+import { openCodeGraph } from "@titan-design/code-graph";
 
 interface Project {
   rootDir: string;
@@ -50,12 +50,12 @@ describe("runGraphIndexCommand", () => {
     expect(result.dbPath).toBe(project.dbPath);
     expect(result.durationMs.total).toBeGreaterThan(0);
 
-    const db = openDatabase(project.dbPath);
+    const db = openCodeGraph(project.dbPath);
     try {
       const snapshots = db.listSnapshots();
       expect(snapshots).toHaveLength(1);
       expect(snapshots[0]!.ref).toBe("wd");
-      expect(snapshots[0]!.indexVersion).toBe("0.12.0");
+      expect(snapshots[0]!.indexVersion).toBe("0.15.0");
 
       const aFile = db.getNode(result.snapshotId, "src/a.ts");
       const bFile = db.getNode(result.snapshotId, "src/b.ts");
@@ -99,7 +99,7 @@ describe("runGraphIndexCommand", () => {
       ref: "HEAD",
     });
 
-    const db = openDatabase(project.dbPath);
+    const db = openCodeGraph(project.dbPath);
     try {
       const snapshots = db.listSnapshots();
       expect(snapshots.length).toBeGreaterThanOrEqual(2);

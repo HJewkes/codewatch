@@ -2,13 +2,13 @@ import {
   computePageRank,
   computeSymbolConsumers,
   parseSymbolId,
-  type GraphDatabase,
+  type CodeGraphStore,
   type GraphEdge,
   type GraphMetric,
   type GraphNode,
   type ReferenceEdgeLite,
   type SnapshotRow,
-} from "@codewatch/graph";
+} from "@titan-design/code-graph";
 import {
   buildContextDossier,
   type ContextBuildInput,
@@ -55,7 +55,7 @@ interface Assembled {
   consumersBySymbol: Map<string, string[]>;
 }
 
-function pickSnapshot(db: GraphDatabase, id: number | undefined): SnapshotRow {
+function pickSnapshot(db: CodeGraphStore, id: number | undefined): SnapshotRow {
   const snap =
     id !== undefined ? db.getSnapshot(id) : (db.listSnapshots({ limit: 1 })[0] ?? null);
   if (!snap) throw new Error("No snapshot found");
@@ -98,7 +98,7 @@ function groupBy<T>(items: readonly T[], key: (t: T) => string | null): Map<stri
   return out;
 }
 
-function assemble(db: GraphDatabase, snap: SnapshotRow): Assembled {
+function assemble(db: CodeGraphStore, snap: SnapshotRow): Assembled {
   const nodes = db.listNodes(snap.id, { includeSymbols: true });
   const fileNodes = nodes.filter((n) => n.kind !== "symbol");
   const fileIds = new Set(fileNodes.filter((n) => n.kind === "file").map((n) => n.id));
@@ -289,7 +289,7 @@ function tally(tasks: readonly OracleTask[]): OracleSuite["counts"] {
 }
 
 /** Generate the full deterministic comprehension suite for one snapshot. */
-export function generateSuite(db: GraphDatabase, options: GenerateOptions = {}): OracleSuite {
+export function generateSuite(db: CodeGraphStore, options: GenerateOptions = {}): OracleSuite {
   const cap = options.perTypeCap ?? DEFAULT_PER_TYPE_CAP;
   const a = assemble(db, pickSnapshot(db, options.snapshotId));
   const tasks = [
