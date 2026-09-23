@@ -48,8 +48,8 @@ importers:
         specifier: ^1.29.0
         version: 1.29.0(zod@4.3.6)
       '@titan-design/code-graph':
-        specifier: ^0.6.0
-        version: 0.6.0
+        specifier: ^0.7.0
+        version: 0.7.0
       '@titan-design/code-parser':
         specifier: ^0.1.0
         version: 0.1.0(web-tree-sitter@0.26.6)
@@ -63,8 +63,8 @@ importers:
         specifier: ^0.1.0
         version: 0.1.0(web-tree-sitter@0.26.6)(zod@4.3.6)
       '@titan-design/style-checker':
-        specifier: ^0.2.0
-        version: 0.2.0(web-tree-sitter@0.26.6)(zod@4.3.6)
+        specifier: ^0.3.0
+        version: 0.3.0(web-tree-sitter@0.26.6)(zod@4.3.6)
       '@titan-design/style-profile':
         specifier: ^0.1.0
         version: 0.1.0(zod@4.3.6)
@@ -842,8 +842,8 @@ packages:
     resolution: {integrity: sha512-3JVcQdvBgdX8pj9XuTVFrXsbcGXyYnI/dpjg8/mIvfkWJoQvxMaQe7ykl2+rxHl3U1ikquMZryQlIVyaspb2pw==}
     engines: {node: '>=20'}
 
-  '@titan-design/code-graph@0.6.0':
-    resolution: {integrity: sha512-0JvNtxgfSpsf9GU9qlRNsRanAdUahcLCx7XArwUe5UEvVDp9wR+cKF6ZFrZhTLGaZNLaEsCKAIMVvYBQKd7qFA==}
+  '@titan-design/code-graph@0.7.0':
+    resolution: {integrity: sha512-MTsDeRyBrAxx1t0Lj1G+CQ4hqNFS8DWtc/8Gsi6MIeLtqhWqFf3ENFPk+IDi1spY68oZd4h47h9FCAX7hrUyyw==}
     engines: {node: '>=20'}
 
   '@titan-design/code-parser@0.1.0':
@@ -887,8 +887,8 @@ packages:
     peerDependencies:
       zod: ^4.0.0
 
-  '@titan-design/style-checker@0.2.0':
-    resolution: {integrity: sha512-cbf74cEn/neRg8LrgUM214tXmHWqRXkgU+bF9Wz1arf3Nbjxad3ZwjPkTrHOM35BMQzLkisECKWl4LFfcDLNrg==}
+  '@titan-design/style-checker@0.3.0':
+    resolution: {integrity: sha512-VYB8J50qm76jkmrJbrF7r/1suhcfRwb9yuts+daC7db0Nvx30KeJzTmq52Zc97jsYMtHCV8+oNP4JKAx71e61Q==}
     engines: {node: '>=20'}
     peerDependencies:
       zod: ^4.0.0
@@ -2918,7 +2918,7 @@ snapshots:
       - '@huggingface/transformers'
       - tree-sitter
 
-  '@titan-design/code-graph@0.6.0':
+  '@titan-design/code-graph@0.7.0':
     dependencies:
       '@titan-design/code-parser': 0.1.0(web-tree-sitter@0.26.6)
       '@titan-design/embed': 0.2.0
@@ -2969,7 +2969,7 @@ snapshots:
       - tree-sitter
       - web-tree-sitter
 
-  '@titan-design/style-checker@0.2.0(web-tree-sitter@0.26.6)(zod@4.3.6)':
+  '@titan-design/style-checker@0.3.0(web-tree-sitter@0.26.6)(zod@4.3.6)':
     dependencies:
       '@titan-design/style-analyzer': 0.1.0(web-tree-sitter@0.26.6)(zod@4.3.6)
       '@titan-design/style-profile': 0.1.0(zod@4.3.6)

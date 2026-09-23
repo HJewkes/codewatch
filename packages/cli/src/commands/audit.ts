@@ -2,27 +2,24 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import {
   detectGitToplevel,
-  externalToFinding,
   runChecks,
   toFindings,
   type Finding,
 } from "@titan-design/code-graph";
-import { runRuffAudit, type CheckDiagnostic, type RunnerResult } from "@titan-design/style-checker";
 import { openGraphStore } from "../utils/graph-store.js";
 import { collectSnapshotStats, type SnapshotStats } from "./audit-collect.js";
 import { AUDIT_RULES } from "./audit-rules.js";
+import { PYTHON_TOOLS, runPythonTools, type PythonRunners, type PythonTool } from "./audit-runners.js";
 import { buildScoreTable, type ScoreTable } from "./audit-score.js";
 import { runGraphIndex } from "./graph-index-run.js";
-
-export type RuffRunner = (files: string[], options: { cwd: string }) => Promise<RunnerResult>;
 
 export interface AuditCommandOptions {
   path: string;
   db?: string;
   out?: string;
   noRuff?: boolean;
-  /** Replaces the real ruff run; tests inject one so ruff need not be installed. */
-  runRuff?: RuffRunner;
+  /** Replaces the real tool runs; tests inject them so the Python tools need not be installed. */
+  runners?: PythonRunners;
 }
 
 export interface AuditCommandResult {
@@ -36,19 +33,6 @@ export interface AuditCommandResult {
   durationMs: number;
 }
 
-/** The ruff side of the merge: one finding per diagnostic, error stays error, everything else is a warning. */
-export function ruffToFinding(d: CheckDiagnostic): Finding {
-  return externalToFinding({
-    tool: "ruff",
-    rule: d.rule,
-    file: d.file,
-    line: d.line,
-    endLine: d.endLine,
-    message: d.message,
-    severity: d.severity === "error" ? "error" : "warning",
-  });
-}
-
 export function sortFindings(findings: readonly Finding[]): Finding[] {
   return [...findings].sort(
     (a, b) =>
@@ -58,23 +42,10 @@ export function sortFindings(findings: readonly Finding[]): Finding[] {
   );
 }
 
-async function ruffFindings(
-  options: AuditCommandOptions,
-  pythonFiles: string[],
-  idRoot: string,
-  warnings: string[],
-): Promise<Finding[]> {
-  if (options.noRuff) {
-    warnings.push("ruff skipped (--no-ruff)");
-    return [];
-  }
-  if (pythonFiles.length === 0) return [];
-  const run = options.runRuff ?? runRuffAudit;
-  const result = await run(pythonFiles, { cwd: idRoot });
-  for (const failure of result.failures) {
-    warnings.push(failure.kind === "spawn-failed" ? "ruff not found on PATH; ruff findings skipped" : `ruff: ${failure.message}`);
-  }
-  return result.diagnostics.map(ruffToFinding);
+function selectedTools(options: AuditCommandOptions, warnings: string[]): PythonTool[] {
+  if (!options.noRuff) return [...PYTHON_TOOLS];
+  warnings.push("ruff skipped (--no-ruff)");
+  return PYTHON_TOOLS.filter((tool) => tool !== "ruff");
 }
 
 function graphFindings(dbPath: string, snapshotId: number): { findings: Finding[]; stats: SnapshotStats } {
@@ -103,8 +74,10 @@ export async function runAuditCommand(options: AuditCommandOptions): Promise<Aud
   const warnings: string[] = [];
   const index = await runGraphIndex({ rootDir: root, dbPath, onNotice: (line) => warnings.push(line) });
   const graph = graphFindings(dbPath, index.snapshotId);
-  const ruff = await ruffFindings(options, graph.stats.pythonFiles, idRoot, warnings);
-  const findings = sortFindings([...graph.findings, ...ruff]);
+  const tools = selectedTools(options, warnings);
+  const external = await runPythonTools(tools, graph.stats.pythonFiles, idRoot, options.runners);
+  warnings.push(...external.warnings);
+  const findings = sortFindings([...graph.findings, ...external.findings]);
   const scores = buildScoreTable(graph.stats.files, graph.stats.symbols, findings);
   writeOutputs(outDir, findings, scores);
   const durationMs = performance.now() - started;
