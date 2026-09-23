@@ -68,7 +68,7 @@ export function registerGraphEmbed(graphCmd: Command): void {
     .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")
     .option("--snapshot <id>", "Snapshot id (default: latest)")
     .option("--model <name>", "Embedding model (default: nomic-embed-text)")
-    .option("--ollama-url <url>", "Ollama base URL (default: http://localhost:11434)")
+    .option("--ollama-url <url>", "Ollama base URL (default: http://127.0.0.1:11434)")
     .option("--json", "Output structured JSON")
     .action(
       async (options: {

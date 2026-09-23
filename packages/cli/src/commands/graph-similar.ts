@@ -83,7 +83,7 @@ export function registerGraphSimilar(graphCmd: Command): void {
     .option("--snapshot <id>", "Snapshot id (default: latest)")
     .option("-k, --limit <n>", "Number of candidates to return", "10")
     .option("--model <name>", "Embedding model (default: nomic-embed-text)")
-    .option("--ollama-url <url>", "Ollama base URL (default: http://localhost:11434)")
+    .option("--ollama-url <url>", "Ollama base URL (default: http://127.0.0.1:11434)")
     .option("--json", "Output structured JSON")
     .action(
       async (
