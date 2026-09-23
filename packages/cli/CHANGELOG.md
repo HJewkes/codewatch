@@ -1,5 +1,12 @@
 # @codewatch/cli
 
+## 0.4.0
+
+### Minor Changes
+
+- 48938ca: Add `codewatch audit <path>`: indexes the repo, runs a built-in audit rule set over code-graph's symbol and file metrics plus the style-checker ruff audit rules, and writes `findings.jsonl` and a per-file and per-function `scores.json` ranked against the repo's own distribution. Bumps `@titan-design/code-graph` to 0.5.0 and `@titan-design/style-checker` to 0.2.0.
+- d8e6b48: Add two audit rules over `@titan-design/code-graph` 0.6.0's new per-function metrics: `symbol-loc` (flags functions over 60 lines) and `symbol-nesting` (flags functions with block nesting deeper than 4). Bumps `@titan-design/code-graph` to 0.6.0.
+
 ## 0.3.0
 
 ### Minor Changes
