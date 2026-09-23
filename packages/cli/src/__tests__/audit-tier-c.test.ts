@@ -52,31 +52,36 @@ const SWALLOWING_SRC = `def load(path):
     return ""
 `;
 
-const FILLER_COUNT = 22;
-const MODERATE_COUNT = 3;
-
-function moderateSrc(i: number): string {
-  return `import logging
-
-
-def moderate_${i}(x):
-    # Sensor units differ by vendor.
-    y = x + ${i}
-    z = y * 2
-    w = z - 1
-    v = w + y
-    try:
-        u = v / x
-    except ZeroDivisionError:
-        logging.warning("zero reading")
-        u = 0
-    return u + v
+const BALANCED_SRC = `def balanced(x):
+    # Readings arrive in tenths of a degree.
+    # Callers expect whole degrees.
+    y = x / 10
+    return round(y)
 `;
-}
 
-function fillerSrc(i: number): string {
-  return `def filler_${i}(x):\n    y = x + ${i}\n    return y * 2\n`;
-}
+const SPARSE_EXCEPT_SRC = `import logging
+
+
+def sparse(values):
+    total = 0
+    count = 0
+    for value in values:
+        total += value
+        count += 1
+    mean = total / max(count, 1)
+    spread = 0
+    for value in values:
+        spread += abs(value - mean)
+    scale = spread / max(count, 1)
+    ratio = scale / max(mean, 1)
+    limit = ratio * 2
+    try:
+        bound = limit / scale
+    except ZeroDivisionError:
+        logging.warning("flat series")
+        bound = 0
+    return bound
+`;
 
 let dir: string;
 let findings: Finding[];
@@ -90,8 +95,8 @@ beforeAll(async () => {
   writeFileSync(join(dir, "pkg", "narrated.py"), NARRATED_SRC);
   writeFileSync(join(dir, "pkg", "commented.py"), COMMENTED_SRC);
   writeFileSync(join(dir, "pkg", "swallowing.py"), SWALLOWING_SRC);
-  for (let i = 0; i < FILLER_COUNT; i++) writeFileSync(join(dir, "pkg", `filler_${i}.py`), fillerSrc(i));
-  for (let i = 0; i < MODERATE_COUNT; i++) writeFileSync(join(dir, "pkg", `moderate_${i}.py`), moderateSrc(i));
+  writeFileSync(join(dir, "pkg", "balanced.py"), BALANCED_SRC);
+  writeFileSync(join(dir, "pkg", "sparse_except.py"), SPARSE_EXCEPT_SRC);
   const result = await runAuditCommand({ path: dir, noRuff: true, runners: SILENT_RUNNERS });
   findings = result.findings;
 });
@@ -116,15 +121,15 @@ describe("codewatch audit Tier C rules", () => {
     expect(flagged("symbol-narrating-comments")).toEqual(["pkg/narrated.py#tally"]);
   });
 
-  it("flags the two comment-heavy functions above the 90th percentile as symbol-comment-ratio, not the lightly commented ones", () => {
-    expect(flagged("symbol-comment-ratio")).toEqual(["pkg/commented.py#explained", "pkg/narrated.py#tally"]);
+  it("flags the function with more comment lines than body lines as symbol-comment-ratio, not one with equal counts", () => {
+    expect(flagged("symbol-comment-ratio")).toEqual(["pkg/commented.py#explained"]);
   });
 
   it("flags the file whose handlers only pass as file-swallowed-except", () => {
     expect(flagged("file-swallowed-except")).toEqual(["pkg/swallowing.py"]);
   });
 
-  it("flags the file dense with except handlers as file-except-density, not the files with one handler in a longer body", () => {
+  it("flags the file with over 5 except handlers per 100 lines as file-except-density, not one with a handler in a longer body", () => {
     expect(flagged("file-except-density")).toEqual(["pkg/swallowing.py"]);
   });
 
