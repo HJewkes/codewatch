@@ -3,7 +3,8 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { CheckDiagnostic, RunnerResult } from "@titan-design/style-checker";
-import { runAuditCommand, type RuffRunner } from "../commands/audit.js";
+import { runAuditCommand } from "../commands/audit.js";
+import type { PythonRunner } from "../commands/audit-runners.js";
 import { buildScoreTable, percentileRanks } from "../commands/audit-score.js";
 
 const TANGLED_SRC = `def tangled(items, flag, limit):
@@ -41,7 +42,7 @@ const RECORDED_RUFF: CheckDiagnostic = {
   fixable: false,
 };
 
-function recordingRunner(diagnostics: CheckDiagnostic[]): RuffRunner & { calls: Array<{ files: string[]; cwd: string }> } {
+function recordingRunner(diagnostics: CheckDiagnostic[]): PythonRunner & { calls: Array<{ files: string[]; cwd: string }> } {
   const calls: Array<{ files: string[]; cwd: string }> = [];
   const runner = (files: string[], options: { cwd: string }): Promise<RunnerResult> => {
     calls.push({ files, cwd: options.cwd });
@@ -85,7 +86,7 @@ describe("codewatch audit", () => {
   it("merges a ruff diagnostic as a ruff finding whose signal is the ruff code", async () => {
     const runner = recordingRunner([RECORDED_RUFF]);
 
-    const result = await runAuditCommand({ path: dir, runRuff: runner });
+    const result = await runAuditCommand({ path: dir, runners: { ruff: runner } });
 
     const ruffFinding = result.findings.find((f) => f.tool === "ruff");
     expect(ruffFinding).toMatchObject({ path: "pkg/tangled.py", lineStart: 4, signal: "FBT003", severity: "warning" });
@@ -97,7 +98,7 @@ describe("codewatch audit", () => {
   it("--no-ruff never invokes the ruff runner", async () => {
     const runner = recordingRunner([RECORDED_RUFF]);
 
-    const result = await runAuditCommand({ path: dir, noRuff: true, runRuff: runner });
+    const result = await runAuditCommand({ path: dir, noRuff: true, runners: { ruff: runner } });
 
     expect(runner.calls).toHaveLength(0);
     expect(result.findings.some((f) => f.tool === "ruff")).toBe(false);
