@@ -11,6 +11,8 @@ function maxRule(id: string, metric: string, max: number, kind: NodeKind): Metri
 export const AUDIT_RULES: readonly CheckRule[] = [
   maxRule("symbol-cognitive", "symbol_cognitive", 15, "symbol"),
   maxRule("symbol-cyclomatic", "symbol_cyclomatic", 10, "symbol"),
+  maxRule("symbol-loc", "symbol_loc", 60, "symbol"),
+  maxRule("symbol-nesting", "symbol_max_nesting", 4, "symbol"),
   maxRule("file-loc", "loc", 500, "file"),
   maxRule("file-nesting", "max_nesting_depth", 4, "file"),
   maxRule("file-lcom4", "lcom4_max", 2, "file"),
