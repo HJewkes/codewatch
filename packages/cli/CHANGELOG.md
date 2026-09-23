@@ -1,5 +1,11 @@
 # @codewatch/cli
 
+## 0.3.0
+
+### Minor Changes
+
+- a6bca7e: Add `graph conventions` (convention map of capability areas with cached LLM summaries, `--query` ranking), the `get_conventions` MCP tool, and read API 1.3.0 `getConventions`/`findConventions`, consuming @titan-design/code-graph 0.4.0.
+
 ## 0.2.0
 
 ### Minor Changes
