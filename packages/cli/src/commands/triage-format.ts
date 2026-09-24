@@ -12,6 +12,11 @@ export interface TriageRunSettings {
 
 const kTokens = (n: number): string => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
 
+function reuseLine({ verdicts }: TriagePlan): string {
+  const source = verdicts.from === undefined ? "no earlier snapshot holds verdicts" : `${verdicts.carried} carried from snapshot ${verdicts.from}`;
+  return `${verdicts.reused.length} questions skipped for an existing verdict (${source}).`;
+}
+
 function header(plan: TriagePlan, settings: TriageRunSettings): string[] {
   const { selection, bundles } = plan;
   const questions = bundles.reduce((n, b) => n + b.questions.length, 0);
@@ -20,6 +25,7 @@ function header(plan: TriagePlan, settings: TriageRunSettings): string[] {
   return [
     `codewatch triage (dry run, no model calls): snapshot ${plan.snapshotId}, rank >= ${settings.minRank}, model ${settings.model}, concurrency ${settings.concurrency}`,
     `${selection.files.length} files, ${questions} questions. Left out: ${belowRank} below rank, ${testNote}, ${unscored} unscored; ${selection.ineligible} findings have no triage question.`,
+    reuseLine(plan),
   ];
 }
 

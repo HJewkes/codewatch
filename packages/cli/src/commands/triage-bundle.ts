@@ -19,7 +19,7 @@ export const OVERSIZE_CONTEXT = 20;
 export interface BundleQuestion {
   finding: Finding;
   question: TriageQuestion;
-  /** Hash of the excerpt this question was asked over, so an unchanged answer can be reused. */
+  /** Hash of this finding's own excerpt, so an unchanged answer can be reused. */
   excerptHash: string;
 }
 
@@ -160,15 +160,29 @@ function packUnits(units: readonly Unit[], textOf: TextOf, cap: number): Unit[][
   return groups.map((g) => g.units);
 }
 
-function toBundle(p: string, id: string, units: readonly Unit[], textOf: TextOf): TriageBundle {
+/** What a reader is shown for this finding alone: its range fitted to the cap, plus its caller when its question needs one. */
+function findingExcerpt(f: Finding, source: BundleSource, cap: number): ShownLines | undefined {
+  const text = source.lines(f.path);
+  if (!text) return undefined;
+  const textOf: TextOf = (x) => source.lines(x) ?? [];
+  const shown = fitRange(f.path, rangeOf(f, source.symbols(f.path), text.length), flaggedLines(f), textOf, cap);
+  const caller = questionFor(f.signal)?.needsCaller ? callerExcerpt(f, source, cap) : undefined;
+  return caller ? mergeShown(shown, caller) : shown;
+}
+
+/** One finding's excerpt hash, independent of which other findings share its bundle; audit stores it and carry-forward compares it. */
+export function findingExcerptHash(f: Finding, source: BundleSource, cap = DEFAULT_TOKEN_CAP): string | undefined {
+  const shown = findingExcerpt(f, source, cap);
+  return shown ? hashContent(renderShown(shown, (x) => source.lines(x) ?? [])) : undefined;
+}
+
+function toBundle(p: string, id: string, units: readonly Unit[], source: BundleSource, cap: number): TriageBundle {
   const shown = units.reduce((acc, u) => mergeShown(acc, u.shown), new Map() as ShownLines);
-  const excerpt = renderShown(shown, textOf);
-  const hash = hashContent(excerpt);
-  const questions = units.flatMap((u) => {
-    const excerptHash = u.shown.size > 0 ? hashContent(renderShown(u.shown, textOf)) : hash;
-    return u.findings.map((finding) => ({ finding, question: questionFor(finding.signal)!, excerptHash }));
-  });
-  return { id, path: p, shown, excerpt, tokens: estimateTokens(excerpt), hash, questions };
+  const excerpt = renderShown(shown, (x) => source.lines(x) ?? []);
+  const questions = units.flatMap((u) =>
+    u.findings.map((finding) => ({ finding, question: questionFor(finding.signal)!, excerptHash: findingExcerptHash(finding, source, cap)! })),
+  );
+  return { id, path: p, shown, excerpt, tokens: estimateTokens(excerpt), hash: hashContent(excerpt), questions };
 }
 
 /** One bundle per file, split by symbol when the excerpts together pass the token cap. */
@@ -184,7 +198,7 @@ export function buildBundles(files: readonly SelectedFile[], source: BundleSourc
     const parts = packUnits(buildUnits(file, source, cap), textOf, cap);
     parts.forEach((units, i) => {
       const id = parts.length > 1 ? `${file.path}:part${i + 1}` : file.path;
-      bundles.push(toBundle(file.path, id, units, textOf));
+      bundles.push(toBundle(file.path, id, units, source, cap));
     });
   }
   return { bundles, skippedFiles };
