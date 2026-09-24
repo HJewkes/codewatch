@@ -93,7 +93,8 @@ export function findingTarget(f: Finding): string {
   return f.symbol ? `${f.path}${lines} (${f.symbol})` : `${f.path}${lines}`;
 }
 
-export function renderQuestion(f: Finding, q: TriageQuestion): string {
+/** One question block, headed by the label the reader must answer it with. */
+export function renderQuestion(f: Finding, q: TriageQuestion, label = f.id): string {
   const meanings = VERDICTS.map((v) => `  ${v}: ${q.meanings[v]}`).join("\n");
-  return `[${f.id}] ${findingTarget(f)}\n${q.text}\nEvidence: ${f.evidence ?? f.signal}\n${meanings}`;
+  return `[${label}] ${findingTarget(f)}\n${q.text}\nEvidence: ${f.evidence ?? f.signal}\n${meanings}`;
 }
