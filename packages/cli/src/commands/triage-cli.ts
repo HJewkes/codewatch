@@ -14,8 +14,6 @@ interface TriageCliOptions {
   audit?: string;
 }
 
-export const RUN_NOT_AVAILABLE = "triage run lands in a later release; use --dry-run to see what it would send";
-
 function nonNegative(value: string): number {
   const n = Number(value);
   if (!Number.isFinite(n) || n < 0) throw new InvalidArgumentError("expected a number >= 0");
@@ -37,6 +35,23 @@ async function runDryRun(target: string, options: TriageCliOptions): Promise<voi
   console.log(formatTriagePlan(plan, { ...options, includeTests }));
 }
 
+async function runModelTriage(target: string, options: TriageCliOptions): Promise<void> {
+  const { runTriage } = await import("./triage.js");
+  const { formatTriageSummary } = await import("./triage-output.js");
+  const { report, outDir } = await runTriage({
+    ...options,
+    path: target,
+    auditDir: options.audit,
+    includeTests: options.includeTests ?? false,
+    onProgress: (line) => console.error(`codewatch triage: ${line}`),
+  });
+  for (const warning of report.warnings) console.error(`codewatch triage: ${warning}`);
+  if (report.controls.controlRun === "provisional") {
+    console.error(`codewatch triage: controls failed (${report.controls.failed.join(", ")}); every verdict in this run is marked provisional`);
+  }
+  console.log(formatTriageSummary(report, outDir).join("\n"));
+}
+
 export function registerTriageCommand(program: Command): void {
   program
     .command("triage <path>")
@@ -51,13 +66,8 @@ export function registerTriageCommand(program: Command): void {
     .option("--db <path>", "Graph database (default: <path>/.codewatch/graph.db)")
     .option("--audit <dir>", "Audit output to read (default: <path>/.codewatch/audit)")
     .action(async (target: string, options: TriageCliOptions) => {
-      if (!options.dryRun) {
-        console.error(`codewatch triage: ${RUN_NOT_AVAILABLE}`);
-        process.exitCode = 2;
-        return;
-      }
       try {
-        await runDryRun(target, options);
+        await (options.dryRun ? runDryRun(target, options) : runModelTriage(target, options));
       } catch (err) {
         console.error(formatError(err instanceof Error ? err.message : String(err)));
         process.exitCode = 1;
