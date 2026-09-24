@@ -48,8 +48,8 @@ importers:
         specifier: ^1.29.0
         version: 1.29.0(zod@4.3.6)
       '@titan-design/code-graph':
-        specifier: ^0.7.0
-        version: 0.7.0
+        specifier: ^0.8.0
+        version: 0.8.0
       '@titan-design/code-parser':
         specifier: ^0.1.0
         version: 0.1.0(web-tree-sitter@0.26.6)
@@ -842,8 +842,8 @@ packages:
     resolution: {integrity: sha512-3JVcQdvBgdX8pj9XuTVFrXsbcGXyYnI/dpjg8/mIvfkWJoQvxMaQe7ykl2+rxHl3U1ikquMZryQlIVyaspb2pw==}
     engines: {node: '>=20'}
 
-  '@titan-design/code-graph@0.7.0':
-    resolution: {integrity: sha512-MTsDeRyBrAxx1t0Lj1G+CQ4hqNFS8DWtc/8Gsi6MIeLtqhWqFf3ENFPk+IDi1spY68oZd4h47h9FCAX7hrUyyw==}
+  '@titan-design/code-graph@0.8.0':
+    resolution: {integrity: sha512-4I56xD9yCUnPH0bvLBMGXik0hCidxqa+7xV5zWa2LwFOEaB6gb6eWWs/7PIkHZx9VX4TVNK2esHZ4JJ72m9zMQ==}
     engines: {node: '>=20'}
 
   '@titan-design/code-parser@0.1.0':
@@ -2918,7 +2918,7 @@ snapshots:
       - '@huggingface/transformers'
       - tree-sitter
 
-  '@titan-design/code-graph@0.7.0':
+  '@titan-design/code-graph@0.8.0':
     dependencies:
       '@titan-design/code-parser': 0.1.0(web-tree-sitter@0.26.6)
       '@titan-design/embed': 0.2.0

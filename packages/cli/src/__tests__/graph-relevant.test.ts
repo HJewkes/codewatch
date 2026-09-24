@@ -302,12 +302,12 @@ describe("runGraphRelevantCommand", () => {
         { id: "shared.ts", kind: "file", name: "shared.ts" },
       ]);
       // a and b have similar PR (one inbound each, none to here); but b→shared
-      // uses 'calls' (weight 1.5) vs a→shared 'imports' (weight 1.0).
+      // uses 'imports' (weight 1.0) vs a→shared 're-exports' (weight 0.5).
       db.insertEdges(snapshotId, [
         { srcId: "shared.ts", dstId: "a.ts", kind: "imports" },
         { srcId: "shared.ts", dstId: "b.ts", kind: "imports" },
-        { srcId: "a.ts", dstId: "shared.ts", kind: "imports" },
-        { srcId: "b.ts", dstId: "shared.ts", kind: "calls" },
+        { srcId: "a.ts", dstId: "shared.ts", kind: "re-exports" },
+        { srcId: "b.ts", dstId: "shared.ts", kind: "imports" },
       ]);
     });
 

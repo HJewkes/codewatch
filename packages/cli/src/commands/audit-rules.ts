@@ -1,7 +1,12 @@
-import type { CheckRule, MetricMaxRule, NodeKind } from "@titan-design/code-graph";
+import type { CheckRule, MetricMaxRule, MetricOutlierRule, NodeKind } from "@titan-design/code-graph";
 
 function maxRule(id: string, metric: string, max: number, kind: NodeKind): MetricMaxRule {
   return { type: "metric-max", id, metric, max, kind, severity: "warning" };
+}
+
+/** Flags the top decile of the non-zero carriers, and only above an absolute floor, so a sparse metric is not all outliers. */
+function outlierRule(id: string, metric: string, floor: number, kind: NodeKind): MetricOutlierRule {
+  return { type: "metric-outlier", id, metric, kind, percentile: 90, rankNonZero: true, floor, severity: "warning" };
 }
 
 /**
@@ -15,7 +20,9 @@ export const AUDIT_RULES: readonly CheckRule[] = [
   maxRule("symbol-nesting", "symbol_max_nesting", 4, "symbol"),
   maxRule("symbol-pass-through", "symbol_pass_through", 0, "symbol"),
   maxRule("symbol-narrating-comments", "symbol_narrating_comments", 0, "symbol"),
-  maxRule("symbol-comment-ratio", "symbol_comment_ratio", 1, "symbol"),
+  outlierRule("symbol-comment-ratio", "symbol_comment_ratio", 0.5, "symbol"),
+  maxRule("symbol-single-caller-helper", "symbol_single_caller_helper", 0, "symbol"),
+  maxRule("symbol-constant-params", "symbol_constant_params", 0, "symbol"),
   maxRule("file-loc", "loc", 500, "file"),
   maxRule("file-nesting", "max_nesting_depth", 4, "file"),
   maxRule("file-lcom4", "lcom4_max", 2, "file"),
@@ -24,5 +31,5 @@ export const AUDIT_RULES: readonly CheckRule[] = [
   maxRule("file-unused-params", "unused_params", 0, "file"),
   maxRule("file-unreachable", "unreachable_statements", 0, "file"),
   maxRule("file-swallowed-except", "swallowed_except", 0, "file"),
-  maxRule("file-except-density", "except_density", 5, "file"),
+  outlierRule("file-except-density", "except_density", 3, "file"),
 ];
