@@ -8,6 +8,7 @@ import { bundleItems, controlItem, type TriageItem } from "./triage-items.js";
 import { planTriage, type TriagePlan, type TriagePlanOptions } from "./triage-plan.js";
 import { preflightAuth, readerRunner, type CallTrace } from "./triage-runner.js";
 import { countBy, skippedOf, verdictCounts, writeTriageOutputs, type TriageReport, type VerdictRecord } from "./triage-output.js";
+import { persistVerdicts } from "./triage-persist.js";
 import { scoreControlItems, type ControlReport } from "./triage-score.js";
 import { verifyItemOutput, type DroppedRow, type VerifiedRow } from "./triage-verify.js";
 import { fanOutReads, READ_STEP } from "./triage-workflow.js";
@@ -50,10 +51,12 @@ function pickBalanced(pool: readonly Control[], seed: string, n: number): Contro
   return [...pickControls(clean, seed, Math.floor(n / 2)), ...pickControls(slop, seed, Math.ceil(n / 2))];
 }
 
+/** Controls only measure a run that reads real bundles, so a fully judged plan makes no calls at all. */
 function workItems(plan: TriagePlan, options: TriageRunOptions, runId: string): TriageItem[] {
+  if (plan.bundles.length === 0) return [];
   const pool = options.controls ?? loadControls();
   const controls = pickBalanced(pool, runId, options.controlCount ?? DEFAULT_CONTROL_COUNT).map(controlItem);
-  const { sequence } = placeControls(bundleItems(plan.bundles, plan.source), controls, runId);
+  const { sequence } = placeControls(bundleItems(plan.bundles, plan.keys, plan.source), controls, runId);
   return sequence.map((entry) => entry.value);
 }
 
@@ -106,6 +109,11 @@ interface ReportInput {
   traces: CallTrace[];
 }
 
+function verdictStoreOf(plan: TriagePlan, records: readonly VerdictRecord[]): TriageReport["verdictStore"] {
+  const { from, carried, reused } = plan.verdicts;
+  return { carriedFrom: from ?? null, carried, fresh: records.length, skippedByVerdict: reused.length, reused };
+}
+
 function buildReport(input: ReportInput): TriageReport {
   const { plan, options, mapped, verified, records } = input;
   const asked = mapped.results.filter((r) => !r.item.control).reduce((n, r) => n + r.item.questions.length, 0);
@@ -122,6 +130,7 @@ function buildReport(input: ReportInput): TriageReport {
     skipped: skippedOf(mapped),
     verdicts: { asked, written: records.length, byLabel: verdictCounts(records) },
     dropped: { total: verified.dropped.length, byReason: countBy(verified.dropped, (d) => d.reason), rows: verified.dropped },
+    verdictStore: verdictStoreOf(plan, records),
     controls: input.controls,
     observedModels: [...new Set(observed)],
     traces: input.traces,
@@ -144,6 +153,7 @@ export async function runTriage(options: TriageRunOptions): Promise<TriageRunRes
   const verified = verifyAll(mapped);
   const controls = scoreControlItems(items, verified.kept);
   const records = toRecords(items, verified, controls, runId, modelByItem(traces, options.model));
+  persistVerdicts(plan.dbPath, plan.snapshotId, records);
   const report = buildReport({ plan, options, runId, startedAt, mapped, verified, controls, records, traces });
   writeTriageOutputs(outDir, records, report);
   return { outDir, report, verdicts: records };

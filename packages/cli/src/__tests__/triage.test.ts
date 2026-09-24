@@ -1,16 +1,15 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { RunnerResult } from "@titan-design/style-checker";
-import { idempotentRunner, inlineRunner, type LegacyStepRunner, type StepRunInput } from "@titan-design/workflow";
+import { idempotentRunner, type LegacyStepRunner } from "@titan-design/workflow";
 import { runAuditCommand } from "../commands/audit.js";
-import { PYTHON_TOOLS, type PythonRunners } from "../commands/audit-runners.js";
 import { runTriage, type TriageRunOptions } from "../commands/triage.js";
 import { loadControls } from "../commands/triage-controls/controls.js";
 import type { VerdictRecord } from "../commands/triage-output.js";
 import type { VerdictRow } from "../commands/triage-prompt.js";
 import { preflightAuth } from "../commands/triage-runner.js";
+import { fakeReader, row, shownText, SILENT_RUNNERS } from "./triage-fake-reader.js";
 
 const CORE_SRC = `def _normalise(values):
     total = sum(values)
@@ -22,39 +21,9 @@ def summarise(values):
     return max(shares)
 `;
 
-const EMPTY: RunnerResult = { diagnostics: [], exitCode: 0, failures: [], skippedRules: [] };
-const SILENT_RUNNERS: PythonRunners = Object.fromEntries(PYTHON_TOOLS.map((tool) => [tool, () => Promise.resolve(EMPTY)]));
-
 const CONTROLS = loadControls();
 const HELPER_CLEAN = CONTROLS.find((c) => c.id === "py-helper-clean")!;
 const HELPER_SLOP = CONTROLS.find((c) => c.id === "py-helper-slop")!;
-
-interface AskedQuestion {
-  key: string;
-  path: string;
-  line: number;
-}
-
-/** Reads the questions back out of a rendered prompt: `[key] path:line...`. */
-function questionsIn(prompt: string): AskedQuestion[] {
-  return [...prompt.matchAll(/^\[([^\]]+)\] ([^\s:]+):(\d+)/gm)].map((m) => ({ key: m[1]!, path: m[2]!, line: Number(m[3]) }));
-}
-
-/** The text the excerpt shows for one numbered line of one path. */
-function shownText(prompt: string, path: string, line: number): string {
-  const section = prompt.split(`=== ${path}\n`)[1]!.split("\n\n")[0]!;
-  const match = section.split("\n").find((l) => new RegExp(`^\\s*${line}\\| `).test(l))!;
-  return match.replace(/^\s*\d+\| /, "");
-}
-
-function row(q: AskedQuestion, prompt: string, verdict: VerdictRow["verdict"], quote = shownText(prompt, q.path, q.line)): VerdictRow {
-  return { key: q.key, verdict, rationale: "fake reader", citations: [{ path: q.path, lineStart: q.line, lineEnd: q.line, quote }] };
-}
-
-/** A reader that answers each question with whatever `decide` returns for it. */
-function fakeReader(decide: (q: AskedQuestion, prompt: string) => VerdictRow[]): LegacyStepRunner {
-  return inlineRunner((input: StepRunInput) => JSON.stringify({ verdicts: questionsIn(input.prompt).flatMap((q) => decide(q, input.prompt)) }));
-}
 
 /** Right on the slop control, wrong on the clean one: both controls come back confirmed. */
 const verdictFor = (path: string): VerdictRow["verdict"] => (path === "pkg/core.py" ? "justified" : "confirmed");
@@ -78,7 +47,8 @@ describe("runTriage with a fake reader", () => {
     seed: "fixed-seed",
   });
 
-  beforeAll(async () => {
+  // A fresh audit per test: triage stores its verdicts, and a stored verdict skips its question on the next run.
+  beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), "triage-run-"));
     mkdirSync(join(dir, "pkg"));
     writeFileSync(join(dir, "pkg", "__init__.py"), "");
@@ -86,7 +56,7 @@ describe("runTriage with a fake reader", () => {
     await runAuditCommand({ path: dir, noRuff: true, runners: SILENT_RUNNERS });
   });
 
-  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
   it("marks every verdict provisional when a clean control comes back confirmed", async () => {
     const runner = fakeReader((q, prompt) => [row(q, prompt, verdictFor(q.path))]);

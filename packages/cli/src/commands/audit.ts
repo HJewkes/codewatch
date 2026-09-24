@@ -7,6 +7,7 @@ import {
   type Finding,
 } from "@titan-design/code-graph";
 import { openGraphStore } from "../utils/graph-store.js";
+import { persistFindings } from "./audit-persist.js";
 import { collectSnapshotStats, type SnapshotStats } from "./audit-collect.js";
 import { AUDIT_RULES } from "./audit-rules.js";
 import { PYTHON_TOOLS, runPythonTools, type PythonRunners, type PythonTool } from "./audit-runners.js";
@@ -80,6 +81,7 @@ export async function runAuditCommand(options: AuditCommandOptions): Promise<Aud
   const findings = sortFindings([...graph.findings, ...external.findings]);
   const scores = buildScoreTable(graph.stats.files, graph.stats.symbols, findings);
   writeOutputs(outDir, findings, scores);
+  persistFindings(dbPath, index.snapshotId, idRoot, findings);
   const durationMs = performance.now() - started;
   return { root, dbPath, outDir, snapshotId: index.snapshotId, findings, scores, warnings, durationMs };
 }

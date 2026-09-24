@@ -1,9 +1,10 @@
 import path from "node:path";
-import { detectGitToplevel } from "@titan-design/code-graph";
+import { detectGitToplevel, listVerdicts, type Finding } from "@titan-design/code-graph";
+import type { LineSource } from "@titan-design/evidence";
 import { openGraphStore } from "../utils/graph-store.js";
 import { buildBundles, DEFAULT_TOKEN_CAP, type TriageBundle } from "./triage-bundle.js";
 import { readAuditOutputs, selectTriageFiles, type TriageSelectOptions, type TriageSelection } from "./triage-select.js";
-import type { ItemSource } from "./triage-items.js";
+import { carryPriorVerdicts, skipJudged, type ReusedVerdict, type VerdictCarry } from "./triage-persist.js";
 import { fileRoles, snapshotSource } from "./triage-source.js";
 
 /** Planning figures from the C-96 Layer 2 plan, replaced once a measured run exists. */
@@ -29,15 +30,24 @@ export interface TriageEstimate {
   costUsd: number;
 }
 
+/** How the verdicts already in graph.db shaped this plan. */
+export interface VerdictReuse extends VerdictCarry {
+  reused: ReusedVerdict[];
+}
+
 export interface TriagePlan {
+  dbPath: string;
   snapshotId: number;
   selection: TriageSelection;
   bundles: TriageBundle[];
   skippedFiles: string[];
   estimate: TriageEstimate;
   warnings: string[];
-  /** The snapshot-pinned file text and symbol spans the bundles were built from. */
-  source: ItemSource;
+  /** The snapshot-pinned file text the bundles were built from. */
+  source: LineSource;
+  /** Every selected finding's stored key, including the ones skipped for an existing verdict. */
+  keys: ReadonlyMap<Finding, string>;
+  verdicts: VerdictReuse;
 }
 
 export function estimateCost(bundles: readonly TriageBundle[]): TriageEstimate {
@@ -55,21 +65,24 @@ function latestSnapshotId(dbPath: string, store: ReturnType<typeof openGraphStor
   return snapshot.id;
 }
 
-/** Selects the files and findings to triage and builds their bundles, without calling a model. */
+/** Carries earlier verdicts forward, then selects the files and findings still unjudged and builds their bundles, without calling a model. */
 export function planTriage(options: TriagePlanOptions): TriagePlan {
   const root = path.resolve(options.path);
   const idRoot = detectGitToplevel(root) ?? root;
   const dbPath = path.resolve(options.db ?? path.join(root, ".codewatch", "graph.db"));
   const audit = readAuditOutputs(path.resolve(options.auditDir ?? path.join(root, ".codewatch", "audit")));
+  const cap = options.tokenCap ?? DEFAULT_TOKEN_CAP;
   const store = openGraphStore(dbPath);
   try {
     const snapshotId = latestSnapshotId(dbPath, store);
-    const selection = selectTriageFiles(audit, fileRoles(store, snapshotId), options);
+    const carry = carryPriorVerdicts(store, snapshotId);
     const warnings: string[] = [];
     const source = snapshotSource(store, snapshotId, idRoot, warnings);
-    const { bundles, skippedFiles } = buildBundles(selection.files, source, options.tokenCap ?? DEFAULT_TOKEN_CAP);
-    const pinned: ItemSource = { lines: source.lines, symbols: source.symbols };
-    return { snapshotId, selection, bundles, skippedFiles, estimate: estimateCost(bundles), warnings, source: pinned };
+    const selected = selectTriageFiles(audit, fileRoles(store, snapshotId), options);
+    const { selection, keys, reused } = skipJudged(selected, source, listVerdicts(store, snapshotId), cap);
+    const { bundles, skippedFiles } = buildBundles(selection.files, source, cap);
+    const verdicts = { ...carry, reused };
+    return { dbPath, snapshotId, selection, bundles, skippedFiles, estimate: estimateCost(bundles), warnings, source: { lines: source.lines }, keys, verdicts };
   } finally {
     store.close();
   }

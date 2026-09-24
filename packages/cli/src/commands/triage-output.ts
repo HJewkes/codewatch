@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { MapResult } from "@titan-design/workflow";
 import type { TriageItem } from "./triage-items.js";
+import type { ReusedVerdict } from "./triage-persist.js";
 import type { VerdictRow } from "./triage-prompt.js";
 import type { Verdict } from "./triage-questions.js";
 import type { CallTrace } from "./triage-runner.js";
@@ -36,6 +37,8 @@ export interface TriageReport {
   /** Questions sent in real bundles that returned, and the verified verdicts written for them. */
   verdicts: { asked: number; written: number; byLabel: Record<Verdict, number> };
   dropped: { total: number; byReason: Record<string, number>; rows: DroppedRow[] };
+  /** Verdicts in graph.db: carried from an earlier snapshot, fresh from this run, and questions skipped because one existed. */
+  verdictStore: { carriedFrom: number | null; carried: number; fresh: number; skippedByVerdict: number; reused: ReusedVerdict[] };
   controls: ControlReport;
   observedModels: string[];
   traces: CallTrace[];
@@ -70,6 +73,8 @@ export function formatTriageSummary(report: TriageReport, outDir: string): strin
     `codewatch triage: ${verdicts.written} verdicts (${verdicts.byLabel.confirmed} confirmed, ${verdicts.byLabel.justified} justified, ${verdicts.byLabel.unclear} unclear), ${dropped.total} dropped, of ${verdicts.asked} questions asked`,
     `  controls ${accuracy} correct, run ${controls.controlRun}; cost $${cost.spentUsd.toFixed(2)} (estimate $${cost.estimateUsd.toFixed(2)}); ${report.calls.succeeded}/${report.calls.planned} calls in ${(report.wallMs / 1000).toFixed(0)}s`,
   ];
+  const store = report.verdictStore;
+  if (store.skippedByVerdict > 0) lines.push(`  ${store.skippedByVerdict} questions skipped for an existing verdict (${store.carried} carried from snapshot ${store.carriedFrom ?? "none"})`);
   if (report.stoppedBy) lines.push(`  stopped by ${report.stoppedBy}: ${report.skipped.length} bundles skipped`);
   lines.push(`  wrote ${path.join(outDir, "verdicts.jsonl")} and triage.json`);
   return lines;
