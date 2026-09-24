@@ -6,11 +6,14 @@ export interface FileStats {
   cognitiveMax: number;
 }
 
-export interface SymbolStats {
+export interface SymbolSpan {
   path: string;
   symbol: string;
   lineStart?: number;
   lineEnd?: number;
+}
+
+export interface SymbolStats extends SymbolSpan {
   cognitive: number;
   cyclomatic: number;
 }
@@ -70,18 +73,18 @@ function groupBy<T>(items: readonly T[], key: (item: T) => string | undefined): 
   return groups;
 }
 
-const symbolKey = (path: string, symbol: string): string => `${path}#${symbol}`;
+export const symbolKey = (path: string, symbol: string): string => `${path}#${symbol}`;
 
-function contains(s: SymbolStats, line: number): boolean {
+function contains(s: SymbolSpan, line: number): boolean {
   return s.lineStart !== undefined && s.lineEnd !== undefined && s.lineStart <= line && line <= s.lineEnd;
 }
 
-function spanOf(s: SymbolStats): number {
+function spanOf(s: SymbolSpan): number {
   return (s.lineEnd ?? 0) - (s.lineStart ?? 0);
 }
 
 /** A finding names its symbol, or sits inside the innermost symbol whose span holds its first line. */
-function symbolOf(f: Finding, symbolsInFile: readonly SymbolStats[]): string | undefined {
+export function symbolOf(f: Finding, symbolsInFile: readonly SymbolSpan[]): string | undefined {
   if (f.symbol !== undefined) return symbolKey(f.path, f.symbol);
   if (f.lineStart === undefined) return undefined;
   const holders = symbolsInFile.filter((s) => contains(s, f.lineStart!));
