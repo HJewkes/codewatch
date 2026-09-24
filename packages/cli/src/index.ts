@@ -20,6 +20,7 @@ import { LANGUAGE_OPTION_HELP, resolveLanguages } from "./utils/languages.js";
 import { registerGraphCommands } from "./commands/graph-cli.js";
 import { registerHookCommands } from "./commands/hook-cli.js";
 import { registerAuditCommand } from "./commands/audit-cli.js";
+import { registerTriageCommand } from "./commands/triage-cli.js";
 
 // Read the real version from package.json (one root up from dist/) so
 // `codewatch --version` tracks the published package version instead of a
@@ -292,6 +293,7 @@ program
 
 registerGraphCommands(program);
 registerAuditCommand(program);
+registerTriageCommand(program);
 
 program
   .command("analyze <path>")
