@@ -153,8 +153,9 @@ export async function runTriage(options: TriageRunOptions): Promise<TriageRunRes
   const verified = verifyAll(mapped);
   const controls = scoreControlItems(items, verified.kept);
   const records = toRecords(items, verified, controls, runId, modelByItem(traces, options.model));
-  persistVerdicts(plan.dbPath, plan.snapshotId, records);
+  const known = new Map([...plan.keys].map(([finding, key]) => [key, finding]));
+  const view = persistVerdicts(plan.dbPath, plan.snapshotId, records, known);
   const report = buildReport({ plan, options, runId, startedAt, mapped, verified, controls, records, traces });
-  writeTriageOutputs(outDir, records, report);
+  writeTriageOutputs(outDir, view, report);
   return { outDir, report, verdicts: records };
 }

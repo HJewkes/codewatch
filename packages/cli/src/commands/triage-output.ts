@@ -20,7 +20,9 @@ export interface VerdictRecord extends VerdictRow {
   /** This verdict's share of its call's reported cost. */
   costUsd: number;
   runId: string;
-  provenance: "model";
+  /** "model" when this run asked the reader; "carried" when carry-forward copied it from an earlier snapshot. */
+  provenance: "model" | "carried";
+  carriedFrom?: number;
   controlRun: ControlRun;
 }
 

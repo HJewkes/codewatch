@@ -1,5 +1,6 @@
 import {
   carryForwardVerdicts,
+  listFindings,
   listVerdicts,
   saveVerdicts,
   type CodeGraphStore,
@@ -76,10 +77,31 @@ function toStored(r: VerdictRecord): StoredVerdict {
   return { key, verdict, rationale, citations, excerptHash, model, costUsd, runId, provenance, controlRun };
 }
 
-export function persistVerdicts(dbPath: string, snapshotId: number, records: readonly VerdictRecord[]): void {
+function recordOf(v: StoredVerdict, finding: Finding): VerdictRecord {
+  const { key, verdict, rationale, citations, excerptHash, carriedFrom } = v;
+  const where = { path: finding.path, signal: finding.signal, tool: finding.tool, ...(finding.symbol ? { symbol: finding.symbol } : {}) };
+  const origin = { model: v.model ?? "unknown", costUsd: v.costUsd ?? 0, runId: v.runId ?? "", controlRun: v.controlRun ?? "provisional" };
+  const provenance = carriedFrom === undefined ? { provenance: "model" as const } : { provenance: "carried" as const, carriedFrom };
+  return { key, verdict, rationale, citations, ...where, excerptHash, ...origin, ...provenance };
+}
+
+/** Every verdict the snapshot holds after this run: the fresh ones as given, the rest read back from graph.db. */
+function snapshotView(store: CodeGraphStore, snapshotId: number, fresh: readonly VerdictRecord[], known: ReadonlyMap<string, Finding>): VerdictRecord[] {
+  const freshKeys = new Set(fresh.map((r) => r.key));
+  const findings = new Map([...known, ...listFindings(store, snapshotId).map((f) => [f.key, f.finding] as const)]);
+  const earlier = listVerdicts(store, snapshotId).flatMap((v) => {
+    const finding = findings.get(v.key);
+    return !freshKeys.has(v.key) && finding ? [recordOf(v, finding)] : [];
+  });
+  return [...fresh, ...earlier].sort((a, b) => a.path.localeCompare(b.path) || a.key.localeCompare(b.key));
+}
+
+/** Saves this run's verdicts and returns the snapshot's full verdict view for verdicts.jsonl. */
+export function persistVerdicts(dbPath: string, snapshotId: number, fresh: readonly VerdictRecord[], known: ReadonlyMap<string, Finding>): VerdictRecord[] {
   const store = openGraphStore(dbPath);
   try {
-    saveVerdicts(store, snapshotId, records.map(toStored));
+    saveVerdicts(store, snapshotId, fresh.map(toStored));
+    return snapshotView(store, snapshotId, fresh, known);
   } finally {
     store.close();
   }

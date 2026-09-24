@@ -7,6 +7,7 @@ import type { LegacyStepRunner } from "@titan-design/workflow";
 import { runAuditCommand } from "../commands/audit.js";
 import { runTriage, type TriageRunOptions } from "../commands/triage.js";
 import { loadControls } from "../commands/triage-controls/controls.js";
+import type { VerdictRecord } from "../commands/triage-output.js";
 import { openGraphStore } from "../utils/graph-store.js";
 import { fakeReader, row, SILENT_RUNNERS, type AskedQuestion } from "./triage-fake-reader.js";
 
@@ -53,6 +54,11 @@ function countingReader(): CountingReader {
     },
   };
   return { runner, asked, calls: () => calls };
+}
+
+function readVerdictsFile(dir: string): VerdictRecord[] {
+  const text = readFileSync(join(dir, ".codewatch", "audit", "verdicts.jsonl"), "utf8");
+  return text.split("\n").filter((l) => l !== "").map((l) => JSON.parse(l) as VerdictRecord);
 }
 
 function latestVerdicts(dir: string): { snapshotId: number; verdicts: StoredVerdict[]; hashed: number } {
@@ -105,6 +111,21 @@ describe("triage verdicts persisted in graph.db", () => {
     expect(onDisk.verdictStore.reused.map((r: { carriedFrom: number }) => r.carriedFrom)).toEqual([firstSnapshot, firstSnapshot]);
   });
 
+  it("writes every carried verdict to verdicts.jsonl on a fully carried rerun", async () => {
+    await triage(countingReader().runner);
+    const first = readVerdictsFile(dir);
+    const firstSnapshot = latestVerdicts(dir).snapshotId;
+
+    await audit();
+    await triage(countingReader().runner);
+
+    const second = readVerdictsFile(dir);
+    expect(first.every((r) => r.provenance === "model" && r.carriedFrom === undefined)).toBe(true);
+    expect(second).toHaveLength(first.length);
+    expect(second.every((r) => r.provenance === "carried" && r.carriedFrom === firstSnapshot)).toBe(true);
+    expect(second.map((r) => [r.key, r.path, r.verdict])).toEqual(first.map((r) => [r.key, r.path, r.verdict]));
+  });
+
   it("asks again only about the finding whose excerpt changed by one character", async () => {
     await triage(countingReader().runner);
     writeFileSync(join(dir, "pkg", "core.py"), CORE_SRC.replace("v / total", "v * total"));
@@ -116,6 +137,7 @@ describe("triage verdicts persisted in graph.db", () => {
     expect(second.asked.map((q) => q.path)).toEqual(["pkg/core.py"]);
     expect(report.verdictStore).toMatchObject({ carried: 1, fresh: 1, skippedByVerdict: 1 });
     expect(report.verdictStore.reused.map((r) => r.path)).toEqual(["pkg/extra.py"]);
+    expect(readVerdictsFile(dir).map((r) => [r.path, r.provenance])).toEqual([["pkg/core.py", "model"], ["pkg/extra.py", "carried"]]);
     const stored = latestVerdicts(dir);
     expect(stored.verdicts).toHaveLength(2);
     expect(stored.hashed).toBeGreaterThan(0);
