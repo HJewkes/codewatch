@@ -7,16 +7,23 @@ import type { VerifiedRow } from "./triage-verify.js";
 
 export type ControlRun = "ok" | "provisional";
 
+/** Whether any planted control reached the reader: "not-run" when controls were planted but none was called. */
+export type ControlStatus = "run" | "not-run" | "not-planted";
+
 export interface ControlOutcome {
   id: string;
   label: Control["label"];
   expected: ExpectedVerdict;
+  /** The reader returned for this control; false when budget or failures kept it from being called. */
+  reached: boolean;
   /** The control's answer; undefined when no verified verdict came back. */
   answered?: Verdict;
 }
 
 export interface ControlReport {
+  status: ControlStatus;
   controls: ControlOutcome[];
+  /** Scored over the controls that reached the reader. */
   score: ControlScore;
   /** Controls answered with the opposite verdict: slop called justified, or clean called confirmed. */
   failed: string[];
@@ -35,15 +42,21 @@ function answerOf(control: Control, rows: readonly VerifiedRow[]): Verdict | und
   return allExpected ? expected : "unclear";
 }
 
+function statusOf(outcomes: readonly ControlOutcome[]): ControlStatus {
+  if (outcomes.length === 0) return "not-planted";
+  return outcomes.some((o) => o.reached) ? "run" : "not-run";
+}
+
 /** Owner decision 4: a failed control marks the whole run provisional; unclear and missing answers do not. */
 export function scoreControlItems(items: readonly TriageItem[], kept: ReadonlyMap<string, VerifiedRow[]>): ControlReport {
   const controls = items.flatMap((item) => (item.control ? [{ item, control: item.control }] : []));
   const outcomes: ControlOutcome[] = controls.map(({ item, control }) => {
     const answered = answerOf(control, kept.get(item.id) ?? []);
-    return { id: control.id, label: control.label, expected: expectedVerdict(control.label), ...(answered ? { answered } : {}) };
+    const base = { id: control.id, label: control.label, expected: expectedVerdict(control.label), reached: kept.has(item.id) };
+    return { ...base, ...(answered ? { answered } : {}) };
   });
-  const expected: LabeledAnswer[] = outcomes.map((o) => ({ id: o.id, label: o.expected }));
+  const expected: LabeledAnswer[] = outcomes.filter((o) => o.reached).map((o) => ({ id: o.id, label: o.expected }));
   const answered: LabeledAnswer[] = outcomes.flatMap((o) => (o.answered ? [{ id: o.id, label: o.answered }] : []));
   const failed = outcomes.filter((o) => o.answered === OPPOSITE[o.expected]).map((o) => o.id);
-  return { controls: outcomes, score: scoreControls(expected, answered), failed, controlRun: failed.length > 0 ? "provisional" : "ok" };
+  return { status: statusOf(outcomes), controls: outcomes, score: scoreControls(expected, answered), failed, controlRun: failed.length > 0 ? "provisional" : "ok" };
 }

@@ -47,6 +47,12 @@ function rowFailure(item: TriageItem, row: VerdictRow, seen: Set<string>): Omit<
   return citationFailure(item, row);
 }
 
+/** Readers sometimes copy the question header's `] path:lines` after the key; keys never contain `]`. */
+export function normaliseKey(key: string): string {
+  const end = key.indexOf("]");
+  return (end === -1 ? key : key.slice(0, end)).trim();
+}
+
 /** Keeps a verdict only when it answers an asked question and every citation checks out against the lines shown. */
 export function verifyItemOutput(item: TriageItem, output: string | undefined): ItemVerification {
   const rows = parseOutput(output);
@@ -56,7 +62,8 @@ export function verifyItemOutput(item: TriageItem, output: string | undefined): 
   const byKey = new Map(item.questions.map((q) => [q.key, q]));
   const seen = new Set<string>();
   const result: ItemVerification = { kept: [], dropped: [], returned: rows.length };
-  for (const row of rows) {
+  for (const returned of rows) {
+    const row = { ...returned, key: normaliseKey(returned.key) };
     const failure = rowFailure(item, row, seen);
     if (failure) result.dropped.push({ item: item.id, key: row.key, ...failure });
     else result.kept.push({ row, question: byKey.get(row.key)! });

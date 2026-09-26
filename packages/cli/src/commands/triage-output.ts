@@ -26,15 +26,25 @@ export interface VerdictRecord extends VerdictRow {
   controlRun: ControlRun;
 }
 
+/** A reader call that failed; its cost is already in `cost.spentUsd`. */
+export interface FailedCall {
+  id: string;
+  path: string;
+  control: boolean;
+  retryable: boolean;
+  costUsd: number;
+  error: string;
+}
+
 export interface TriageReport {
   runId: string;
   snapshotId: number;
   model: string;
   harness: TriageHarness;
-  settings: { minRank: number; includeTests: boolean; budgetUsd: number; concurrency: number };
+  settings: { minRank: number; includeTests: boolean; budgetUsd: number; concurrency: number; maxFailures: number };
   wallMs: number;
   cost: { spentUsd: number; estimateUsd: number };
-  calls: { planned: number; succeeded: number; failed: { id: string; error: string }[] };
+  calls: { planned: number; succeeded: number; failed: FailedCall[] };
   stoppedBy: MapResult<TriageItem>["stoppedBy"];
   skipped: { id: string; path: string; control: boolean }[];
   /** Questions sent in real bundles that returned, and the verified verdicts written for them. */
@@ -58,6 +68,17 @@ export function verdictCounts(records: readonly VerdictRecord[]): Record<Verdict
   return { confirmed: 0, justified: 0, unclear: 0, ...countBy(records, (r) => r.verdict) };
 }
 
+export function failedOf(mapped: MapResult<TriageItem>): FailedCall[] {
+  return mapped.failed.map(({ key, item, error, retryable, usage }) => ({
+    id: key,
+    path: item.path,
+    control: item.control !== undefined,
+    retryable,
+    costUsd: usage?.costUsd ?? 0,
+    error,
+  }));
+}
+
 export function skippedOf(mapped: MapResult<TriageItem>): TriageReport["skipped"] {
   return mapped.skipped.map(({ item }) => ({ id: item.id, path: item.path, control: item.control !== undefined }));
 }
@@ -69,15 +90,22 @@ export function writeTriageOutputs(outDir: string, records: readonly VerdictReco
   writeFileSync(path.join(outDir, "triage.json"), `${JSON.stringify(report, null, 2)}\n`);
 }
 
+function controlAccuracy(controls: TriageReport["controls"]): string {
+  if (controls.status !== "run") return "not run";
+  const notRun = controls.controls.filter((c) => !c.reached).length;
+  return `${controls.score.correct}/${controls.score.total} correct, run ${controls.controlRun}${notRun > 0 ? `, ${notRun} not run` : ""}`;
+}
+
 export function formatTriageSummary(report: TriageReport, outDir: string): string[] {
   const { verdicts, dropped, controls, cost } = report;
-  const accuracy = controls.controls.length === 0 ? "not run" : `${controls.score.correct}/${controls.score.total} correct, run ${controls.controlRun}`;
+  const accuracy = controlAccuracy(controls);
   const lines = [
     `codewatch triage: ${verdicts.written} verdicts (${verdicts.byLabel.confirmed} confirmed, ${verdicts.byLabel.justified} justified, ${verdicts.byLabel.unclear} unclear), ${dropped.total} dropped, of ${verdicts.asked} questions asked`,
     `  controls ${accuracy}; cost $${cost.spentUsd.toFixed(2)} (estimate $${cost.estimateUsd.toFixed(2)}); ${report.calls.succeeded}/${report.calls.planned} calls in ${(report.wallMs / 1000).toFixed(0)}s`,
   ];
   const store = report.verdictStore;
   if (store.skippedByVerdict > 0) lines.push(`  ${store.skippedByVerdict} questions skipped for an existing verdict (${store.carried} carried from snapshot ${store.carriedFrom ?? "none"})`);
+  if (report.calls.failed.length > 0) lines.push(`  ${report.calls.failed.length} calls failed: ${report.calls.failed.map((f) => f.path).join(", ")}`);
   if (report.stoppedBy) lines.push(`  stopped by ${report.stoppedBy}: ${report.skipped.length} bundles skipped`);
   lines.push(`  wrote ${path.join(outDir, "verdicts.jsonl")} and triage.json`);
   return lines;

@@ -6,7 +6,7 @@ import { idempotentRunner, type LegacyStepRunner } from "@titan-design/workflow"
 import { runAuditCommand } from "../commands/audit.js";
 import { runTriage, type TriageRunOptions } from "../commands/triage.js";
 import { loadControls } from "../commands/triage-controls/controls.js";
-import type { VerdictRecord } from "../commands/triage-output.js";
+import { formatTriageSummary, type VerdictRecord } from "../commands/triage-output.js";
 import type { VerdictRow } from "../commands/triage-prompt.js";
 import { preflightAuth, type TriageHarness } from "../commands/triage-runner.js";
 import { fakeReader, row, shownText, SILENT_RUNNERS } from "./triage-fake-reader.js";
@@ -107,6 +107,20 @@ describe("runTriage with a fake reader", () => {
     expect(report.controls.controlRun).toBe("ok");
   });
 
+  it("keeps a verdict whose key carries the question header's path suffix, stored under the asked key", async () => {
+    const asked: string[] = [];
+    const runner = fakeReader((q, prompt) => {
+      if (q.path !== "pkg/core.py") return [row(q, prompt, q.path === HELPER_SLOP.path ? "confirmed" : "justified")];
+      asked.push(q.key);
+      return [{ ...row(q, prompt, "confirmed"), key: `${q.key}] pkg/core.py:10-12` }];
+    });
+
+    const { report, verdicts } = await runTriage({ ...base(), runner });
+
+    expect(report.dropped.total).toBe(0);
+    expect(verdicts.map((v) => v.key)).toEqual(asked);
+  });
+
   it("keeps a verdict that cites both the helper and its caller in another file", async () => {
     writeFileSync(join(dir, "pkg", "util.py"), UTIL_SRC);
     writeFileSync(join(dir, "pkg", "core.py"), CALLER_SRC);
@@ -150,6 +164,35 @@ describe("runTriage with a fake reader", () => {
     expect(report.calls.succeeded).toBe(3);
     expect(report.skipped).toHaveLength(2);
     expect(report.cost.spentUsd).toBeCloseTo(1.2);
+  });
+
+  it("keeps launching past a retryable failure until --max-failures is exceeded and records each failed call", async () => {
+    const flaky: LegacyStepRunner = { run: async () => ({ ok: false, error: "claude -p reached --max-turns 2", retryable: true, usage: { costUsd: 0.1 } }) };
+
+    const { report } = await runTriage({ ...base(), controls: CONTROLS, controlCount: 4, concurrency: 1, maxFailures: 1, runner: flaky });
+
+    expect(report.stoppedBy).toBe("failure");
+    expect(report.calls.failed).toHaveLength(2);
+    expect(report.calls.failed[0]).toMatchObject({ retryable: true, error: "claude -p reached --max-turns 2" });
+    expect(report.calls.failed[0]!.costUsd).toBeGreaterThan(0);
+    expect(report.skipped).toHaveLength(3);
+    expect(report.settings.maxFailures).toBe(1);
+    expect(report.cost.spentUsd).toBeCloseTo(report.calls.failed.reduce((n, f) => n + f.costUsd, 0));
+  });
+
+  it("reports controls not run instead of a zero score when no planted control reached the reader", async () => {
+    const refusing: LegacyStepRunner = { run: async () => ({ ok: false, error: "reader refused", retryable: false }) };
+
+    const { report, outDir } = await runTriage({ ...base(), controls: CONTROLS, controlCount: 4, concurrency: 1, runner: refusing });
+
+    expect(report.controls.controls).toHaveLength(4);
+    expect(report.controls.status).toBe("not-run");
+    expect(report.controls.score.total).toBe(0);
+    const summary = formatTriageSummary(report, outDir).join("\n");
+    expect(summary).toContain("controls not run");
+    expect(summary).not.toContain("0/4 correct");
+    const onDisk = JSON.parse(readFileSync(join(outDir, "triage.json"), "utf8"));
+    expect(onDisk.controls.status).toBe("not-run");
   });
 });
 
