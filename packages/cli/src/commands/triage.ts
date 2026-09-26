@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import { pickControls, placeControls } from "@titan-design/evidence";
+import { placeControls } from "@titan-design/evidence";
 import type { MapResult, StepRunner } from "@titan-design/workflow";
+import { pickRunControls } from "./triage-control-pick.js";
 import { loadControls } from "./triage-controls/controls.js";
 import type { Control } from "./triage-controls/types.js";
 import { bundleItems, controlItem, type TriageItem } from "./triage-items.js";
@@ -48,18 +49,12 @@ interface Verified {
   costShare: Map<string, number>;
 }
 
-/** Half the picks from each label, so every run plants both clean and slop controls. */
-function pickBalanced(pool: readonly Control[], seed: string, n: number): Control[] {
-  const clean = pool.filter((c) => c.label === "clean");
-  const slop = pool.filter((c) => c.label === "slop");
-  return [...pickControls(clean, seed, Math.floor(n / 2)), ...pickControls(slop, seed, Math.ceil(n / 2))];
-}
-
 /** Controls only measure a run that reads real bundles, so a fully judged plan makes no calls at all. */
 function workItems(plan: TriagePlan, options: TriageRunOptions, runId: string): TriageItem[] {
   if (plan.bundles.length === 0) return [];
   const pool = options.controls ?? loadControls();
-  const controls = pickBalanced(pool, runId, options.controlCount ?? DEFAULT_CONTROL_COUNT).map(controlItem);
+  const signals = plan.bundles.flatMap((b) => b.questions.map((q) => q.finding.signal));
+  const controls = pickRunControls(pool, signals, runId, options.controlCount ?? DEFAULT_CONTROL_COUNT).map(controlItem);
   const { sequence } = placeControls(bundleItems(plan.bundles, plan.keys, plan.source), controls, runId);
   return sequence.map((entry) => entry.value);
 }
