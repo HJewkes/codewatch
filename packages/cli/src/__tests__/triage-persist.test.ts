@@ -7,7 +7,7 @@ import type { LegacyStepRunner } from "@titan-design/workflow";
 import { runAuditCommand } from "../commands/audit.js";
 import { runTriage, type TriageRunOptions } from "../commands/triage.js";
 import { loadControls } from "../commands/triage-controls/controls.js";
-import type { VerdictRecord } from "../commands/triage-output.js";
+import { formatTriageSummary, type VerdictRecord } from "../commands/triage-output.js";
 import { openGraphStore } from "../utils/graph-store.js";
 import { fakeReader, row, SILENT_RUNNERS, type AskedQuestion } from "./triage-fake-reader.js";
 
@@ -124,6 +124,17 @@ describe("triage verdicts persisted in graph.db", () => {
     expect(second).toHaveLength(first.length);
     expect(second.every((r) => r.provenance === "carried" && r.carriedFrom === firstSnapshot)).toBe(true);
     expect(second.map((r) => [r.key, r.path, r.verdict])).toEqual(first.map((r) => [r.key, r.path, r.verdict]));
+  });
+
+  it("labels controls as not run when a fully carried rerun calls no model", async () => {
+    await triage(countingReader().runner);
+
+    await audit();
+    const { report, outDir } = await triage(countingReader().runner);
+
+    const summary = formatTriageSummary(report, outDir).join("\n");
+    expect(summary).toContain("controls not run;");
+    expect(summary).not.toContain("0/0 correct");
   });
 
   it("asks again only about the finding whose excerpt changed by one character", async () => {

@@ -5,7 +5,7 @@ import type { TriageItem } from "./triage-items.js";
 import type { ReusedVerdict } from "./triage-persist.js";
 import type { VerdictRow } from "./triage-prompt.js";
 import type { Verdict } from "./triage-questions.js";
-import type { CallTrace } from "./triage-runner.js";
+import type { CallTrace, TriageHarness } from "./triage-runner.js";
 import type { ControlReport, ControlRun } from "./triage-score.js";
 import type { DroppedRow } from "./triage-verify.js";
 
@@ -30,6 +30,7 @@ export interface TriageReport {
   runId: string;
   snapshotId: number;
   model: string;
+  harness: TriageHarness;
   settings: { minRank: number; includeTests: boolean; budgetUsd: number; concurrency: number };
   wallMs: number;
   cost: { spentUsd: number; estimateUsd: number };
@@ -70,10 +71,10 @@ export function writeTriageOutputs(outDir: string, records: readonly VerdictReco
 
 export function formatTriageSummary(report: TriageReport, outDir: string): string[] {
   const { verdicts, dropped, controls, cost } = report;
-  const accuracy = `${controls.score.correct}/${controls.score.total}`;
+  const accuracy = controls.controls.length === 0 ? "not run" : `${controls.score.correct}/${controls.score.total} correct, run ${controls.controlRun}`;
   const lines = [
     `codewatch triage: ${verdicts.written} verdicts (${verdicts.byLabel.confirmed} confirmed, ${verdicts.byLabel.justified} justified, ${verdicts.byLabel.unclear} unclear), ${dropped.total} dropped, of ${verdicts.asked} questions asked`,
-    `  controls ${accuracy} correct, run ${controls.controlRun}; cost $${cost.spentUsd.toFixed(2)} (estimate $${cost.estimateUsd.toFixed(2)}); ${report.calls.succeeded}/${report.calls.planned} calls in ${(report.wallMs / 1000).toFixed(0)}s`,
+    `  controls ${accuracy}; cost $${cost.spentUsd.toFixed(2)} (estimate $${cost.estimateUsd.toFixed(2)}); ${report.calls.succeeded}/${report.calls.planned} calls in ${(report.wallMs / 1000).toFixed(0)}s`,
   ];
   const store = report.verdictStore;
   if (store.skippedByVerdict > 0) lines.push(`  ${store.skippedByVerdict} questions skipped for an existing verdict (${store.carried} carried from snapshot ${store.carriedFrom ?? "none"})`);

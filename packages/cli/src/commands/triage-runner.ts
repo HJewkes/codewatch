@@ -1,4 +1,4 @@
-import { AuthMisconfiguredError, assertAuthEnvOk, prepareEnv, type AgentRunConfig } from "@titan-design/agent";
+import { AuthMisconfiguredError, assertAuthEnvOk, prepareEnv, resolveClaudeBin, type AgentRunConfig } from "@titan-design/agent";
 import { agentRunner, idempotentRunner, type LegacyStepRunner, type StepRunner } from "@titan-design/workflow";
 import { READER_SYSTEM_PROMPT, ReaderOutputSchema } from "./triage-prompt.js";
 
@@ -15,7 +15,13 @@ export interface CallTrace {
   turns?: number;
 }
 
+/** `claude-print` spawns the logged-in `claude` CLI; `sdk` runs the Agent SDK on CLAUDE_CODE_OAUTH_TOKEN. */
+export const TRIAGE_HARNESSES = ["claude-print", "sdk"] as const;
+export type TriageHarness = (typeof TRIAGE_HARNESSES)[number];
+export const DEFAULT_HARNESS: TriageHarness = "claude-print";
+
 export interface ReaderRunnerOptions {
+  harness: TriageHarness;
   cwd: string;
   /** Per-call ceiling handed to the SDK; the run's own budget is enforced by mapItems. */
   maxCallUsd: number;
@@ -26,13 +32,17 @@ type SdkMessage = Parameters<NonNullable<AgentRunConfig["onMessage"]>>[0];
 
 const MAX_TURNS = 4;
 
-/** Fails before any spend, in one actionable line, when subscription auth is missing. */
-export function preflightAuth(env: NodeJS.ProcessEnv = process.env): void {
+/** Fails before any spend, in one actionable line, when the chosen harness cannot authenticate. */
+export function preflightAuth(harness: TriageHarness, env: NodeJS.ProcessEnv = process.env): void {
+  const prepared = prepareEnv(env);
   try {
-    assertAuthEnvOk(prepareEnv(env));
+    assertAuthEnvOk(prepared, { requireOAuthToken: harness === "sdk" });
   } catch (err) {
     if (!(err instanceof AuthMisconfiguredError)) throw err;
     throw new Error(`triage needs model auth: ${err.message}${err.hint ? `; ${err.hint}` : ""}`);
+  }
+  if (harness === "claude-print" && !resolveClaudeBin(prepared)) {
+    throw new Error("triage needs the claude CLI: no `claude` binary on PATH; install Claude Code and log in, set CLAUDE_BIN, or pass --harness sdk");
   }
 }
 
@@ -42,6 +52,7 @@ function absorb(trace: CallTrace, message: SdkMessage): void {
     trace.tools = message.tools;
   }
   if (message.type !== "result") return;
+  trace.model ??= Object.keys(message.modelUsage ?? {})[0];
   trace.inputTokens = message.usage.input_tokens;
   trace.cacheCreationInputTokens = message.usage.cache_creation_input_tokens ?? undefined;
   trace.cacheReadInputTokens = message.usage.cache_read_input_tokens ?? undefined;
@@ -61,6 +72,7 @@ function tracingReader(options: ReaderRunnerOptions): LegacyStepRunner {
         maxTurns: MAX_TURNS,
         maxBudgetUsd: options.maxCallUsd,
         defaults: {
+          harness: options.harness === "sdk" ? "claude-code" : "claude-print",
           tools: [],
           systemPrompt: READER_SYSTEM_PROMPT,
           outputSchema: ReaderOutputSchema,

@@ -1,5 +1,6 @@
-import { InvalidArgumentError, type Command } from "commander";
+import { InvalidArgumentError, Option, type Command } from "commander";
 import { formatError } from "../utils/output.js";
+import { DEFAULT_HARNESS, TRIAGE_HARNESSES, type TriageHarness } from "./triage-runner.js";
 import { DEFAULT_MIN_RANK } from "./triage-select.js";
 
 interface TriageCliOptions {
@@ -7,6 +8,7 @@ interface TriageCliOptions {
   budgetUsd: number;
   concurrency: number;
   model: string;
+  harness: TriageHarness;
   dryRun?: boolean;
   includeTests?: boolean;
   out?: string;
@@ -60,7 +62,8 @@ export function registerTriageCommand(program: Command): void {
     .option("--budget-usd <usd>", "Stop launching model calls past this spend", nonNegative, 5)
     .option("--concurrency <n>", "Model calls in flight at once", positiveInt, 4)
     .option("--model <name>", "Model for the triage reader", "sonnet")
-    .option("--dry-run", "Print the files, questions, and a token and cost estimate; call no model")
+    .addOption(new Option("--harness <name>", "How the reader reaches the model: the logged-in claude CLI, or the Agent SDK on CLAUDE_CODE_OAUTH_TOKEN").choices(TRIAGE_HARNESSES).default(DEFAULT_HARNESS))
+    .option("--dry-run", "Print the files, questions, and a token and cost estimate; call no model, but still carry earlier verdicts forward into graph.db")
     .option("--include-tests", "Also triage test and fixture files")
     .option("--out <dir>", "Output directory for verdicts (default: <path>/.codewatch/audit)")
     .option("--db <path>", "Graph database (default: <path>/.codewatch/graph.db)")
