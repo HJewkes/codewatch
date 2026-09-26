@@ -6,7 +6,7 @@ import { idempotentRunner, type LegacyStepRunner } from "@titan-design/workflow"
 import { runAuditCommand } from "../commands/audit.js";
 import { runTriage, type TriageRunOptions } from "../commands/triage.js";
 import { loadControls } from "../commands/triage-controls/controls.js";
-import type { VerdictRecord } from "../commands/triage-output.js";
+import { formatTriageSummary, type VerdictRecord } from "../commands/triage-output.js";
 import type { VerdictRow } from "../commands/triage-prompt.js";
 import { preflightAuth, type TriageHarness } from "../commands/triage-runner.js";
 import { fakeReader, row, shownText, SILENT_RUNNERS } from "./triage-fake-reader.js";
@@ -150,6 +150,21 @@ describe("runTriage with a fake reader", () => {
     expect(report.calls.succeeded).toBe(3);
     expect(report.skipped).toHaveLength(2);
     expect(report.cost.spentUsd).toBeCloseTo(1.2);
+  });
+
+  it("reports controls not run instead of a zero score when no planted control reached the reader", async () => {
+    const refusing: LegacyStepRunner = { run: async () => ({ ok: false, error: "reader refused", retryable: false }) };
+
+    const { report, outDir } = await runTriage({ ...base(), controls: CONTROLS, controlCount: 4, concurrency: 1, runner: refusing });
+
+    expect(report.controls.controls).toHaveLength(4);
+    expect(report.controls.status).toBe("not-run");
+    expect(report.controls.score.total).toBe(0);
+    const summary = formatTriageSummary(report, outDir).join("\n");
+    expect(summary).toContain("controls not run");
+    expect(summary).not.toContain("0/4 correct");
+    const onDisk = JSON.parse(readFileSync(join(outDir, "triage.json"), "utf8"));
+    expect(onDisk.controls.status).toBe("not-run");
   });
 });
 

@@ -69,9 +69,15 @@ export function writeTriageOutputs(outDir: string, records: readonly VerdictReco
   writeFileSync(path.join(outDir, "triage.json"), `${JSON.stringify(report, null, 2)}\n`);
 }
 
+function controlAccuracy(controls: TriageReport["controls"]): string {
+  if (controls.status !== "run") return "not run";
+  const notRun = controls.controls.filter((c) => !c.reached).length;
+  return `${controls.score.correct}/${controls.score.total} correct, run ${controls.controlRun}${notRun > 0 ? `, ${notRun} not run` : ""}`;
+}
+
 export function formatTriageSummary(report: TriageReport, outDir: string): string[] {
   const { verdicts, dropped, controls, cost } = report;
-  const accuracy = controls.controls.length === 0 ? "not run" : `${controls.score.correct}/${controls.score.total} correct, run ${controls.controlRun}`;
+  const accuracy = controlAccuracy(controls);
   const lines = [
     `codewatch triage: ${verdicts.written} verdicts (${verdicts.byLabel.confirmed} confirmed, ${verdicts.byLabel.justified} justified, ${verdicts.byLabel.unclear} unclear), ${dropped.total} dropped, of ${verdicts.asked} questions asked`,
     `  controls ${accuracy}; cost $${cost.spentUsd.toFixed(2)} (estimate $${cost.estimateUsd.toFixed(2)}); ${report.calls.succeeded}/${report.calls.planned} calls in ${(report.wallMs / 1000).toFixed(0)}s`,
