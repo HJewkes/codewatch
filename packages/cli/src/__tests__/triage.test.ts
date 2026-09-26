@@ -87,6 +87,18 @@ describe("runTriage with a fake reader", () => {
     expect(report.controls.controlRun).toBe("ok");
   });
 
+  it("keeps a verdict whose second citation is on a shown line", async () => {
+    const runner = fakeReader((q, prompt) => {
+      const answer = row(q, prompt, "confirmed");
+      return [{ ...answer, citations: [...answer.citations, ...answer.citations] }];
+    });
+
+    const { report, verdicts } = await runTriage({ ...base(), runner });
+
+    expect(report.dropped.total).toBe(0);
+    expect(verdicts.map((v) => v.citations.length)).toEqual([2]);
+  });
+
   it("builds the reader on the claude-print harness by default and on the SDK when asked", async () => {
     const built: TriageHarness[] = [];
     const buildReader = ({ harness }: { harness: TriageHarness }) => {

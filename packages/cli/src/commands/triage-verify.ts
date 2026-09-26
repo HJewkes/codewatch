@@ -33,7 +33,7 @@ function parseOutput(output: string | undefined): VerdictRow[] | string {
 }
 
 function citationFailure(item: TriageItem, row: VerdictRow): Omit<DroppedRow, "item" | "key"> | undefined {
-  const options = { allowedPaths: item.shown.keys(), shown: item.shown };
+  const options = { allowedPaths: [...item.shown.keys()], shown: item.shown };
   for (const citation of row.citations) {
     const check = verifyCitation(item.lines, citation, options);
     if (!check.ok) return { reason: check.reason, detail: check.detail };
