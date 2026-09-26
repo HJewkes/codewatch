@@ -107,6 +107,20 @@ describe("runTriage with a fake reader", () => {
     expect(report.controls.controlRun).toBe("ok");
   });
 
+  it("keeps a verdict whose key carries the question header's path suffix, stored under the asked key", async () => {
+    const asked: string[] = [];
+    const runner = fakeReader((q, prompt) => {
+      if (q.path !== "pkg/core.py") return [row(q, prompt, q.path === HELPER_SLOP.path ? "confirmed" : "justified")];
+      asked.push(q.key);
+      return [{ ...row(q, prompt, "confirmed"), key: `${q.key}] pkg/core.py:10-12` }];
+    });
+
+    const { report, verdicts } = await runTriage({ ...base(), runner });
+
+    expect(report.dropped.total).toBe(0);
+    expect(verdicts.map((v) => v.key)).toEqual(asked);
+  });
+
   it("keeps a verdict that cites both the helper and its caller in another file", async () => {
     writeFileSync(join(dir, "pkg", "util.py"), UTIL_SRC);
     writeFileSync(join(dir, "pkg", "core.py"), CALLER_SRC);
