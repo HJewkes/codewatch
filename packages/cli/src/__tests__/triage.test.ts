@@ -21,12 +21,32 @@ def summarise(values):
     return max(shares)
 `;
 
+const UTIL_SRC = `def _normalise(values):
+    total = sum(values)
+    return [v / total for v in values]
+`;
+
+const CALLER_SRC = `from pkg.util import _normalise
+
+
+def summarise(values):
+    shares = _normalise(values)
+    return max(shares)
+`;
+
 const CONTROLS = loadControls();
 const HELPER_CLEAN = CONTROLS.find((c) => c.id === "py-helper-clean")!;
 const HELPER_SLOP = CONTROLS.find((c) => c.id === "py-helper-slop")!;
 
 /** Right on the slop control, wrong on the clean one: both controls come back confirmed. */
 const verdictFor = (path: string): VerdictRow["verdict"] => (path === "pkg/core.py" ? "justified" : "confirmed");
+
+/** The first shown line of any excerpt section other than `path`, as a citation. */
+function otherShownLine(prompt: string, path: string): VerdictRow["citations"][number] | undefined {
+  const other = [...prompt.matchAll(/^=== (\S+)$/gm)].map((m) => m[1]!).find((p) => p !== path);
+  const line = other && Number(/^\s*(\d+)\| /m.exec(prompt.split(`=== ${other}\n`)[1]!)?.[1]);
+  return other && line ? { path: other, lineStart: line, lineEnd: line, quote: shownText(prompt, other, line) } : undefined;
+}
 
 function readVerdicts(dir: string): VerdictRecord[] {
   const text = readFileSync(join(dir, ".codewatch", "audit", "verdicts.jsonl"), "utf8");
@@ -87,16 +107,21 @@ describe("runTriage with a fake reader", () => {
     expect(report.controls.controlRun).toBe("ok");
   });
 
-  it("keeps a verdict whose second citation is on a shown line", async () => {
+  it("keeps a verdict that cites both the helper and its caller in another file", async () => {
+    writeFileSync(join(dir, "pkg", "util.py"), UTIL_SRC);
+    writeFileSync(join(dir, "pkg", "core.py"), CALLER_SRC);
+    await runAuditCommand({ path: dir, noRuff: true, runners: SILENT_RUNNERS });
     const runner = fakeReader((q, prompt) => {
-      const answer = row(q, prompt, "confirmed");
-      return [{ ...answer, citations: [...answer.citations, ...answer.citations] }];
+      const answer = row(q, prompt, "justified");
+      const other = otherShownLine(prompt, q.path);
+      return other ? [{ ...answer, citations: [...answer.citations, other] }] : [answer];
     });
 
     const { report, verdicts } = await runTriage({ ...base(), runner });
 
+    const helper = verdicts.filter((v) => v.path === "pkg/util.py");
     expect(report.dropped.total).toBe(0);
-    expect(verdicts.map((v) => v.citations.length)).toEqual([2]);
+    expect(helper.map((v) => v.citations.map((c) => c.path))).toEqual([["pkg/util.py", "pkg/core.py"]]);
   });
 
   it("builds the reader on the claude-print harness by default and on the SDK when asked", async () => {
