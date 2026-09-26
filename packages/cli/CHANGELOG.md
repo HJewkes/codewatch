@@ -1,5 +1,24 @@
 # @codewatch/cli
 
+## 0.7.0
+
+### Minor Changes
+
+- 868cbf2: `codewatch audit` now stores its findings in graph.db against the snapshot, each keyed and with its excerpt hash. `codewatch triage` carries verdicts forward from the latest earlier judged snapshot, skips questions whose finding already has a verdict, saves its verified verdicts to graph.db, and reports carried, fresh, and skipped-by-verdict counts in triage.json. A rerun on an unchanged tree makes no model calls.
+
+  verdicts.jsonl is now the snapshot's full verdict view: fresh rows say `provenance: "model"`, carried rows say `provenance: "carried"` with `carriedFrom`.
+
+- d6842df: `codewatch triage` now reads findings through the logged-in `claude` CLI by default (the claude-print harness from `@titan-design/agent` 0.4.0), so it needs no `CLAUDE_CODE_OAUTH_TOKEN`. Pass `--harness sdk` to use the Agent SDK path, which still requires the token. The pre-flight check fails in one line when the chosen harness cannot run, `triage.json` records the harness, the summary says "controls not run" when a fully carried rerun calls no model, and the `--dry-run` help notes that it still carries earlier verdicts forward into graph.db.
+
+  Fix: a triage verdict with two or more citations is no longer dropped as `path-not-allowed`; the verifier passed a one-shot iterator of allowed paths that the first citation used up.
+
+- 3c53936: Add `codewatch triage <path> --dry-run`. It reads an existing audit, keeps files at or above `--min-rank` (default 70), and keeps only findings with a triage question. Test files are left out unless `--include-tests` is passed. It then builds per-file excerpt bundles: the innermost symbol with numbered lines, the caller for single-caller helpers, and splits over a 24k-token cap. It prints the files, questions, and a token and cost estimate without calling a model. A run without `--dry-run` exits 2 until the triage run ships.
+- 4165941: `codewatch triage <path>` without `--dry-run` now runs the model reader. It sends each selected file bundle, plus four planted control bundles at seeded positions, to a no-tools reader (default `sonnet`, `--concurrency 4`, `--budget-usd 5`). It verifies every cited line and quote against the lines the bundle showed and drops any verdict it cannot verify or that answers a question never asked. Results go to `.codewatch/audit/verdicts.jsonl` and `triage.json` (cost, control accuracy, verdict and drop counts, skipped bundles). A clean control answered `confirmed` or a slop control answered `justified` marks every verdict in the run `provisional`. Missing model auth fails before any call, in one line. The graph database now migrates to schema 4 (code-graph 0.9.0), which older codewatch builds refuse to open.
+
+### Patch Changes
+
+- 76fd0bf: Add the triage control corpus: eight labeled Python control files (four clean, four with findings to fix) and a loader that returns each control's finding rows and expected verdicts.
+
 ## 0.6.0
 
 ### Minor Changes
