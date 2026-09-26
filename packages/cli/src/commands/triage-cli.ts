@@ -7,6 +7,7 @@ interface TriageCliOptions {
   minRank: number;
   budgetUsd: number;
   concurrency: number;
+  maxFailures: number;
   model: string;
   harness: TriageHarness;
   dryRun?: boolean;
@@ -19,6 +20,12 @@ interface TriageCliOptions {
 function nonNegative(value: string): number {
   const n = Number(value);
   if (!Number.isFinite(n) || n < 0) throw new InvalidArgumentError("expected a number >= 0");
+  return n;
+}
+
+function nonNegativeInt(value: string): number {
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 0) throw new InvalidArgumentError("expected a whole number >= 0");
   return n;
 }
 
@@ -61,6 +68,7 @@ export function registerTriageCommand(program: Command): void {
     .option("--min-rank <n>", "Only files whose score rank is at least this (0-100)", nonNegative, DEFAULT_MIN_RANK)
     .option("--budget-usd <usd>", "Stop launching model calls past this spend", nonNegative, 5)
     .option("--concurrency <n>", "Model calls in flight at once", positiveInt, 4)
+    .option("--max-failures <n>", "Failed reader calls tolerated before launching stops", nonNegativeInt, 3)
     .option("--model <name>", "Model for the triage reader", "sonnet")
     .addOption(new Option("--harness <name>", "How the reader reaches the model: the logged-in claude CLI, or the Agent SDK on CLAUDE_CODE_OAUTH_TOKEN").choices(TRIAGE_HARNESSES).default(DEFAULT_HARNESS))
     .option("--dry-run", "Print the files, questions, and a token and cost estimate; call no model, but still carry earlier verdicts forward into graph.db")

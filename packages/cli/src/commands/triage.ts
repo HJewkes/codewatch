@@ -8,13 +8,14 @@ import type { Control } from "./triage-controls/types.js";
 import { bundleItems, controlItem, type TriageItem } from "./triage-items.js";
 import { planTriage, type TriagePlan, type TriagePlanOptions } from "./triage-plan.js";
 import { DEFAULT_HARNESS, preflightAuth, readerRunner, type CallTrace, type ReaderRunnerOptions, type TriageHarness } from "./triage-runner.js";
-import { countBy, skippedOf, verdictCounts, writeTriageOutputs, type TriageReport, type VerdictRecord } from "./triage-output.js";
+import { countBy, failedOf, skippedOf, verdictCounts, writeTriageOutputs, type TriageReport, type VerdictRecord } from "./triage-output.js";
 import { persistVerdicts } from "./triage-persist.js";
 import { scoreControlItems, type ControlReport } from "./triage-score.js";
 import { verifyItemOutput, type DroppedRow, type VerifiedRow } from "./triage-verify.js";
 import { fanOutReads, READ_STEP } from "./triage-workflow.js";
 
 export const DEFAULT_CONTROL_COUNT = 4;
+export const DEFAULT_MAX_FAILURES = 3;
 /** Ceiling on any single reader call, so one runaway call cannot eat the run's budget. */
 const MAX_CALL_USD = 1;
 
@@ -22,6 +23,8 @@ export interface TriageRunOptions extends TriagePlanOptions {
   model: string;
   concurrency: number;
   budgetUsd: number;
+  /** Retryable reader failures tolerated before launches stop; defaults to 3. */
+  maxFailures?: number;
   /** Which agent harness reads the bundles; defaults to claude-print. */
   harness?: TriageHarness;
   out?: string;
@@ -122,10 +125,10 @@ function buildReport(input: ReportInput): TriageReport {
     snapshotId: plan.snapshotId,
     model: options.model,
     harness: options.harness ?? DEFAULT_HARNESS,
-    settings: { minRank: options.minRank, includeTests: options.includeTests, budgetUsd: options.budgetUsd, concurrency: options.concurrency },
+    settings: { minRank: options.minRank, includeTests: options.includeTests, budgetUsd: options.budgetUsd, concurrency: options.concurrency, maxFailures: maxFailuresOf(options) },
     wallMs: Date.now() - input.startedAt,
     cost: { spentUsd: mapped.spentUsd, estimateUsd: plan.estimate.costUsd },
-    calls: { planned: mapped.results.length + mapped.failed.length + mapped.skipped.length, succeeded: mapped.results.length, failed: mapped.failed.map((f) => ({ id: f.key, error: f.error })) },
+    calls: { planned: mapped.results.length + mapped.failed.length + mapped.skipped.length, succeeded: mapped.results.length, failed: failedOf(mapped) },
     stoppedBy: mapped.stoppedBy,
     skipped: skippedOf(mapped),
     verdicts: { asked, written: records.length, byLabel: verdictCounts(records) },
@@ -137,6 +140,8 @@ function buildReport(input: ReportInput): TriageReport {
     warnings: plan.warnings,
   };
 }
+
+const maxFailuresOf = (options: TriageRunOptions) => options.maxFailures ?? DEFAULT_MAX_FAILURES;
 
 function buildReader(options: TriageRunOptions, root: string, traces: CallTrace[]): StepRunner {
   const harness = options.harness ?? DEFAULT_HARNESS;
@@ -155,7 +160,7 @@ export async function runTriage(options: TriageRunOptions): Promise<TriageRunRes
   const plan = planTriage(options);
   const runId = options.seed ?? randomUUID();
   const items = workItems(plan, options, runId);
-  const mapped = await fanOutReads(items, { ...options, runner, dbPath: path.join(outDir, "triage.sqlite3") });
+  const mapped = await fanOutReads(items, { ...options, maxFailures: maxFailuresOf(options), runner, dbPath: path.join(outDir, "triage.sqlite3") });
   const verified = verifyAll(mapped);
   const controls = scoreControlItems(items, verified.kept);
   const records = toRecords(items, verified, controls, runId, modelByItem(traces, options.model));

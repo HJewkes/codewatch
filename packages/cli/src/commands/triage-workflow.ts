@@ -23,6 +23,8 @@ export interface FanOutOptions {
   model: string;
   concurrency: number;
   budgetUsd: number;
+  /** Retryable reader failures tolerated before launches stop. */
+  maxFailures?: number;
   onProgress?: (line: string) => void;
 }
 
@@ -46,7 +48,7 @@ export async function fanOutReads(items: readonly TriageItem[], options: FanOutO
     let mapped: MapResult<TriageItem> | undefined;
     runtime.register(WORKFLOW, async (ctx) => {
       const read = (item: TriageItem, stepId: string) => ctx.dispatch(stepId, renderPrompt(item), { model: options.model });
-      mapped = await mapItems(ctx, READ_STEP, items, read, { key: (item) => item.id, concurrency: options.concurrency, budgetUsd: options.budgetUsd });
+      mapped = await mapItems(ctx, READ_STEP, items, read, { key: (item) => item.id, concurrency: options.concurrency, budgetUsd: options.budgetUsd, maxFailures: options.maxFailures });
     });
     const run = await runtime.wait(runtime.start(WORKFLOW));
     runtime.shutdown();

@@ -152,6 +152,20 @@ describe("runTriage with a fake reader", () => {
     expect(report.cost.spentUsd).toBeCloseTo(1.2);
   });
 
+  it("keeps launching past a retryable failure until --max-failures is exceeded and records each failed call", async () => {
+    const flaky: LegacyStepRunner = { run: async () => ({ ok: false, error: "claude -p reached --max-turns 2", retryable: true, usage: { costUsd: 0.1 } }) };
+
+    const { report } = await runTriage({ ...base(), controls: CONTROLS, controlCount: 4, concurrency: 1, maxFailures: 1, runner: flaky });
+
+    expect(report.stoppedBy).toBe("failure");
+    expect(report.calls.failed).toHaveLength(2);
+    expect(report.calls.failed[0]).toMatchObject({ retryable: true, error: "claude -p reached --max-turns 2" });
+    expect(report.calls.failed[0]!.costUsd).toBeGreaterThan(0);
+    expect(report.skipped).toHaveLength(3);
+    expect(report.settings.maxFailures).toBe(1);
+    expect(report.cost.spentUsd).toBeCloseTo(report.calls.failed.reduce((n, f) => n + f.costUsd, 0));
+  });
+
   it("reports controls not run instead of a zero score when no planted control reached the reader", async () => {
     const refusing: LegacyStepRunner = { run: async () => ({ ok: false, error: "reader refused", retryable: false }) };
 
