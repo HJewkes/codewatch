@@ -6,7 +6,7 @@ import { loadControls } from "./triage-controls/controls.js";
 import type { Control } from "./triage-controls/types.js";
 import { bundleItems, controlItem, type TriageItem } from "./triage-items.js";
 import { planTriage, type TriagePlan, type TriagePlanOptions } from "./triage-plan.js";
-import { preflightAuth, readerRunner, type CallTrace } from "./triage-runner.js";
+import { DEFAULT_HARNESS, preflightAuth, readerRunner, type CallTrace, type ReaderRunnerOptions, type TriageHarness } from "./triage-runner.js";
 import { countBy, skippedOf, verdictCounts, writeTriageOutputs, type TriageReport, type VerdictRecord } from "./triage-output.js";
 import { persistVerdicts } from "./triage-persist.js";
 import { scoreControlItems, type ControlReport } from "./triage-score.js";
@@ -21,6 +21,8 @@ export interface TriageRunOptions extends TriagePlanOptions {
   model: string;
   concurrency: number;
   budgetUsd: number;
+  /** Which agent harness reads the bundles; defaults to claude-print. */
+  harness?: TriageHarness;
   out?: string;
   /** The control pool; defaults to the planted corpus. */
   controls?: readonly Control[];
@@ -29,6 +31,8 @@ export interface TriageRunOptions extends TriagePlanOptions {
   seed?: string;
   /** Replaces the model reader (tests); auth preflight is skipped when set. */
   runner?: StepRunner;
+  /** Builds the model reader from its options (tests); auth preflight is skipped when set. */
+  buildReader?: (options: ReaderRunnerOptions) => StepRunner;
   onProgress?: (line: string) => void;
 }
 
@@ -122,6 +126,7 @@ function buildReport(input: ReportInput): TriageReport {
     runId: input.runId,
     snapshotId: plan.snapshotId,
     model: options.model,
+    harness: options.harness ?? DEFAULT_HARNESS,
     settings: { minRank: options.minRank, includeTests: options.includeTests, budgetUsd: options.budgetUsd, concurrency: options.concurrency },
     wallMs: Date.now() - input.startedAt,
     cost: { spentUsd: mapped.spentUsd, estimateUsd: plan.estimate.costUsd },
@@ -138,14 +143,20 @@ function buildReport(input: ReportInput): TriageReport {
   };
 }
 
+function buildReader(options: TriageRunOptions, root: string, traces: CallTrace[]): StepRunner {
+  const harness = options.harness ?? DEFAULT_HARNESS;
+  if (!options.buildReader) preflightAuth(harness);
+  const maxCallUsd = Math.min(MAX_CALL_USD, options.budgetUsd || MAX_CALL_USD);
+  return (options.buildReader ?? readerRunner)({ harness, cwd: root, maxCallUsd, traces });
+}
+
 /** Runs the reader over every selected bundle plus planted controls, verifies each verdict, and writes verdicts.jsonl and triage.json. */
 export async function runTriage(options: TriageRunOptions): Promise<TriageRunResult> {
   const startedAt = Date.now();
   const root = path.resolve(options.path);
   const outDir = path.resolve(options.out ?? path.join(root, ".codewatch", "audit"));
   const traces: CallTrace[] = [];
-  if (!options.runner) preflightAuth();
-  const runner = options.runner ?? readerRunner({ cwd: root, maxCallUsd: Math.min(MAX_CALL_USD, options.budgetUsd || MAX_CALL_USD), traces });
+  const runner = options.runner ?? buildReader(options, root, traces);
   const plan = planTriage(options);
   const runId = options.seed ?? randomUUID();
   const items = workItems(plan, options, runId);

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { idempotentRunner, type LegacyStepRunner } from "@titan-design/workflow";
@@ -8,12 +8,25 @@ import { runTriage, type TriageRunOptions } from "../commands/triage.js";
 import { loadControls } from "../commands/triage-controls/controls.js";
 import type { VerdictRecord } from "../commands/triage-output.js";
 import type { VerdictRow } from "../commands/triage-prompt.js";
-import { preflightAuth } from "../commands/triage-runner.js";
+import { preflightAuth, type TriageHarness } from "../commands/triage-runner.js";
 import { fakeReader, row, shownText, SILENT_RUNNERS } from "./triage-fake-reader.js";
 
 const CORE_SRC = `def _normalise(values):
     total = sum(values)
     return [v / total for v in values]
+
+
+def summarise(values):
+    shares = _normalise(values)
+    return max(shares)
+`;
+
+const UTIL_SRC = `def _normalise(values):
+    total = sum(values)
+    return [v / total for v in values]
+`;
+
+const CALLER_SRC = `from pkg.util import _normalise
 
 
 def summarise(values):
@@ -27,6 +40,13 @@ const HELPER_SLOP = CONTROLS.find((c) => c.id === "py-helper-slop")!;
 
 /** Right on the slop control, wrong on the clean one: both controls come back confirmed. */
 const verdictFor = (path: string): VerdictRow["verdict"] => (path === "pkg/core.py" ? "justified" : "confirmed");
+
+/** The first shown line of any excerpt section other than `path`, as a citation. */
+function otherShownLine(prompt: string, path: string): VerdictRow["citations"][number] | undefined {
+  const other = [...prompt.matchAll(/^=== (\S+)$/gm)].map((m) => m[1]!).find((p) => p !== path);
+  const line = other && Number(/^\s*(\d+)\| /m.exec(prompt.split(`=== ${other}\n`)[1]!)?.[1]);
+  return other && line ? { path: other, lineStart: line, lineEnd: line, quote: shownText(prompt, other, line) } : undefined;
+}
 
 function readVerdicts(dir: string): VerdictRecord[] {
   const text = readFileSync(join(dir, ".codewatch", "audit", "verdicts.jsonl"), "utf8");
@@ -87,6 +107,37 @@ describe("runTriage with a fake reader", () => {
     expect(report.controls.controlRun).toBe("ok");
   });
 
+  it("keeps a verdict that cites both the helper and its caller in another file", async () => {
+    writeFileSync(join(dir, "pkg", "util.py"), UTIL_SRC);
+    writeFileSync(join(dir, "pkg", "core.py"), CALLER_SRC);
+    await runAuditCommand({ path: dir, noRuff: true, runners: SILENT_RUNNERS });
+    const runner = fakeReader((q, prompt) => {
+      const answer = row(q, prompt, "justified");
+      const other = otherShownLine(prompt, q.path);
+      return other ? [{ ...answer, citations: [...answer.citations, other] }] : [answer];
+    });
+
+    const { report, verdicts } = await runTriage({ ...base(), runner });
+
+    const helper = verdicts.filter((v) => v.path === "pkg/util.py");
+    expect(report.dropped.total).toBe(0);
+    expect(helper.map((v) => v.citations.map((c) => c.path))).toEqual([["pkg/util.py", "pkg/core.py"]]);
+  });
+
+  it("builds the reader on the claude-print harness by default and on the SDK when asked", async () => {
+    const built: TriageHarness[] = [];
+    const buildReader = ({ harness }: { harness: TriageHarness }) => {
+      built.push(harness);
+      return fakeReader((q, prompt) => [row(q, prompt, "unclear")]);
+    };
+
+    const byDefault = await runTriage({ ...base(), buildReader });
+    const bySdk = await runTriage({ ...base(), buildReader, harness: "sdk", out: join(dir, "sdk-out") });
+
+    expect(built).toEqual(["claude-print", "sdk"]);
+    expect([byDefault.report.harness, bySdk.report.harness]).toEqual(["claude-print", "sdk"]);
+  });
+
   it("stops launching at --budget-usd and lists the skipped bundles", async () => {
     const reader = fakeReader((q, prompt) => [row(q, prompt, "unclear")]);
     const costly: LegacyStepRunner = {
@@ -103,11 +154,34 @@ describe("runTriage with a fake reader", () => {
 });
 
 describe("preflightAuth", () => {
-  it("fails in one actionable line when no subscription token is set", () => {
-    expect(() => preflightAuth({ PATH: "/usr/bin" })).toThrow(/^triage needs model auth: .*claude setup-token/);
+  let bin: string;
+
+  beforeEach(() => {
+    bin = mkdtempSync(join(tmpdir(), "triage-bin-"));
   });
 
-  it("passes with a subscription token", () => {
-    expect(() => preflightAuth({ CLAUDE_CODE_OAUTH_TOKEN: "token" })).not.toThrow();
+  afterEach(() => rmSync(bin, { recursive: true, force: true }));
+
+  const installClaude = () => {
+    writeFileSync(join(bin, "claude"), "#!/bin/sh\n");
+    chmodSync(join(bin, "claude"), 0o755);
+  };
+
+  it("fails the SDK harness in one actionable line when no subscription token is set", () => {
+    installClaude();
+    expect(() => preflightAuth("sdk", { PATH: bin })).toThrow(/^triage needs model auth: .*claude setup-token/);
+  });
+
+  it("passes the SDK harness with a subscription token and no claude binary", () => {
+    expect(() => preflightAuth("sdk", { PATH: bin, CLAUDE_CODE_OAUTH_TOKEN: "token" })).not.toThrow();
+  });
+
+  it("passes the claude-print harness with a claude binary on PATH and no token", () => {
+    installClaude();
+    expect(() => preflightAuth("claude-print", { PATH: bin })).not.toThrow();
+  });
+
+  it("fails the claude-print harness in one actionable line when no claude binary is on PATH", () => {
+    expect(() => preflightAuth("claude-print", { PATH: bin })).toThrow(/^triage needs the claude CLI: no `claude` binary on PATH;.*--harness sdk$/);
   });
 });
