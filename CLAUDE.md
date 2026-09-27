@@ -64,3 +64,7 @@ extract rather than append.
 - Releases run through changesets. Add one (`pnpm changeset`) for any change under
   `packages/*` that should ship; CI does not enforce it.
 - Name things in neutral code-analysis terms: findings, audit, report.
+
+## Gotchas
+
+- The `scary-hotspots` fitness rule (`churn_30d × cognitive_max × recency_30d`, max 3000) reads churn from git history, so it passes on an uncommitted working tree and can fail once you commit. Run the gate after committing, and extract rather than grow an already-hot file.
