@@ -128,4 +128,36 @@ describe("codewatch launcher with a graph.db", () => {
     expect(result.stdout).toBe("")
     expect(result.stderr).toContain("cannot find the codewatch CLI")
   })
+
+  it("passes the exact argv when the project path and the CLI path contain a space", () => {
+    const spaced = join(scratch, "my repo")
+    mkdirSync(join(spaced, ".codewatch"), { recursive: true })
+    spawnSync("git", ["init", "-q", spaced])
+    writeFileSync(join(spaced, ".codewatch", "graph.db"), "")
+    fakeBin = join(scratch, "fake codewatch")
+    writeRecordingFake()
+
+    const result = runLauncher({ CODEWATCH_BIN: fakeBin, CLAUDE_PROJECT_DIR: spaced }, spaced)
+
+    expect(result.status).toBe(0)
+    expect(readFileSync(callLog, "utf8").trimEnd().split("\n")).toEqual([
+      "graph",
+      "mcp",
+      "--db",
+      join(spaced, ".codewatch", "graph.db"),
+      "--repo-root",
+      spaced,
+    ])
+  })
+
+  it("execs a CLI path that starts with a dash instead of parsing it as an option", () => {
+    mkdirSync(join(repo, "-bin"))
+    fakeBin = join(repo, "-bin", "codewatch")
+    writeRecordingFake()
+
+    const result = runLauncher({ CODEWATCH_BIN: "-bin/codewatch", CLAUDE_PROJECT_DIR: repo })
+
+    expect(result.status).toBe(0)
+    expect(readFileSync(callLog, "utf8")).toContain("graph\nmcp\n")
+  })
 })
