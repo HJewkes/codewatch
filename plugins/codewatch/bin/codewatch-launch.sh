@@ -67,7 +67,7 @@ case "$cli" in
     ;;
 esac
 
-command -v "$cli" >/dev/null 2>&1 || fail "cannot find the codewatch CLI ($cli).
+command -v -- "$cli" >/dev/null 2>&1 || fail "cannot find the codewatch CLI ($cli).
 Install it with \`npm i -g @codewatch/cli\`, or set CODEWATCH_BIN to its path."
 
-exec "$cli" "${mcp_args[@]}"
+exec -- "$cli" "${mcp_args[@]}"
