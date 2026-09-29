@@ -36,8 +36,8 @@ export interface ArmStreamLedgers {
   toolCalls: Record<string, number>;
   numTurns: number;
   costUsd: number;
-  /** Distinct main-agent turns (message ids) before the turn holding the first Edit/Write. */
-  preEditTurns: number;
+  /** Distinct main-agent turns (message ids) before the turn holding the first Edit/Write; null means no edit happened. */
+  preEditTurns: number | null;
   /** Distinct files the main agent Read before its first Edit/Write, as the tool input named them. */
   readFiles: string[];
 }
@@ -151,7 +151,7 @@ function collectCalls(events: readonly Json[]): StreamCalls {
 const EDIT_TOOLS: ReadonlySet<string> = new Set(["Edit", "Write"]);
 
 interface EditTrace {
-  preEditTurns: number;
+  preEditTurns: number | null;
   readFiles: string[];
 }
 
@@ -173,7 +173,7 @@ function traceBeforeFirstEdit(events: readonly Json[]): EditTrace {
       if (block["type"] === "tool_use" && block["name"] === "Read" && typeof path === "string") readFiles.add(path);
     }
   }
-  return { preEditTurns: turns.size, readFiles: [...readFiles] };
+  return { preEditTurns: null, readFiles: [...readFiles] };
 }
 
 function ledgerOf(calls: readonly ApiCall[]): Ledger {
