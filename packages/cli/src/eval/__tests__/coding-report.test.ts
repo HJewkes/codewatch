@@ -101,8 +101,8 @@ describe("summarizeArms", () => {
   it("orders arms by resolve rate and main tokens, never by localization-F1", () => {
     const runs = [
       run({ arm: "A0", taskId: "t1", resolved: false, main: 100, f1: 1 }),
-      run({ arm: "A2", taskId: "t1", resolved: true, main: 900, f1: 0 }),
-      run({ arm: "AI", taskId: "t1", resolved: true, main: 500, f1: 0.1 }),
+      run({ arm: "A2", taskId: "t1", resolved: true, main: 900, f1: 0.9 }),
+      run({ arm: "AI", taskId: "t1", resolved: true, main: 500, f1: 0 }),
     ];
 
     const order = summarizeArms(runs).arms.map((a) => a.arm);
