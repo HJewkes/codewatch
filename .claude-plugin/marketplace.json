@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "codewatch-local",
+  "description": "Local marketplace for the codewatch Claude Code plugin",
+  "owner": {
+    "name": "Henry Jewkes"
+  },
+  "plugins": [
+    {
+      "name": "codewatch",
+      "source": "./plugins/codewatch",
+      "description": "Code graph context for Claude Code: the codewatch MCP server for barrel-resolved callers, source lookup and similar-capability search"
+    }
+  ]
+}
