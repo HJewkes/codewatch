@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import type { Command } from "commander";
 import chalk from "chalk";
 import {
@@ -106,6 +107,7 @@ export function runGraphCoupledCommand(
 function pickSnapshot(
   options: GraphCoupledCommandOptions,
 ): SnapshotRow | null {
+  if (!existsSync(options.db)) return null;
   const db = openGraphStore(options.db);
   try {
     if (options.snapshot !== undefined) return db.getSnapshot(options.snapshot);
