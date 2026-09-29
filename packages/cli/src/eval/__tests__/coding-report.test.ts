@@ -3,12 +3,19 @@ import { GOLD_PATCH_CAVEAT, renderArmReport, summarizeArms, type ArmRun } from "
 import type { Ledger, TokenCounts } from "../coding-ledger.js";
 import type { SetScore } from "../types.js";
 
-function ledger(inputTokens: number, calls = 1): Ledger {
-  return { inputTokens, cacheCreateTokens: 0, cacheReadTokens: 0, outputTokens: 0, calls };
+interface Cache {
+  create: number;
+  read: number;
 }
 
-function counts(inputTokens: number): TokenCounts {
-  return { inputTokens, cacheCreateTokens: 0, cacheReadTokens: 0, outputTokens: 0 };
+const NO_CACHE: Cache = { create: 0, read: 0 };
+
+function ledger(inputTokens: number, calls = 1, cache: Cache = NO_CACHE): Ledger {
+  return { inputTokens, cacheCreateTokens: cache.create, cacheReadTokens: cache.read, outputTokens: 0, calls };
+}
+
+function counts(inputTokens: number, cache: Cache = NO_CACHE): TokenCounts {
+  return { inputTokens, cacheCreateTokens: cache.create, cacheReadTokens: cache.read, outputTokens: 0 };
 }
 
 function score(f1: number): SetScore {
@@ -21,6 +28,8 @@ interface RunSpec {
   resolved?: boolean;
   main?: number;
   helper?: number;
+  mainCache?: Cache;
+  helperCache?: Cache;
   f1?: number;
   preEditTurns?: number | null;
 }
@@ -38,9 +47,12 @@ function run(spec: RunSpec): ArmRun {
     failToPassPassed: 0,
     failToPassTotal: 1,
     passToPassRegressed: 0,
-    main: ledger(main),
-    helper: ledger(helper),
-    sessionTotal: counts(main + helper),
+    main: ledger(main, 1, spec.mainCache),
+    helper: ledger(helper, 1, spec.helperCache),
+    sessionTotal: counts(main + helper, {
+      create: (spec.mainCache?.create ?? 0) + (spec.helperCache?.create ?? 0),
+      read: (spec.mainCache?.read ?? 0) + (spec.helperCache?.read ?? 0),
+    }),
     ledgerGap: counts(0),
     costUsd: 0,
     numTurns: 1,
@@ -71,9 +83,33 @@ describe("renderArmReport", () => {
     const summary = summarizeArms(runs).arms.find((a) => a.arm === "AI");
     expect(summary?.mainDelta?.meanDelta).toBe(-300);
     expect(headlineRow(report, "AI")).toContain("-300");
+    expect(headlineRow(report, "AI")).toContain("| 1,700 |");
+    expect(headlineRow(report, "AI")).not.toContain("6,700");
     expect(headlineRow(report, "AI")).not.toContain("4,700");
     expect(report).toMatch(/## Helper overhead[\s\S]*\| AI \| 5,000 \|/);
     expect(report).toMatch(/## Session total \(reference only\)[\s\S]*\| AI \| 6,700 \|/);
+  });
+
+  it("counts cache-create and cache-read tokens as input in the main ledger, the delta and helper overhead", () => {
+    const runs = [
+      run({ arm: "A0", taskId: "t1", main: 1000, mainCache: { create: 200, read: 800 } }),
+      run({
+        arm: "AI",
+        taskId: "t1",
+        main: 500,
+        mainCache: { create: 100, read: 400 },
+        helper: 300,
+        helperCache: { create: 50, read: 150 },
+      }),
+    ];
+
+    const report = renderArmReport(summarizeArms(runs));
+
+    expect(headlineRow(report, "A0")).toContain("| 2,000 |");
+    expect(headlineRow(report, "AI")).toContain("| 1,000 |");
+    expect(headlineRow(report, "AI")).toContain("-1,000");
+    expect(report).toMatch(/## Helper overhead[\s\S]*\| AI \| 500 \|/);
+    expect(report).toMatch(/## Session total \(reference only\)[\s\S]*\| AI \| 1,500 \|/);
   });
 
   it("prints localization-F1 under the reported-not-optimised heading with the gold-patch caveat", () => {
