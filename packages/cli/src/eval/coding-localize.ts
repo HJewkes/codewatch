@@ -143,3 +143,10 @@ export function scoreLocalization(goldDiff: string, agentDiff: string, spansFor:
     line: gradeSet(gold.line, agent.line),
   };
 }
+
+/** File-F1 of the files the agent Read before its first edit against the gold patch files; `root` strips absolute prefixes. */
+export function scoreReadLocalization(goldDiff: string, readFiles: readonly string[], root = ""): SetScore {
+  const prefix = root === "" ? "" : `${root.replace(/\/+$/, "")}/`;
+  const relative = readFiles.map((file) => (prefix !== "" && file.startsWith(prefix) ? file.slice(prefix.length) : file));
+  return gradeSet(parseDiffLocations(goldDiff).map((l) => l.file), relative);
+}
