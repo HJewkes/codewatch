@@ -1,0 +1,732 @@
+{
+  "model": "claude:sonnet",
+  "coverage": {
+    "files": 249,
+    "grouped": 220,
+    "areas": 7,
+    "summarized": 7
+  },
+  "areas": [
+    {
+      "id": "area-4e1f42cf",
+      "label": "packages/cli/src/commands (+3 dirs)",
+      "files": [
+        "packages/cli/src/utils/graph-store.ts",
+        "packages/cli/src/commands/graph-cli.ts",
+        "packages/cli/src/commands/graph-index-run.ts",
+        "packages/cli/src/commands/dashboard-payload.ts",
+        "packages/cli/src/commands/graph-relevant.ts",
+        "packages/cli/src/commands/graph-coupled.ts",
+        "packages/cli/src/commands/graph-index.ts",
+        "packages/cli/src/commands/graph-top.ts",
+        "packages/cli/src/commands/graph-check.ts",
+        "packages/cli/src/commands/graph-conventions.ts",
+        "packages/cli/src/__tests__/legacy-graph-db.test.ts",
+        "packages/cli/src/commands/graph-auto-update.ts",
+        "packages/cli/src/commands/graph-coverage.ts",
+        "packages/cli/src/commands/graph-diff.ts",
+        "packages/cli/src/commands/graph-embed.ts",
+        "packages/cli/src/commands/graph-relevant-format.ts",
+        "packages/cli/src/utils/table.ts",
+        "packages/cli/src/__tests__/graph-conventions.test.ts",
+        "packages/cli/src/commands/dashboard-health.ts",
+        "packages/cli/src/commands/dashboard-symbol-coupling.ts",
+        "packages/cli/src/commands/dashboard-windows.ts",
+        "packages/cli/src/commands/graph-check-diff.ts",
+        "packages/cli/src/commands/graph-prune.ts",
+        "packages/cli/src/commands/graph-similar.ts",
+        "packages/cli/src/__tests__/dashboard-coupling.test.ts",
+        "packages/cli/src/__tests__/dashboard-health.test.ts",
+        "packages/cli/src/__tests__/dashboard-symbol-coupling.test.ts",
+        "packages/cli/src/__tests__/graph-auto-update.test.ts",
+        "packages/cli/src/__tests__/graph-check.test.ts",
+        "packages/cli/src/__tests__/graph-coupled-lifetime.test.ts",
+        "packages/cli/src/__tests__/graph-coupled.test.ts",
+        "packages/cli/src/__tests__/graph-coverage.test.ts",
+        "packages/cli/src/__tests__/graph-diff.test.ts",
+        "packages/cli/src/__tests__/graph-index-db-path.test.ts",
+        "packages/cli/src/__tests__/graph-index.test.ts",
+        "packages/cli/src/__tests__/graph-relevant.test.ts",
+        "packages/cli/src/__tests__/graph-render.test.ts",
+        "packages/cli/src/__tests__/graph-top.test.ts",
+        "packages/cli/src/__tests__/history-paths.test.ts",
+        "packages/cli/src/__tests__/indexer/churn.test.ts",
+        "packages/cli/src/__tests__/indexer/dist-imports.test.ts",
+        "packages/cli/src/__tests__/indexer/id-root.test.ts",
+        "packages/cli/src/__tests__/indexer/metrics.test.ts",
+        "packages/cli/src/__tests__/indexer/renames.test.ts",
+        "packages/cli/src/commands/graph-relevant-explain.ts",
+        "packages/cli/src/utils/claude-summarizer.ts"
+      ],
+      "size": 46,
+      "topSymbols": [
+        {
+          "name": "legacyGraphDbVersion",
+          "signature": "legacyGraphDbVersion(dbPath: string): string | null",
+          "purpose": "Pre-swap `@codewatch/graph` files carry a `boundary` table the code-graph schema never creates. Returns the newest snapshot's index version, \"unknown\" when it has none, or null for a current or absent file."
+        },
+        {
+          "name": "openGraphStore",
+          "signature": "openGraphStore(dbPath: string): CodeGraphStore",
+          "purpose": "Open the graph for reading; a legacy file is an error the user fixes by reindexing."
+        },
+        {
+          "name": "moveLegacyGraphDbAside",
+          "signature": "moveLegacyGraphDbAside(dbPath: string): string | null",
+          "purpose": "Rename a legacy file aside so `graph index` starts a fresh store; returns the new path."
+        },
+        {
+          "name": "LEGACY_DB_MESSAGE",
+          "signature": "LEGACY_DB_MESSAGE: \"this database predates codewatch 0.2; run `codewatch graph index`\""
+        },
+        {
+          "name": "registerGraphCommands",
+          "signature": "registerGraphCommands(program: Command): void"
+        },
+        {
+          "name": "resolveIndexDbPath",
+          "signature": "resolveIndexDbPath(dbPath: string | undefined, firstRoot: string): string",
+          "purpose": "Default the db to the git toplevel, where node ids are rooted, not the indexed subdir (C-22)."
+        },
+        {
+          "name": "runGraphIndex",
+          "signature": "runGraphIndex(options: GraphIndexOptions): Promise<GraphIndexResult>"
+        },
+        {
+          "name": "GraphIndexOptions",
+          "signature": "interface GraphIndexOptions"
+        },
+        {
+          "name": "GraphIndexResult",
+          "signature": "interface GraphIndexResult",
+          "purpose": "The CLI's stable `graph index --json` shape over the package's `IndexResult`."
+        },
+        {
+          "name": "classifyCoupling",
+          "signature": "classifyCoupling(a: string, b: string, ctx: SnapshotContext): CouplingClass",
+          "purpose": "Classify a co-changed pair against the static import graph: - unindexed: an endpoint has no resolved internal imports → can't tell (not hidden). - hidden: both connected, but no import/re-export edge joins them → the signal. - expected: bo…"
+        },
+        {
+          "name": "buildPayload",
+          "signature": "buildPayload(report: ReturnType<typeof runGraphReportCommand>, violations: { rule: string; severity: \"error\" | \"warning\"; file: string; detail: string; status: \"new\" | \"carry\" | \"fixed\" }[], arch: Ar…"
+        },
+        {
+          "name": "computeWindowPayloads",
+          "signature": "computeWindowPayloads(opts: DashboardCommandOptions, repoRoot: string, violations: Awaited<ReturnType<typeof collectViolations>>, arch: ArchInfo): { windows: Record<string, DashboardPayload>; primary…",
+          "purpose": "Build one payload per churn window (30/90/180 + any requested), deduped by content so the client-side window switcher only appears when the data genuinely differs. Returns the kept windows, the primary window key, and the resolved snapshot…"
+        },
+        {
+          "name": "archInfo",
+          "signature": "archInfo(db: string, repoRoot: string): ArchInfo"
+        },
+        {
+          "name": "collectViolations",
+          "signature": "collectViolations(opts: DashboardCommandOptions): Promise<{ rule: string; severity: \"error\" | \"warning\"; file: string; detail: string; status: \"new\" | \"carry\" | \"fixed\"; }[]>"
+        },
+        {
+          "name": "windowSignature",
+          "signature": "windowSignature(p: DashboardPayload): string",
+          "purpose": "Signature over all window-dependent fields, to collapse identical windows."
+        }
+      ],
+      "contentHash": "d2c918ef3e2e84528e5f9de82ff915a50695e931f58ca697b7646d5f47c0af70",
+      "summary": "This area implements the `codewatch graph` and `codewatch dashboard` CLI subcommands, layered on `@titan-design/code-graph`'s store: indexing, checks/diffs, coupling and similarity analysis, embeddings, pruning, and dashboard payload assembly for the web view.\n\nEach subcommand lives in its own `graph-*.ts` or `dashboard-*.ts` file exporting a `run*` function plus a `register*Commands(program)` entry point wired from `graph-cli.ts`; shared store access goes through `openGraphStore`/`resolveIndexDbPath` in `utils/graph-store.ts`, which also guards against pre-0.2 legacy DB files via `legacyGraphDbVersion`/`moveLegacyGraphDbAside`. Dashboard commands compose graph data into `DashboardPayload`s windowed by churn period (`computeWindowPayloads`, deduped via `windowSignature`), and each command has a matching test in `__tests__/`."
+    },
+    {
+      "id": "area-c3d26abb",
+      "label": "packages/render/src (+3 dirs)",
+      "files": [
+        "packages/render/src/types.ts",
+        "packages/render/src/template.ts",
+        "packages/cli/src/commands/graph-dashboard.ts",
+        "packages/cli/src/commands/graph-render-diff.ts",
+        "packages/cli/src/commands/graph-render.ts",
+        "packages/render/src/layout.ts",
+        "packages/cli/src/commands/graph-render-check-diff.ts",
+        "packages/render/src/collapse-directories.ts",
+        "packages/render/src/collapse-packages.ts",
+        "packages/render/src/focus-package.ts",
+        "packages/render/src/template-cy-data.ts",
+        "packages/render/src/diff-snapshot.ts",
+        "packages/render/src/snapshot.ts",
+        "packages/render/src/barrel-resolve.ts",
+        "packages/render/src/template-compound-boxes.ts",
+        "packages/render/src/template-script.ts",
+        "packages/render/src/edge-routing.ts",
+        "packages/render/src/edge-weight.ts",
+        "packages/render/src/template-violations.ts",
+        "packages/cli/src/commands/graph-render-cli.ts",
+        "packages/render/src/__tests__/collapse-directories.test.ts",
+        "packages/render/src/__tests__/collapse-packages.test.ts",
+        "packages/render/src/__tests__/compound-layout.test.ts",
+        "packages/render/src/__tests__/diff-render.test.ts",
+        "packages/render/src/__tests__/focus-package.test.ts",
+        "packages/render/src/__tests__/layout.test.ts",
+        "packages/render/src/__tests__/multi-view.test.ts",
+        "packages/render/src/__tests__/nested-view.test.ts",
+        "packages/render/src/__tests__/template-e2e.test.ts",
+        "packages/render/src/__tests__/template-graph-consistency.test.ts",
+        "packages/render/src/__tests__/template-overlay.test.ts",
+        "packages/render/src/__tests__/template.test.ts",
+        "packages/render/src/overlay.ts",
+        "packages/render/src/template-toolbar.ts",
+        "packages/cli/src/__tests__/graph-dashboard.test.ts",
+        "packages/cli/src/commands/dashboard-template.ts",
+        "packages/render/src/__tests__/overlay.test.ts",
+        "packages/render/src/__tests__/route-projection.test.ts",
+        "packages/render/src/__tests__/snapshot.test.ts",
+        "packages/render/src/template-cy-styles.ts",
+        "packages/render/src/template-layout-bundles.ts",
+        "packages/render/src/template-script-panel.ts",
+        "packages/render/src/template-script-views.ts",
+        "packages/render/src/template-styles.ts"
+      ],
+      "size": 44,
+      "topSymbols": [
+        {
+          "name": "NodeStatus",
+          "signature": "type NodeStatus = \"unchanged\" | \"added\" | \"removed\" | \"renamed\""
+        },
+        {
+          "name": "EdgeStatus",
+          "signature": "type EdgeStatus = \"unchanged\" | \"added\" | \"removed\""
+        },
+        {
+          "name": "RenderDiffMeta",
+          "signature": "interface RenderDiffMeta"
+        },
+        {
+          "name": "CheckDiffOverlay",
+          "signature": "interface CheckDiffOverlay"
+        },
+        {
+          "name": "RenderInput",
+          "signature": "interface RenderInput"
+        },
+        {
+          "name": "RenderOptions",
+          "signature": "interface RenderOptions"
+        },
+        {
+          "name": "LaidOutNode",
+          "signature": "type LaidOutNode = GraphNode & { x: number; y: number; width: number; height: number; }"
+        },
+        {
+          "name": "LayoutResult",
+          "signature": "interface LayoutResult"
+        },
+        {
+          "name": "renderHtml",
+          "signature": "renderHtml(input: RenderInput, options: RenderOptions = {}): Promise<string>"
+        },
+        {
+          "name": "renderMultiViewHtml",
+          "signature": "renderMultiViewHtml(views: GraphView[], options: RenderOptions = {}): Promise<string>",
+          "purpose": "Render a single self-contained graph HTML that bakes several views (e.g. a package overview + one within-package focus view per package) and lets a toolbar picker switch between them client-side. One Cytoscape bundle is shared across all v…"
+        },
+        {
+          "name": "GraphView",
+          "signature": "interface GraphView"
+        },
+        {
+          "name": "runGraphDashboardCommand",
+          "signature": "runGraphDashboardCommand(opts: DashboardCommandOptions): Promise<{ out: string; snapshotId: number }>"
+        },
+        {
+          "name": "registerGraphDashboard",
+          "signature": "registerGraphDashboard(graphCmd: Command): void"
+        },
+        {
+          "name": "runGraphRenderDiffCommand",
+          "signature": "runGraphRenderDiffCommand(options: GraphRenderDiffCommandOptions): Promise<GraphRenderDiffResult>"
+        },
+        {
+          "name": "formatGraphRenderDiffText",
+          "signature": "formatGraphRenderDiffText(result: GraphRenderDiffResult): string"
+        }
+      ],
+      "contentHash": "bb04da36535adef1d279604c09297189cdf3558f44fbdbd51267240f10acb31a",
+      "summary": "This area renders dependency graph snapshots into self-contained interactive HTML (Cytoscape.js), and diffs two snapshots against each other for CI checks and local review.\n\nEntry points sit in `packages/cli/src/commands/graph-render*.ts` and `graph-dashboard.ts`, which call `renderHtml`/`renderMultiViewHtml` from `packages/render/src/template.ts` with a `RenderInput`/`GraphView` built from a graph snapshot. Layout (`layout.ts`), edge routing/weighting (`edge-routing.ts`, `edge-weight.ts`), and collapsing nodes into directories/packages (`collapse-directories.ts`, `collapse-packages.ts`, `focus-package.ts`) are separate pure transforms composed before templating; diffing two snapshots goes through `diff-snapshot.ts` producing `NodeStatus`/`EdgeStatus`/`RenderDiffMeta` that the template overlays (`template-violations.ts`, `CheckDiffOverlay`). New render features should add a pure transform module plus a matching test in `__tests__/`, then wire it into `RenderOptions`/`RenderInput` rather than mutating the Cytoscape template scripts directly."
+    },
+    {
+      "id": "area-abebd902",
+      "label": "packages/cli/src/__tests__ (+7 dirs)",
+      "files": [
+        "packages/cli/src/index.ts",
+        "packages/cli/src/__tests__/init-pipeline.test.ts",
+        "packages/cli/src/utils/output.ts",
+        "packages/cli/src/commands/update.ts",
+        "packages/cli/src/utils/config.ts",
+        "packages/cli/src/commands/init.ts",
+        "packages/cli/src/interactive/review.ts",
+        "packages/core/src/ingest/github-service.ts",
+        "packages/core/src/llm/types.ts",
+        "packages/cli/src/commands/export.ts",
+        "packages/cli/src/commands/profile-from-aggregation.ts",
+        "packages/cli/src/utils/languages.ts",
+        "packages/core/src/ingest/cache.ts",
+        "packages/core/src/ingest/types.ts",
+        "packages/core/src/llm/runner.ts",
+        "packages/cli/src/__tests__/init.test.ts",
+        "packages/cli/src/__tests__/review.test.ts",
+        "packages/cli/src/commands/check.ts",
+        "packages/cli/src/commands/hook-cli.ts",
+        "packages/cli/src/commands/hook.ts",
+        "packages/core/src/llm/providers.ts",
+        "packages/cli/src/commands/analyze.ts",
+        "packages/cli/src/commands/compare.ts",
+        "packages/cli/src/commands/graph-init.ts",
+        "packages/cli/src/commands/show.ts",
+        "packages/cli/src/interactive/presenters.ts",
+        "packages/cli/src/interactive/types.ts",
+        "packages/cli/src/utils/pipeline.ts",
+        "packages/core/src/__tests__/github-service.test.ts",
+        "packages/core/src/__tests__/llm-runner.test.ts",
+        "packages/cli/src/__tests__/analyze.test.ts",
+        "packages/cli/src/__tests__/check.test.ts",
+        "packages/cli/src/__tests__/compare.test.ts",
+        "packages/cli/src/__tests__/export.test.ts",
+        "packages/cli/src/__tests__/hook.test.ts",
+        "packages/cli/src/__tests__/languages.test.ts",
+        "packages/cli/src/__tests__/profile-from-aggregation.test.ts",
+        "packages/cli/src/__tests__/show.test.ts",
+        "packages/cli/src/__tests__/snapshot-warnings.test.ts",
+        "packages/cli/src/__tests__/update.test.ts",
+        "packages/cli/src/commands/diff.ts",
+        "packages/core/src/__tests__/cache.test.ts"
+      ],
+      "size": 42,
+      "topSymbols": [
+        {
+          "name": "formatSuccess",
+          "signature": "formatSuccess(message: string): string"
+        },
+        {
+          "name": "formatError",
+          "signature": "formatError(message: string): string"
+        },
+        {
+          "name": "formatWarning",
+          "signature": "formatWarning(message: string): string"
+        },
+        {
+          "name": "formatStep",
+          "signature": "formatStep(current: number, total: number, description: string): string"
+        },
+        {
+          "name": "formatConfidence",
+          "signature": "formatConfidence(confidence: number): string"
+        },
+        {
+          "name": "formatSeverity",
+          "signature": "formatSeverity(severity: \"error\" | \"warn\" | \"info\"): string"
+        },
+        {
+          "name": "formatHeader",
+          "signature": "formatHeader(text: string): string"
+        },
+        {
+          "name": "formatDim",
+          "signature": "formatDim(text: string): string"
+        },
+        {
+          "name": "snapshotVersionMismatchWarning",
+          "signature": "snapshotVersionMismatchWarning(currentVersion: string, baselineVersion: string, context: string): string | null",
+          "purpose": "Returns a warning string when two snapshots were produced by different indexer versions, since cross-version comparisons can be misleading (node IDs, metric definitions, or scoring may have shifted). Returns null when the versions match. C…"
+        },
+        {
+          "name": "mergeProfiles",
+          "signature": "mergeProfiles(existing: Profile, incoming: Profile, options: MergeOptions): Profile"
+        },
+        {
+          "name": "runUpdate",
+          "signature": "runUpdate(options: UpdateCommandOptions): Promise<void>"
+        },
+        {
+          "name": "MergeOptions",
+          "signature": "interface MergeOptions"
+        },
+        {
+          "name": "UpdateCommandOptions",
+          "signature": "interface UpdateCommandOptions"
+        },
+        {
+          "name": "loadConfig",
+          "signature": "loadConfig(configPath: string): Promise<CliConfig>"
+        },
+        {
+          "name": "saveConfig",
+          "signature": "saveConfig(configPath: string, config: CliConfig): Promise<void>"
+        }
+      ],
+      "contentHash": "7ff634c8cfa8d8f4072b01cd28d23919bad0c3d5149bb80130deed4153796c15",
+      "summary": "This area implements the CLI's commands (init, update, check, analyze, compare, export, show, hook) plus their interactive review flow, backed by core's ingest (GitHub fetch, caching) and LLM runner/provider layers. New CLI commands go in packages/cli/src/commands with matching tests under packages/cli/src/__tests__, use utils/output.ts formatters (formatSuccess/formatError/formatStep etc.) for terminal output, utils/config.ts for loading/saving CliConfig, and utils/pipeline.ts to compose the init/update pipeline stages; new LLM providers or ingest sources belong in packages/core/src/llm and packages/core/src/ingest respectively, following each dir's existing types.ts contract."
+    },
+    {
+      "id": "area-5141d3cb",
+      "label": "packages/cli/src/eval (+6 dirs)",
+      "files": [
+        "packages/cli/src/eval/types.ts",
+        "packages/cli/src/read-api/reader.ts",
+        "packages/cli/src/commands/graph-context-build.ts",
+        "packages/cli/src/eval/coding-types.ts",
+        "packages/cli/src/commands/graph-context-bundle.ts",
+        "packages/cli/src/eval/coding-generate.ts",
+        "packages/cli/src/eval/oracle.ts",
+        "packages/cli/src/commands/dashboard-node-metrics.ts",
+        "packages/cli/src/commands/graph-context.ts",
+        "packages/cli/src/eval/coding-mine.ts",
+        "packages/cli/src/eval/retrieval-types.ts",
+        "packages/cli/src/eval/retrieval.ts",
+        "packages/cli/src/eval/stratify.ts",
+        "packages/cli/src/commands/graph-context-format.ts",
+        "packages/cli/src/eval/retrieval-grader.ts",
+        "packages/cli/src/mcp/server.ts",
+        "packages/cli/src/read-api/contract.ts",
+        "packages/cli/src/__tests__/graph-context-build.test.ts",
+        "packages/cli/src/eval/__tests__/coding-generate.test.ts",
+        "packages/cli/src/eval/__tests__/retrieval.test.ts",
+        "packages/cli/src/eval/coding-grade.ts",
+        "packages/cli/src/mcp/http-server.ts",
+        "packages/cli/src/__tests__/graph-context-bundle.test.ts",
+        "packages/cli/src/commands/graph-mcp.ts",
+        "packages/cli/src/eval/__tests__/coding-grade.test.ts",
+        "packages/cli/src/eval/__tests__/coding-mine.test.ts",
+        "packages/cli/src/eval/__tests__/grader.test.ts",
+        "packages/cli/src/eval/__tests__/oracle.test.ts",
+        "packages/cli/src/eval/__tests__/retrieval-grader.test.ts",
+        "packages/cli/src/eval/grader.ts",
+        "packages/cli/src/read-api/__tests__/read-api.test.ts",
+        "packages/cli/src/read-api/search.ts",
+        "packages/cli/src/__tests__/dashboard-metrics.test.ts",
+        "packages/cli/src/eval/__tests__/stratify.test.ts",
+        "packages/cli/src/eval/generate-coding-suite.ts",
+        "packages/cli/src/eval/generate-retrieval-suite.ts",
+        "packages/cli/src/eval/generate-suite.ts"
+      ],
+      "size": 37,
+      "topSymbols": [
+        {
+          "name": "Stratum",
+          "signature": "type Stratum = | \"semantic-findable\" | \"import-chain-reachable\" | \"structurally-hidden\"",
+          "purpose": "Dependency-discoverability stratum (borrowed from CodeCompass). Buckets a task by the *cheapest* way an agent WITHOUT the resolved graph could discover the dependency — so codewatch's marginal value shows where it should: on the `structura…"
+        },
+        {
+          "name": "ALL_STRATA",
+          "signature": "ALL_STRATA: readonly Stratum[]"
+        },
+        {
+          "name": "TaskType",
+          "signature": "type TaskType = | \"dependencies\" | \"reverse-deps\" | \"prod-vs-test-consumers\" | \"blast-radius\""
+        },
+        {
+          "name": "ALL_TASK_TYPES",
+          "signature": "ALL_TASK_TYPES: readonly TaskType[]"
+        },
+        {
+          "name": "ListGroundTruth",
+          "signature": "interface ListGroundTruth",
+          "purpose": "An unordered set answer (dependencies / reverse-deps)."
+        },
+        {
+          "name": "RoleSplitGroundTruth",
+          "signature": "interface RoleSplitGroundTruth",
+          "purpose": "A production-vs-test role split (consumers of a symbol)."
+        },
+        {
+          "name": "RankedGroundTruth",
+          "signature": "interface RankedGroundTruth",
+          "purpose": "A best→worst ranked answer (blast radius)."
+        },
+        {
+          "name": "GroundTruth",
+          "signature": "type GroundTruth = | ListGroundTruth | RoleSplitGroundTruth | RankedGroundTruth"
+        },
+        {
+          "name": "OracleTask",
+          "signature": "interface OracleTask"
+        },
+        {
+          "name": "OracleSuite",
+          "signature": "interface OracleSuite"
+        },
+        {
+          "name": "SetScore",
+          "signature": "interface SetScore",
+          "purpose": "Set-overlap score for a list answer."
+        },
+        {
+          "name": "RoleSplitScore",
+          "signature": "interface RoleSplitScore",
+          "purpose": "Role-split score: per-side set overlap plus role placement accuracy."
+        },
+        {
+          "name": "RankedScore",
+          "signature": "interface RankedScore",
+          "purpose": "Ranked score: rank correlation plus top-k set overlap."
+        },
+        {
+          "name": "TaskScore",
+          "signature": "type TaskScore = | { type: \"list\"; score: SetScore } | { type: \"role-split\"; score: RoleSplitScore } | { type: \"ranked\"; score: RankedScore }"
+        },
+        {
+          "name": "createReadApi",
+          "signature": "createReadApi(options: ReadApiOptions): GraphReadApi"
+        }
+      ],
+      "contentHash": "c3b6f0c2585d6db8eccd7ed4499462c8a90cf022bfa6770d0ffce4febb2b81ad",
+      "summary": "This area builds and evaluates the graph-context pipeline: a read API over the code graph (`read-api/`), CLI commands that build, format, and bundle context or expose it via MCP (`commands/graph-context-*`, `commands/graph-mcp.ts`, `mcp/server.ts`, `mcp/http-server.ts`), and an offline eval harness (`eval/`) that mines coding tasks, generates an oracle suite with ground truth, retrieves and grades answers against strata like `structurally-hidden`. Add new task types via `TaskType`/`ALL_TASK_TYPES` and new ground-truth shapes via the `GroundTruth` union in `eval/types.ts`, keeping oracle, retrieval, and grader logic in matching `eval/*.ts` + `eval/__tests__/*.test.ts` pairs; new read-only graph queries go through `createReadApi`/`GraphReadApi` in `read-api/`, not ad hoc graph access in commands."
+    },
+    {
+      "id": "area-6138bfc2",
+      "label": "packages/cli/src/commands (+2 dirs)",
+      "files": [
+        "packages/cli/src/commands/graph-arch.ts",
+        "packages/cli/src/commands/graph-report-sections.ts",
+        "packages/cli/src/commands/graph-report-types.ts",
+        "packages/cli/src/commands/graph-arch-split.ts",
+        "packages/cli/src/commands/graph-report-quality-sections.ts",
+        "packages/cli/src/commands/graph-report.ts",
+        "packages/cli/src/commands/graph-wiki-packages.ts",
+        "packages/cli/src/commands/graph-arch-compute.ts",
+        "packages/cli/src/commands/graph-arch-domains.ts",
+        "packages/cli/src/commands/graph-wiki-sections.ts",
+        "packages/cli/src/commands/graph-wiki.ts",
+        "packages/cli/src/commands/graph-arch-format.ts",
+        "packages/cli/src/commands/graph-wiki-format.ts",
+        "packages/cli/src/__tests__/graph-arch.test.ts",
+        "packages/cli/src/__tests__/graph-report-untested-risk.test.ts",
+        "packages/cli/src/__tests__/graph-wiki.test.ts",
+        "packages/cli/src/commands/graph-arch-split-format.ts",
+        "packages/cli/src/commands/graph-report-drift.ts",
+        "packages/cli/src/__tests__/graph-arch-split.test.ts",
+        "packages/cli/src/__tests__/graph-report-dead-modules.test.ts",
+        "packages/cli/src/__tests__/graph-report-drift.test.ts",
+        "packages/cli/src/__tests__/graph-report-growth-risk.test.ts",
+        "packages/cli/src/__tests__/graph-report-unused-exports.test.ts",
+        "packages/cli/src/__tests__/json-parity.test.ts",
+        "packages/cli/src/commands/graph-report-format.ts",
+        "packages/cli/src/utils/churn-window.ts",
+        "packages/cli/src/__tests__/churn-window.test.ts",
+        "packages/cli/src/__tests__/graph-report.test.ts",
+        "packages/cli/src/commands/graph-arch-split-filter.ts"
+      ],
+      "size": 29,
+      "topSymbols": [
+        {
+          "name": "runGraphArchCommand",
+          "signature": "runGraphArchCommand(options: GraphArchCommandOptions): ArchResult"
+        },
+        {
+          "name": "formatArchMermaid",
+          "signature": "formatArchMermaid(result: ArchResult): string"
+        },
+        {
+          "name": "registerGraphArch",
+          "signature": "registerGraphArch(graphCmd: Command): void"
+        },
+        {
+          "name": "GraphArchCommandOptions",
+          "signature": "interface GraphArchCommandOptions"
+        },
+        {
+          "name": "ArchSubNode",
+          "signature": "interface ArchSubNode",
+          "purpose": "A top-level sub-directory of a drilled package, rendered inside its cluster."
+        },
+        {
+          "name": "ArchPackage",
+          "signature": "interface ArchPackage"
+        },
+        {
+          "name": "ArchEdge",
+          "signature": "interface ArchEdge"
+        },
+        {
+          "name": "ArchResult",
+          "signature": "interface ArchResult"
+        },
+        {
+          "name": "buildReportContext",
+          "signature": "buildReportContext(input: ReportContextInput): ReportContext"
+        },
+        {
+          "name": "keepNode",
+          "signature": "keepNode(ctx: ReportContext, nodeId: string): boolean"
+        },
+        {
+          "name": "lookupMetric",
+          "signature": "lookupMetric(ctx: ReportContext, name: string, nodeId: string): number | undefined"
+        },
+        {
+          "name": "topHotspots",
+          "signature": "topHotspots(ctx: ReportContext, limit: number): HotspotRow[]"
+        },
+        {
+          "name": "hotspotScoreOf",
+          "signature": "hotspotScoreOf(ctx: ReportContext, nodeId: string): number"
+        },
+        {
+          "name": "busFactorOf",
+          "signature": "busFactorOf(ctx: ReportContext, nodeId: string): number | undefined"
+        },
+        {
+          "name": "topBusFactorRisks",
+          "signature": "topBusFactorRisks(ctx: ReportContext, limit: number): BusFactorRow[]"
+        }
+      ],
+      "contentHash": "1035348b3d5b9b22e6810e588178bba89cee11e594d45a2ab7900c7152401349",
+      "summary": "This area implements the `graph arch`, `graph report`, and `graph wiki` CLI commands, which render architecture diagrams, quality/risk reports, and wiki documentation from the code graph store. Each command is split into a `-compute`/context-builder module, one or more `-sections`/`-format` modules for rendering (Mermaid, Markdown, JSON), and a thin `graph-*.ts` entry point that registers the Commander subcommand; shared analysis helpers (hotspot scoring, bus-factor, churn windowing) live in `buildReportContext` and `utils/churn-window.ts` and are looked up via `lookupMetric`/`keepNode` rather than recomputed per section. New report sections or arch views should follow this split-by-concern file layout (compute vs. format vs. sections) to stay under the 350-line `max-file-loc` gate, and every command/section pairs with a test in `__tests__/` (including a `json-parity.test.ts`-style check when adding a new JSON output shape)."
+    },
+    {
+      "id": "area-8f213a0c",
+      "label": "dashboard/src/views (+2 dirs)",
+      "files": [
+        "dashboard/src/App.tsx",
+        "dashboard/src/types.ts",
+        "dashboard/src/theme.ts",
+        "dashboard/src/components/primitives.tsx",
+        "dashboard/src/views/HotspotsView.tsx",
+        "dashboard/src/views/OverviewView.tsx",
+        "dashboard/src/components/driftBadge.tsx",
+        "dashboard/src/data.ts",
+        "dashboard/src/views/ArchitectureView.tsx",
+        "dashboard/src/views/BlastRadiusView.tsx",
+        "dashboard/src/views/CouplingView.tsx",
+        "dashboard/src/views/DriftView.tsx",
+        "dashboard/src/views/FitnessView.tsx",
+        "dashboard/src/views/OwnershipView.tsx",
+        "dashboard/src/components/dossier-metrics.tsx",
+        "dashboard/src/components/Treemap.tsx",
+        "dashboard/src/main.tsx",
+        "dashboard/src/sample-data.ts"
+      ],
+      "size": 18,
+      "topSymbols": [
+        {
+          "name": "App",
+          "signature": "App({ data }: { data: CodewatchData }): any"
+        },
+        {
+          "name": "Severity",
+          "signature": "type Severity = \"error\" | \"warning\"",
+          "purpose": "Dashboard data contract. A single JSON payload — produced by `scripts/build-data.mjs` from `graph report --json` + `graph check` — is injected as `window.__CODEWATCH__` into the built HTML (mirroring how the render package injects `window.…"
+        },
+        {
+          "name": "ViolationStatus",
+          "signature": "type ViolationStatus = \"new\" | \"carry\" | \"fixed\""
+        },
+        {
+          "name": "DashboardMeta",
+          "signature": "interface DashboardMeta"
+        },
+        {
+          "name": "HealthComponent",
+          "signature": "interface HealthComponent",
+          "purpose": "One penalty component of the composite health score (higher penalty = worse)."
+        },
+        {
+          "name": "Kpis",
+          "signature": "interface Kpis"
+        },
+        {
+          "name": "Hotspot",
+          "signature": "interface Hotspot"
+        },
+        {
+          "name": "BusFactorRisk",
+          "signature": "interface BusFactorRisk"
+        },
+        {
+          "name": "CouplingPair",
+          "signature": "interface CouplingPair"
+        },
+        {
+          "name": "CentralFile",
+          "signature": "interface CentralFile"
+        },
+        {
+          "name": "NodeMetrics",
+          "signature": "interface NodeMetrics",
+          "purpose": "Per-file structural metrics for the Dossier, keyed against fitness budgets so the drawer shows a heat-colored readout of *why* a file is (or isn't) at risk. Present only for files referenced elsewhere in the payload (i.e. any file the Doss…"
+        },
+        {
+          "name": "TestCoverageRisk",
+          "signature": "interface TestCoverageRisk"
+        },
+        {
+          "name": "Violation",
+          "signature": "interface Violation"
+        },
+        {
+          "name": "HotspotDelta",
+          "signature": "interface HotspotDelta"
+        },
+        {
+          "name": "Drift",
+          "signature": "interface Drift"
+        }
+      ],
+      "contentHash": "6dd36392185b890f7cfd3236c767bbe6aff62003d063cf4b100b5542037dea67",
+      "summary": "This is a static-site React dashboard that renders a single build-time JSON payload (`window.__CODEWATCH__`, typed by `types.ts`) into per-metric views: overview, hotspots, coupling, blast radius, ownership, drift, fitness, and architecture. `App.tsx` owns tab routing and reads `data.ts`/`sample-data.ts` for payload access and dev fixtures; each `views/*.tsx` file is a self-contained tab built from shared pieces in `components/` (primitives, drift badges, dossier metrics, the treemap) and `theme.ts` tokens. To add a new metric view, extend `types.ts` for the new payload shape, add a `views/XView.tsx` following the existing view's layout/data-access pattern, wire it into `App.tsx`'s tab list, and reuse `components/primitives.tsx` rather than introducing new styling primitives."
+    },
+    {
+      "id": "area-bc9f28ed",
+      "label": "tests/integration/fixtures/corpus/typescript",
+      "files": [
+        "tests/integration/fixtures/corpus/typescript/routes-index.ts",
+        "tests/integration/fixtures/corpus/typescript/controller-auth.ts",
+        "tests/integration/fixtures/corpus/typescript/handler-webhook.ts",
+        "tests/integration/fixtures/corpus/typescript/middleware-logging.ts"
+      ],
+      "size": 4,
+      "topSymbols": [
+        {
+          "name": "registerRoutes",
+          "signature": "registerRoutes(router: Router): void",
+          "purpose": "Registers all application routes on the given router."
+        },
+        {
+          "name": "getRouteCount",
+          "signature": "getRouteCount(): number",
+          "purpose": "Returns the number of registered route definitions."
+        },
+        {
+          "name": "login",
+          "signature": "login(req: Request): Promise<LoginResult>",
+          "purpose": "Authenticates a user and returns JWT tokens."
+        },
+        {
+          "name": "refresh",
+          "signature": "refresh(req: Request): Promise<{ accessToken: string }>",
+          "purpose": "Validates a refresh token and issues a new access token."
+        },
+        {
+          "name": "handleWebhook",
+          "signature": "handleWebhook(message: IncomingMessage, secret: string): Promise<WebhookResult>",
+          "purpose": "Processes an incoming webhook request with signature verification."
+        },
+        {
+          "name": "verifySignature",
+          "signature": "verifySignature(body: string, signature: string, secret: string): boolean",
+          "purpose": "Verifies an HMAC-SHA256 webhook signature."
+        },
+        {
+          "name": "createLoggingMiddleware",
+          "signature": "createLoggingMiddleware(): Middleware",
+          "purpose": "Creates a logging middleware that records request timing."
+        },
+        {
+          "name": "createRequestIdMiddleware",
+          "signature": "createRequestIdMiddleware(): Middleware",
+          "purpose": "Creates a middleware that adds a request ID header."
+        }
+      ],
+      "contentHash": "f662c9adc5db5899b28580d6c3b6a7671b77b9a7ced48acfcd18a00ef22eb167",
+      "summary": "This fixture corpus provides realistic TypeScript source files (routing, auth, webhook handling, logging middleware) that integration tests run the analyzer against to validate detectors and metrics on non-trivial code. Files follow a `<kind>-<name>.ts` naming convention and export a small set of typed functions per concern; add new fixtures the same way, one concern per file, rather than growing an existing file, and pair any new detector-triggering pattern with a corresponding case here instead of synthetic snippets inline in test code."
+    }
+  ],
+  "newlySummarized": 0,
+  "reused": 7,
+  "snapshotId": 1
+}
