@@ -24,8 +24,11 @@ export function legacyGraphDbVersion(dbPath: string): string | null {
   }
 }
 
-/** Open the graph for reading; a legacy file is an error the user fixes by reindexing. */
+/** Open an existing graph; a missing file or a legacy one is an error the user fixes by indexing. */
 export function openGraphStore(dbPath: string): CodeGraphStore {
+  if (dbPath !== ":memory:" && !existsSync(dbPath)) {
+    throw new Error(`no graph.db at ${dbPath}; run codewatch graph index`);
+  }
   if (legacyGraphDbVersion(dbPath) !== null) {
     throw new Error(`${dbPath}: ${LEGACY_DB_MESSAGE}`);
   }
