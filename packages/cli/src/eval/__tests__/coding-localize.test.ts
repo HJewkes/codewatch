@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseDiffLocations, scoreLocalization, type SpansFor } from "../coding-localize.js";
+import { parseDiffLocations, scoreLocalization, scoreReadLocalization, type SpansFor } from "../coding-localize.js";
 import type { SymbolSpan } from "../../commands/audit-score.js";
 
 const SPANS: readonly SymbolSpan[] = [
@@ -176,3 +176,16 @@ describe("parseDiffLocations", () => {
     expect(parseDiffLocations(deleted)).toEqual([{ file: "src/gone.ts", parentLines: [1, 2] }]);
   });
 });
+
+describe("scoreReadLocalization", () => {
+  it("scores read files against the gold patch files, resolving absolute paths against the root", () => {
+    const gold = modify("src/math.ts", 4) + modify("src/old.ts", 2);
+
+    const score = scoreReadLocalization(gold, ["/repo/src/math.ts", "/repo/README.md"], "/repo");
+
+    expect(score.precision).toBe(0.5);
+    expect(score.recall).toBe(0.5);
+    expect(score.f1).toBe(0.5);
+  });
+});
+

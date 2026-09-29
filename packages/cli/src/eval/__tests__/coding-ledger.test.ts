@@ -56,7 +56,12 @@ function result(extra: Record<string, unknown>): string {
 }
 
 const text = { type: "text", text: "looking" };
-const toolUse = (id: string, name: string) => ({ type: "tool_use", id, name, input: {} });
+const toolUse = (id: string, name: string, input: Record<string, unknown> = {}) => ({
+  type: "tool_use",
+  id,
+  name,
+  input,
+});
 
 const M1: Usage = { in: 100, cc: 1000, cr: 0, out: 50 };
 const M2: Usage = { in: 10, cc: 200, cr: 1000, out: 30 };
@@ -161,5 +166,41 @@ describe("parseArmStream", () => {
     expect(parsed.hasResult).toBe(false);
     expect(totalTokens(parsed.resultTotal)).toBe(0);
     expect(totalTokens(parsed.ledgerGap)).toBe(-1150);
+  });
+
+  it("counts main-agent turns before the first edit and ignores sidechain turns", () => {
+    const raw = [
+      assistant("m1", M1, toolUse("t1", "Read", { file_path: "/repo/a.ts" })),
+      assistant("m2", M2, text),
+      assistant("m2", M2, toolUse("t2", "Task")),
+      assistant("s1", S1, toolUse("t3", "Edit", { file_path: "/repo/x.ts" }), "t2"),
+      assistant("s2", S2, text, "t2"),
+      assistant("m3", M2, toolUse("t4", "Edit", { file_path: "/repo/a.ts" })),
+      assistant("m4", M2, text),
+      result({}),
+    ].join("\n");
+
+    const ledgers = parseArmStream(raw, SONNET);
+
+    expect(ledgers.preEditTurns).toBe(2);
+  });
+
+  it("counts every main turn when the agent never edits", () => {
+    const raw = [assistant("m1", M1, text), assistant("m2", M2, text)].join("\n");
+
+    expect(parseArmStream(raw, SONNET).preEditTurns).toBe(2);
+  });
+
+  it("lists distinct main-agent Read files before the first edit", () => {
+    const raw = [
+      assistant("m1", M1, toolUse("t1", "Read", { file_path: "/repo/a.ts" })),
+      assistant("m2", M2, toolUse("t2", "Read", { file_path: "/repo/a.ts" })),
+      assistant("s1", S1, toolUse("t3", "Read", { file_path: "/repo/side.ts" }), "t2"),
+      assistant("m3", M2, toolUse("t4", "Read", { file_path: "/repo/b.ts" })),
+      assistant("m4", M2, toolUse("t5", "Write", { file_path: "/repo/c.ts" })),
+      assistant("m5", M2, toolUse("t6", "Read", { file_path: "/repo/late.ts" })),
+    ].join("\n");
+
+    expect(parseArmStream(raw, SONNET).readFiles).toEqual(["/repo/a.ts", "/repo/b.ts"]);
   });
 });

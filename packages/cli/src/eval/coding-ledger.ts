@@ -36,6 +36,10 @@ export interface ArmStreamLedgers {
   toolCalls: Record<string, number>;
   numTurns: number;
   costUsd: number;
+  /** Distinct main-agent turns (message ids) before the turn holding the first Edit/Write. */
+  preEditTurns: number;
+  /** Distinct files the main agent Read before its first Edit/Write, as the tool input named them. */
+  readFiles: string[];
 }
 
 interface ApiCall {
@@ -144,6 +148,34 @@ function collectCalls(events: readonly Json[]): StreamCalls {
   return { calls, toolCalls };
 }
 
+const EDIT_TOOLS: ReadonlySet<string> = new Set(["Edit", "Write"]);
+
+interface EditTrace {
+  preEditTurns: number;
+  readFiles: string[];
+}
+
+/** Main-agent turns and Reads ahead of the first edit; sidechain events never count. */
+function traceBeforeFirstEdit(events: readonly Json[]): EditTrace {
+  const turns = new Set<string>();
+  const readFiles = new Set<string>();
+  for (const event of events) {
+    if (event["type"] !== "assistant" || event["parent_tool_use_id"] != null) continue;
+    const message = asJson(event["message"]);
+    const id = typeof message["id"] === "string" ? message["id"] : `anon-${turns.size}`;
+    const blocks = Array.isArray(message["content"]) ? message["content"].map(asJson) : [];
+    if (blocks.some((block) => block["type"] === "tool_use" && EDIT_TOOLS.has(String(block["name"])))) {
+      return { preEditTurns: turns.has(id) ? turns.size - 1 : turns.size, readFiles: [...readFiles] };
+    }
+    turns.add(id);
+    for (const block of blocks) {
+      const path = asJson(block["input"])["file_path"];
+      if (block["type"] === "tool_use" && block["name"] === "Read" && typeof path === "string") readFiles.add(path);
+    }
+  }
+  return { preEditTurns: turns.size, readFiles: [...readFiles] };
+}
+
 function ledgerOf(calls: readonly ApiCall[]): Ledger {
   const counts = calls.reduce((sum, call) => combine(sum, call.usage, 1), EMPTY_COUNTS);
   return { ...counts, calls: calls.length };
@@ -209,5 +241,6 @@ export function parseArmStream(raw: string, armModel: string): ArmStreamLedgers 
     toolCalls,
     numTurns: num(result?.["num_turns"]),
     costUsd: resultCost(result),
+    ...traceBeforeFirstEdit(events),
   };
 }
