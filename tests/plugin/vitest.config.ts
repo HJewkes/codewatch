@@ -3,7 +3,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     globals: true,
-    projects: ["packages/*", "tests/integration", "tests/plugin"],
-    passWithNoTests: true,
+    testTimeout: 15_000,
+    include: ["**/*.test.ts"],
   },
 });
