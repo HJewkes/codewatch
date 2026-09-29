@@ -1,0 +1,60 @@
+{
+  "snapshot": {
+    "id": 1,
+    "ref": "wd",
+    "commitHash": "2048aef8ddeecde23bcb4ad4e1782700a3e245cd",
+    "takenAt": "2026-09-23T12:26:59.365Z",
+    "indexVersion": "0.15.0",
+    "attrs": {
+      "aliasBase": null
+    }
+  },
+  "metric": "fan_in",
+  "rows": [
+    {
+      "rank": 1,
+      "nodeId": "packages/cli/src/utils/output.ts",
+      "name": "output.ts",
+      "kind": "file",
+      "role": "source",
+      "value": 28,
+      "unit": "count"
+    },
+    {
+      "rank": 2,
+      "nodeId": "packages/render/src/types.ts",
+      "name": "types.ts",
+      "kind": "file",
+      "role": "types",
+      "value": 25,
+      "unit": "count"
+    },
+    {
+      "rank": 3,
+      "nodeId": "packages/cli/src/utils/graph-store.ts",
+      "name": "graph-store.ts",
+      "kind": "file",
+      "role": "source",
+      "value": 24,
+      "unit": "count"
+    },
+    {
+      "rank": 4,
+      "nodeId": "dashboard/src/types.ts",
+      "name": "types.ts",
+      "kind": "file",
+      "role": "types",
+      "value": 13,
+      "unit": "count"
+    },
+    {
+      "rank": 5,
+      "nodeId": "dashboard/src/theme.ts",
+      "name": "theme.ts",
+      "kind": "file",
+      "role": "source",
+      "value": 12,
+      "unit": "count"
+    }
+  ]
+}
