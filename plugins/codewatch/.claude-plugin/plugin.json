@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "codewatch",
+  "displayName": "codewatch",
+  "version": "0.1.0",
+  "description": "Code graph context for Claude Code: the codewatch MCP server for barrel-resolved callers, source lookup and similar-capability search",
+  "author": {
+    "name": "Henry Jewkes"
+  },
+  "license": "MIT",
+  "keywords": ["mcp", "code-graph", "codewatch"],
+  "mcpServers": {
+    "codewatch": {
+      "command": "${CLAUDE_PLUGIN_ROOT}/bin/codewatch-launch.sh"
+    }
+  }
+}
