@@ -6,7 +6,7 @@
 # time instead of bundling it.
 #
 # A user-scope install starts this in every repo the owner opens. Read commands
-# in the CLI create an empty .codewatch/graph.db when none exists, so the shim
+# in the CLI fail without .codewatch/graph.db, so the shim
 # refuses to call the CLI at all unless <repo root>/.codewatch/graph.db exists.
 # An unindexed repo then shows the server as failed in /mcp, which is honest and
 # costs no model tokens.

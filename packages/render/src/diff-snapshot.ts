@@ -1,6 +1,5 @@
 import {
   diffSnapshots,
-  openCodeGraph,
   type CodeGraphStore,
   type GraphEdge,
   type GraphNode,
@@ -12,6 +11,7 @@ import type {
   RenderDiffMeta,
   RenderInput,
 } from "./types.js";
+import { openExistingGraph } from "./open-graph.js";
 
 export interface LoadDiffOptions {
   dbPath: string;
@@ -22,7 +22,7 @@ export interface LoadDiffOptions {
 export async function loadDiff(
   options: LoadDiffOptions,
 ): Promise<RenderInput> {
-  const db = openCodeGraph(options.dbPath);
+  const db = openExistingGraph(options.dbPath);
   try {
     const fromSnapshot = resolveSnapshot(db, options.from, "from");
     const toSnapshot = resolveSnapshot(db, options.to, "to");

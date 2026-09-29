@@ -1,11 +1,12 @@
-import { openCodeGraph, type CodeGraphStore } from "@titan-design/code-graph";
+import type { CodeGraphStore } from "@titan-design/code-graph";
+import { openExistingGraph } from "./open-graph.js";
 import type { RenderInput } from "./types.js";
 
 export async function loadSnapshot(
   dbPath: string,
   snapshotId?: number,
 ): Promise<RenderInput> {
-  const db = openCodeGraph(dbPath);
+  const db = openExistingGraph(dbPath);
   try {
     const id = snapshotId ?? pickLatestSnapshotId(db);
     if (id === null) {

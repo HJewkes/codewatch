@@ -14,6 +14,7 @@ import {
   type GraphView,
 } from "@codewatch/render";
 import { dashboardTemplate } from "./dashboard-template.js";
+import { formatError } from "../utils/output.js";
 import {
   type DashboardCommandOptions,
   archInfo,
@@ -128,6 +129,12 @@ export async function runGraphDashboardCommand(opts: DashboardCommandOptions): P
   return { out: opts.out, snapshotId };
 }
 
+interface DashboardActionOptions {
+  db: string; config: string; out: string; repoRoot?: string;
+  windowDays?: string; vs?: string; repo?: string; includeScripts?: boolean; graph?: boolean;
+  graphScope?: string;
+}
+
 export function registerGraphDashboard(graphCmd: Command): void {
   graphCmd
     .command("dashboard")
@@ -144,27 +151,32 @@ export function registerGraphDashboard(graphCmd: Command): void {
     .option("--include-scripts", "Include scripts/ and archive/ files")
     .option("--no-graph", "Skip the embedded Cytoscape dependency graph (smaller output)")
     .option("--graph-scope <scope>", "Embedded graph granularity: package (default), module, file, nested (files-in-dirs), or focus:<pkg>", "package")
-    .action(async (options: {
-      db: string; config: string; out: string; repoRoot?: string;
-      windowDays?: string; vs?: string; repo?: string; includeScripts?: boolean; graph?: boolean;
-      graphScope?: string;
-    }) => {
-      const { out, snapshotId } = await runGraphDashboardCommand({
-        db: options.db,
-        config: options.config,
-        out: options.out,
-        repoRoot: options.repoRoot,
-        windowDays: options.windowDays
-          ? options.windowDays.toLowerCase() === "lifetime"
-            ? "lifetime"
-            : Number(options.windowDays)
-          : undefined,
-        vs: options.vs,
-        repo: options.repo ?? basename(process.cwd()),
-        includeScripts: options.includeScripts,
-        graph: options.graph,
-        graphScope: normalizeGraphScope(options.graphScope),
-      });
-      console.log(chalk.green(`✓ wrote ${out}`) + chalk.dim(` (snapshot ${snapshotId})`));
+    .action(async (options: DashboardActionOptions) => {
+      try {
+        await writeDashboard(options);
+      } catch (err) {
+        console.error(formatError(err instanceof Error ? err.message : String(err)));
+        process.exitCode = 1;
+      }
     });
+}
+
+async function writeDashboard(options: DashboardActionOptions): Promise<void> {
+  const { out, snapshotId } = await runGraphDashboardCommand({
+    db: options.db,
+    config: options.config,
+    out: options.out,
+    repoRoot: options.repoRoot,
+    windowDays: options.windowDays
+      ? options.windowDays.toLowerCase() === "lifetime"
+        ? "lifetime"
+        : Number(options.windowDays)
+      : undefined,
+    vs: options.vs,
+    repo: options.repo ?? basename(process.cwd()),
+    includeScripts: options.includeScripts,
+    graph: options.graph,
+    graphScope: normalizeGraphScope(options.graphScope),
+  });
+  console.log(chalk.green(`✓ wrote ${out}`) + chalk.dim(` (snapshot ${snapshotId})`));
 }
