@@ -56,6 +56,25 @@ Git history mining (churn, ownership, first-seen dates and change coupling) come
 `./history` entry of
 [`@titan-design/code-graph`](https://www.npmjs.com/package/@titan-design/code-graph).
 
+## Claude Code plugin
+
+`plugins/codewatch` is a Claude Code plugin that injects a budgeted repo snapshot at session
+start, bundles the codewatch MCP server, and offers an opt-in Grep augment. It needs the
+`codewatch` CLI on `PATH` and a one-time `codewatch graph index .` per repo.
+
+```bash
+claude plugin marketplace add /path/to/this/checkout
+claude plugin install codewatch@codewatch-local
+```
+
+The only measured figures (-28% cost, -17% turns) are for injecting `find_similar`
+candidates at plan time, not for the snapshot or the Grep augment. They come from n=12 tasks,
+a single run, one model and documented-surface tasks only, and the reuse delta (9 to 10 of
+12) is within noise. The plugin is a cost and turns optimization, not a duplication-prevention
+claim. See
+[plugins/codewatch/README.md](plugins/codewatch/README.md) for prerequisites, the Grep augment
+opt-in, `CODEWATCH_BIN`, uninstall, the eval caveats, and why the plugin ships no skill.
+
 ## Develop
 
 ```sh

@@ -104,6 +104,7 @@ describe("Grep augment when disabled", () => {
       CODEWATCH_GREP_AUGMENT: "1",
     })
 
+    expect(result.status).toBe(0)
     expect(result.stdout).toBe("")
     expect(existsSync(importMarker)).toBe(false)
   })
@@ -157,6 +158,32 @@ describe("Grep augment when enabled", () => {
     expect(result.stdout).toBe("")
     expect(existsSync(importMarker)).toBe(false)
     expect(existsSync(join(bare, ".codewatch"))).toBe(false)
+  })
+})
+
+describe("Grep augment on unusable input", () => {
+  const enabled = { CODEWATCH_GREP_AUGMENT: "1" }
+
+  it("exits 0 with empty stdout when cwd is not a git repository", () => {
+    const outside = mkdtempSync(join(scratch, "outside-"))
+
+    const result = runHook(grepPayload("formatWidget", outside), { ...enabled, CODEWATCH_BIN: join(fakeCli, "index.js") })
+
+    expect(result.status).toBe(0)
+    expect(result.stdout).toBe("")
+  })
+
+  it("exits 0 with empty stdout on malformed stdin", () => {
+    const result = spawnSync(process.execPath, [SCRIPT], {
+      cwd: repo,
+      encoding: "utf8",
+      input: "{not json",
+      env: { PATH: process.env.PATH ?? "", HOME: scratch, CODEWATCH_GREP_AUGMENT: "1" },
+      timeout: 15_000,
+    })
+
+    expect(result.status).toBe(0)
+    expect(result.stdout).toBe("")
   })
 })
 
