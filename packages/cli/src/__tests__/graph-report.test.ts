@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
+import { execFileSync } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { tmpdir } from "node:os";
@@ -27,6 +28,17 @@ async function fixture(
   populate(db, snapshotId);
   db.close();
   return { dir, dbPath };
+}
+
+function git(dir: string, args: string[], date?: string): void {
+  const env = date
+    ? { ...process.env, GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date }
+    : process.env;
+  execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@example.com", ...args], {
+    cwd: dir,
+    env,
+    stdio: "ignore",
+  });
 }
 
 function fileNode(id: string) {
@@ -152,12 +164,30 @@ describe("runGraphReportCommand", () => {
     ]);
   });
 
-  it("says churn and ownership are unavailable when the snapshot has no churn metrics", async () => {
+  it("reports no recent commits, not unavailable, when the only commit predates the churn windows", async () => {
     fx = await fixture((db, snapshotId) => {
       db.insertNodes(snapshotId, [fileNode("a.ts")]);
       db.insertMetrics(snapshotId, [{ nodeId: "a.ts", name: "cognitive_max", value: 40 }]);
     });
+    git(fx.dir, ["init", "-q"]);
+    await fs.writeFile(path.join(fx.dir, "a.ts"), "export const A = 1;\n");
+    git(fx.dir, ["add", "a.ts"]);
+    git(fx.dir, ["commit", "-q", "-m", "old"], "2020-01-01T00:00:00Z");
+
     const result = runGraphReportCommand({ db: fx.dbPath, repoRoot: fx.dir });
+
+    expect(result.churnUnavailable).toBe(false);
+    expect(formatGraphReportMarkdown(result)).toContain("No commits in the last 30d");
+  });
+
+  it("says churn and ownership are unavailable when the report root is not a git tree", async () => {
+    fx = await fixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [fileNode("a.ts")]);
+      db.insertMetrics(snapshotId, [{ nodeId: "a.ts", name: "cognitive_max", value: 40 }]);
+    });
+
+    const result = runGraphReportCommand({ db: fx.dbPath, repoRoot: fx.dir });
+
     expect(result.churnUnavailable).toBe(true);
     const md = formatGraphReportMarkdown(result);
     expect(md).toContain("Churn and ownership are unavailable");
@@ -168,10 +198,10 @@ describe("runGraphReportCommand", () => {
     fx = await fixture((db, snapshotId) => {
       db.insertNodes(snapshotId, [fileNode("a.ts")]);
       db.insertMetrics(snapshotId, [
-        { nodeId: "a.ts", name: "cognitive_max", value: 40 },
-        { nodeId: "a.ts", name: "churn_30d", value: 0 }, // indexed from git, nothing in the window
+        { nodeId: "a.ts", name: "cognitive_max", value: 40 }, // no churn signal
       ]);
     });
+    git(fx.dir, ["init", "-q"]);
     const result = runGraphReportCommand({ db: fx.dbPath, repoRoot: fx.dir });
     expect(result.emptyWindow).toBe(true);
     const md = formatGraphReportMarkdown(result);

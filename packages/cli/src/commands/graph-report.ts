@@ -14,7 +14,7 @@ import {
   CHURN_UNAVAILABLE_HINT,
   emptyWindowHint,
   hasChurnSignal,
-  hasNoChurnMetrics,
+  isChurnUnavailable,
 } from "./graph-report-hint.js";
 import { formatError, snapshotVersionMismatchWarning } from "../utils/output.js";
 import { computeReportDrift } from "./graph-report-drift.js";
@@ -124,7 +124,7 @@ export function runGraphReportCommand(
     };
     if (!hasChurnSignal(metrics, windowDays)) {
       result.emptyWindow = true;
-      result.churnUnavailable = hasNoChurnMetrics(metrics);
+      result.churnUnavailable = isChurnUnavailable(options.repoRoot);
       result.hint = result.churnUnavailable ? CHURN_UNAVAILABLE_HINT : emptyWindowHint(windowDays);
     }
     if (options.vs) {

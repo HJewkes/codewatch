@@ -1,4 +1,4 @@
-import { windowSuffix, type GraphMetric } from "@titan-design/code-graph";
+import { detectGitToplevel, windowSuffix, type GraphMetric } from "@titan-design/code-graph";
 import type { ChurnWindow } from "@titan-design/code-graph/history";
 
 export function hasChurnSignal(
@@ -16,12 +16,12 @@ function suggestWiderWindow(windowDays: number): number {
 }
 
 export const CHURN_UNAVAILABLE_HINT =
-  "Churn and ownership are unavailable: this snapshot has no git history " +
-  "(not a git tree, or indexed with --no-churn), so churn-based sections are empty.";
+  "Churn and ownership are unavailable: this tree has no git history " +
+  "(it is not a git repository), so churn-based sections are empty.";
 
-/** `graph index` stores no churn_* metric at all when it had no git history to read. */
-export function hasNoChurnMetrics(metrics: readonly GraphMetric[]): boolean {
-  return !metrics.some((m) => m.name.startsWith("churn_"));
+/** Absent churn rows also mean "no commits in the widest window", so only the tree itself says whether git history existed. */
+export function isChurnUnavailable(repoRoot: string): boolean {
+  return detectGitToplevel(repoRoot) === null;
 }
 
 export function emptyWindowHint(windowDays: ChurnWindow): string {

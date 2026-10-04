@@ -22,7 +22,7 @@ export interface DashboardMeta {
   /** True when no file has churn in the window — churn widgets degrade. */
   emptyWindow?: boolean;
   hint?: string;
-  /** True when the snapshot has no churn or ownership metrics (not a git tree). */
+  /** True when the report root is not a git tree. */
   churnUnavailable?: boolean;
   baseline?: { ref: string; snapshotId: number } | null;
 }
