@@ -41,7 +41,7 @@ import type {
   GraphReportResult,
   HotspotRow,
 } from "./graph-report-types.js";
-import { openGraphStore } from "../utils/graph-store.js";
+import { openGraphStore, defaultGraphDbPath } from "../utils/graph-store.js";
 
 export { formatGraphReportJson, formatGraphReportMarkdown };
 export type {
@@ -292,7 +292,7 @@ export function registerGraphReport(graphCmd: Command): void {
     .description(
       "Health report combining hotspots, knowledge-silos, coupling clusters, and centrality (Move 7 debt rollup).",
     )
-    .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")
+    .option("--db <path>", "Path to graph.db", defaultGraphDbPath())
     .option("--repo-root <path>", "Repo root (for git log)", ".")
     .option("--snapshot <id>", "Snapshot id (default: latest)")
     .option(

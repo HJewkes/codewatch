@@ -24,7 +24,7 @@ import {
   type ContextBundle,
 } from "./graph-context-bundle.js";
 import { collectNodeMetrics } from "./dashboard-node-metrics.js";
-import { openGraphStore } from "../utils/graph-store.js";
+import { openGraphStore, defaultGraphDbPath } from "../utils/graph-store.js";
 
 const DEFAULT_WINDOW_DAYS = 30;
 
@@ -227,7 +227,7 @@ export function registerGraphContext(graph: Command): void {
     .description(
       "Deterministic per-file/per-symbol context dossier (Class A artifact) for RAG/agent consumption.",
     )
-    .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")
+    .option("--db <path>", "Path to graph.db", defaultGraphDbPath())
     .option("--snapshot <id>", "Snapshot id (default: latest)")
     .option("--window-days <n>", "Churn window to report (default: smallest indexed)")
     .option("--json", "Output the raw JSON dossier (default: markdown projection)")

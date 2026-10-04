@@ -7,7 +7,7 @@ import {
   type SnapshotRow,
 } from "@titan-design/code-graph";
 import { formatError } from "../utils/output.js";
-import { openGraphStore } from "../utils/graph-store.js";
+import { openGraphStore, defaultGraphDbPath } from "../utils/graph-store.js";
 
 export interface GraphDiffCommandOptions {
   db: string;
@@ -185,7 +185,7 @@ export function registerGraphDiff(graphCmd: Command): void {
     .description(
       "Diff two graph snapshots (added / removed / renamed nodes + edges, metric deltas)",
     )
-    .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")
+    .option("--db <path>", "Path to graph.db", defaultGraphDbPath())
     .requiredOption(
       "--from <ref-or-id>",
       "From-side snapshot: numeric id or ref name",

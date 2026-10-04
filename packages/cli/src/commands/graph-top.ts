@@ -8,7 +8,7 @@ import {
 } from "@titan-design/code-graph";
 import { formatError } from "../utils/output.js";
 import { padLeft, padRight, visualWidth } from "../utils/table.js";
-import { openGraphStore } from "../utils/graph-store.js";
+import { openGraphStore, defaultGraphDbPath } from "../utils/graph-store.js";
 
 export interface GraphTopCommandOptions {
   db: string;
@@ -152,7 +152,7 @@ export function registerGraphTop(graphCmd: Command): void {
   graphCmd
     .command("top")
     .description("List top nodes by a metric (hotspot view)")
-    .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")
+    .option("--db <path>", "Path to graph.db", defaultGraphDbPath())
     .requiredOption(
       "--metric <name>",
       "Metric name (e.g. cyclomatic_max, loc, fan_in)",

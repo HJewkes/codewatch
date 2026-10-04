@@ -15,7 +15,7 @@ import {
   createClaudeSummarizer,
   DEFAULT_SUMMARY_MODEL,
 } from "../utils/claude-summarizer.js";
-import { openGraphStore } from "../utils/graph-store.js";
+import { openGraphStore, defaultGraphDbPath } from "../utils/graph-store.js";
 import { formatError } from "../utils/output.js";
 
 export interface GraphConventionsOptions {
@@ -197,7 +197,7 @@ export function registerGraphConventions(graphCmd: Command): void {
     .description(
       "Capability-altitude convention map: coarse areas of the resolved file graph, each with an LLM summary of what it does and how (\"how does this repo do X / where does new code belong\"). Summaries are content-addressed — only structurally changed areas cost an LLM call. --query ranks areas against a question.",
     )
-    .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")
+    .option("--db <path>", "Path to graph.db", defaultGraphDbPath())
     .option("--snapshot <id>", "Snapshot id (default: latest)")
     .option("--query <text>", 'Rank areas against a "how does this repo do X" question')
     .option("--limit <n>", "Matches to return in query mode (default 3)")

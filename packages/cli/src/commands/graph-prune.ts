@@ -8,7 +8,7 @@ import {
   type SnapshotRow,
 } from "@titan-design/code-graph";
 import { formatError } from "../utils/output.js";
-import { openGraphStore } from "../utils/graph-store.js";
+import { openGraphStore, defaultGraphDbPath } from "../utils/graph-store.js";
 
 export interface GraphPruneCommandOptions {
   db: string;
@@ -119,7 +119,7 @@ export function registerGraphPrune(graphCmd: Command): void {
   graphCmd
     .command("prune")
     .description("Delete old snapshots, keeping the most recent N plus any with matching ref")
-    .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")
+    .option("--db <path>", "Path to graph.db", defaultGraphDbPath())
     .option("--keep <n>", "Keep the most recent N snapshots", "10")
     .option(
       "--keep-ref <ref...>",

@@ -6,7 +6,7 @@ import {
 } from "@titan-design/code-graph";
 import { OllamaEmbedder, type Embedder } from "@titan-design/embed";
 import { formatError } from "../utils/output.js";
-import { openGraphStore } from "../utils/graph-store.js";
+import { openGraphStore, defaultGraphDbPath } from "../utils/graph-store.js";
 
 export interface GraphSimilarOptions {
   db: string;
@@ -79,7 +79,7 @@ export function registerGraphSimilar(graphCmd: Command): void {
     .description(
       "Before writing a new function, check whether the capability already exists: rank exported symbols by semantic similarity to an intent or pseudo-signature (e.g. \"formatDuration(ms: number): string -- render a duration as 1h30m\"). Candidates, not verdicts. Needs `graph embed` first.",
     )
-    .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")
+    .option("--db <path>", "Path to graph.db", defaultGraphDbPath())
     .option("--snapshot <id>", "Snapshot id (default: latest)")
     .option("-k, --limit <n>", "Number of candidates to return", "10")
     .option("--model <name>", "Embedding model (default: nomic-embed-text)")

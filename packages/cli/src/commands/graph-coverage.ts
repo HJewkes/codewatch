@@ -12,7 +12,7 @@ import {
   type SymbolSpan,
 } from "@titan-design/code-graph";
 import { formatError } from "../utils/output.js";
-import { openGraphStore } from "../utils/graph-store.js";
+import { openGraphStore, defaultGraphDbPath } from "../utils/graph-store.js";
 
 export interface GraphCoverageOptions {
   db: string;
@@ -105,7 +105,7 @@ export function registerGraphCoverage(graphCmd: Command): void {
       "Ingest an Istanbul coverage-final.json as a per-file/symbol coverage_pct overlay (C-63)",
     )
     .argument("<coverage-file>", "Path to coverage-final.json")
-    .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")
+    .option("--db <path>", "Path to graph.db", defaultGraphDbPath())
     .option("--root <path>", "Repo root for path mapping (default: cwd)", ".")
     .option("--snapshot <id>", "Snapshot id to attach coverage to (default: latest)")
     .option("--json", "Output structured JSON")

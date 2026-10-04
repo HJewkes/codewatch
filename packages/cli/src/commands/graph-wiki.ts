@@ -23,7 +23,7 @@ import {
   type WikiResult,
 } from "./graph-wiki-sections.js";
 import { formatWiki, pageFilename } from "./graph-wiki-format.js";
-import { openGraphStore } from "../utils/graph-store.js";
+import { openGraphStore, defaultGraphDbPath } from "../utils/graph-store.js";
 
 export type { PackageWiki, WikiResult };
 export { pageFilename };
@@ -157,7 +157,7 @@ export function registerGraphWiki(graphCmd: Command): void {
     .description(
       "Generate per-package markdown drill-in pages (hotspots, silos, coupling, deps) plus an index.",
     )
-    .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")
+    .option("--db <path>", "Path to graph.db", defaultGraphDbPath())
     .option("--repo-root <path>", "Repo root for package + git lookup", ".")
     .option("--out <dir>", "Output directory (default docs/wiki)", "docs/wiki")
     .option("--snapshot <id>", "Snapshot id (default: latest)")

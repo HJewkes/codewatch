@@ -1,3 +1,4 @@
+import { defaultGraphDbPath } from "../utils/graph-store.js";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, basename } from "node:path";
 import type { Command } from "commander";
@@ -141,7 +142,7 @@ export function registerGraphDashboard(graphCmd: Command): void {
     .description(
       "Write a single self-contained HTML project-status dashboard (KPIs, hotspots, fitness, ownership) for the latest snapshot.",
     )
-    .option("--db <path>", "Database path", "./.codewatch/graph.db")
+    .option("--db <path>", "Database path", defaultGraphDbPath())
     .option("--config <path>", "check.json for fitness violations", "./.codewatch/check.json")
     .option("--out <path>", "Output HTML path", "codewatch-dashboard.html")
     .option("--repo-root <path>", "Repo root for package/churn resolution")

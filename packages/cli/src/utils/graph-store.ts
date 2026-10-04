@@ -1,6 +1,16 @@
 import { existsSync, renameSync } from "node:fs";
-import { openCodeGraph, type CodeGraphStore } from "@titan-design/code-graph";
+import path from "node:path";
+import { detectGitToplevel, openCodeGraph, type CodeGraphStore } from "@titan-design/code-graph";
 import { hasTable, openDatabase } from "@titan-design/store-sqlite";
+
+/**
+ * The db `graph index` writes and every reader opens when `--db` is absent: the git
+ * toplevel's `.codewatch/graph.db`, or `<from>/.codewatch/graph.db` outside git (C-160).
+ */
+export function defaultGraphDbPath(from: string = process.cwd()): string {
+  const idRoot = detectGitToplevel(from) ?? path.resolve(from);
+  return path.join(idRoot, ".codewatch", "graph.db");
+}
 
 export const LEGACY_DB_MESSAGE =
   "this database predates codewatch 0.2; run `codewatch graph index`";
