@@ -34,10 +34,10 @@ describe("plugin README install block", () => {
     for (const command of installs) expect(command).toContain(`${plugin}@${marketplace}`)
   })
 
-  it("points the marketplace add command at the repo that holds marketplace.json", () => {
+  it("points the marketplace add command at a codewatch checkout path, with no extra arguments", () => {
     const adds = commands.filter((c) => c.startsWith("claude plugin marketplace add "))
 
-    for (const command of adds) expect(command).toMatch(/codewatch\s*$/)
+    for (const command of adds) expect(command).toMatch(/^claude plugin marketplace add \S*\/codewatch$/)
   })
 })
 

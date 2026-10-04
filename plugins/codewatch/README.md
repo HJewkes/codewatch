@@ -70,11 +70,19 @@ The `.codewatch/` directory in each indexed repo is yours to keep or delete.
 
 ## What it is worth
 
-Measured on the tRPC eval, injecting the snapshot cut cost by 28% and turns by 17%, with
-occasional consolidation wins. It is a cost, latency and reliability optimization. It is not
-a duplication-prevention claim, and the eval does not show that it prevents duplicate code.
-In the experiments, agents made no voluntary calls to the MCP tools, so the hooks carry the
-value.
+The one behavioral eval behind this plugin (C-88) measured something narrower than the
+plugin: injecting the top-5 `graph similar` (`find_similar`) candidates into the agent's
+prompt at plan time. It did not measure the SessionStart snapshot or the Grep augment, so
+this README makes no cost or turn claim for either.
+
+For the `find_similar` injection, on a tRPC clone, the injected arm used 28% less cost and
+17% fewer turns than the control, and cut search turns on clean reuse cases (for example
+24 to 8). Reuse of existing code went from 9 to 10 of 12 tasks, which is within noise. So
+the value shown is cost, turns and reliability, not duplication prevention.
+
+Caveats: n=12 tasks, a single run, one model (sonnet), one corpus, and only well-named,
+documented exported utilities, the surface where grep is already strong. Treat the figures
+as directional. Undocumented or poorly named code was not tested.
 
 ## Why there is no skill
 
