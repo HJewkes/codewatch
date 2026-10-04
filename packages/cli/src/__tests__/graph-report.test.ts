@@ -152,11 +152,24 @@ describe("runGraphReportCommand", () => {
     ]);
   });
 
+  it("says churn and ownership are unavailable when the snapshot has no churn metrics", async () => {
+    fx = await fixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [fileNode("a.ts")]);
+      db.insertMetrics(snapshotId, [{ nodeId: "a.ts", name: "cognitive_max", value: 40 }]);
+    });
+    const result = runGraphReportCommand({ db: fx.dbPath, repoRoot: fx.dir });
+    expect(result.churnUnavailable).toBe(true);
+    const md = formatGraphReportMarkdown(result);
+    expect(md).toContain("Churn and ownership are unavailable");
+    expect(md).not.toContain("No commits in the last");
+  });
+
   it("flags an empty churn window with a hint (markdown + JSON)", async () => {
     fx = await fixture((db, snapshotId) => {
       db.insertNodes(snapshotId, [fileNode("a.ts")]);
       db.insertMetrics(snapshotId, [
-        { nodeId: "a.ts", name: "cognitive_max", value: 40 }, // no churn signal
+        { nodeId: "a.ts", name: "cognitive_max", value: 40 },
+        { nodeId: "a.ts", name: "churn_30d", value: 0 }, // indexed from git, nothing in the window
       ]);
     });
     const result = runGraphReportCommand({ db: fx.dbPath, repoRoot: fx.dir });

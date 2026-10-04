@@ -83,8 +83,9 @@ function formatGraphIndexText(result: GraphIndexResult): string {
     );
   }
   if (result.metrics > 0) {
+    const sources = result.churn === "computed" ? "degree + source-content + churn + ownership" : "degree + source-content";
     lines.push(
-      `${chalk.bold("Metrics:")} ${result.metrics} ${chalk.dim("(degree + source-content + churn + ownership)")}`,
+      `${chalk.bold("Metrics:")} ${result.metrics} ${chalk.dim(`(${sources})`)}`,
     );
   }
   if (result.reusedFiles > 0) {

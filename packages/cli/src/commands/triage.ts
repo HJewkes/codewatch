@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
+import { detectGitToplevel } from "@titan-design/code-graph";
 import { placeControls } from "@titan-design/evidence";
 import type { MapResult, StepRunner } from "@titan-design/workflow";
 import { pickRunControls } from "./triage-control-pick.js";
@@ -154,7 +155,7 @@ function buildReader(options: TriageRunOptions, root: string, traces: CallTrace[
 export async function runTriage(options: TriageRunOptions): Promise<TriageRunResult> {
   const startedAt = Date.now();
   const root = path.resolve(options.path);
-  const outDir = path.resolve(options.out ?? path.join(root, ".codewatch", "audit"));
+  const outDir = path.resolve(options.out ?? path.join(detectGitToplevel(root) ?? root, ".codewatch", "audit"));
   const traces: CallTrace[] = [];
   const runner = options.runner ?? buildReader(options, root, traces);
   const plan = planTriage(options);

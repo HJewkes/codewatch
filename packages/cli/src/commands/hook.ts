@@ -1,5 +1,6 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { defaultGraphDbPath } from "../utils/graph-store.js";
 
 const MARKER_BEGIN = "# codewatch pre-commit hook (begin)";
 const MARKER_END = "# codewatch pre-commit hook (end)";
@@ -29,7 +30,7 @@ export async function installHook(
   const hookPath = path.join(projectDir, ".git", "hooks", "pre-commit");
   const stripped = await readWithoutBlock(hookPath);
   const base = stripped ?? "#!/bin/sh\n";
-  const block = renderBlock(options);
+  const block = renderBlock(projectDir, options);
   await fs.writeFile(hookPath, base.trimEnd() + "\n" + block);
   await fs.chmod(hookPath, 0o755);
 }
@@ -79,7 +80,11 @@ export function stripBlock(
   return out.join("\n").replace(/\n*$/, "\n");
 }
 
-const DEFAULT_DB_PATH = ".codewatch/graph.db";
+/** Git runs hooks from the toplevel, so the shared default resolves to a path relative to it. */
+function hookDbPath(projectDir: string): string {
+  return path.relative(projectDir, defaultGraphDbPath(projectDir));
+}
+
 const DEFAULT_CONFIG_PATH = ".codewatch/check.json";
 
 function normalizeGraphPaths(value: string | string[] | undefined): string {
@@ -89,7 +94,7 @@ function normalizeGraphPaths(value: string | string[] | undefined): string {
   return value.join(" ");
 }
 
-function renderBlock(options: InstallHookOptions): string {
+function renderBlock(projectDir: string, options: InstallHookOptions): string {
   const bin = options.bin ?? DEFAULT_BIN;
   const styleCheck = options.withStyleCheck !== false;
   const graphCheck = options.withGraphCheck === true;
@@ -104,7 +109,7 @@ function renderBlock(options: InstallHookOptions): string {
   }
   if (graphCheck) {
     const targets = normalizeGraphPaths(options.graphPath);
-    const db = options.dbPath ?? DEFAULT_DB_PATH;
+    const db = options.dbPath ?? hookDbPath(projectDir);
     lines.push(
       `if git diff --cached --name-only | grep -qE '${TS_GLOB}'; then`,
       `  ${bin} graph index ${targets} --db ${db} >/dev/null || exit 1`,
@@ -140,7 +145,7 @@ export async function installAutoUpdateHook(
     POST_MARKER_END,
   );
   const base = stripped ?? "#!/bin/sh\n";
-  const block = renderAutoUpdateBlock(options);
+  const block = renderAutoUpdateBlock(projectDir, options);
   await fs.writeFile(hookPath, base.trimEnd() + "\n" + block);
   await fs.chmod(hookPath, 0o755);
 }
@@ -156,10 +161,10 @@ export async function removeAutoUpdateHook(projectDir: string): Promise<void> {
   await fs.writeFile(hookPath, stripped);
 }
 
-function renderAutoUpdateBlock(options: InstallAutoUpdateHookOptions): string {
+function renderAutoUpdateBlock(projectDir: string, options: InstallAutoUpdateHookOptions): string {
   const bin = options.bin ?? DEFAULT_BIN;
   const targets = normalizeGraphPaths(options.graphPath);
-  const db = options.dbPath ?? DEFAULT_DB_PATH;
+  const db = options.dbPath ?? hookDbPath(projectDir);
   const config = options.configPath ?? DEFAULT_CONFIG_PATH;
   // `|| true` so a failed re-index never disrupts a workflow — the commit has
   // already landed by the time post-commit runs.

@@ -114,6 +114,8 @@ export interface GraphReportResult {
   emptyWindow?: boolean;
   /** User-facing guidance shown when emptyWindow is true. */
   hint?: string;
+  /** True when the snapshot holds no churn or ownership metrics at all (no git history was indexed). */
+  churnUnavailable?: boolean;
   drift?: ReportDrift;
 }
 

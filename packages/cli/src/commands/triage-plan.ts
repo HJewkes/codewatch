@@ -1,7 +1,7 @@
 import path from "node:path";
 import { detectGitToplevel, listVerdicts, type Finding } from "@titan-design/code-graph";
 import type { LineSource } from "@titan-design/evidence";
-import { openGraphStore } from "../utils/graph-store.js";
+import { defaultGraphDbPath, openGraphStore } from "../utils/graph-store.js";
 import { buildBundles, DEFAULT_TOKEN_CAP, type TriageBundle } from "./triage-bundle.js";
 import { readAuditOutputs, selectTriageFiles, type TriageSelectOptions, type TriageSelection } from "./triage-select.js";
 import { carryPriorVerdicts, skipJudged, type ReusedVerdict, type VerdictCarry } from "./triage-persist.js";
@@ -69,8 +69,8 @@ function latestSnapshotId(dbPath: string, store: ReturnType<typeof openGraphStor
 export function planTriage(options: TriagePlanOptions): TriagePlan {
   const root = path.resolve(options.path);
   const idRoot = detectGitToplevel(root) ?? root;
-  const dbPath = path.resolve(options.db ?? path.join(root, ".codewatch", "graph.db"));
-  const audit = readAuditOutputs(path.resolve(options.auditDir ?? path.join(root, ".codewatch", "audit")));
+  const dbPath = path.resolve(options.db ?? defaultGraphDbPath(root));
+  const audit = readAuditOutputs(path.resolve(options.auditDir ?? path.join(idRoot, ".codewatch", "audit")));
   const cap = options.tokenCap ?? DEFAULT_TOKEN_CAP;
   const store = openGraphStore(dbPath);
   try {

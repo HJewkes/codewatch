@@ -93,6 +93,15 @@ function suggestWiderWindow(windowDays: number): number {
   return windowDays * 2;
 }
 
+const CHURN_UNAVAILABLE_HINT =
+  "Churn and ownership are unavailable: this snapshot has no git history " +
+  "(not a git tree, or indexed with --no-churn), so churn-based sections are empty.";
+
+/** `graph index` stores no churn_* metric at all when it had no git history to read. */
+function hasNoChurnMetrics(metrics: readonly GraphMetric[]): boolean {
+  return !metrics.some((m) => m.name.startsWith("churn_"));
+}
+
 function emptyWindowHint(windowDays: ChurnWindow): string {
   // Lifetime already spans all of history — a wider window can't help; the repo
   // simply has no git churn (shallow clone, or non-git tree).
@@ -149,7 +158,8 @@ export function runGraphReportCommand(
     };
     if (!hasChurnSignal(metrics, windowDays)) {
       result.emptyWindow = true;
-      result.hint = emptyWindowHint(windowDays);
+      result.churnUnavailable = hasNoChurnMetrics(metrics);
+      result.hint = result.churnUnavailable ? CHURN_UNAVAILABLE_HINT : emptyWindowHint(windowDays);
     }
     if (options.vs) {
       result.drift = computeDrift(db, options, ctx, result, limit);

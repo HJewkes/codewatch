@@ -137,6 +137,7 @@ export function buildPayload(
       authorCount,
       emptyWindow: report.emptyWindow ?? false,
       hint: report.hint,
+      churnUnavailable: report.churnUnavailable ?? false,
       // Resolve the baseline snapshot id from the drift comparison (0 only when
       // no drift was computed, e.g. baseline == current) instead of hardcoding 0.
       baseline: vs ? { ref: vs, snapshotId: report.drift?.baselineSnapshot.id ?? 0 } : null,
