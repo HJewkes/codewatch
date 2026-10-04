@@ -28,7 +28,7 @@ import {
   runArchSplit,
   type ArchSplitResult,
 } from "./graph-arch-split.js";
-import { openGraphStore } from "../utils/graph-store.js";
+import { openGraphStore, defaultGraphDbPath } from "../utils/graph-store.js";
 
 export type { ComputeArchInput };
 export { computeArch };
@@ -310,7 +310,7 @@ export function registerGraphArch(graphCmd: Command): void {
     .description(
       "Emit a deterministic package-level architecture diagram (Mermaid flowchart) aggregated from cross-package edges.",
     )
-    .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")
+    .option("--db <path>", "Path to graph.db", defaultGraphDbPath())
     .option("--repo-root <path>", "Repo root for package detection", ".")
     .option("--snapshot <id>", "Snapshot id (default: latest)")
     .option(

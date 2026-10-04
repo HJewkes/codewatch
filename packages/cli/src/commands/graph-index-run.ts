@@ -6,7 +6,7 @@ import {
   openCodeGraph,
   type IndexOptions,
 } from "@titan-design/code-graph";
-import { moveLegacyGraphDbAside } from "../utils/graph-store.js";
+import { defaultGraphDbPath, moveLegacyGraphDbAside } from "../utils/graph-store.js";
 
 export interface GraphIndexOptions extends Omit<IndexOptions, "paths" | "tsConfig"> {
   /** Single root to index; equivalent to `rootDirs: [rootDir]`. */
@@ -32,6 +32,8 @@ export interface GraphIndexResult {
   cosmeticFiles: number;
   nodesByKind: Record<string, number>;
   edgesByKind: Record<string, number>;
+  /** Churn and ownership need git history: "unavailable" outside a git tree, "skipped" with --no-churn. */
+  churn: "computed" | "skipped" | "unavailable";
   durationMs: { total: number };
 }
 
@@ -49,8 +51,7 @@ function normalizeRootDirs(options: GraphIndexOptions): string[] {
 /** Default the db to the git toplevel, where node ids are rooted, not the indexed subdir (C-22). */
 export function resolveIndexDbPath(dbPath: string | undefined, firstRoot: string): string {
   if (dbPath) return path.resolve(dbPath);
-  const idRoot = detectGitToplevel(firstRoot) ?? firstRoot;
-  return path.join(idRoot, ".codewatch", "graph.db");
+  return defaultGraphDbPath(firstRoot);
 }
 
 function toIndexOptions(options: GraphIndexOptions, paths: string[]): IndexOptions {
@@ -69,6 +70,11 @@ function toIndexOptions(options: GraphIndexOptions, paths: string[]): IndexOptio
   };
 }
 
+function churnStatus(options: GraphIndexOptions, root: string): GraphIndexResult["churn"] {
+  if (detectGitToplevel(root) === null) return "unavailable";
+  return options.computeChurn === false ? "skipped" : "computed";
+}
+
 export async function runGraphIndex(options: GraphIndexOptions): Promise<GraphIndexResult> {
   const started = performance.now();
   const rootDirs = normalizeRootDirs(options);
@@ -82,7 +88,11 @@ export async function runGraphIndex(options: GraphIndexOptions): Promise<GraphIn
   }
   const store = openCodeGraph(dbPath);
   try {
-    const result = await indexPaths(store, toIndexOptions(options, rootDirs));
+    const churn = churnStatus(options, rootDirs[0]!);
+    const result = await indexPaths(store, {
+      ...toIndexOptions(options, rootDirs),
+      computeChurn: churn === "computed",
+    });
     return {
       dbPath,
       snapshotId: result.snapshotId,
@@ -96,6 +106,7 @@ export async function runGraphIndex(options: GraphIndexOptions): Promise<GraphIn
       cosmeticFiles: result.cosmetic,
       nodesByKind: result.nodesByKind,
       edgesByKind: result.edgesByKind,
+      churn,
       durationMs: { total: performance.now() - started },
     };
   } finally {

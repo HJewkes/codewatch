@@ -12,7 +12,7 @@ import {
   type SnapshotRow,
 } from "@titan-design/code-graph";
 import { formatError } from "../utils/output.js";
-import { openGraphStore } from "../utils/graph-store.js";
+import { openGraphStore, defaultGraphDbPath } from "../utils/graph-store.js";
 
 export interface GraphRenderCheckDiffCommandOptions {
   db: string;
@@ -164,7 +164,7 @@ export function registerGraphRenderCheckDiff(graphCmd: Command): void {
   graphCmd
     .command("render-check-diff")
     .description("Render a check-diff: new/resolved/worsened/improved violations across two snapshots")
-    .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")
+    .option("--db <path>", "Path to graph.db", defaultGraphDbPath())
     .option("--config <path>", "Rules file (JSON)", "./.codewatch/check.json")
     .requiredOption("--from <ref-or-id>", "From-side snapshot")
     .requiredOption("--to <ref-or-id>", "To-side snapshot")

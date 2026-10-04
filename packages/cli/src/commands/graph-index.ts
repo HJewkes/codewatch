@@ -77,6 +77,11 @@ function formatGraphIndexText(result: GraphIndexResult): string {
       `${chalk.bold("Renames:")} ${result.aliases} ${chalk.dim("(from git diff -M)")}`,
     );
   }
+  if (result.churn !== "computed") {
+    lines.push(
+      `${chalk.bold("Churn:")}   unavailable ${chalk.dim(result.churn === "skipped" ? "(--no-churn)" : "(not a git tree: churn and ownership are not reported)")}`,
+    );
+  }
   if (result.metrics > 0) {
     lines.push(
       `${chalk.bold("Metrics:")} ${result.metrics} ${chalk.dim("(degree + source-content + churn + ownership)")}`,

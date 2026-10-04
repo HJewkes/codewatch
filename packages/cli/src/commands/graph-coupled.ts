@@ -16,7 +16,7 @@ import {
 import { describeChurnWindow, parseChurnWindow } from "../utils/churn-window.js";
 import { formatError, formatWarning } from "../utils/output.js";
 import { padLeft, padRight } from "../utils/table.js";
-import { openGraphStore } from "../utils/graph-store.js";
+import { openGraphStore, defaultGraphDbPath } from "../utils/graph-store.js";
 
 export interface GraphCoupledCommandOptions {
   db: string;
@@ -261,7 +261,7 @@ export function registerGraphCoupled(graphCmd: Command): void {
     .description(
       "Show files that change together (logical coupling via git co-edit frequency).",
     )
-    .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")
+    .option("--db <path>", "Path to graph.db", defaultGraphDbPath())
     .option("--repo-root <path>", "Repo root (for git log)", ".")
     .option("--snapshot <id>", "Snapshot id (default: latest)")
     .option(

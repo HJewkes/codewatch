@@ -1,3 +1,4 @@
+import { defaultGraphDbPath } from "../utils/graph-store.js";
 import type { Command } from "commander";
 import { formatError } from "../utils/output.js";
 
@@ -14,7 +15,7 @@ export function registerGraphMcp(graph: Command): void {
   graph
     .command("mcp")
     .description("Run codewatch as an MCP server (stdio, or --http for a long-running server) over a graph.db snapshot.")
-    .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")
+    .option("--db <path>", "Path to graph.db", defaultGraphDbPath())
     .option("--repo-root <path>", "Repo root for source + deep-AST reads (default: git toplevel)")
     .option("--snapshot <id>", "Snapshot id (default: latest)")
     .option("--http", "Run a long-running Streamable HTTP server instead of stdio")

@@ -1,3 +1,4 @@
+import { defaultGraphDbPath } from "../utils/graph-store.js";
 import type { Command } from "commander";
 import { formatError } from "../utils/output.js";
 
@@ -13,7 +14,7 @@ export function registerRenderDiff(graphCmd: Command): void {
   graphCmd
     .command("render-diff")
     .description("Render a two-snapshot diff to a standalone HTML file (added/removed/renamed highlighted)")
-    .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")
+    .option("--db <path>", "Path to graph.db", defaultGraphDbPath())
     .requiredOption("--from <ref-or-id>", "From-side snapshot: numeric id or ref name")
     .requiredOption("--to <ref-or-id>", "To-side snapshot: numeric id or ref name")
     .requiredOption("--out <path>", "Output HTML file")
@@ -49,7 +50,7 @@ export function registerRender(graphCmd: Command): void {
   graphCmd
     .command("render")
     .description("Render a graph snapshot to a standalone HTML file")
-    .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")
+    .option("--db <path>", "Path to graph.db", defaultGraphDbPath())
     .option("--snapshot <id>", "Snapshot id (default: latest)")
     .requiredOption("--out <path>", "Output HTML file")
     .option("--title <string>", "Heading shown in the HTML")

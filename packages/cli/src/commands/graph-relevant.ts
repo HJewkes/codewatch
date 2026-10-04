@@ -17,7 +17,7 @@ import {
   formatGraphRelevantJson,
   formatGraphRelevantText,
 } from "./graph-relevant-format.js";
-import { openGraphStore } from "../utils/graph-store.js";
+import { openGraphStore, defaultGraphDbPath } from "../utils/graph-store.js";
 
 export { formatGraphRelevantJson, formatGraphRelevantText };
 
@@ -226,7 +226,7 @@ export function registerGraphRelevant(graphCmd: Command): void {
     .description(
       "Rank nodes by personalized PageRank, optionally seeded with paths the LLM is editing (Aider-style repo map).",
     )
-    .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")
+    .option("--db <path>", "Path to graph.db", defaultGraphDbPath())
     .option("--snapshot <id>", "Snapshot id (default: latest)")
     .option(
       "--seed <pattern...>",

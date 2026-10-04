@@ -13,7 +13,7 @@ import {
   type UnchangedViolation,
 } from "@titan-design/code-graph";
 import { formatError } from "../utils/output.js";
-import { openGraphStore } from "../utils/graph-store.js";
+import { openGraphStore, defaultGraphDbPath } from "../utils/graph-store.js";
 
 export interface GraphCheckDiffCommandOptions {
   db: string;
@@ -212,7 +212,7 @@ export function registerGraphCheckDiff(graphCmd: Command): void {
     .description(
       "Diff rule violations across two snapshots (new / resolved / worsened / improved)",
     )
-    .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")
+    .option("--db <path>", "Path to graph.db", defaultGraphDbPath())
     .option("--config <path>", "Rules file (JSON)", "./.codewatch/check.json")
     .requiredOption("--from <ref-or-id>", "From-side snapshot")
     .requiredOption("--to <ref-or-id>", "To-side snapshot")

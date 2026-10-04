@@ -12,7 +12,7 @@ import {
   type SnapshotRow,
 } from "@titan-design/code-graph";
 import { formatError, snapshotVersionMismatchWarning } from "../utils/output.js";
-import { openGraphStore } from "../utils/graph-store.js";
+import { openGraphStore, defaultGraphDbPath } from "../utils/graph-store.js";
 
 export interface GraphCheckCommandOptions {
   db: string;
@@ -268,7 +268,7 @@ export function registerGraphCheck(graphCmd: Command): void {
     .description(
       "Run rule checks against a snapshot (max-complexity, no-imports, …). Exits non-zero on violations.",
     )
-    .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")
+    .option("--db <path>", "Path to graph.db", defaultGraphDbPath())
     .option("--config <path>", "Rules file (JSON)", "./.codewatch/check.json")
     .option(
       "--snapshot <ref-or-id>",

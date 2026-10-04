@@ -6,7 +6,7 @@ import {
 } from "@titan-design/code-graph";
 import { OllamaEmbedder, type Embedder } from "@titan-design/embed";
 import { formatError } from "../utils/output.js";
-import { openGraphStore } from "../utils/graph-store.js";
+import { openGraphStore, defaultGraphDbPath } from "../utils/graph-store.js";
 
 export interface GraphEmbedOptions {
   db: string;
@@ -65,7 +65,7 @@ export function registerGraphEmbed(graphCmd: Command): void {
     .description(
       "Precompute capability embeddings (signature + docstring) for a snapshot's exported symbols, powering `graph similar`. Needs a local ollama; only new/changed texts are embedded.",
     )
-    .option("--db <path>", "Path to graph.db", "./.codewatch/graph.db")
+    .option("--db <path>", "Path to graph.db", defaultGraphDbPath())
     .option("--snapshot <id>", "Snapshot id (default: latest)")
     .option("--model <name>", "Embedding model (default: nomic-embed-text)")
     .option("--ollama-url <url>", "Ollama base URL (default: http://127.0.0.1:11434)")
