@@ -1,9 +1,10 @@
 // @ts-check
 // SessionStart hook: inject a codewatch repo snapshot. Every failure path exits 0 with empty stdout.
 
-import { execFileSync, spawn } from "node:child_process"
-import { accessSync, constants, existsSync } from "node:fs"
-import { delimiter, join } from "node:path"
+import { spawn } from "node:child_process"
+import { existsSync } from "node:fs"
+import { join } from "node:path"
+import { findCodewatchBin, git } from "./hook-env.mjs"
 import { formatSnapshot } from "./snapshot-format.mjs"
 
 // hooks.json allows 5 s; stay well inside it so a slow CLI never delays the session.
@@ -29,26 +30,9 @@ function killGroup(child) {
   }
 }
 
-/** @param {string[]} args */
-function git(args) {
-  return execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
-}
-
-/** @param {string} name */
-function onPath(name) {
-  for (const dir of (process.env.PATH ?? "").split(delimiter)) {
-    const candidate = join(dir, name)
-    try {
-      accessSync(candidate, constants.X_OK)
-      return candidate
-    } catch {}
-  }
-  return null
-}
-
 /** @returns {{ command: string, prefix: string[] } | null} */
 function resolveCli() {
-  const bin = process.env.CODEWATCH_BIN || onPath("codewatch")
+  const bin = findCodewatchBin()
   if (!bin) return null
   return /\.m?js$/.test(bin) ? { command: process.execPath, prefix: [bin] } : { command: bin, prefix: [] }
 }
