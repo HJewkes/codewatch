@@ -65,12 +65,17 @@ function latestSnapshotId(dbPath: string, store: ReturnType<typeof openGraphStor
   return snapshot.id;
 }
 
+/** Where `codewatch audit` writes by default: the git toplevel, like the graph db. */
+export function defaultAuditDir(root: string): string {
+  return path.join(detectGitToplevel(root) ?? root, ".codewatch", "audit");
+}
+
 /** Carries earlier verdicts forward, then selects the files and findings still unjudged and builds their bundles, without calling a model. */
 export function planTriage(options: TriagePlanOptions): TriagePlan {
   const root = path.resolve(options.path);
   const idRoot = detectGitToplevel(root) ?? root;
   const dbPath = path.resolve(options.db ?? defaultGraphDbPath(root));
-  const audit = readAuditOutputs(path.resolve(options.auditDir ?? path.join(idRoot, ".codewatch", "audit")));
+  const audit = readAuditOutputs(path.resolve(options.auditDir ?? defaultAuditDir(root)));
   const cap = options.tokenCap ?? DEFAULT_TOKEN_CAP;
   const store = openGraphStore(dbPath);
   try {

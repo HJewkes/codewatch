@@ -1,13 +1,12 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import { detectGitToplevel } from "@titan-design/code-graph";
 import { placeControls } from "@titan-design/evidence";
 import type { MapResult, StepRunner } from "@titan-design/workflow";
 import { pickRunControls } from "./triage-control-pick.js";
 import { loadControls } from "./triage-controls/controls.js";
 import type { Control } from "./triage-controls/types.js";
 import { bundleItems, controlItem, type TriageItem } from "./triage-items.js";
-import { planTriage, type TriagePlan, type TriagePlanOptions } from "./triage-plan.js";
+import { defaultAuditDir, planTriage, type TriagePlan, type TriagePlanOptions } from "./triage-plan.js";
 import { DEFAULT_HARNESS, preflightAuth, readerRunner, type CallTrace, type ReaderRunnerOptions, type TriageHarness } from "./triage-runner.js";
 import { countBy, failedOf, skippedOf, verdictCounts, writeTriageOutputs, type TriageReport, type VerdictRecord } from "./triage-output.js";
 import { persistVerdicts } from "./triage-persist.js";
@@ -155,7 +154,7 @@ function buildReader(options: TriageRunOptions, root: string, traces: CallTrace[
 export async function runTriage(options: TriageRunOptions): Promise<TriageRunResult> {
   const startedAt = Date.now();
   const root = path.resolve(options.path);
-  const outDir = path.resolve(options.out ?? path.join(detectGitToplevel(root) ?? root, ".codewatch", "audit"));
+  const outDir = path.resolve(options.out ?? defaultAuditDir(root));
   const traces: CallTrace[] = [];
   const runner = options.runner ?? buildReader(options, root, traces);
   const plan = planTriage(options);
