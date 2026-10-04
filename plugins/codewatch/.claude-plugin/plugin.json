@@ -13,5 +13,13 @@
     "codewatch": {
       "command": "${CLAUDE_PLUGIN_ROOT}/bin/codewatch-launch.sh"
     }
+  },
+  "userConfig": {
+    "grepAugment": {
+      "type": "boolean",
+      "title": "Grep augment",
+      "description": "After a Grep for an exported symbol, name the files that use it only through re-export barrels",
+      "default": false
+    }
   }
 }
