@@ -9,6 +9,15 @@ export function OwnershipView({ data, onSelect }: { data: CodewatchData; onSelec
   const singleAuthor = data.meta.authorCount === 1;
   const testRisks = data.testCoverageRisks ?? [];
 
+  if (data.meta.churnUnavailable) {
+    return (
+      <Alert status="info" variant="subtle">
+        <AlertTitle>Churn and ownership are unavailable</AlertTitle>
+        <AlertDescription>{data.meta.hint}</AlertDescription>
+      </Alert>
+    );
+  }
+
   // On a single-author repo, authorship bus factor is 1 everywhere by
   // construction — for production AND test churn — so the "knowledge silos"
   // table is a constant, not a signal. The one non-degenerate ownership-adjacent

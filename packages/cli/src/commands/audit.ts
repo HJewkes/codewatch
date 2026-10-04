@@ -6,7 +6,7 @@ import {
   toFindings,
   type Finding,
 } from "@titan-design/code-graph";
-import { openGraphStore } from "../utils/graph-store.js";
+import { defaultGraphDbPath, openGraphStore } from "../utils/graph-store.js";
 import { persistFindings } from "./audit-persist.js";
 import { collectSnapshotStats, type SnapshotStats } from "./audit-collect.js";
 import { AUDIT_RULES } from "./audit-rules.js";
@@ -70,8 +70,8 @@ export async function runAuditCommand(options: AuditCommandOptions): Promise<Aud
   const started = performance.now();
   const root = path.resolve(options.path);
   const idRoot = detectGitToplevel(root) ?? root;
-  const dbPath = path.resolve(options.db ?? path.join(root, ".codewatch", "graph.db"));
-  const outDir = path.resolve(options.out ?? path.join(root, ".codewatch", "audit"));
+  const dbPath = path.resolve(options.db ?? defaultGraphDbPath(root));
+  const outDir = path.resolve(options.out ?? path.join(idRoot, ".codewatch", "audit"));
   const warnings: string[] = [];
   const index = await runGraphIndex({ rootDir: root, dbPath, onNotice: (line) => warnings.push(line) });
   const graph = graphFindings(dbPath, index.snapshotId);
