@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import {
-  classifyEditFiles,
   extractRelativeSpecifiers,
   isSourceFile,
   isTestFile,
@@ -145,31 +144,5 @@ describe("extractRelativeSpecifiers", () => {
       "./c",
       "./d.js",
     ]);
-  });
-});
-
-describe("classifyEditFiles", () => {
-  const files = new Set([
-    "src/foo.ts",
-    "src/deep/impl.ts",
-    "src/internal/core.ts",
-    "src/index.ts",
-  ]);
-  it("is semantic-findable when a test basename shares the edit file's name", () => {
-    expect(
-      classifyEditFiles(["src/foo.ts"], ["src/foo.test.ts"], new Map(), files),
-    ).toBe("semantic-findable");
-  });
-  it("is import-chain-reachable when a test imports the edit file directly", () => {
-    const sources = new Map([["test/a.test.ts", "import {x} from '../src/deep/impl.js'"]]);
-    expect(
-      classifyEditFiles(["src/deep/impl.ts"], ["test/a.test.ts"], sources, files),
-    ).toBe("import-chain-reachable");
-  });
-  it("is structurally-hidden when only a barrel is imported", () => {
-    const sources = new Map([["test/a.test.ts", "import {x} from '../src/index.js'"]]);
-    expect(
-      classifyEditFiles(["src/internal/core.ts"], ["test/a.test.ts"], sources, files),
-    ).toBe("structurally-hidden");
   });
 });

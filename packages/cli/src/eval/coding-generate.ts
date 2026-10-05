@@ -1,22 +1,15 @@
 import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import {
-  classifyEditFiles,
-  diffForPaths,
-  listWindowCommits,
-  loadCommitChanges,
-  partitionChangedFiles,
-  passesScope,
-  resolveHead,
-  shouldRejectByMessage,
-} from "./coding-mine.js";
+  emptyFunnel,
+  mineCandidates,
+  miningParams,
+  resolveMiningOptions,
+  type Candidate,
+  type MiningOptions,
+} from "./coding-candidates.js";
+import { resolveHead } from "./coding-mine.js";
 import { runAdmissionGate, type GateResult, type VitestRunOptions } from "./coding-grade.js";
-import type {
-  AdmissionFunnel,
-  CodingSuite,
-  CodingTask,
-  CommitInfo,
-} from "./coding-types.js";
+import type { CodingSuite, CodingTask, AdmissionFunnel } from "./coding-types.js";
 import type { Stratum } from "./types.js";
 import { ALL_STRATA } from "./types.js";
 
@@ -30,73 +23,14 @@ import { ALL_STRATA } from "./types.js";
  * gate.
  */
 
-const DEFAULTS = {
-  ref: "HEAD",
-  windowDays: 270,
-  maxSourceFiles: 3,
-  maxChangedLoc: 80,
-  gateRuns: 3,
-  cap: 25,
-  lockfilePath: "pnpm-lock.yaml",
-};
+const GATE_DEFAULTS = { gateRuns: 3, cap: 25 };
 
-export interface GenerateCodingOptions {
-  ref?: string;
-  windowDays?: number;
-  maxSourceFiles?: number;
-  maxChangedLoc?: number;
+export interface GenerateCodingOptions extends Partial<MiningOptions> {
   gateRuns?: number;
   cap?: number;
-  /** Root-relative lockfile whose hash batches installs (default pnpm-lock.yaml). */
-  lockfilePath?: string;
   /** Working checkout the gate mutates; defaults to `repo` itself. */
   workdir?: string;
   vitest?: VitestRunOptions;
-}
-
-/** A mined, scope-passing candidate — everything the gate + stratifier need. */
-export interface Candidate {
-  commit: CommitInfo;
-  parentCommit: string;
-  testFiles: string[];
-  editFiles: string[];
-  testPatchDiff: string;
-  goldDiff: string;
-  stratum: Stratum;
-  /** Hash of the parent's lockfile — consecutive equal hashes share one install. */
-  lockfileHash: string;
-}
-
-function git(repo: string, args: readonly string[]): string {
-  return execFileSync("git", [...args], {
-    cwd: repo,
-    encoding: "utf-8",
-    maxBuffer: 64 * 1024 * 1024,
-    stdio: ["ignore", "pipe", "ignore"],
-  });
-}
-
-/** Read a blob at a commit, or "" when the path does not exist there. */
-function showBlob(repo: string, commit: string, path: string): string {
-  try {
-    return git(repo, ["show", `${commit}:${path}`]);
-  } catch {
-    return "";
-  }
-}
-
-function lockfileHashAt(repo: string, commit: string, lockfilePath: string): string {
-  const blob = showBlob(repo, commit, lockfilePath);
-  return createHash("sha1").update(blob).digest("hex").slice(0, 12);
-}
-
-function treeFileIds(repo: string, commit: string): Set<string> {
-  try {
-    const out = git(repo, ["ls-tree", "-r", "--name-only", commit]);
-    return new Set(out.split("\n").filter(Boolean));
-  } catch {
-    return new Set();
-  }
 }
 
 /**
@@ -115,70 +49,6 @@ export function buildProblemStatement(testFiles: readonly string[]): string {
     "Edit the source (not the tests) so that the failing tests pass, without",
     "breaking any tests that currently pass. Do not modify the test files.",
   ].join("\n");
-}
-
-/** Mine + scope-filter candidates (shells git). Populates `funnel` in place. */
-export function mineCandidates(
-  repo: string,
-  opts: Required<Omit<GenerateCodingOptions, "workdir" | "vitest">>,
-  funnel: AdmissionFunnel,
-): Candidate[] {
-  const commits = listWindowCommits(repo, {
-    ref: opts.ref,
-    windowDays: opts.windowDays,
-    maxSourceFiles: opts.maxSourceFiles,
-    maxChangedLoc: opts.maxChangedLoc,
-  });
-  funnel.mined = commits.length;
-  const candidates: Candidate[] = [];
-  for (const bare of commits) {
-    if (shouldRejectByMessage(bare.subject)) {
-      funnel.messageRejected += 1;
-      continue;
-    }
-    if (!bare.parent) {
-      funnel.scopeRejected += 1;
-      continue;
-    }
-    const commit = loadCommitChanges(repo, bare);
-    const partition = partitionChangedFiles(commit.changes);
-    if (!passesScope(partition, commit.changes, opts)) {
-      funnel.scopeRejected += 1;
-      continue;
-    }
-    candidates.push(buildCandidate(repo, commit, partition, opts.lockfilePath));
-  }
-  return candidates;
-}
-
-function buildCandidate(
-  repo: string,
-  commit: CommitInfo,
-  partition: ReturnType<typeof partitionChangedFiles>,
-  lockfilePath: string,
-): Candidate {
-  const parentCommit = commit.parent!;
-  const testFiles = partition.testFiles;
-  const editFiles = partition.sourceFiles;
-  const testSources = new Map(
-    testFiles.map((f) => [f, showBlob(repo, commit.sha, f)]),
-  );
-  const stratum = classifyEditFiles(
-    editFiles,
-    testFiles,
-    testSources,
-    treeFileIds(repo, parentCommit),
-  );
-  return {
-    commit,
-    parentCommit,
-    testFiles,
-    editFiles,
-    testPatchDiff: diffForPaths(repo, commit.sha, testFiles),
-    goldDiff: diffForPaths(repo, commit.sha, editFiles),
-    stratum,
-    lockfileHash: lockfileHashAt(repo, parentCommit, lockfilePath),
-  };
 }
 
 /** A gate function — injectable so the orchestration is unit-testable. */
@@ -247,18 +117,6 @@ function toTask(c: Candidate, failToPass: string[], passToPass: string[]): Codin
   };
 }
 
-function emptyFunnel(): AdmissionFunnel {
-  return {
-    mined: 0,
-    messageRejected: 0,
-    scopeRejected: 0,
-    gateRun: 0,
-    gateNoTransition: 0,
-    gateEnvError: 0,
-    admitted: 0,
-  };
-}
-
 function countByStratum(tasks: readonly CodingTask[]): Record<Stratum, number> {
   const out = Object.fromEntries(ALL_STRATA.map((s) => [s, 0])) as Record<Stratum, number>;
   for (const t of tasks) out[t.stratum] += 1;
@@ -275,13 +133,9 @@ export function generateCodingSuite(
   options: GenerateCodingOptions = {},
 ): CodingSuite {
   const opts = {
-    ref: options.ref ?? DEFAULTS.ref,
-    windowDays: options.windowDays ?? DEFAULTS.windowDays,
-    maxSourceFiles: options.maxSourceFiles ?? DEFAULTS.maxSourceFiles,
-    maxChangedLoc: options.maxChangedLoc ?? DEFAULTS.maxChangedLoc,
-    gateRuns: options.gateRuns ?? DEFAULTS.gateRuns,
-    cap: options.cap ?? DEFAULTS.cap,
-    lockfilePath: options.lockfilePath ?? DEFAULTS.lockfilePath,
+    ...resolveMiningOptions(options),
+    gateRuns: options.gateRuns ?? GATE_DEFAULTS.gateRuns,
+    cap: options.cap ?? GATE_DEFAULTS.cap,
   };
   const workdir = options.workdir ?? repo;
   const headCommit = resolveHead(repo, opts.ref);
@@ -317,13 +171,7 @@ export function generateCodingSuite(
 
   return {
     source: { repo, ref: opts.ref, headCommit },
-    params: {
-      windowDays: opts.windowDays,
-      maxSourceFiles: opts.maxSourceFiles,
-      maxChangedLoc: opts.maxChangedLoc,
-      gateRuns: opts.gateRuns,
-      cap: opts.cap,
-    },
+    params: { ...miningParams(opts), gateRuns: opts.gateRuns, cap: opts.cap },
     funnel,
     counts: { total: tasks.length, byStratum: countByStratum(tasks) },
     tasks,

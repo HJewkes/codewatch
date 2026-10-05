@@ -1,24 +1,8 @@
 import { describe, it, expect } from "vitest";
-import {
-  admitCandidates,
-  buildProblemStatement,
-  type Candidate,
-  type GateFn,
-} from "../coding-generate.js";
-import type { AdmissionFunnel, CommitInfo } from "../coding-types.js";
+import { emptyFunnel, type Candidate } from "../coding-candidates.js";
+import { admitCandidates, buildProblemStatement, type GateFn } from "../coding-generate.js";
+import type { CommitInfo } from "../coding-types.js";
 import type { Stratum } from "../types.js";
-
-function emptyFunnel(): AdmissionFunnel {
-  return {
-    mined: 0,
-    messageRejected: 0,
-    scopeRejected: 0,
-    gateRun: 0,
-    gateNoTransition: 0,
-    gateEnvError: 0,
-    admitted: 0,
-  };
-}
 
 function candidate(
   sha: string,
@@ -39,6 +23,14 @@ function candidate(
     testPatchDiff: "diff-test",
     goldDiff: "diff-source",
     stratum,
+    hardness: {
+      darkFiles: 0,
+      trivialDarkFiles: 0,
+      darkReachable: 0,
+      maxHop: null,
+      secondOrderDark: 0,
+      files: [],
+    },
     lockfileHash,
   };
 }
