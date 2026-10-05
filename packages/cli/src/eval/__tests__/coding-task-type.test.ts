@@ -37,12 +37,13 @@ describe("assignTaskType", () => {
     expect(assignTaskType(files)).toBe("T5");
   });
 
-  it("assigns T6 to three or more sibling consumers, even when they sit at hop 2", () => {
+  it("assigns T6 to three or more dark sibling consumers, even when they sit at hop 2", () => {
     const files = [
       lit("src/format.ts"),
       dark("src/commands/search.ts", 2),
       dark("src/commands/status.ts", 2),
       dark("src/commands/memories.ts", null),
+      lit("src/commands/format.ts"),
     ];
 
     expect(assignTaskType(files)).toBe("T6");
@@ -56,6 +57,66 @@ describe("assignTaskType", () => {
 
   it("leaves a lone barrel edit with no added unit unset", () => {
     const files = [lit("src/a.ts"), dark("src/index.ts", null, "export-only")];
+
+    expect(assignTaskType(files)).toBeUndefined();
+  });
+
+  it("counts only dark files toward a sweep, so lit siblings do not hide a T5", () => {
+    const files = [
+      added("src/agents/claude-sessions.ts"),
+      dark("src/agents/config-dir.ts", 2),
+      lit("src/agents/detached-reap.ts", 1),
+      dark("src/agents/identity.ts", null),
+      lit("src/agents/supervisor.ts", 1),
+    ];
+
+    expect(assignTaskType(files)).toBe("T5");
+  });
+
+  it("leaves two barrels plus an added unit undecided rather than T4", () => {
+    const files = [
+      dark("src/index.ts", 2),
+      dark("src/sdk/index.ts", 3),
+      added("src/sdk/scheduler.ts"),
+      lit("src/sdk/types.ts", 2),
+      lit("src/sdk/voltra-client.ts", 1),
+      added("src/voltra/protocol/rowing-frames.ts"),
+    ];
+
+    expect(assignTaskType(files)).toBeUndefined();
+  });
+
+  it("treats export-only entry modules as parallel barrels (T3)", () => {
+    const files = [
+      dark("src/entries/react-native.ts", null, "export-only"),
+      dark("src/entries/web.ts", null, "export-only"),
+      lit("src/sdk/types.ts"),
+      lit("src/voltra/protocol/device-state.ts"),
+      lit("src/voltra/protocol/telemetry-decoder.ts"),
+      lit("src/voltra/protocol/types.ts"),
+    ];
+
+    expect(assignTaskType(files)).toBe("T3");
+  });
+
+  it("does not let a sweep override a barrel T3", () => {
+    const files = [
+      dark("src/entries/react-native.ts", null, "export-only"),
+      dark("src/entries/web.ts", null, "export-only"),
+      dark("src/voltra/protocol/device-state.ts", null),
+      dark("src/voltra/protocol/telemetry-decoder.ts", null),
+      dark("src/voltra/protocol/types.ts", null),
+    ];
+
+    expect(assignTaskType(files)).toBe("T3");
+  });
+
+  it("does not call barrels the tests already point at mirrored sites", () => {
+    const files = [
+      lit("src/broker/index.ts", null),
+      lit("src/server/index.ts", null),
+      dark("src/protocol.ts", 2, "type-only"),
+    ];
 
     expect(assignTaskType(files)).toBeUndefined();
   });

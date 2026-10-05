@@ -16,6 +16,10 @@ const WORKSPACE = parseWorkspace(
     ],
     ["packages/render/package.json", '{"name":"@acme/render","main":"lib/main.js"}'],
     ["packages/bare/package.json", '{"name":"@acme/bare"}'],
+    [
+      "packages/tools/package.json",
+      '{"name":"@acme/tools","exports":{".":"./dist/main.js","./*":{"import":"./dist/lib/*.js"}}}',
+    ],
     ["packages/broken/package.json", "{not json"],
   ]),
 );
@@ -27,6 +31,8 @@ const FILE_IDS = new Set([
   "packages/render/src/main.ts",
   "packages/bare/src/index.ts",
   "packages/bare/src/extra/helper.ts",
+  "packages/tools/src/main.ts",
+  "packages/tools/src/lib/fmt.ts",
 ]);
 
 function resolve(specifier: string): string | null {
@@ -40,6 +46,10 @@ describe("resolveWorkspaceSpecifier", () => {
 
   it("resolves an exported subpath", () => {
     expect(resolve("@acme/core/graph")).toBe("packages/core/src/graph/open.ts");
+  });
+
+  it("resolves a subpath through a single-star exports pattern", () => {
+    expect(resolve("@acme/tools/fmt")).toBe("packages/tools/src/lib/fmt.ts");
   });
 
   it("maps a main field under lib/ to src/", () => {
@@ -64,6 +74,7 @@ describe("parseWorkspace", () => {
       "@acme/bare",
       "@acme/core",
       "@acme/render",
+      "@acme/tools",
       "monorepo",
     ]);
   });

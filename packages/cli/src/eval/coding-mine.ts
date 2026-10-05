@@ -71,7 +71,8 @@ export interface ScopeOptions {
  * A single-purpose candidate: at least one test file AND one source file
  * changed, few enough source files, and few enough changed source lines that
  * the change is one logical unit. Test, snapshot and lockfile churn says
- * nothing about the size of the fix, so only source lines count (C-86 step 2).
+ * nothing about the size of the fix, so only source lines count (C-86 step 2);
+ * a deleted source file's lines are changed lines too.
  */
 export function passesScope(
   part: FilePartition,
@@ -80,9 +81,8 @@ export function passesScope(
 ): boolean {
   if (part.testFiles.length === 0 || part.sourceFiles.length === 0) return false;
   if (part.sourceFiles.length > opts.maxSourceFiles) return false;
-  const sources = new Set(part.sourceFiles);
   const churn = changes
-    .filter((c) => sources.has(c.path))
+    .filter((c) => isSourceFile(c.path))
     .reduce((sum, c) => sum + (c.added ?? 0) + (c.deleted ?? 0), 0);
   return churn <= opts.maxChangedLoc;
 }

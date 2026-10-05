@@ -115,8 +115,8 @@ export function screenCommit(
   const parentContents = readBlobs(repo, c.parentCommit, c.editFiles);
   const hops = importHops(
     c.testFiles,
-    treeFileIds(repo, c.sha),
-    (paths) => readBlobs(repo, c.sha, paths),
+    new Set([...parentIds, ...c.testFiles]),
+    (paths) => readTestsThenParent(repo, c.parentCommit, testSources, paths),
     c.workspace,
   );
   return screenEditFiles({
@@ -134,4 +134,23 @@ export function screenCommit(
     hops: editFileHops(c.editFiles, hops),
     df,
   });
+}
+
+/**
+ * The walk sees what the task's solver sees: the fix commit's tests over the
+ * parent tree. Reading the fix tree would count import edges the fix itself
+ * adds, so a file the solver must newly wire in would look reachable.
+ */
+function readTestsThenParent(
+  repo: string,
+  parentCommit: string,
+  testSources: ReadonlyMap<string, string>,
+  paths: readonly string[],
+): Map<string, string> {
+  const fromParent = readBlobs(repo, parentCommit, paths.filter((p) => !testSources.has(p)));
+  for (const p of paths) {
+    const test = testSources.get(p);
+    if (test !== undefined) fromParent.set(p, test);
+  }
+  return fromParent;
 }

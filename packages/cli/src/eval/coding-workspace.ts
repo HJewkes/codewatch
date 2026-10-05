@@ -88,7 +88,19 @@ function exportTargets(exports: unknown, key: string): string[] {
   if (!isRecord(exports)) return [];
   const bySubpath = Object.keys(exports).some((k) => k.startsWith("."));
   if (!bySubpath) return key === "." ? stringLeaves(exports) : [];
-  return stringLeaves(exports[key]);
+  if (key in exports) return stringLeaves(exports[key]);
+  return Object.entries(exports).flatMap(([pattern, target]) => patternTargets(pattern, target, key));
+}
+
+/** A single-star subpath pattern (`"./*": "./dist/*.js"`): substitute the matched part into each target. */
+function patternTargets(pattern: string, target: unknown, key: string): string[] {
+  const [prefix, suffix, ...extra] = pattern.split("*");
+  if (prefix === undefined || suffix === undefined || extra.length > 0) return [];
+  if (!key.startsWith(prefix) || !key.endsWith(suffix) || key.length < prefix.length + suffix.length) {
+    return [];
+  }
+  const matched = key.slice(prefix.length, key.length - suffix.length);
+  return stringLeaves(target).map((t) => t.replaceAll("*", matched));
 }
 
 function stringLeaves(value: unknown): string[] {

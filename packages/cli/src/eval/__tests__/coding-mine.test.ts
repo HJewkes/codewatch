@@ -89,6 +89,14 @@ describe("passesScope", () => {
     ];
     expect(passesScope(partitionChangedFiles(changes), changes, opts)).toBe(false);
   });
+  it("counts a deleted source file's lines as changed lines", () => {
+    const changes = [
+      change("src/a.ts", "modified", 10, 0),
+      change("src/old.ts", "deleted", 0, 75),
+      change("src/a.test.ts", "added", 5, 0),
+    ];
+    expect(passesScope(partitionChangedFiles(changes), changes, opts)).toBe(false);
+  });
   it("ignores test and non-source churn in the line budget", () => {
     const changes = [
       change("src/a.ts", "modified", 10, 0),
