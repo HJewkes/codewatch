@@ -2,8 +2,10 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { Finding } from "@titan-design/code-graph";
 import type { CheckDiagnostic, RunnerResult } from "@titan-design/style-checker";
 import { runAuditCommand } from "../commands/audit.js";
+import { formatAuditText, type AuditSummary } from "../commands/audit-format.js";
 import type { PythonRunner } from "../commands/audit-runners.js";
 import { buildScoreTable, percentileRanks } from "../commands/audit-score.js";
 
@@ -127,5 +129,38 @@ describe("audit score percentiles", () => {
       ["big-simple.py", 50],
       ["small.py", 0],
     ]);
+  });
+
+  it("keeps an LCOM4 flag out of a file's scored finding total", () => {
+    const files = [{ path: "mixed.py", loc: 200, cognitiveMax: 5 }];
+    const finding = (signal: string): Finding => ({ id: signal, path: "mixed.py", signal, severity: "warning", tool: "code-graph" });
+
+    const [file] = buildScoreTable(files, [], [finding("file-lcom4"), finding("file-loc")]).files;
+
+    expect(file!.findings).toEqual({ "file-lcom4": 1, "file-loc": 1 });
+    expect(file!.total).toBe(1);
+  });
+});
+
+describe("audit text output", () => {
+  const summary: AuditSummary = {
+    root: "repo",
+    outDir: "out",
+    snapshotId: 1,
+    findings: 5,
+    bySignal: { "symbol-cognitive": 3, "file-lcom4": 2 },
+    byTool: { "code-graph": 5 },
+    topFiles: [],
+    warnings: [],
+    durationMs: 1,
+  };
+
+  it("lists LCOM4 as a qualitative flag apart from the scored findings", () => {
+    const text = formatAuditText(summary);
+    const [scored, flags] = text.split("Qualitative flags (not scored)");
+
+    expect(text).toContain("3 findings and 2 qualitative flags");
+    expect(scored).not.toContain("file-lcom4");
+    expect(flags).toMatch(/2 {2}file-lcom4 .*not a split verdict/);
   });
 });

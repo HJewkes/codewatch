@@ -37,7 +37,9 @@ codewatch graph top --db packages/.codewatch/graph.db \
 
 Available metrics on every snapshot: `loc`, `function_count`, `cyclomatic_max`, `cyclomatic_sum`, `cognitive_max`, `cognitive_sum`, `max_nesting_depth`, `fan_in`, `fan_out`, `instability`, `churn_30d`, `churn_30d_commits`, `churn_30d_authors`, `bus_factor_30d`, `top_author_share_30d` (window configurable via `--churn-window <n>` at index time).
 
-**Cyclomatic vs cognitive**: cyclomatic counts every branch including each `else if` and `case`, so a flat 6-arm switch reads as cmax=6 even when the logic is shallow. Cognitive complexity (Sonarsource's metric, the only complexity metric with peer-reviewed validation against human understandability) flattens else-if chains and switch cases but adds a *nesting bonus* — deeply-nested control flow costs more. Where cognitive ≫ cyclomatic in a file, the worst function is nesting-heavy, not branch-heavy; that's the kind of code humans actually struggle with.
+**Cyclomatic vs cognitive**: cyclomatic counts every branch including each `else if` and `case`, so a flat 6-arm switch reads as cmax=6 even when the logic is shallow. Cognitive complexity (Sonarsource's metric) flattens else-if chains and switch cases but adds a *nesting bonus* — deeply-nested control flow costs more. Where cognitive ≫ cyclomatic in a file, the worst function is nesting-heavy, not branch-heavy; that's the kind of code humans actually struggle with.
+
+**Read complexity as comprehension friction, not risk.** Its validation is modest: cognitive complexity tracks reading time and rated difficulty (Muñoz Barón et al., ESEM 2020), not defects, and later work finds it no better than LOC as a predictor (Lavazza et al., JSS 2023). Once file size is controlled for, both complexity metrics add little, so read them beside `loc`. They direct attention; they are not a defect forecast.
 
 Use `--exclude <pattern>` (repeatable) to drop test fixtures, configs, or any noise from the ranking. Glob: `--exclude '**/*.test.ts'`. Substring: `--exclude __tests__`.
 
@@ -116,7 +118,7 @@ codewatch graph report --db packages/.codewatch/graph.db \
 
 Sections:
 
-- **Hotspots** — files ranked by `churn × complexity` (prefers `cognitive_max` over `cyclomatic_max` when both are available).
+- **Hotspots** — files ranked by `churn × complexity` (prefers `cognitive_max` over `cyclomatic_max` when both are available), with LOC beside complexity. This is Adam Tornhill's hotspot analysis (*Your Code as a Crime Scene*, 2015), also used by CodeScene; codewatch reimplements it.
 - **Knowledge-silo risks** — files with `bus_factor = 1`, ordered by churn (single-owner files nobody else has touched are urgent only if they're actively changing).
 - **Tight coupling clusters** — top co-edited pairs from `graph coupled`.
 - **Most central files** — uniform-teleport PageRank, surfacing the architectural load-bearing files.
@@ -147,7 +149,7 @@ Metrics are role-blind. A few rankings are systematically misleading on this cod
 - **`cyclomatic_max` for analyzer extractors and rule exporters is naturally high.** Their job is "switch over an enumerated kind"; the high score reflects the domain, not poor code.
 - **`fan_in` is high on `types.ts` files by design.** That's good — they're the contract every consumer pins to.
 - **The test fixture `analyzer/src/__tests__/fixtures/complexity-sample.ts` is intentionally deeply nested.** It exists to give the analyzer something to measure. Always exclude it from rankings.
-- **`churn_30d` on a young repo measures bootstrap, not maintenance burden.** The current top is `render/src/template.ts` (since-split in M18) and `cli/src/index.ts` (since-split in M22) — both already addressed. Until the codebase has steady-state history, treat churn as "where work landed recently," not "where work struggles." Churn × cyclomatic_max is the textbook hotspot signal for mature repos; it'll be wired in once cross-metric rules exist.
+- **`churn_30d` on a young repo measures bootstrap, not maintenance burden.** The current top is `render/src/template.ts` (since-split in M18) and `cli/src/index.ts` (since-split in M22) — both already addressed. Until the codebase has steady-state history, treat churn as "where work landed recently," not "where work struggles." Churn × complexity is Tornhill's hotspot signal for mature repos; it'll be wired in once cross-metric rules exist.
 
 ## Regenerate
 

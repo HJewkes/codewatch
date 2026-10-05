@@ -280,6 +280,23 @@ describe("runGraphReportCommand", () => {
     expect(md).toContain("## Most central files");
   });
 
+  it("shows each hotspot's LOC beside its complexity and credits Tornhill and CodeScene", async () => {
+    fx = await fixture((db, snapshotId) => {
+      db.insertNodes(snapshotId, [fileNode("a.ts")]);
+      db.insertMetrics(snapshotId, [
+        { nodeId: "a.ts", name: "churn_30d", value: 10 },
+        { nodeId: "a.ts", name: "cognitive_max", value: 7 },
+        { nodeId: "a.ts", name: "loc", value: 120 },
+      ]);
+    });
+
+    const md = formatGraphReportMarkdown(runGraphReportCommand({ db: fx.dbPath, repoRoot: fx.dir }));
+
+    expect(md).toContain("| File | Churn | Complexity | LOC | Score |");
+    expect(md).toContain("| a.ts | 10 | 7 | 120 | 70 |");
+    expect(md).toMatch(/Tornhill.*CodeScene.*not a defect predictor/);
+  });
+
   it("emits structured JSON", async () => {
     fx = await fixture((db, snapshotId) => {
       db.insertNodes(snapshotId, [fileNode("a.ts")]);

@@ -1,4 +1,5 @@
 import type { Finding } from "@titan-design/code-graph";
+import { QUALITATIVE_SIGNALS } from "./audit-rules.js";
 
 export interface FileStats {
   path: string;
@@ -24,6 +25,7 @@ export interface FileScore extends FileStats {
   /** 0-100: mean of the file's loc and cognitive-max percentiles within this repo. */
   rank: number;
   findings: SignalCounts;
+  /** Scored findings only; qualitative flags (QUALITATIVE_SIGNALS) stay in `findings` but not here. */
   total: number;
 }
 
@@ -118,7 +120,7 @@ function scoreSymbols(symbols: readonly SymbolStats[], findings: readonly Findin
 }
 
 function sumCounts(counts: SignalCounts): number {
-  return Object.values(counts).reduce((a, b) => a + b, 0);
+  return Object.entries(counts).reduce((sum, [signal, n]) => (QUALITATIVE_SIGNALS.has(signal) ? sum : sum + n), 0);
 }
 
 export function buildScoreTable(

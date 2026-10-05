@@ -27,6 +27,18 @@ codewatch --help
 
 Requires Node.js >= 20.
 
+## Reading the metrics
+
+The metrics direct attention; they do not predict defects.
+
+- **Hotspots** (churn × complexity) are Adam Tornhill's hotspot analysis from *Your Code as a
+  Crime Scene*, also used by CodeScene. codewatch reimplements that technique; it did not invent it.
+- **Cyclomatic and cognitive complexity** estimate comprehension friction: how slow a function
+  is to read. Once file size is controlled for, they add little, so codewatch shows LOC beside
+  them.
+- **LCOM4** is a qualitative flag that a file may mix unrelated responsibilities. It is not a
+  graded score or a verdict to split the file.
+
 ## Packages
 
 This is a pnpm monorepo with one published package, `@codewatch/cli`. The two other

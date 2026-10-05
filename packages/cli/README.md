@@ -29,6 +29,14 @@ codewatch graph dashboard        # generate an interactive HTML dashboard
 
 Run `codewatch --help` for the full command surface.
 
+## Reading the metrics
+
+The metrics direct attention; they do not predict defects. Hotspots (churn × complexity) are
+Adam Tornhill's hotspot analysis from *Your Code as a Crime Scene*, also used by CodeScene.
+Complexity estimates comprehension friction and is shown beside LOC, because once file size is
+controlled for it adds little. LCOM4 is a qualitative flag that a file may mix concerns, not a
+verdict to split it.
+
 ## Requirements
 
 - Node.js >= 20
