@@ -61,8 +61,14 @@ function managerFor(lockfiles: readonly string[]): PackageManager {
   throw new Error("no lockfile at the parent commit: the gate needs pnpm-lock.yaml or package-lock.json");
 }
 
-/** Split a `--test-command` value into argv on whitespace. No shell, so no quoting. */
+/**
+ * Split a `--test-command` value into argv on whitespace. There is no shell, so
+ * a quoted value is rejected rather than split into arguments that keep their quotes.
+ */
 export function parseTestCommand(value: string | undefined): string[] | undefined {
+  if (value && /["'`]/.test(value)) {
+    throw new Error(`--test-command is split on whitespace with no shell, so quotes are not supported: ${value}`);
+  }
   const argv = value?.split(/\s+/).filter(Boolean) ?? [];
   return argv.length > 0 ? argv : undefined;
 }

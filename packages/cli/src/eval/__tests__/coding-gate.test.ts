@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import type { Candidate } from "../coding-candidates.js";
+import { emptyFunnel, type Candidate } from "../coding-candidates.js";
 import { makeGate, type GateDeps } from "../coding-gate.js";
+import { admitCandidates } from "../coding-generate.js";
 import type { GateOptions } from "../coding-grade.js";
 
 function candidate(sha: string, lockfiles: string[], lockfileHash = "h1"): Candidate {
@@ -71,6 +72,24 @@ describe("makeGate", () => {
     gate(candidate("c", ["pnpm-lock.yaml"], "h2"));
 
     expect(runs.filter((argv) => argv[0] === "pnpm")).toHaveLength(2);
+  });
+
+  it("skips a candidate with no lockfile as env-error and still gates the next one", () => {
+    const { deps, admits } = recordingDeps();
+    const gate = makeGate("/work", { runs: 1 }, deps);
+    const funnel = emptyFunnel();
+    const cands = [
+      candidate("none", [], "h0"),
+      candidate("yarn", ["yarn.lock"], "h0"),
+      candidate("npm", ["package-lock.json"], "h1"),
+    ];
+
+    const tasks = admitCandidates(cands, 25, gate, funnel);
+
+    expect(funnel.gateEnvError).toBe(2);
+    expect(funnel.admitted).toBe(1);
+    expect(tasks.map((t) => t.corpus.fixCommit)).toEqual(["npm"]);
+    expect(admits).toHaveLength(1);
   });
 
   it("records a failed install as env-error and retries the install next time", () => {

@@ -51,6 +51,11 @@ describe("parseTestCommand", () => {
     expect(parseTestCommand("  npx  vitest run ")).toEqual(["npx", "vitest", "run"]);
   });
 
+  it("rejects a value with quote characters instead of splitting it", () => {
+    expect(() => parseTestCommand('npx vitest run -t "two words"')).toThrow(/quotes are not supported/);
+    expect(() => parseTestCommand("npx vitest run -t 'x'")).toThrow(/quotes are not supported/);
+  });
+
   it("returns undefined for a missing or blank value", () => {
     expect(parseTestCommand(undefined)).toBeUndefined();
     expect(parseTestCommand("   ")).toBeUndefined();

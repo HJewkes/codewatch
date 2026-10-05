@@ -25,15 +25,6 @@ export function git(repo: string, args: readonly string[]): string {
   });
 }
 
-/** Read a blob at a commit, or "" when the path does not exist there. */
-export function showBlob(repo: string, commit: string, path: string): string {
-  try {
-    return git(repo, ["show", `${commit}:${path}`]);
-  } catch {
-    return "";
-  }
-}
-
 export function treeFileIds(repo: string, commit: string): Set<string> {
   try {
     const out = git(repo, ["ls-tree", "-r", "--name-only", commit]);

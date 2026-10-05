@@ -6,7 +6,7 @@ import {
   type GateResult,
   type VitestRunOptions,
 } from "./coding-grade.js";
-import { selectRepoCommands } from "./coding-pm.js";
+import { selectRepoCommands, type RepoCommands } from "./coding-pm.js";
 
 /**
  * The per-candidate gate: pick the package manager from the parent's
@@ -38,16 +38,18 @@ export function makeGate(
 ): GateFn {
   let installedHash: string | null = null;
   return (c) => {
-    const commands = selectRepoCommands(c.lockfiles, settings.testCommand);
+    let commands: RepoCommands;
     try {
+      commands = selectRepoCommands(c.lockfiles, settings.testCommand);
       if (installedHash !== c.lockfileHash) {
         installedHash = null;
         checkoutAndInstall(workdir, c.parentCommit, commands.install, deps.run);
         installedHash = c.lockfileHash;
       }
     } catch {
-      // A failed install (lockfile drift, registry outage) is an environment
-      // failure for this candidate, not a fatal run error.
+      // An unsupported lockfile or a failed install (lockfile drift, registry
+      // outage) is an environment failure for this candidate, not a fatal run
+      // error: the run keeps the gating done so far and moves on.
       return { ...ENV_ERROR };
     }
     return deps.admit(workdir, {
