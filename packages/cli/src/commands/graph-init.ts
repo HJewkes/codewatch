@@ -44,7 +44,8 @@ const DEFAULT_CHECK_CONFIG = {
     },
     {
       $comment:
-        "High churn x high cognitive load = the riskiest file to touch. " +
+        "Churn x cognitive complexity hotspot, after Adam Tornhill and CodeScene: an attention " +
+        "director for files that are both often edited and slow to read, not a defect predictor. " +
         "Run with --baseline so existing hotspots are carryover, not new failures.",
       id: "scary-hotspots",
       type: "metric-product-max",

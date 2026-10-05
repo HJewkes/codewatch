@@ -266,7 +266,7 @@ export function registerGraphReport(graphCmd: Command): void {
   graphCmd
     .command("report")
     .description(
-      "Health report combining hotspots, knowledge-silos, coupling clusters, and centrality (Move 7 debt rollup).",
+      "Report combining churn × complexity hotspots (after Tornhill/CodeScene), knowledge-silos, coupling clusters, and centrality.",
     )
     .option("--db <path>", "Path to graph.db", defaultGraphDbPath())
     .option("--repo-root <path>", "Repo root (for git log)", ".")

@@ -54,18 +54,24 @@ export function formatGraphReportJson(result: GraphReportResult): string {
   return JSON.stringify(result, null, 2);
 }
 
-function pushHotspots(lines: string[], rows: readonly HotspotRow[]): void {
+const HOTSPOT_LINEAGE =
+  "_Churn × complexity hotspots follow Adam Tornhill (Your Code as a Crime Scene) and CodeScene. " +
+  "An attention director (where to look first), not a defect predictor._";
+
+export function pushHotspots(lines: string[], rows: readonly HotspotRow[]): void {
   lines.push("## Hotspots (churn × complexity)");
+  lines.push("");
+  lines.push(HOTSPOT_LINEAGE);
   lines.push("");
   if (rows.length === 0) {
     lines.push("_No hotspots._");
     lines.push("");
     return;
   }
-  lines.push("| File | Churn | Complexity | Score |");
-  lines.push("|---|--:|--:|--:|");
+  lines.push("| File | Churn | Complexity | LOC | Score |");
+  lines.push("|---|--:|--:|--:|--:|");
   for (const r of rows) {
-    lines.push(`| ${r.nodeId} | ${r.churn} | ${r.complexity} | ${r.score} |`);
+    lines.push(`| ${r.nodeId} | ${r.churn} | ${r.complexity} | ${r.loc} | ${r.score} |`);
   }
   lines.push("");
 }
@@ -160,12 +166,12 @@ function pushUnusedExports(
     lines.push("");
     return;
   }
-  lines.push("| Export | File | Complexity | Confidence |");
-  lines.push("|---|---|--:|---|");
+  lines.push("| Export | File | Complexity | LOC | Confidence |");
+  lines.push("|---|---|--:|--:|---|");
   for (const r of rows) {
     const confidence = r.publicApi ? "public API" : "internal";
     lines.push(
-      `| \`${r.name}\` | ${r.fileId} | ${r.cognitive} | ${confidence} |`,
+      `| \`${r.name}\` | ${r.fileId} | ${r.cognitive} | ${r.loc} | ${confidence} |`,
     );
   }
   lines.push("");
@@ -223,14 +229,14 @@ function pushGrowthRisks(lines: string[], rows: readonly GrowthRiskRow[]): void 
  * rows rather than a stale/assumed number.
  */
 function pushUntestedRisks(lines: string[], rows: readonly UntestedRiskRow[]): void {
-  lines.push("## Untested risk (hotspot × uncovered)");
+  lines.push("## Untested hotspots (hotspot × uncovered)");
   lines.push("");
   if (rows.length === 0) {
     lines.push("_No coverage ingested (run `graph coverage`), or every hotspot is covered._");
     lines.push("");
     return;
   }
-  lines.push("| File | Coverage | Hotspot | Untested risk |");
+  lines.push("| File | Coverage | Hotspot | Untested score |");
   lines.push("|---|--:|--:|--:|");
   for (const r of rows) {
     lines.push(`| ${r.nodeId} | ${r.coverage}% | ${r.hotspot} | ${r.score} |`);

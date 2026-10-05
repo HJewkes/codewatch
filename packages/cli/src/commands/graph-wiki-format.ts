@@ -4,11 +4,11 @@ import type {
   PackageWiki,
   WikiResult,
 } from "./graph-wiki-sections.js";
+import { pushHotspots } from "./graph-report-format.js";
 import type {
   BusFactorRow,
   CentralRow,
   CouplingRow,
-  HotspotRow,
 } from "./graph-report-types.js";
 
 export interface WikiFile {
@@ -108,22 +108,6 @@ function pushSummary(lines: string[], pkg: PackageWiki): void {
   lines.push(`| Max distinct authors / file | ${pkg.summary.distinctAuthors} |`);
   lines.push(`| Hotspots | ${pkg.summary.hotspots} |`);
   lines.push(`| Single-owner files | ${pkg.summary.silos} |`);
-  lines.push("");
-}
-
-function pushHotspots(lines: string[], rows: readonly HotspotRow[]): void {
-  lines.push("## Hotspots (churn × complexity)");
-  lines.push("");
-  if (rows.length === 0) {
-    lines.push("_No hotspots._");
-    lines.push("");
-    return;
-  }
-  lines.push("| File | Churn | Complexity | Score |");
-  lines.push("|---|--:|--:|--:|");
-  for (const r of rows) {
-    lines.push(`| ${r.nodeId} | ${r.churn} | ${r.complexity} | ${r.score} |`);
-  }
   lines.push("");
 }
 
