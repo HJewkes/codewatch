@@ -59,7 +59,10 @@ Same fields as `metric-max` but with `min` (violation when the metric is **below
 | `max` | number | violation when the product exceeds this |
 
 The canonical use is `scary-hotspots` (`churn_30d × cognitive_max × recency_30d`):
-high-churn × high-cognitive-load files. Churn-based, so run with `--baseline`.
+high-churn × high-cognitive-load files. This is Adam Tornhill's hotspot analysis
+(*Your Code as a Crime Scene*), also used by CodeScene: it directs attention to files that are
+both often edited and slow to read, and it does not predict defects. Churn-based, so run with
+`--baseline`.
 
 ```json
 { "id": "scary-hotspots", "type": "metric-product-max", "metrics": ["churn_30d", "cognitive_max", "recency_30d"], "kind": "file", "max": 3000, "excludeRoles": ["test", "fixture"] }

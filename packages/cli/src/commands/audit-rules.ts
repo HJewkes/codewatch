@@ -33,3 +33,14 @@ export const AUDIT_RULES: readonly CheckRule[] = [
   maxRule("file-swallowed-except", "swallowed_except", 0, "file"),
   outlierRule("file-except-density", "except_density", 3, "file"),
 ];
+
+/**
+ * Signals reported as qualitative flags: listed apart and left out of finding totals.
+ * LCOM4 variants disagree with each other and lack outcome validation, so a high value
+ * prompts a look at whether the file mixes concerns, never a graded split verdict.
+ */
+export const QUALITATIVE_SIGNALS: ReadonlySet<string> = new Set(["file-lcom4"]);
+
+export const QUALITATIVE_FLAG_HINTS: Readonly<Record<string, string>> = {
+  "file-lcom4": "may mix unrelated responsibilities; worth a look, not a split verdict",
+};

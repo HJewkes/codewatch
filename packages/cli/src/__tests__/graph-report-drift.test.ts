@@ -16,7 +16,7 @@ const SNAP = {
 };
 
 function hot(id: string, score: number): HotspotRow {
-  return { nodeId: id, churn: 0, complexity: 0, recency: 1, score };
+  return { nodeId: id, churn: 0, complexity: 0, loc: 0, recency: 1, score };
 }
 
 function silo(id: string, churn = 0): BusFactorRow {
