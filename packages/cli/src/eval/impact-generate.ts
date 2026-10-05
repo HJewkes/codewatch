@@ -5,7 +5,6 @@ import type { CodingScreen, ScreenedCandidate } from "./coding-screen-suite.js";
 import { diffSections, findGoldLeaks } from "./impact-leaks.js";
 import {
   IMPACT_ANSWER_BUDGET,
-  type CodingTaskType,
   type ImpactBuild,
   type ImpactRejection,
   type ImpactTask,
@@ -18,7 +17,7 @@ import {
  * rejected rather than built: the arm could grep its way to it.
  */
 
-export type ImpactCandidate = ScreenedCandidate & { type?: CodingTaskType };
+export type ImpactCandidate = ScreenedCandidate;
 
 export function buildImpactTask(
   c: ImpactCandidate,

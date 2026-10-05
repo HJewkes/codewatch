@@ -62,6 +62,7 @@ function candidate(over: Partial<ImpactCandidate> = {}): ImpactCandidate {
     goldDiff: GOLD_DIFF,
     stratum: "structurally-hidden",
     hardness: hardnessFeatures(FILES),
+    packagesSpanned: 1,
     ...over,
   };
 }

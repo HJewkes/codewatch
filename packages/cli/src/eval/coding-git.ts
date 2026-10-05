@@ -10,6 +10,7 @@ import { isSourceFile } from "./coding-mine.js";
 import { KNOWN_LOCKFILES } from "./coding-pm.js";
 import { editFileHops, importHops } from "./coding-reach.js";
 import { parseDiffHunks, screenEditFiles, type EditFileScreen } from "./coding-screen.js";
+import { isManifestPath, parseWorkspace, type Workspace } from "./coding-workspace.js";
 
 /**
  * Git reads for coding-suite mining: blobs, trees, and the inputs of the
@@ -25,13 +26,20 @@ export function git(repo: string, args: readonly string[]): string {
   });
 }
 
+/** `-z` keeps paths unquoted, so a name holding a newline or non-ASCII byte reads back as is. */
 export function treeFileIds(repo: string, commit: string): Set<string> {
   try {
-    const out = git(repo, ["ls-tree", "-r", "--name-only", commit]);
-    return new Set(out.split("\n").filter(Boolean));
+    const out = git(repo, ["ls-tree", "-r", "-z", "--name-only", commit]);
+    return new Set(out.split("\0").filter(Boolean));
   } catch {
     return new Set();
   }
+}
+
+/** The workspace packages declared by the package.json files at a commit. */
+export function workspaceAt(repo: string, commit: string): Workspace {
+  const manifests = [...treeFileIds(repo, commit)].filter(isManifestPath);
+  return parseWorkspace(readBlobs(repo, commit, manifests));
 }
 
 /** The known root lockfiles present at a commit, read from its tree (not the working tree). */
@@ -44,16 +52,20 @@ export function lockfilesAt(repo: string, commit: string): string[] {
   }
 }
 
-/** Read many blobs at one commit in a single `git cat-file --batch`; missing paths are absent. */
+/**
+ * Read many blobs at one commit in a single `git cat-file --batch`; missing
+ * paths are absent. `-Z` delimits both input and output with NUL, so a path
+ * holding a newline cannot split a request or misalign the blobs after it.
+ */
 export function readBlobs(
   repo: string,
   commit: string,
   paths: readonly string[],
 ): Map<string, string> {
   if (paths.length === 0) return new Map();
-  const out = execFileSync("git", ["cat-file", "--batch"], {
+  const out = execFileSync("git", ["cat-file", "--batch", "-Z"], {
     cwd: repo,
-    input: paths.map((p) => `${commit}:${p}\n`).join(""),
+    input: paths.map((p) => `${commit}:${p}\0`).join(""),
     maxBuffer: 1024 * 1024 * 1024,
     stdio: ["pipe", "pipe", "ignore"],
   });
@@ -64,7 +76,7 @@ function parseCatFileBatch(buf: Buffer, paths: readonly string[]): Map<string, s
   const out = new Map<string, string>();
   let pos = 0;
   for (const path of paths) {
-    const eol = buf.indexOf(0x0a, pos);
+    const eol = buf.indexOf(0x00, pos);
     if (eol < 0) break;
     const header = /^\S+ (\S+) (\d+)$/.exec(buf.toString("utf-8", pos, eol));
     pos = eol + 1;
@@ -88,6 +100,8 @@ export interface ScreenCommit {
   testFiles: readonly string[];
   editFiles: readonly string[];
   goldDiff: string;
+  /** Workspace packages at the parent commit; the walk follows `@scope/pkg` imports into them. */
+  workspace: Workspace;
 }
 
 /** Gather one commit's screen inputs from git and screen its edit files. */
@@ -99,8 +113,11 @@ export function screenCommit(
   const parentIds = treeFileIds(repo, c.parentCommit);
   const testSources = readBlobs(repo, c.sha, c.testFiles);
   const parentContents = readBlobs(repo, c.parentCommit, c.editFiles);
-  const hops = importHops(c.testFiles, treeFileIds(repo, c.sha), (paths) =>
-    readBlobs(repo, c.sha, paths),
+  const hops = importHops(
+    c.testFiles,
+    new Set([...parentIds, ...c.testFiles]),
+    (paths) => readTestsThenParent(repo, c.parentCommit, testSources, paths),
+    c.workspace,
   );
   return screenEditFiles({
     edits: c.editFiles.map((path) => ({
@@ -117,4 +134,23 @@ export function screenCommit(
     hops: editFileHops(c.editFiles, hops),
     df,
   });
+}
+
+/**
+ * The walk sees what the task's solver sees: the fix commit's tests over the
+ * parent tree. Reading the fix tree would count import edges the fix itself
+ * adds, so a file the solver must newly wire in would look reachable.
+ */
+function readTestsThenParent(
+  repo: string,
+  parentCommit: string,
+  testSources: ReadonlyMap<string, string>,
+  paths: readonly string[],
+): Map<string, string> {
+  const fromParent = readBlobs(repo, parentCommit, paths.filter((p) => !testSources.has(p)));
+  for (const p of paths) {
+    const test = testSources.get(p);
+    if (test !== undefined) fromParent.set(p, test);
+  }
+  return fromParent;
 }

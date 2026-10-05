@@ -8,7 +8,16 @@ import {
   passesScope,
   shouldRejectByMessage,
 } from "./coding-mine.js";
-import { lockfilesAt, readBlobs, screenCommit, sourceDocumentFrequency } from "./coding-git.js";
+import {
+  lockfilesAt,
+  readBlobs,
+  screenCommit,
+  sourceDocumentFrequency,
+  workspaceAt,
+} from "./coding-git.js";
+import { assignTaskType } from "./coding-task-type.js";
+import type { CodingTaskType } from "./impact-types.js";
+import { packagesSpanned } from "./coding-workspace.js";
 import {
   hardnessFeatures,
   screenVerdict,
@@ -75,6 +84,10 @@ export interface Candidate {
   goldDiff: string;
   stratum: Stratum;
   hardness: HardnessFeatures;
+  /** Workspace packages the edit files touch, at the parent commit. */
+  packagesSpanned: number;
+  /** Rule-assigned task type; unset when the rules cannot decide. */
+  type?: CodingTaskType;
   /** Known root lockfiles at the parent; they pick the package manager. */
   lockfiles: string[];
   /** Hash of the parent's lockfiles — consecutive equal hashes share one install. */
@@ -145,7 +158,9 @@ function buildCandidate(
   const parentCommit = commit.parent!;
   const { testFiles, sourceFiles: editFiles } = partition;
   const goldDiff = diffForPaths(repo, commit.sha, editFiles);
-  const files = screenCommit(repo, { sha: commit.sha, parentCommit, testFiles, editFiles, goldDiff }, df);
+  const workspace = workspaceAt(repo, parentCommit);
+  const screened = { sha: commit.sha, parentCommit, testFiles, editFiles, goldDiff, workspace };
+  const files = screenCommit(repo, screened, df);
   const lockfiles = lockfilesAt(repo, parentCommit);
   return {
     commit,
@@ -156,6 +171,8 @@ function buildCandidate(
     goldDiff,
     stratum: stratumOf(files),
     hardness: hardnessFeatures(files),
+    packagesSpanned: packagesSpanned(editFiles, workspace),
+    type: assignTaskType(files),
     lockfiles,
     lockfileHash: lockfileHashAt(repo, parentCommit, lockfiles),
   };

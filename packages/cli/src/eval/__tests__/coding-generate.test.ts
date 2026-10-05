@@ -32,6 +32,7 @@ function candidate(
       secondOrderDark: 0,
       files: [],
     },
+    packagesSpanned: 1,
     lockfiles: ["pnpm-lock.yaml"],
     lockfileHash,
   };
