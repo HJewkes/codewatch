@@ -21,5 +21,5 @@ export function gradeImpact(
 }
 
 function normalizePath(path: string): string {
-  return path.trim().replace(/^\.\//, "");
+  return path.trim().replace(/^(\.?\/)+/, "");
 }

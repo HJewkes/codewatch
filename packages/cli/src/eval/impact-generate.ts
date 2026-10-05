@@ -2,6 +2,7 @@ import { extractIdentifiers, isDistinctive, type DocumentFrequency } from "./cod
 import { readBlobs, sourceDocumentFrequency } from "./coding-git.js";
 import type { EditFileScreen } from "./coding-screen.js";
 import type { CodingScreen, ScreenedCandidate } from "./coding-screen-suite.js";
+import { diffSections, findGoldLeaks } from "./impact-leaks.js";
 import {
   IMPACT_ANSWER_BUDGET,
   type CodingTaskType,
@@ -13,8 +14,8 @@ import {
 /**
  * Impact tasks from screened candidates (C-86 S5). The seed is the diff of the
  * non-dark edit files; the gold set is the dark files with a `logic` change.
- * A task whose prompt names a gold file, or a distinctive identifier of one,
- * is rejected rather than built: the arm could grep its way to it.
+ * A task whose seed diff points at a gold file (see `impact-leaks.ts`) is
+ * rejected rather than built: the arm could grep its way to it.
  */
 
 export type ImpactCandidate = ScreenedCandidate & { type?: CodingTaskType };
@@ -36,7 +37,7 @@ export function buildImpactTask(
     gold,
     ...(c.type ? { type: c.type } : {}),
   };
-  const leaks = findGoldLeaks(renderImpactPrompt(task), gold, seedFiles, goldIdentifiers);
+  const leaks = findGoldLeaks(task, goldIdentifiers);
   return leaks.length > 0 ? { ok: false, reason: "gold-leak", leaks } : { ok: true, task };
 }
 
@@ -47,15 +48,16 @@ export function goldFiles(files: readonly EditFileScreen[]): string[] {
 /** The per-file sections of a unified diff whose new path is in `paths`. */
 export function diffForFiles(diff: string, paths: readonly string[]): string {
   const keep = new Set(paths);
-  const sections = diff.split(/^(?=diff --git )/m);
-  return sections.filter((s) => keep.has(sectionPath(s))).join("");
+  return diffSections(diff)
+    .filter(([path]) => keep.has(path))
+    .map(([, section]) => section)
+    .join("");
 }
 
-function sectionPath(section: string): string {
-  return /^diff --git a\/\S+ b\/(\S+)/.exec(section)?.[1] ?? "";
-}
-
-/** The prompt text an impact arm sees. Holds the seed diff and nothing else task-specific. */
+/**
+ * The prompt text an impact arm sees. The seed diff is its only task-specific
+ * part, so `findGoldLeaks` checks that and not the fixed wording around it.
+ */
 export function renderImpactPrompt(task: ImpactTask, budget = IMPACT_ANSWER_BUDGET): string {
   return [
     "The repository is checked out with the change below already applied.",
@@ -70,49 +72,6 @@ export function renderImpactPrompt(task: ImpactTask, budget = IMPACT_ANSWER_BUDG
     "```",
     "",
   ].join("\n");
-}
-
-/**
- * Gold clues present in `text`: a gold path, its basename, a module specifier
- * ending in its stem, or an identifier only gold files contain. A basename a
- * seed file shares (two `index.ts` files) is no clue and is skipped.
- */
-export function findGoldLeaks(
-  text: string,
-  gold: readonly string[],
-  seedFiles: readonly string[],
-  goldIdentifiers: ReadonlySet<string>,
-): string[] {
-  const seedStems = new Set(seedFiles.map((p) => stem(basename(p))));
-  const leaks = gold.flatMap((path) => pathLeaks(text, path, seedStems));
-  for (const id of extractIdentifiers(text)) {
-    if (goldIdentifiers.has(id)) leaks.push(`identifier:${id}`);
-  }
-  return leaks;
-}
-
-function pathLeaks(text: string, path: string, seedStems: ReadonlySet<string>): string[] {
-  const name = basename(path);
-  const s = stem(name);
-  const leaks = text.includes(path) ? [`path:${path}`] : [];
-  if (seedStems.has(s)) return leaks;
-  if (text.includes(name)) leaks.push(`basename:${name}`);
-  if (specifierPattern(s).test(text)) leaks.push(`specifier:${s}`);
-  return leaks;
-}
-
-function specifierPattern(fileStem: string): RegExp {
-  const escaped = fileStem.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`["'/]${escaped}(\\.[cm]?[jt]sx?)?["']`);
-}
-
-function basename(path: string): string {
-  return path.slice(path.lastIndexOf("/") + 1);
-}
-
-function stem(name: string): string {
-  const dot = name.indexOf(".");
-  return dot < 0 ? name : name.slice(0, dot);
 }
 
 /**

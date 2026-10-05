@@ -25,10 +25,16 @@ describe("gradeImpact", () => {
     expect(score).toMatchObject({ recall: 0, predicted: 2, overBudget: 2 });
   });
 
-  it("counts a repeated or ./-prefixed path once", () => {
-    const score = gradeImpact(GOLD, ["./src/a.ts", "src/a.ts", " src/b.ts "]);
+  it("counts a repeated, ./- or /-prefixed path once", () => {
+    const score = gradeImpact(GOLD, ["./src/a.ts", "/src/a.ts", "src/a.ts", " src/b.ts "]);
 
     expect(score).toMatchObject({ recall: 0.5, precision: 1, predicted: 2 });
+  });
+
+  it("does not let a repeated path take a budget slot", () => {
+    const score = gradeImpact(GOLD, ["src/x.ts", "src/x.ts", "src/a.ts"], 2);
+
+    expect(score).toMatchObject({ recall: 0.25, truePositives: 1, overBudget: 0 });
   });
 
   it("scores an empty answer as zero", () => {

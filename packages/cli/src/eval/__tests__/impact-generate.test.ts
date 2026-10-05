@@ -132,7 +132,16 @@ describe("buildImpactTask", () => {
     const result = buildImpactTask(c, GOLD_IDS);
 
     expect(result).toMatchObject({ ok: false, reason: "gold-leak" });
-    expect(result.ok ? [] : result.leaks).toEqual(["specifier:route-table"]);
+    expect(result.ok ? [] : result.leaks).toEqual([
+      "import:src/wiring/route-table.ts",
+      "specifier:route-table",
+    ]);
+  });
+
+  it("does not read the prompt's own wording as a gold identifier", () => {
+    const ids = new Set([...GOLD_IDS, "repository", "existing", "change"]);
+
+    expect(buildImpactTask(candidate(), ids).ok).toBe(true);
   });
 
   it("rejects a candidate whose seed diff names a distinctive gold identifier", () => {
