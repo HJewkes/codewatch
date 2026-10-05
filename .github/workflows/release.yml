@@ -17,7 +17,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       id-token: write
     steps:
       - uses: actions/checkout@v6
@@ -40,3 +40,8 @@ jobs:
           else
             pnpm changeset publish
           fi
+      # changeset publish only creates the @codewatch/cli@<version> tag locally. This step
+      # runs only after a real publish succeeded, using the checkout's GITHUB_TOKEN.
+      - name: Push release tags
+        if: ${{ !inputs.dry_run }}
+        run: git push origin --tags
