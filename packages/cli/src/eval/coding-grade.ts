@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { relative } from "node:path";
+import { PNPM_TEST_COMMAND } from "./coding-pm.js";
 import type {
   CodingResolveResult,
   StableStatus,
@@ -16,7 +17,7 @@ import type {
  *
  * The pure decision functions (parse / aggregate / transition / evaluate) are
  * unit-tested on fixtures; the shell wrappers that check out commits and shell
- * `pnpm exec vitest` are exercised against a real clone (see the Stage 0 note),
+ * vitest through the repo's package manager are exercised against a real clone (see the Stage 0 note),
  * not in CI.
  */
 
@@ -198,6 +199,8 @@ export interface VitestRunOptions {
   /** Run without CI-mode retries so flaky tests stay visible (Stage 0 gotcha). */
   env?: NodeJS.ProcessEnv;
   timeoutMs?: number;
+  /** Test argv prefix (see `selectRepoCommands`); defaults to `pnpm exec vitest`. */
+  command?: readonly string[];
 }
 
 /**
@@ -214,20 +217,17 @@ export function runVitestJson(
 ): VitestTest[] {
   const env = { ...process.env, ...opts.env };
   delete (env as Record<string, string | undefined>)["CI"];
+  const [bin, ...args] = opts.command ?? PNPM_TEST_COMMAND;
   let raw: string;
   try {
-    raw = execFileSync(
-      "pnpm",
-      ["exec", "vitest", "run", "--reporter=json", "--no-color", ...testFiles],
-      {
-        cwd: workdir,
-        encoding: "utf-8",
-        maxBuffer: 128 * 1024 * 1024,
-        timeout: opts.timeoutMs ?? 180_000,
-        env,
-        stdio: ["ignore", "pipe", "pipe"],
-      },
-    );
+    raw = execFileSync(bin!, [...args, ...testFiles], {
+      cwd: workdir,
+      encoding: "utf-8",
+      maxBuffer: 128 * 1024 * 1024,
+      timeout: opts.timeoutMs ?? 180_000,
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
   } catch (err) {
     // A non-zero exit is EXPECTED when tests fail — vitest still writes the JSON
     // report to stdout, so recover it from the error before giving up.

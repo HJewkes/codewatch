@@ -1,16 +1,21 @@
 import { writeFileSync } from "node:fs";
 import { generateCodingSuite } from "./coding-generate.js";
+import { parseTestCommand } from "./coding-pm.js";
 import { screenCodingCandidates, type CodingScreen } from "./coding-screen-suite.js";
 import type { CodingSuite } from "./coding-types.js";
 
 /**
  * Standalone runner (C-83 Stage A): mine + gate a repo's history into a coding
- * suite JSON. This SHELLS git + pnpm + vitest against `--repo` and mutates
- * `--workdir` (checks out commits, installs, runs tests), so point it at a clone
- * you don't mind resetting. Run with:
+ * suite JSON. This SHELLS git, pnpm or npm (from the parent's lockfile) and
+ * vitest against `--repo` and mutates `--workdir` (checks out commits, installs,
+ * runs tests), so point it at a clone you don't mind resetting. Run with:
  *   tsx packages/cli/src/eval/generate-coding-suite.ts \
  *     --repo <path> --workdir <path> --out <json> [--window 270] [--cap 25] [--runs 3]
  *     [--max-source-files 10] [--max-loc 500] [--min-dark 0] [--screen-only]
+ *     [--test-command "npx vitest run --reporter=json"]
+ * `--test-command` replaces the default test argv for this repo; it is split on
+ * whitespace (no shell), the test files are appended, and it must print a vitest
+ * JSON report.
  * `--screen-only` stops after the hardness screen and writes the candidates; it
  * reads git only and never touches `--workdir`. The C-83 scope was
  * `--max-source-files 3 --max-loc 80`.
@@ -42,6 +47,7 @@ function main(): void {
         workdir: arg("workdir"),
         cap: numArg("cap"),
         gateRuns: numArg("runs"),
+        testCommand: parseTestCommand(arg("test-command")),
       });
   const json = JSON.stringify(result, null, 2);
   if (out) writeFileSync(out, json + "\n");

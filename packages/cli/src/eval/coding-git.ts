@@ -7,6 +7,7 @@ import {
   type DocumentFrequency,
 } from "./coding-hardness.js";
 import { isSourceFile } from "./coding-mine.js";
+import { KNOWN_LOCKFILES } from "./coding-pm.js";
 import { editFileHops, importHops } from "./coding-reach.js";
 import { parseDiffHunks, screenEditFiles, type EditFileScreen } from "./coding-screen.js";
 
@@ -39,6 +40,16 @@ export function treeFileIds(repo: string, commit: string): Set<string> {
     return new Set(out.split("\n").filter(Boolean));
   } catch {
     return new Set();
+  }
+}
+
+/** The known root lockfiles present at a commit, read from its tree (not the working tree). */
+export function lockfilesAt(repo: string, commit: string): string[] {
+  try {
+    const out = git(repo, ["ls-tree", "--name-only", commit, "--", ...KNOWN_LOCKFILES]);
+    return out.split("\n").filter(Boolean);
+  } catch {
+    return [];
   }
 }
 
