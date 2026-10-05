@@ -1,10 +1,4 @@
 import { execFileSync } from "node:child_process";
-import {
-  dominantStratum,
-  resolveRelativeSpecifier,
-  splitTokens,
-} from "./stratify.js";
-import type { Stratum } from "./types.js";
 import type {
   ChangeStatus,
   CommitInfo,
@@ -226,7 +220,7 @@ export function diffForPaths(repo: string, sha: string, paths: readonly string[]
   return git(repo, ["diff", "--no-color", `${sha}^`, sha, "--", ...paths]);
 }
 
-// --- stratification (reuse the committed C-82 primitives, graph-free) -------
+// --- import specifiers (graph-free) -----------------------------------------
 
 /** Extract relative import specifiers named in a test file's raw source. */
 export function extractRelativeSpecifiers(source: string): string[] {
@@ -238,61 +232,4 @@ export function extractRelativeSpecifiers(source: string): string[] {
     if (spec.startsWith(".")) out.add(spec);
   }
   return [...out];
-}
-
-/**
- * Bucket a candidate task by how discoverable its `editFiles` are from the
- * symbols/imports the test files name — reusing the committed
- * `shareNameToken` / `resolveRelativeSpecifier` / `dominantStratum` (no graph
- * needed, so the generator stays fast). Mirrors `classifyReferenceEdge`:
- *  - name-token shared between an edit file and any test → `semantic-findable`
- *  - a test's relative import resolves straight to the edit file → `import-chain-reachable`
- *  - neither → `structurally-hidden` (the barrel / re-export case codewatch owns)
- */
-export function classifyEditFiles(
-  editFiles: readonly string[],
-  testFiles: readonly string[],
-  testSources: ReadonlyMap<string, string>,
-  repoFileIds: ReadonlySet<string>,
-): Stratum {
-  const perFile: Stratum[] = [];
-  const testSpecs = new Map<string, string[]>();
-  for (const tf of testFiles) {
-    testSpecs.set(tf, extractRelativeSpecifiers(testSources.get(tf) ?? ""));
-  }
-  for (const edit of editFiles) {
-    perFile.push(classifyOneEditFile(edit, testFiles, testSpecs, repoFileIds));
-  }
-  return dominantStratum(perFile);
-}
-
-function classifyOneEditFile(
-  edit: string,
-  testFiles: readonly string[],
-  testSpecs: ReadonlyMap<string, string[]>,
-  repoFileIds: ReadonlySet<string>,
-): Stratum {
-  const editTokens = splitTokens(basename(edit));
-  for (const tf of testFiles) {
-    if (shareNameTokenPath(tf, editTokens)) return "semantic-findable";
-  }
-  for (const tf of testFiles) {
-    for (const spec of testSpecs.get(tf) ?? []) {
-      if (resolveRelativeSpecifier(tf, spec, repoFileIds) === edit) {
-        return "import-chain-reachable";
-      }
-    }
-  }
-  return "structurally-hidden";
-}
-
-function basename(path: string): string {
-  const slash = path.lastIndexOf("/");
-  return slash < 0 ? path : path.slice(slash + 1);
-}
-
-/** True when a test file's basename shares a token with the edit file's tokens. */
-function shareNameTokenPath(testFile: string, editTokens: Set<string>): boolean {
-  for (const t of splitTokens(basename(testFile))) if (editTokens.has(t)) return true;
-  return false;
 }

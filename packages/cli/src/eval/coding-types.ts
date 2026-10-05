@@ -102,6 +102,10 @@ export interface AdmissionFunnel {
   messageRejected: number;
   /** Rejected by the single-purpose scope guard (too many files / too much LOC). */
   scopeRejected: number;
+  /** Rejected by the hardness screen for fewer dark edit files than `minDark`. */
+  darkRejected: number;
+  /** Enough dark files only when export-only (trivial) ones are counted. */
+  trivialRejected: number;
   /** Candidates that reached the fail-to-pass admission gate. */
   gateRun: number;
   /** Rejected at the gate for producing no stable fail-to-pass transition. */
@@ -112,6 +116,14 @@ export interface AdmissionFunnel {
   admitted: number;
 }
 
+/** The mining knobs a suite or screen was produced with. */
+export interface MiningParams {
+  windowDays: number;
+  maxSourceFiles: number;
+  maxChangedLoc: number;
+  minDark: number;
+}
+
 export interface CodingSuite {
   source: {
     repo: string;
@@ -120,10 +132,7 @@ export interface CodingSuite {
     /** HEAD commit the window started at. */
     headCommit: string | null;
   };
-  params: {
-    windowDays: number;
-    maxSourceFiles: number;
-    maxChangedLoc: number;
+  params: MiningParams & {
     gateRuns: number;
     cap: number;
   };
