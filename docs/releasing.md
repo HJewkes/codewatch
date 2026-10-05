@@ -52,8 +52,7 @@ from the package directory. Then add a trusted publisher on
 
 ## Retired names
 
-Six names published at 0.1.0 are no longer released from this repo (the first `@codewatch/cli` release was 0.3.0; 0.2.0
-never published): `@codewatch/profile`,
+Six names published at 0.1.0 are no longer released from this repo: `@codewatch/profile`,
 `@codewatch/checker`, `@codewatch/analyzer`, `@codewatch/graph`, `@codewatch/core` and
 `@codewatch/render`. They are not deprecated on npm and there is no plan to deprecate
 them: `npm deprecate` demands a fresh two-factor code for every write, and the owner
@@ -71,3 +70,5 @@ npm deprecate @codewatch/render "Bundled into @codewatch/cli; install that packa
 
 The trusted publishers configured on the retired names stay in place. They are
 harmless: nothing publishes those names any more.
+
+`@codewatch/cli` itself went from 0.1.0 to 0.3.0: 0.2.0 was never published.
