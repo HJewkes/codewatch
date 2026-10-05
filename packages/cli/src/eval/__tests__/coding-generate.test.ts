@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { emptyFunnel, type Candidate } from "../coding-candidates.js";
-import { admitCandidates, buildProblemStatement, type GateFn } from "../coding-generate.js";
+import type { GateFn } from "../coding-gate.js";
+import { admitCandidates, buildProblemStatement } from "../coding-generate.js";
 import type { CommitInfo } from "../coding-types.js";
 import type { Stratum } from "../types.js";
 
@@ -31,6 +32,7 @@ function candidate(
       secondOrderDark: 0,
       files: [],
     },
+    lockfiles: ["pnpm-lock.yaml"],
     lockfileHash,
   };
 }

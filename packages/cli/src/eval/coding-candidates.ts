@@ -8,7 +8,7 @@ import {
   passesScope,
   shouldRejectByMessage,
 } from "./coding-mine.js";
-import { screenCommit, showBlob, sourceDocumentFrequency } from "./coding-git.js";
+import { lockfilesAt, readBlobs, screenCommit, sourceDocumentFrequency } from "./coding-git.js";
 import {
   hardnessFeatures,
   screenVerdict,
@@ -38,8 +38,6 @@ export interface MiningOptions {
   maxChangedLoc: number;
   /** Fewest non-trivial dark edit files a candidate needs (0 keeps every candidate). */
   minDark: number;
-  /** Root-relative lockfile whose hash batches installs. */
-  lockfilePath: string;
 }
 
 export const MINING_DEFAULTS: MiningOptions = {
@@ -48,7 +46,6 @@ export const MINING_DEFAULTS: MiningOptions = {
   maxSourceFiles: 10,
   maxChangedLoc: 500,
   minDark: 0,
-  lockfilePath: "pnpm-lock.yaml",
 };
 
 export function resolveMiningOptions(o: Partial<MiningOptions>): MiningOptions {
@@ -59,7 +56,6 @@ export function resolveMiningOptions(o: Partial<MiningOptions>): MiningOptions {
     maxSourceFiles: o.maxSourceFiles ?? d.maxSourceFiles,
     maxChangedLoc: o.maxChangedLoc ?? d.maxChangedLoc,
     minDark: o.minDark ?? d.minDark,
-    lockfilePath: o.lockfilePath ?? d.lockfilePath,
   };
 }
 
@@ -79,7 +75,9 @@ export interface Candidate {
   goldDiff: string;
   stratum: Stratum;
   hardness: HardnessFeatures;
-  /** Hash of the parent's lockfile — consecutive equal hashes share one install. */
+  /** Known root lockfiles at the parent; they pick the package manager. */
+  lockfiles: string[];
+  /** Hash of the parent's lockfiles — consecutive equal hashes share one install. */
   lockfileHash: string;
 }
 
@@ -133,7 +131,7 @@ function mineOne(
   const commit = loadCommitChanges(repo, bare);
   const partition = partitionChangedFiles(commit.changes);
   if (!passesScope(partition, commit.changes, opts)) return "scopeRejected";
-  const candidate = buildCandidate(repo, commit, partition, opts.lockfilePath, df);
+  const candidate = buildCandidate(repo, commit, partition, df);
   const verdict = screenVerdict(candidate.hardness, opts.minDark);
   return verdict === "pass" ? candidate : VERDICT_STAGE[verdict];
 }
@@ -142,13 +140,13 @@ function buildCandidate(
   repo: string,
   commit: CommitInfo,
   partition: FilePartition,
-  lockfilePath: string,
   df: DocumentFrequency,
 ): Candidate {
   const parentCommit = commit.parent!;
   const { testFiles, sourceFiles: editFiles } = partition;
   const goldDiff = diffForPaths(repo, commit.sha, editFiles);
   const files = screenCommit(repo, { sha: commit.sha, parentCommit, testFiles, editFiles, goldDiff }, df);
+  const lockfiles = lockfilesAt(repo, parentCommit);
   return {
     commit,
     parentCommit,
@@ -158,11 +156,13 @@ function buildCandidate(
     goldDiff,
     stratum: stratumOf(files),
     hardness: hardnessFeatures(files),
-    lockfileHash: lockfileHashAt(repo, parentCommit, lockfilePath),
+    lockfiles,
+    lockfileHash: lockfileHashAt(repo, parentCommit, lockfiles),
   };
 }
 
-function lockfileHashAt(repo: string, commit: string, lockfilePath: string): string {
-  const blob = showBlob(repo, commit, lockfilePath);
-  return createHash("sha1").update(blob).digest("hex").slice(0, 12);
+function lockfileHashAt(repo: string, commit: string, lockfiles: readonly string[]): string {
+  const hash = createHash("sha1");
+  for (const [path, blob] of readBlobs(repo, commit, lockfiles)) hash.update(`${path}\0${blob}\0`);
+  return hash.digest("hex").slice(0, 12);
 }

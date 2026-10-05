@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import {
   emptyFunnel,
   mineCandidates,
@@ -8,7 +7,8 @@ import {
   type MiningOptions,
 } from "./coding-candidates.js";
 import { resolveHead } from "./coding-mine.js";
-import { runAdmissionGate, type GateResult, type VitestRunOptions } from "./coding-grade.js";
+import { makeGate, type GateFn } from "./coding-gate.js";
+import type { VitestRunOptions } from "./coding-grade.js";
 import type { CodingSuite, CodingTask, AdmissionFunnel } from "./coding-types.js";
 import type { Stratum } from "./types.js";
 import { ALL_STRATA } from "./types.js";
@@ -18,9 +18,9 @@ import { ALL_STRATA } from "./types.js";
  * single-purpose, test-carrying commits and admits only those with a stable
  * fail-to-pass transition (the expensive gate). No LLM — this is the deterministic,
  * committable spine; the arm runner that spends tokens is scratch (per C-82's
- * guardrail). Mining/gate management shells git + pnpm + vitest and is verified
- * against a real clone; the admission orchestration is unit-tested via an injected
- * gate.
+ * guardrail). Mining/gate management shells git, the package manager and vitest,
+ * and is verified against a real clone; the admission orchestration is
+ * unit-tested via an injected gate.
  */
 
 const GATE_DEFAULTS = { gateRuns: 3, cap: 25 };
@@ -31,6 +31,8 @@ export interface GenerateCodingOptions extends Partial<MiningOptions> {
   /** Working checkout the gate mutates; defaults to `repo` itself. */
   workdir?: string;
   vitest?: VitestRunOptions;
+  /** Per-repo test argv; replaces the package manager's default vitest command. */
+  testCommand?: readonly string[];
 }
 
 /**
@@ -50,9 +52,6 @@ export function buildProblemStatement(testFiles: readonly string[]): string {
     "breaking any tests that currently pass. Do not modify the test files.",
   ].join("\n");
 }
-
-/** A gate function — injectable so the orchestration is unit-testable. */
-export type GateFn = (candidate: Candidate) => GateResult;
 
 /**
  * Run the admission gate over candidates (grouped by lockfile hash so the caller
@@ -125,8 +124,8 @@ function countByStratum(tasks: readonly CodingTask[]): Record<Stratum, number> {
 
 /**
  * End-to-end Stage A entry point: mine → gate → suite. Installs dependencies once
- * per lockfile group in `workdir` (default: the repo itself) before gating that
- * group's candidates. Deterministic given the same history and environment.
+ * per lockfile group in `workdir` (default: the repo itself), with the package
+ * manager the parent's lockfile names, before gating that group's candidates. Deterministic given the same history and environment.
  */
 export function generateCodingSuite(
   repo: string,
@@ -142,27 +141,11 @@ export function generateCodingSuite(
   const funnel = emptyFunnel();
   const candidates = mineCandidates(repo, opts, funnel);
 
-  let installedHash: string | null = null;
-  const gate: GateFn = (c) => {
-    try {
-      installOnce(workdir, c, () => installedHash, (h) => (installedHash = h));
-    } catch {
-      // A failed `pnpm install` (lockfile drift, flaky postinstall, registry
-      // outage) is an environment failure for this candidate, not a fatal run
-      // error — record it in the funnel and move to the next candidate rather
-      // than crashing the whole generation.
-      installedHash = null;
-      return { outcome: "env-error", failToPass: [], passToPass: [] };
-    }
-    return runAdmissionGate(workdir, {
-      runs: opts.gateRuns,
-      testFiles: c.testFiles,
-      testPatchDiff: c.testPatchDiff,
-      parentCommit: c.parentCommit,
-      fixCommit: c.commit.sha,
-      vitest: options.vitest,
-    });
-  };
+  const gate = makeGate(workdir, {
+    runs: opts.gateRuns,
+    testCommand: options.testCommand,
+    vitest: options.vitest,
+  });
 
   const tasks = admitCandidates(candidates, opts.cap, gate, funnel).map((t) => ({
     ...t,
@@ -176,30 +159,4 @@ export function generateCodingSuite(
     counts: { total: tasks.length, byStratum: countByStratum(tasks) },
     tasks,
   };
-}
-
-/** Check out the candidate's parent and `pnpm install` when the lockfile changed. */
-function installOnce(
-  workdir: string,
-  c: Candidate,
-  getHash: () => string | null,
-  setHash: (h: string) => void,
-): void {
-  if (getHash() === c.lockfileHash) return;
-  execFileSync("git", ["checkout", "-f", c.parentCommit], {
-    cwd: workdir,
-    stdio: "ignore",
-  });
-  execFileSync("git", ["clean", "-fdq"], { cwd: workdir, stdio: "ignore" });
-  // `--ignore-scripts`: the tests run against SOURCE via the repo's vitest alias
-  // map (Stage 0 — no build needed), so package build/postinstall scripts are
-  // irrelevant to grading AND a source of flakiness (e.g. tRPC's `www`
-  // postinstall fetches from the network). Skipping them makes install fast and
-  // deterministic; pnpm 10 already blocks build scripts by default anyway.
-  execFileSync("pnpm", ["install", "--frozen-lockfile", "--ignore-scripts"], {
-    cwd: workdir,
-    stdio: "ignore",
-    timeout: 600_000,
-  });
-  setHash(c.lockfileHash);
 }
