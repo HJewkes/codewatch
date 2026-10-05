@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { editFileHops, importHops, type SourceReader } from "../coding-reach.js";
+import { parseWorkspace } from "../coding-workspace.js";
 
 const SOURCES = new Map([
   ["test/api.test.ts", 'import { api } from "../src/api.js";'],
@@ -39,6 +40,51 @@ describe("importHops", () => {
       ["src/api.ts"],
       ["src/wiring.ts", "src/index.ts"],
     ]);
+  });
+
+  it("terminates on an import cycle and keeps the first depth", () => {
+    const sources = new Map([
+      ["t.test.ts", 'import "./a";'],
+      ["a.ts", 'import "./b";'],
+      ["b.ts", 'import "./a";\nimport "./t.test";'],
+    ]);
+
+    const hops = importHops(["t.test.ts"], new Set(sources.keys()), () => sources);
+
+    expect(Object.fromEntries(hops)).toEqual({ "t.test.ts": 0, "a.ts": 1, "b.ts": 2 });
+  });
+
+  it("resolves a directory import to its index file", () => {
+    const sources = new Map([
+      ["src/x.test.ts", 'import { cmd } from "./commands";'],
+      ["src/commands/index.ts", 'export * from "./run.js";'],
+      ["src/commands/run.ts", ""],
+    ]);
+
+    const hops = importHops(["src/x.test.ts"], new Set(sources.keys()), () => sources);
+
+    expect(hops.get("src/commands/index.ts")).toBe(1);
+    expect(hops.get("src/commands/run.ts")).toBe(2);
+  });
+
+  it("follows a scoped workspace import into the package's source", () => {
+    const sources = new Map([
+      ["packages/app/test/run.test.ts", 'import { run } from "../src/run";'],
+      ["packages/app/src/run.ts", 'import { scale } from "@acme/lib";'],
+      ["packages/lib/src/engine.ts", 'import { join } from "node:path";'],
+    ]);
+    const workspace = parseWorkspace(
+      new Map([["packages/lib/package.json", '{"name":"@acme/lib","main":"dist/engine.js"}']]),
+    );
+
+    const hops = importHops(
+      ["packages/app/test/run.test.ts"],
+      new Set(sources.keys()),
+      () => sources,
+      workspace,
+    );
+
+    expect(hops.get("packages/lib/src/engine.ts")).toBe(2);
   });
 });
 

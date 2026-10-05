@@ -69,10 +69,9 @@ export interface ScopeOptions {
 
 /**
  * A single-purpose candidate: at least one test file AND one source file
- * changed, few enough source files, and small enough total churn that the change
- * is one logical unit. Deleted-only / non-code files are ignored by the caller's
- * partition, but their churn still counts toward the LOC budget so a giant
- * generated-file bump can't slip through under a small source diff.
+ * changed, few enough source files, and few enough changed source lines that
+ * the change is one logical unit. Test, snapshot and lockfile churn says
+ * nothing about the size of the fix, so only source lines count (C-86 step 2).
  */
 export function passesScope(
   part: FilePartition,
@@ -81,12 +80,11 @@ export function passesScope(
 ): boolean {
   if (part.testFiles.length === 0 || part.sourceFiles.length === 0) return false;
   if (part.sourceFiles.length > opts.maxSourceFiles) return false;
-  const churn = changes.reduce(
-    (sum, c) => sum + (c.added ?? 0) + (c.deleted ?? 0),
-    0,
-  );
-  if (churn > opts.maxChangedLoc) return false;
-  return true;
+  const sources = new Set(part.sourceFiles);
+  const churn = changes
+    .filter((c) => sources.has(c.path))
+    .reduce((sum, c) => sum + (c.added ?? 0) + (c.deleted ?? 0), 0);
+  return churn <= opts.maxChangedLoc;
 }
 
 // --- git output parsers (pure) ---------------------------------------------
@@ -224,12 +222,14 @@ export function diffForPaths(repo: string, sha: string, paths: readonly string[]
 
 /** Extract relative import specifiers named in a test file's raw source. */
 export function extractRelativeSpecifiers(source: string): string[] {
+  return extractImportSpecifiers(source).filter((spec) => spec.startsWith("."));
+}
+
+/** Extract every import specifier (relative, bare or scoped) named in raw source. */
+export function extractImportSpecifiers(source: string): string[] {
   const out = new Set<string>();
   const re = /(?:from|import|require)\s*\(?\s*["']([^"']+)["']/g;
   let m: RegExpExecArray | null;
-  while ((m = re.exec(source)) !== null) {
-    const spec = m[1]!;
-    if (spec.startsWith(".")) out.add(spec);
-  }
+  while ((m = re.exec(source)) !== null) out.add(m[1]!);
   return [...out];
 }

@@ -81,13 +81,21 @@ describe("passesScope", () => {
     ];
     expect(passesScope(partitionChangedFiles(changes), changes, opts)).toBe(true);
   });
-  it("rejects on too much churn (counting non-source files too)", () => {
+  it("rejects when the changed source lines exceed the budget", () => {
     const changes = [
-      change("src/a.ts", "modified", 10, 0),
+      change("src/a.ts", "modified", 50, 0),
+      change("src/b.ts", "modified", 20, 11),
       change("src/a.test.ts", "added", 5, 0),
-      change("snapshot.json", "modified", 900, 0),
     ];
     expect(passesScope(partitionChangedFiles(changes), changes, opts)).toBe(false);
+  });
+  it("ignores test and non-source churn in the line budget", () => {
+    const changes = [
+      change("src/a.ts", "modified", 10, 0),
+      change("src/a.test.ts", "added", 400, 0),
+      change("snapshot.json", "modified", 900, 0),
+    ];
+    expect(passesScope(partitionChangedFiles(changes), changes, opts)).toBe(true);
   });
   it("rejects on too many source files", () => {
     const changes = [

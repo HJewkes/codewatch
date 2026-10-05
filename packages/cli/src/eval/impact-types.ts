@@ -9,7 +9,7 @@ import type { SetScore } from "./types.js";
 /** Answers past this many files are not graded (plan section 4: at most 10 files). */
 export const IMPACT_ANSWER_BUDGET = 10;
 
-/** The C-86 patch-task types. Assigned by a later screen; absent until then. */
+/** The C-86 patch-task types. Assigned by rule in `coding-task-type.ts`; absent when undecided. */
 export type CodingTaskType = "T1" | "T2" | "T3" | "T4" | "T5" | "T6";
 
 export interface ImpactTask {

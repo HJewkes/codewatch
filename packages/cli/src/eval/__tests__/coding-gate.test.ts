@@ -21,6 +21,7 @@ function candidate(sha: string, lockfiles: string[], lockfileHash = "h1"): Candi
       secondOrderDark: 0,
       files: [],
     },
+    packagesSpanned: 1,
     lockfiles,
     lockfileHash,
   };
