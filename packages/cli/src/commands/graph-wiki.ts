@@ -2,6 +2,7 @@ import type { Command } from "commander";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import {
+  buildReportContext,
   compilePatterns,
   computePageRank,
   matchesAny,
@@ -11,7 +12,6 @@ import {
 } from "@titan-design/code-graph";
 import { formatError } from "../utils/output.js";
 import { computeArch } from "./graph-arch.js";
-import { buildReportContext } from "./graph-report-sections.js";
 import {
   bucketFilesByPackage,
   detectPackages,
