@@ -1,6 +1,7 @@
 import type { Profile, StyleRule } from "@titan-design/style-profile";
 import { profileFromAggregation } from "./profile-from-aggregation.js";
 import { resolveLanguages } from "../utils/languages.js";
+import { extractFromFiles } from "../utils/pipeline.js";
 
 export interface MergeOptions {
   keepOverrides: boolean;
@@ -102,25 +103,14 @@ export async function runUpdate(options: UpdateCommandOptions): Promise<void> {
   const corpus = await service.ingest();
 
   console.log(formatStep(2, 5, "Extracting style features..."));
-  const extractors = [
-    new analyzer.NamingExtractor(),
-    new analyzer.StructureExtractor(),
-    new analyzer.ControlFlowExtractor(),
-    new analyzer.DocumentationExtractor(),
-    new analyzer.ErrorHandlingExtractor(),
-  ] as const;
-  const observations: unknown[] = [];
-  for (const file of corpus.files) {
-    const parsed = await parser.parseFile(file.content, file.path, file.language);
-    if (!parsed) continue;
-    for (const extractor of extractors) {
-      observations.push(...extractor.extract(parsed));
-    }
-  }
+  const observations = await extractFromFiles(
+    corpus.files,
+    analyzer.createStyleExtractors(),
+    parser.parseFile,
+  );
 
   console.log(formatStep(3, 5, "Aggregating patterns..."));
-  const aggregator = new analyzer.Aggregator();
-  const aggregated = await aggregator.aggregate(observations as Parameters<typeof aggregator.aggregate>[0]);
+  const aggregated = new analyzer.Aggregator().aggregate(observations);
 
   console.log(formatStep(4, 5, "Enriching and reviewing..."));
   const incoming = await runReviewSession(

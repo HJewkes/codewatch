@@ -6,6 +6,6 @@ export type {
   PullRequestFile,
   CodeCorpus,
   IngestMetadata,
-} from "./ingest/types.js";
+} from "@titan-design/style-analyzer";
 export { GitHubService } from "./ingest/github-service.js";
 export { FileCache } from "./ingest/cache.js";
