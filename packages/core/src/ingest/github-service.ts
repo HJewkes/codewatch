@@ -6,7 +6,7 @@ import type {
   PullRequest,
   PullRequestFile,
   ReviewComment,
-} from "./types.js";
+} from "@titan-design/style-analyzer";
 import { shouldIncludeFile, getLanguageFromPath } from "@titan-design/code-parser";
 import { FileCache } from "./cache.js";
 

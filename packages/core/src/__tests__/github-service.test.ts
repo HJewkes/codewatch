@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { GitHubService } from "../ingest/github-service.js";
-import type { IngestConfig } from "../ingest/types.js";
+import type { IngestConfig } from "@titan-design/style-analyzer";
 
 vi.mock("octokit", () => ({
   Octokit: vi.fn().mockImplementation(() => ({

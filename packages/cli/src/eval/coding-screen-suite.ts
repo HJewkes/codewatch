@@ -8,6 +8,7 @@ import {
 } from "./coding-candidates.js";
 import { resolveHead } from "./coding-mine.js";
 import type { HardnessFeatures } from "./coding-screen.js";
+import type { CodingTaskType } from "./impact-types.js";
 import type { AdmissionFunnel, MiningParams } from "./coding-types.js";
 import type { Stratum } from "./types.js";
 
@@ -27,6 +28,9 @@ export interface ScreenedCandidate {
   goldDiff: string;
   stratum: Stratum;
   hardness: HardnessFeatures;
+  packagesSpanned: number;
+  /** Rule-assigned task type; unset when the rules cannot decide. */
+  type?: CodingTaskType;
 }
 
 export interface CodingScreen {
@@ -62,5 +66,7 @@ function toScreened(c: Candidate): ScreenedCandidate {
     goldDiff: c.goldDiff,
     stratum: c.stratum,
     hardness: c.hardness,
+    packagesSpanned: c.packagesSpanned,
+    ...(c.type ? { type: c.type } : {}),
   };
 }
