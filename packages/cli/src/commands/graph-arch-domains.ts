@@ -1,17 +1,16 @@
 import {
+  aggregateEdges,
+  bucketFilesByPackage,
   computePartitionQuality,
   detectCommunities,
-  patternToRegex,
-} from "@titan-design/code-graph";
-import { bucketFilesByPackage } from "./graph-wiki-packages.js";
-import {
-  aggregateEdges,
   filteredFileIds,
   packagesReferencedByEdges,
+  patternToRegex,
   toSortedEdges,
+  type ArchPackage,
   type ComputeArchInput,
-} from "./graph-arch-compute.js";
-import type { ArchPackage, ArchResult } from "./graph-arch.js";
+} from "@titan-design/code-graph";
+import type { ArchResult } from "./graph-arch.js";
 
 /** One domain: a display name and the path globs whose files belong to it. */
 export interface DomainDef {

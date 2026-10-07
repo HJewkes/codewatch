@@ -2,21 +2,19 @@ import type { Command } from "commander";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import {
+  bucketFilesByPackage,
   buildReportContext,
   compilePatterns,
+  computeArch,
   computePageRank,
   matchesAny,
   type CodeGraphStore,
   type GraphMetric,
+  type PackageRoot,
   type SnapshotRow,
 } from "@titan-design/code-graph";
 import { formatError } from "../utils/output.js";
-import { computeArch } from "./graph-arch.js";
-import {
-  bucketFilesByPackage,
-  detectPackages,
-  type PackageRoot,
-} from "./graph-wiki-packages.js";
+import { detectPackages } from "./graph-wiki-packages.js";
 import {
   buildWikiPackages,
   type PackageWiki,

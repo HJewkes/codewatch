@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { GraphNode } from "@titan-design/code-graph";
-import { filteredFileIds } from "../commands/graph-arch-compute.js";
+import { filteredFileIds, type GraphNode } from "@titan-design/code-graph";
 
 describe("filteredFileIds excludes tests from the dependency graph by default (C-63)", () => {
   const nodes: GraphNode[] = [
