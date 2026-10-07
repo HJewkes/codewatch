@@ -13,7 +13,7 @@ import type {
   TestCoverageRow,
   UntestedRiskRow,
   UnusedExportRow,
-} from "./graph-report-types.js";
+} from "@titan-design/code-graph";
 
 export function formatGraphReportMarkdown(result: GraphReportResult): string {
   const lines: string[] = [];

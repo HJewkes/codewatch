@@ -9,7 +9,7 @@ import type {
   BusFactorRow,
   CentralRow,
   CouplingRow,
-} from "./graph-report-types.js";
+} from "@titan-design/code-graph";
 
 export interface WikiFile {
   /** Path relative to the output directory. */

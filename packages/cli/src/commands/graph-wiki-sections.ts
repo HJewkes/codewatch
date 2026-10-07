@@ -1,23 +1,21 @@
-import { invertBuckets } from "@titan-design/code-graph";
-import type {
-  GraphEdge,
-  GraphNode,
-  PageRankRow,
-  SnapshotRow,
-} from "@titan-design/code-graph";
 import {
+  invertBuckets,
   topBusFactorRisks,
-  topCouplingClusters,
   topHotspots,
-  type ReportContext,
-} from "./graph-report-sections.js";
-import type { ArchResult } from "./graph-arch.js";
+} from "@titan-design/code-graph";
 import type {
   BusFactorRow,
   CentralRow,
   CouplingRow,
+  GraphEdge,
+  GraphNode,
   HotspotRow,
-} from "./graph-report-types.js";
+  PageRankRow,
+  ReportContext,
+  SnapshotRow,
+} from "@titan-design/code-graph";
+import { topCouplingClusters } from "./graph-report-coupling.js";
+import type { ArchResult } from "./graph-arch.js";
 import type { PackageRoot } from "./graph-wiki-packages.js";
 
 export interface PackageSummary {

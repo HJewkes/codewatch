@@ -1,11 +1,30 @@
 import type { Command } from "commander";
 import * as fs from "node:fs/promises";
 import {
+  buildReportContext,
+  busFactorOf,
   canonicalMetricName,
   compilePatterns,
+  computeReportDrift,
+  hotspotScoreOf,
+  publicApiFiles,
+  topBusFactorRisks,
+  topCentralFiles,
+  topDeadModules,
+  topGrowthRisks,
+  topHotspots,
+  topTestCoverageRisks,
+  topUnusedExports,
+  topUntestedRisks,
   windowSuffix,
+  type BusFactorRow,
+  type CentralRow,
   type CodeGraphStore,
+  type CouplingRow,
   type GraphMetric,
+  type GraphReportResult as CodeGraphReportResult,
+  type HotspotRow,
+  type ReportContext,
   type SnapshotRow,
 } from "@titan-design/code-graph";
 import type { ChurnWindow } from "@titan-design/code-graph/history";
@@ -17,44 +36,24 @@ import {
   isChurnUnavailable,
 } from "./graph-report-hint.js";
 import { formatError, snapshotVersionMismatchWarning } from "../utils/output.js";
-import { computeReportDrift } from "./graph-report-drift.js";
 import {
   formatGraphReportJson,
   formatGraphReportMarkdown,
 } from "./graph-report-format.js";
-import {
-  buildReportContext,
-  busFactorOf,
-  hotspotScoreOf,
-  topBusFactorRisks,
-  topCentralFiles,
-  topCouplingClusters,
-  topHotspots,
-  topTestCoverageRisks,
-  type ReportContext,
-} from "./graph-report-sections.js";
-import {
-  topUnusedExports,
-  topDeadModules,
-  topGrowthRisks,
-  topUntestedRisks,
-  publicApiFiles,
-} from "./graph-report-quality-sections.js";
-import type {
-  BusFactorRow,
-  CentralRow,
-  CouplingRow,
-  GraphReportResult,
-  HotspotRow,
-} from "./graph-report-types.js";
+import { topCouplingClusters } from "./graph-report-coupling.js";
 import { openGraphStore, defaultGraphDbPath } from "../utils/graph-store.js";
+
+/** code-graph's report plus codewatch's flag that the report root is not a git tree. */
+export interface GraphReportResult extends CodeGraphReportResult {
+  /** True when the report root is not a git tree, so churn and ownership cannot exist. */
+  churnUnavailable?: boolean;
+}
 
 export { formatGraphReportJson, formatGraphReportMarkdown };
 export type {
   BusFactorRow,
   CentralRow,
   CouplingRow,
-  GraphReportResult,
   HotspotRow,
 };
 
