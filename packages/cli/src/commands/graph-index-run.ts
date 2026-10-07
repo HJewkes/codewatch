@@ -2,13 +2,17 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import {
   detectGitToplevel,
+  gitTreeSource,
   indexPaths,
   openCodeGraph,
   type IndexOptions,
+  type IndexSource,
 } from "@titan-design/code-graph";
 import { defaultGraphDbPath, moveLegacyGraphDbAside } from "../utils/graph-store.js";
 
-export interface GraphIndexOptions extends Omit<IndexOptions, "paths" | "tsConfig"> {
+export interface GraphIndexOptions extends Omit<IndexOptions, "paths" | "tsConfig" | "source"> {
+  /** Index this git rev's tree instead of the working tree; also the default snapshot label. */
+  rev?: string;
   /** Single root to index; equivalent to `rootDirs: [rootDir]`. */
   rootDir?: string;
   rootDirs?: string[];
@@ -54,10 +58,22 @@ export function resolveIndexDbPath(dbPath: string | undefined, firstRoot: string
   return defaultGraphDbPath(firstRoot);
 }
 
-function toIndexOptions(options: GraphIndexOptions, paths: string[]): IndexOptions {
+/** Under --rev the indexed dirs may be gone from disk, so the git toplevel comes from the cwd. */
+function revToplevel(): string {
+  const toplevel = detectGitToplevel(process.cwd());
+  if (toplevel === null) throw new Error("graph index --rev must run inside a git repository");
+  return toplevel;
+}
+
+function toIndexOptions(
+  options: GraphIndexOptions,
+  paths: string[],
+  source: IndexSource | undefined,
+): IndexOptions {
   return {
     paths,
-    ref: options.ref,
+    source,
+    ref: options.ref ?? options.rev,
     commitHash: options.commitHash,
     tsConfig: options.tsConfigPath,
     detectRenames: options.detectRenames,
@@ -78,7 +94,11 @@ function churnStatus(options: GraphIndexOptions, root: string): GraphIndexResult
 export async function runGraphIndex(options: GraphIndexOptions): Promise<GraphIndexResult> {
   const started = performance.now();
   const rootDirs = normalizeRootDirs(options);
-  const dbPath = resolveIndexDbPath(options.dbPath, rootDirs[0]!);
+  const toplevel = options.rev === undefined ? undefined : revToplevel();
+  const source = toplevel === undefined ? undefined : gitTreeSource(toplevel, options.rev!);
+  const churn = churnStatus(options, toplevel ?? rootDirs[0]!);
+  const indexOptions = { ...toIndexOptions(options, rootDirs, source), computeChurn: churn === "computed" };
+  const dbPath = resolveIndexDbPath(options.dbPath, toplevel ?? rootDirs[0]!);
   mkdirSync(path.dirname(dbPath), { recursive: true });
   const aside = moveLegacyGraphDbAside(dbPath);
   if (aside) {
@@ -88,11 +108,7 @@ export async function runGraphIndex(options: GraphIndexOptions): Promise<GraphIn
   }
   const store = openCodeGraph(dbPath);
   try {
-    const churn = churnStatus(options, rootDirs[0]!);
-    const result = await indexPaths(store, {
-      ...toIndexOptions(options, rootDirs),
-      computeChurn: churn === "computed",
-    });
+    const result = await indexPaths(store, indexOptions);
     return {
       dbPath,
       snapshotId: result.snapshotId,
