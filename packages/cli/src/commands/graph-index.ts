@@ -128,7 +128,11 @@ export function registerGraphIndex(graphCmd: Command): void {
       "--db <path>",
       "Database path (default: <git-toplevel>/.codewatch/graph.db)",
     )
-    .option("--ref <ref>", "Snapshot ref label", "wd")
+    .option("--ref <ref>", "Snapshot ref label (default: the --rev, else wd)")
+    .option(
+      "--rev <rev>",
+      "Index this git commit's tree from git objects, without a checkout (e.g. HEAD~1, origin/main)",
+    )
     .option("--ts-config <path>", "Path to tsconfig.json for ts-morph")
     .option(
       "--no-detect-renames",
@@ -170,6 +174,7 @@ export function registerGraphIndex(graphCmd: Command): void {
         options: {
           db?: string;
           ref?: string;
+          rev?: string;
           tsConfig?: string;
           detectRenames?: boolean;
           computeMetrics?: boolean;
@@ -188,6 +193,7 @@ export function registerGraphIndex(graphCmd: Command): void {
             rootDirs,
             dbPath: options.db,
             ref: options.ref,
+            rev: options.rev,
             tsConfigPath: options.tsConfig,
             detectRenames: options.detectRenames,
             computeMetrics: options.computeMetrics,
