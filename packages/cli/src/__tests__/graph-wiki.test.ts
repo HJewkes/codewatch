@@ -3,6 +3,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { tmpdir } from "node:os";
 import {
+  bucketFilesByPackage,
   openCodeGraph,
   type CodeGraphStore,
 } from "@titan-design/code-graph";
@@ -11,10 +12,7 @@ import {
   writeWikiFiles,
   pageFilename,
 } from "../commands/graph-wiki.js";
-import {
-  bucketFilesByPackage,
-  detectPackages,
-} from "../commands/graph-wiki-packages.js";
+import { detectPackages } from "../commands/graph-wiki-packages.js";
 import { formatWiki } from "../commands/graph-wiki-format.js";
 
 interface Fixture {

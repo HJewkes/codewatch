@@ -10,13 +10,13 @@ import type {
   GraphEdge,
   GraphNode,
   HotspotRow,
+  PackageRoot,
   PageRankRow,
   ReportContext,
   SnapshotRow,
 } from "@titan-design/code-graph";
 import { topCouplingClusters } from "./graph-report-coupling.js";
 import type { ArchResult } from "./graph-arch.js";
-import type { PackageRoot } from "./graph-wiki-packages.js";
 
 export interface PackageSummary {
   files: number;

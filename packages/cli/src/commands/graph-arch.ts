@@ -2,21 +2,17 @@ import type { Command } from "commander";
 import * as fs from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import {
+  bucketFilesByPackage,
+  computeArch,
   computePartitionQuality,
+  filteredFileIds,
+  type ArchPackage,
+  type ArchResult as CoreArchResult,
   type CodeGraphStore,
-  type PartitionQualityResult,
   type SnapshotRow,
 } from "@titan-design/code-graph";
 import { formatError } from "../utils/output.js";
-import {
-  bucketFilesByPackage,
-  detectPackages,
-} from "./graph-wiki-packages.js";
-import {
-  computeArch,
-  filteredFileIds,
-  type ComputeArchInput,
-} from "./graph-arch-compute.js";
+import { detectPackages } from "./graph-wiki-packages.js";
 import {
   computeArchDomains,
   parseDomainConfig,
@@ -29,9 +25,6 @@ import {
   type ArchSplitResult,
 } from "./graph-arch-split.js";
 import { openGraphStore, defaultGraphDbPath } from "../utils/graph-store.js";
-
-export type { ComputeArchInput };
-export { computeArch };
 
 export interface GraphArchCommandOptions {
   db: string;
@@ -54,36 +47,8 @@ export interface GraphArchCommandOptions {
   split?: boolean;
 }
 
-/** A top-level sub-directory of a drilled package, rendered inside its cluster. */
-export interface ArchSubNode {
-  /** Full path id, e.g. "packages/cli/src/commands". */
-  id: string;
-  /** Directory name shown as the node label, e.g. "commands". */
-  label: string;
-  files: number;
-}
-
-export interface ArchPackage {
-  id: string;
-  name: string;
-  files: number;
-  /** Present when the package was drilled (--depth modules); renders as a subgraph. */
-  subNodes?: ArchSubNode[];
-}
-
-export interface ArchEdge {
-  from: string;
-  to: string;
-  count: number;
-}
-
-export interface ArchResult {
-  snapshot: SnapshotRow;
-  packages: ArchPackage[];
-  edges: ArchEdge[];
-  includesExternal: boolean;
-  /** Present when options.health=true. */
-  quality?: PartitionQualityResult;
+/** The ported arch result plus the codewatch-only domain and split views. */
+export interface ArchResult extends CoreArchResult {
   /** Present when options.domains is set: config validation warnings. */
   domainValidation?: DomainValidation;
   /** Present when options.domains is set: domain vs package vs detected Q. */

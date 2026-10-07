@@ -1,11 +1,14 @@
 import * as path from "node:path";
 import {
+  bucketFilesByPackage,
   computePartitionQuality,
   detectCommunities,
+  filteredFileIds,
   invertBuckets,
   resolveBarrelEdges,
   type GraphEdge,
   type GraphNode,
+  type PackageRoot,
   type SnapshotRow,
 } from "@titan-design/code-graph";
 import {
@@ -13,11 +16,6 @@ import {
   loadChurnEntries,
   type CoEditPair,
 } from "@titan-design/code-graph/history";
-import {
-  bucketFilesByPackage,
-  type PackageRoot,
-} from "./graph-wiki-packages.js";
-import { filteredFileIds } from "./graph-arch-compute.js";
 import { isFragmented, isSourcePackage } from "./graph-arch-split-filter.js";
 import type { ArchResult } from "./graph-arch.js";
 
