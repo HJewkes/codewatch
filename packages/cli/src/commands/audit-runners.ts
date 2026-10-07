@@ -47,9 +47,7 @@ export function diagnosticToFinding(tool: PythonTool, d: CheckDiagnostic): Findi
 }
 
 function resultNotes(tool: PythonTool, result: RunnerResult): string[] {
-  const failures = result.failures.map((f) =>
-    f.kind === "spawn-failed" ? `${tool} not found on PATH; ${tool} findings skipped` : `${tool}: ${f.message}`,
-  );
+  const failures = result.failures.map((f) => `${tool}: ${f.message}`);
   const skips = (result.warnings ?? []).map((w) => `skipped ${tool}: ${w}`);
   return [...failures, ...skips];
 }
