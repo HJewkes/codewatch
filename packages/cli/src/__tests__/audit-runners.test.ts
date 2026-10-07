@@ -108,4 +108,17 @@ describe("codewatch audit Tier B runners", () => {
     expect((runners.ruff as RecordingRunner).calls).toHaveLength(0);
     expect((runners.vulture as RecordingRunner).calls[0]!.sort()).toEqual(["pkg/__init__.py", "pkg/mod.py"]);
   });
+
+  it("turns a missing ruff into a warning with its install hint instead of a failure", async () => {
+    const originalPath = process.env.PATH;
+    process.env.PATH = emptyDir;
+    try {
+      const res = await runAuditCommand({ path: dir });
+
+      expect(res.warnings).toContain("skipped ruff: ruff not found; install with `pip install ruff`");
+      expect(res.warnings.join("\n")).not.toContain("not found on PATH");
+    } finally {
+      process.env.PATH = originalPath;
+    }
+  });
 });
