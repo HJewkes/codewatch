@@ -17,12 +17,15 @@ access token of any kind. Do not add one.
    shows exactly one package, `@codewatch/cli`.
 3. Run it again with `dry_run` set to `false`. The job exchanges its GitHub OIDC identity
    for a short-lived npm credential and runs `pnpm changeset publish`, which skips
-   private packages.
-4. Verify: `npm view @codewatch/cli version` and `npx codewatch --version` from a temp
-   directory.
+   private packages. `changeset publish` only creates the `@codewatch/cli@<version>` git
+   tag locally, so the workflow's next step pushes it with `git push origin --tags`. That
+   step runs only on a non-dry run after a successful publish.
+4. Verify: `npm view @codewatch/cli version`, `npx codewatch --version` from a temp
+   directory, and `git ls-remote --tags origin | grep codewatch/cli` for the pushed tag.
 
-Requirements the workflow already meets: `permissions: id-token: write`, npm 11.5.1 or
-later (pinned to 11.x), Node 22.14 or later.
+Requirements the workflow already meets: `permissions: id-token: write` (npm OIDC),
+`contents: write` (push the release tag), npm 11.5.1 or later (pinned to 11.x), Node 22.14
+or later.
 
 ## Checking the tarball locally
 
@@ -67,3 +70,5 @@ npm deprecate @codewatch/render "Bundled into @codewatch/cli; install that packa
 
 The trusted publishers configured on the retired names stay in place. They are
 harmless: nothing publishes those names any more.
+
+`@codewatch/cli` itself went from 0.1.0 to 0.3.0: 0.2.0 was never published.
