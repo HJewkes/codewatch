@@ -58,17 +58,21 @@ export function resolveIndexDbPath(dbPath: string | undefined, firstRoot: string
   return defaultGraphDbPath(firstRoot);
 }
 
-function revSource(rev: string | undefined): IndexSource | undefined {
-  if (rev === undefined) return undefined;
+/** Under --rev the indexed dirs may be gone from disk, so the git toplevel comes from the cwd. */
+function revToplevel(): string {
   const toplevel = detectGitToplevel(process.cwd());
   if (toplevel === null) throw new Error("graph index --rev must run inside a git repository");
-  return gitTreeSource(toplevel, rev);
+  return toplevel;
 }
 
-function toIndexOptions(options: GraphIndexOptions, paths: string[]): IndexOptions {
+function toIndexOptions(
+  options: GraphIndexOptions,
+  paths: string[],
+  source: IndexSource | undefined,
+): IndexOptions {
   return {
     paths,
-    source: revSource(options.rev),
+    source,
     ref: options.ref ?? options.rev,
     commitHash: options.commitHash,
     tsConfig: options.tsConfigPath,
@@ -83,16 +87,18 @@ function toIndexOptions(options: GraphIndexOptions, paths: string[]): IndexOptio
 }
 
 function churnStatus(options: GraphIndexOptions, root: string): GraphIndexResult["churn"] {
-  if (options.rev === undefined && detectGitToplevel(root) === null) return "unavailable";
+  if (detectGitToplevel(root) === null) return "unavailable";
   return options.computeChurn === false ? "skipped" : "computed";
 }
 
 export async function runGraphIndex(options: GraphIndexOptions): Promise<GraphIndexResult> {
   const started = performance.now();
   const rootDirs = normalizeRootDirs(options);
-  const churn = churnStatus(options, rootDirs[0]!);
-  const indexOptions = { ...toIndexOptions(options, rootDirs), computeChurn: churn === "computed" };
-  const dbPath = resolveIndexDbPath(options.dbPath, rootDirs[0]!);
+  const toplevel = options.rev === undefined ? undefined : revToplevel();
+  const source = toplevel === undefined ? undefined : gitTreeSource(toplevel, options.rev!);
+  const churn = churnStatus(options, toplevel ?? rootDirs[0]!);
+  const indexOptions = { ...toIndexOptions(options, rootDirs, source), computeChurn: churn === "computed" };
+  const dbPath = resolveIndexDbPath(options.dbPath, toplevel ?? rootDirs[0]!);
   mkdirSync(path.dirname(dbPath), { recursive: true });
   const aside = moveLegacyGraphDbAside(dbPath);
   if (aside) {

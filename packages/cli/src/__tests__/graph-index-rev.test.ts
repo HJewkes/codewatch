@@ -80,6 +80,19 @@ describe("graph index --rev on a repo whose working tree differs", () => {
     expect(symbols).toEqual(["pkg/src/a.ts#gamma"]);
   });
 
+  it("writes the default db at the toplevel for a directory deleted since the rev", async () => {
+    git(repo, ["rm", "-r", "-q", "-f", "pkg"]);
+    git(repo, ["commit", "-q", "-m", "remove pkg"]);
+
+    const run = runCli(repo, ["pkg", "--rev", "HEAD~2", "--json"]);
+
+    expect(run.status, run.stderr).toBe(0);
+    const { dbPath, snapshotId } = JSON.parse(run.stdout);
+    expect(dbPath).toBe(path.join(repo, ".codewatch", "graph.db"));
+    expect(snapshotOf(repo, snapshotId).symbols).toEqual(["pkg/src/a.ts#alpha"]);
+    await expect(fs.stat(path.join(repo, "pkg"))).rejects.toThrow();
+  });
+
   it("exits 1 with a one-line error for an unknown rev", () => {
     const run = runCli(repo, ["pkg", "--rev", "no-such-rev"]);
 
