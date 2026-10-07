@@ -137,6 +137,32 @@ describe("graph diff --footprint", { timeout: 30_000 }, () => {
     expect(result.to.id).toBe(middle);
   });
 
+  it("resolves an all-digit ref that is no snapshot id in graph report --vs and graph diff --from", async () => {
+    const digitRef = "20261007";
+    git(repo, ["tag", digitRef]);
+    const tagged = cli(repo, ["index", "pkg", "--rev", digitRef, "--json"]);
+    expect(tagged.status, tagged.stderr).toBe(0);
+    await commitApi(repo, "string");
+    indexHead(repo);
+
+    const report = cli(repo, ["report", "--vs", digitRef, "--json"]);
+    const diff = cli(repo, ["diff", "--from", digitRef, "--to", "HEAD", "--footprint", "--json"]);
+
+    expect(report.status, report.stderr).toBe(0);
+    expect(JSON.parse(report.stdout).drift.baselineSnapshot.ref).toBe(digitRef);
+    expect(diff.status, diff.stderr).toBe(0);
+    expect(JSON.parse(diff.stdout).from.ref).toBe(digitRef);
+  });
+
+  it("names both lookups when an all-digit spec matches no id and no ref", () => {
+    indexHead(repo);
+
+    const run = cli(repo, ["diff", "--from", "9999", "--to", "HEAD", "--footprint"]);
+
+    expect(run.status).toBe(1);
+    expect(run.stderr).toContain('--from: no snapshot with id 9999 and no snapshot found for ref "9999"');
+  });
+
   it("errors clearly when --from previous has no prior snapshot", () => {
     indexHead(repo);
 

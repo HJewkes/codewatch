@@ -26,15 +26,15 @@ export function resolveSnapshotRef(
     }
     return previous;
   }
-  if (/^\d+$/.test(spec)) {
-    const byId = db.getSnapshot(Number(spec));
-    if (!byId) throw new Error(`${flag}: no snapshot with id ${spec}`);
-    return byId;
-  }
+  const isId = /^\d+$/.test(spec);
+  const byId = isId ? db.getSnapshot(Number(spec)) : null;
+  if (byId) return byId;
+  // `graph index --rev <all-digit short sha>` stores an all-digit ref.
   const byRef = db.getLatestSnapshotByRef(spec);
   if (!byRef) {
+    const idMiss = isId ? `no snapshot with id ${spec} and ` : "";
     throw new Error(
-      `${flag}: no snapshot found for ref "${spec}". ` +
+      `${flag}: ${idMiss}no snapshot found for ref "${spec}". ` +
         `Run \`codewatch graph index --ref ${spec} <path>\` first.`,
     );
   }
