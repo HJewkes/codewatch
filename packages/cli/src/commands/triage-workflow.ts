@@ -1,6 +1,6 @@
 import { mkdirSync } from "node:fs";
 import path from "node:path";
-import { SqliteGateStore, gateMigration } from "@titan-design/hitl/sqlite";
+import { SqliteGateStore, gateMigration, gateResolverMigration } from "@titan-design/hitl/sqlite";
 import { openDatabase, runMigrations } from "@titan-design/store-sqlite";
 import {
   WorkflowRuntime,
@@ -41,7 +41,7 @@ export async function fanOutReads(items: readonly TriageItem[], options: FanOutO
   mkdirSync(path.dirname(options.dbPath), { recursive: true });
   const db = openDatabase(options.dbPath);
   try {
-    runMigrations(db, [gateMigration(1), workflowMigration(2), workflowOwnershipMigration(3)]);
+    runMigrations(db, [gateMigration(1), workflowMigration(2), workflowOwnershipMigration(3), gateResolverMigration(4)]);
     const gates = new SqliteGateStore(db, { migrate: false });
     // Excerpts are code, so the prompt must not go through `{{NAME}}` substitution.
     const runtime = new WorkflowRuntime({ db, gates, runner: options.runner, render: (t) => t, onEvent: progress(options, items.length) });
