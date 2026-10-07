@@ -2,12 +2,18 @@ import type { Command } from "commander";
 import chalk from "chalk";
 import {
   diffSnapshots,
-  type CodeGraphStore,
   type GraphDiff,
   type SnapshotRow,
 } from "@titan-design/code-graph";
 import { formatError } from "../utils/output.js";
 import { openGraphStore, defaultGraphDbPath } from "../utils/graph-store.js";
+import { resolveSnapshotRef } from "../utils/snapshot-ref.js";
+import {
+  formatGraphDiffFootprintJson,
+  formatGraphDiffFootprintText,
+  runGraphDiffFootprintCommand,
+  type GraphDiffFootprintOptions,
+} from "./graph-diff-footprint.js";
 
 export interface GraphDiffCommandOptions {
   db: string;
@@ -29,8 +35,11 @@ export async function runGraphDiffCommand(
   const start = performance.now();
   const db = openGraphStore(options.db);
   try {
-    const fromSnapshot = resolveSnapshot(db, options.from, "--from");
-    const toSnapshot = resolveSnapshot(db, options.to, "--to");
+    const toSnapshot = resolveSnapshotRef(db, options.to, { flag: "--to" });
+    const fromSnapshot = resolveSnapshotRef(db, options.from, {
+      flag: "--from",
+      currentId: toSnapshot.id,
+    });
     const diff = diffSnapshots(db, {
       fromSnapshotId: fromSnapshot.id,
       toSnapshotId: toSnapshot.id,
@@ -44,27 +53,6 @@ export async function runGraphDiffCommand(
   } finally {
     db.close();
   }
-}
-
-function resolveSnapshot(
-  db: CodeGraphStore,
-  spec: string,
-  flag: string,
-): SnapshotRow {
-  const asNumber = /^\d+$/.test(spec) ? Number(spec) : null;
-  if (asNumber !== null) {
-    const snap = db.getSnapshot(asNumber);
-    if (!snap) throw new Error(`${flag}: no snapshot with id ${spec}`);
-    return snap;
-  }
-  const snap = db.getLatestSnapshotByRef(spec);
-  if (!snap) {
-    throw new Error(
-      `${flag}: no snapshot found for ref "${spec}". ` +
-        `Run \`codewatch graph index --ref ${spec} <path>\` first.`,
-    );
-  }
-  return snap;
 }
 
 function shortHash(commit: string | null): string {
@@ -179,6 +167,23 @@ export function formatGraphDiffJson(result: GraphDiffCommandResult): string {
   );
 }
 
+interface GraphDiffCliOptions extends GraphDiffFootprintOptions {
+  json?: boolean;
+  footprint?: boolean;
+}
+
+async function renderGraphDiff(options: GraphDiffCliOptions): Promise<string> {
+  if (options.footprint) {
+    const result = await runGraphDiffFootprintCommand(options);
+    return options.json ? formatGraphDiffFootprintJson(result) : formatGraphDiffFootprintText(result);
+  }
+  if (options.units || options.provenance) {
+    throw new Error("--units and --provenance require --footprint");
+  }
+  const result = await runGraphDiffCommand(options);
+  return options.json ? formatGraphDiffJson(result) : formatGraphDiffText(result);
+}
+
 export function registerGraphDiff(graphCmd: Command): void {
   graphCmd
     .command("diff")
@@ -188,19 +193,20 @@ export function registerGraphDiff(graphCmd: Command): void {
     .option("--db <path>", "Path to graph.db", defaultGraphDbPath())
     .requiredOption(
       "--from <ref-or-id>",
-      "From-side snapshot: numeric id or ref name",
+      'From-side snapshot: numeric id, ref name, or "previous" (the one before --to)',
     )
     .requiredOption("--to <ref-or-id>", "To-side snapshot: numeric id or ref name")
+    .option(
+      "--footprint",
+      "Diff symbol footprints and gate doc units: changed symbols, units to regenerate, llmCallNeeded",
+    )
+    .option("--units <file>", "With --footprint: JSON array of {unitId, symbolIds} (default one unit per file)")
+    .option("--provenance <file>", "With --footprint: prior unit provenance to gate against")
     .option("--json", "Output structured JSON")
     .action(
-      async (options: { db: string; from: string; to: string; json?: boolean }) => {
+      async (options: GraphDiffCliOptions) => {
         try {
-          const result = await runGraphDiffCommand(options);
-          console.log(
-            options.json
-              ? formatGraphDiffJson(result)
-              : formatGraphDiffText(result),
-          );
+          console.log(await renderGraphDiff(options));
         } catch (err) {
           console.error(
             formatError(err instanceof Error ? err.message : String(err)),

@@ -42,6 +42,7 @@ import {
 } from "./graph-report-format.js";
 import { topCouplingClusters } from "./graph-report-coupling.js";
 import { openGraphStore, defaultGraphDbPath } from "../utils/graph-store.js";
+import { resolveSnapshotRef } from "../utils/snapshot-ref.js";
 
 /** code-graph's report plus codewatch's flag that the report root is not a git tree. */
 export interface GraphReportResult extends CodeGraphReportResult {
@@ -153,7 +154,10 @@ function computeDrift(
   current: GraphReportResult,
   limit: number,
 ): GraphReportResult["drift"] {
-  const baselineSnapshot = resolveSnapshot(db, options.vs!, current.snapshot.id);
+  const baselineSnapshot = resolveSnapshotRef(db, options.vs!, {
+    flag: "--vs",
+    currentId: current.snapshot.id,
+  });
   if (baselineSnapshot.id === current.snapshot.id) return undefined;
 
   const warning = snapshotVersionMismatchWarning(
@@ -193,31 +197,6 @@ function pickSnapshot(db: CodeGraphStore, id: number | undefined): SnapshotRow {
     id !== undefined ? db.getSnapshot(id) : (db.listSnapshots({ limit: 1 })[0] ?? null);
   if (!snapshot) throw new Error("No snapshot found");
   return snapshot;
-}
-
-function resolveSnapshot(
-  db: CodeGraphStore,
-  refOrId: string,
-  currentId?: number,
-): SnapshotRow {
-  // "previous" = the most recent snapshot other than the current one — matches
-  // `graph check --baseline previous`, so `--vs previous` works consistently.
-  if (refOrId === "previous") {
-    const previous = db.listSnapshots({ limit: 5 }).find((s) => s.id !== currentId);
-    if (!previous) {
-      throw new Error(
-        `--vs: "previous" requires at least one prior snapshot — this is the first run.`,
-      );
-    }
-    return previous;
-  }
-  if (/^\d+$/.test(refOrId)) {
-    const byId = db.getSnapshot(Number(refOrId));
-    if (byId) return byId;
-  }
-  const byRef = db.getLatestSnapshotByRef(refOrId);
-  if (byRef) return byRef;
-  throw new Error(`No snapshot matches ref or id "${refOrId}"`);
 }
 
 /**
