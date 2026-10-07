@@ -17,9 +17,10 @@ function cli(cwd: string, args: string[]) {
   return spawnSync(process.execPath, [CLI_ENTRY, "graph", ...args], { cwd, encoding: "utf8" });
 }
 
-function indexHead(repo: string): void {
+function indexHead(repo: string): number {
   const run = cli(repo, ["index", "pkg", "--rev", "HEAD", "--json"]);
   expect(run.status, run.stderr).toBe(0);
+  return JSON.parse(run.stdout).snapshotId;
 }
 
 function footprintDiff(repo: string, extra: string[] = []) {
@@ -119,6 +120,21 @@ describe("graph diff --footprint", { timeout: 30_000 }, () => {
 
     expect(result.gate.regenerate).toEqual([{ unitId: "api-docs", reason: "changed" }]);
     expect(result.provenance.map((p: { unitId: string }) => p.unitId)).toEqual(["api-docs"]);
+  });
+
+  it("resolves --from previous to the snapshot before --to, not the newest", async () => {
+    const first = indexHead(repo);
+    await commitApi(repo, "string");
+    const middle = indexHead(repo);
+    await commitApi(repo, "boolean");
+    indexHead(repo);
+
+    const run = cli(repo, ["diff", "--from", "previous", "--to", String(middle), "--footprint", "--json"]);
+
+    expect(run.status, run.stderr).toBe(0);
+    const result = JSON.parse(run.stdout);
+    expect(result.from.id).toBe(first);
+    expect(result.to.id).toBe(middle);
   });
 
   it("errors clearly when --from previous has no prior snapshot", () => {
