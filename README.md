@@ -39,6 +39,43 @@ The metrics direct attention; they do not predict defects.
 - **LCOM4** is a qualitative flag that a file may mix unrelated responsibilities. It is not a
   graded score or a verdict to split the file.
 
+## Diffing snapshots
+
+`codewatch graph diff --from <spec> --to <spec>` compares two graph snapshots: added, removed
+and renamed nodes and edges, plus metric deltas. A spec is a snapshot id, a ref name, or, for
+`--from` only, `previous` (the snapshot just before `--to`). An all-digit spec is tried as a
+snapshot id first, then as a ref. Index a git commit without a checkout with
+`graph index --rev <rev>`.
+
+### `--footprint`: which doc units need regenerating
+
+`--footprint` diffs symbol footprints instead and gates generated-doc units, so a doc
+generator only runs a model for units whose symbols changed.
+
+```sh
+codewatch graph index . --rev HEAD~5 --ref base
+codewatch graph index . --rev HEAD --ref head
+codewatch graph diff --footprint --from base --to head
+```
+
+The output has:
+
+- **Changed symbols**, each with a status and the reasons it changed.
+- **The gate**: each unit is `regenerate` (new, or changed since its prior provenance), `skip`
+  (unchanged), or `orphaned` (in the prior provenance but gone now).
+- **`llmCallNeeded`**: `false` when no unit needs regenerating. A re-index with no source
+  change yields 0 units to regenerate, so the doc generator makes no LLM call.
+- **Provenance**: a fresh record per unit at the `--to` snapshot, with `model` null until a
+  generator fills it in.
+
+| Flag | Meaning |
+| --- | --- |
+| `--units <file>` | JSON array of `{unitId, symbolIds}`. Default: one unit per file. |
+| `--provenance <file>` | Prior provenance to gate against: a JSON array of records, or an earlier run's `--json` output. Default: provenance computed at the `--from` snapshot. |
+| `--json` | Structured output, including the provenance records to save for the next run. |
+
+`--units` and `--provenance` are errors without `--footprint`.
+
 ## Packages
 
 This is a pnpm monorepo with one published package, `@codewatch/cli`. The two other
