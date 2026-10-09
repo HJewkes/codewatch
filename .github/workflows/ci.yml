@@ -30,6 +30,9 @@ jobs:
       - run: pnpm -r typecheck
       - run: pnpm --filter @codewatch/render exec playwright install --with-deps chromium
       - run: pnpm test
+      - uses: astral-sh/setup-uv@v10.2.0
+      # The SCBench agent tests need slop-code-bench, pinned in bench/scbench/agent/uv.lock.
+      - run: pnpm test:bench:agent
       - name: Architectural fitness check
         env:
           BASE_REF: ${{ github.event_name == 'pull_request' && github.base_ref || 'main' }}

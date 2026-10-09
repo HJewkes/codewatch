@@ -1,0 +1,13 @@
+[project]
+name = "scbench-cw-agent"
+version = "0.0.0"
+description = "SCBench stage-hook agent claude_code_cw (arm A1)"
+requires-python = ">=3.12"
+dependencies = ["slop-code-bench"]
+
+[tool.uv]
+package = false
+
+# The runner has no release past v0.3, so it is pinned by commit.
+[tool.uv.sources]
+slop-code-bench = { git = "https://github.com/SprocketLab/slop-code-bench", rev = "31ceea3add480edb33431e70475c4c70597e6b31" }

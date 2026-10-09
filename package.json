@@ -15,6 +15,7 @@
     "test:bench": "python3 -m unittest discover -s bench/scbench -t bench/scbench -p 'test_*.py'",
     "test:watch": "vitest",
     "lint": "pnpm -r run lint",
+    "test:bench:agent": "uv run --frozen --project bench/scbench/agent python -m unittest discover -s bench/scbench/agent -t bench/scbench -p 'test_*.py'",
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "pnpm -r run build && changeset publish"
