@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .inputs import CheckpointResult, Stage
-from .metrics import ArmSummary, relative_change
+from .metrics import ArmSummary
 from .paired import CheckpointRow
 
 SPLIT_FLAGS = frozenset({"single-caller-helper", "pass-through"})
@@ -67,15 +67,19 @@ def gaming_check(rows: list[CheckpointRow], a1a: ArmSummary, a1: ArmSummary) -> 
 
 
 def _sensitivity_agrees(a1a: ArmSummary, a1: ArmSummary) -> bool | None:
+    """Compares directions as raw differences, so two zero scores read as no change."""
     pairs = [
-        (relative_change(a1.erosion, a1a.erosion),
-         relative_change(a1.erosion_ex_tests, a1a.erosion_ex_tests)),
-        (relative_change(a1.verbosity, a1a.verbosity),
-         relative_change(a1.verbosity_ex_tests, a1a.verbosity_ex_tests)),
+        (_difference(a1.erosion, a1a.erosion), _difference(a1.erosion_ex_tests, a1a.erosion_ex_tests)),
+        (_difference(a1.verbosity, a1a.verbosity),
+         _difference(a1.verbosity_ex_tests, a1a.verbosity_ex_tests)),
     ]
     if any(official is None or excluded is None for official, excluded in pairs):
         return None
     return all(_sign(official) == _sign(excluded) for official, excluded in pairs)
+
+
+def _difference(new: float | None, base: float | None) -> float | None:
+    return None if new is None or base is None else new - base
 
 
 def _sign(value: float) -> int:

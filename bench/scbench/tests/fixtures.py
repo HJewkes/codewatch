@@ -1,46 +1,61 @@
-"""Synthetic eval outputs in the shape inputs.py assumes. Nothing here comes from SCBench."""
+"""Synthetic run directories in slop-code-bench's eval layout (see analysis/inputs.py).
+
+Only the field names follow the runner's format. Every value, path and line of code here
+is invented; nothing comes from an SCBench problem, test, solution or real run.
+"""
 
 from __future__ import annotations
 
 import io
 import json
-import math
 import tarfile
 from pathlib import Path
 
-ALL_GROUPS = ("core", "functionality", "error", "regression")
+GROUPS = ("Core", "Functionality", "Error", "Regression")
+EXIT_BY_STATUS = {"ok": 0, "failed": 2}
+RAN = ("ok", "failed", "timeout")
+FLAG = "# FLAG"
+RULE_ID = "synthetic-rule-id-should-never-appear"
 
 
-def source_file(path: str, high_cc: int, loc: int = 100, flagged: int = 20) -> dict:
-    """A file with one CC-`high_cc` callable (sloc 16) and one CC-2 callable (sloc 4)."""
+def evaluation(index: int, failing: tuple[str, ...] = ()) -> dict:
+    """evaluation.json counts; checkpoint 1 has no Regression group."""
+    groups = GROUPS if index > 1 else GROUPS[:-1]
     return {
-        "path": path,
-        "loc": loc,
-        "flagged_lines": flagged,
-        "callables": [{"name": "big", "cc": high_cc, "sloc": 16}, {"name": "small", "cc": 2, "sloc": 4}],
+        "checkpoint_name": f"checkpoint_{index}",
+        "pass_counts": {g: 5 if g in failing else 10 for g in groups},
+        "total_counts": {g: 10 for g in groups},
+        "pytest_collected": 10 * len(groups),
     }
 
 
-def evaluation(index: int, failing: tuple[str, ...] = (), files=None, cost: float = 1.0) -> dict:
-    groups = ALL_GROUPS if index > 1 else ALL_GROUPS[:-1]
-    tests = {g: {"passed": 5 if g in failing else 10, "total": 10} for g in groups}
-    raw = {"tests": tests, "cost_usd": cost}
-    if files is not None:
-        raw["quality"] = {
-            "erosion": _erosion(files),
-            "verbosity": min(1.0, sum(f["flagged_lines"] for f in files) / sum(f["loc"] for f in files)),
-            "files": files,
-        }
-    return raw
+def snapshot(complex_source: bool, flagged_test_lines: int = 0) -> dict[str, str]:
+    """A tiny workspace. The fake scb-check below scores names and FLAG markers."""
+    source = "complex_app.py" if complex_source else "app.py"
+    tests = "\n".join([f"x = {i}  {FLAG}" for i in range(flagged_test_lines)] + ["y = 0"] * 4)
+    return {f"src/{source}": "a = 1\nb = 2\nc = 3\nd = 4\n", "tests/test_app.py": tests + "\n"}
 
 
-def _erosion(files: list[dict]) -> float:
-    masses = [(c["cc"], c["cc"] * math.sqrt(c["sloc"])) for f in files for c in f["callables"]]
-    return sum(m for cc, m in masses if cc > 10) / sum(m for _, m in masses)
+def fake_scb_check(path: Path) -> dict:
+    """Erosion: share of .py files named complex_*. Verbosity: FLAG lines over all lines."""
+    files = sorted(path.rglob("*.py"))
+    lines = [line for f in files for line in f.read_text().splitlines()]
+    return {
+        "erosion": sum(f.name.startswith("complex_") for f in files) / len(files) if files else 0.0,
+        "verbosity": sum(FLAG in line for line in lines) / len(lines) if lines else 0.0,
+        "total_loc": len(lines),
+        "rules": {RULE_ID: 3},
+    }
 
 
-EXIT_BY_STATUS = {"ok": 0, "failed": 2}
-RAN = ("ok", "failed", "timeout")
+def official_scores(files: dict[str, str]) -> dict:
+    """What `slop-code eval` would have recorded for this snapshot under fake_scb_check."""
+    py = [p for p in files if p.endswith(".py")]
+    lines = [line for p in py for line in files[p].splitlines()]
+    return {
+        "erosion": sum(Path(p).name.startswith("complex_") for p in py) / len(py),
+        "verbosity": sum(FLAG in line for line in lines) / len(lines),
+    }
 
 
 def stage(name: str, status: str = "ok", usd: float = 0.0, **extra) -> dict:
@@ -60,22 +75,45 @@ def stages_json(*rows: dict, checkpoint: int = 1, mcp_tool_calls: int = 0) -> di
 
 
 def write_checkpoint(
-    root: Path, problem: str, index: int, raw: dict, stages: dict | None = None, compress=False
+    root: Path,
+    problem: str,
+    index: int,
+    evaluation_raw: dict,
+    *,
+    files: dict[str, str] | None = None,
+    scores: dict | None = None,
+    cost: float | None = 1.0,
+    stages: dict | None = None,
+    compress: bool = False,
 ) -> Path:
+    """One checkpoint directory plus its checkpoint_results.jsonl row."""
     directory = root / problem / f"checkpoint_{index}"
     directory.mkdir(parents=True, exist_ok=True)
-    (directory / "evaluation.json").write_text(json.dumps(raw))
-    if stages is not None and compress:
-        _write_tarball(directory / "agent.tar.gz", json.dumps(stages).encode())
-    elif stages is not None:
-        (directory / "agent").mkdir()
-        (directory / "agent" / "stages.json").write_text(json.dumps(stages))
+    (directory / "evaluation.json").write_text(json.dumps(evaluation_raw))
+    if cost is not None:
+        (directory / "inference_result.json").write_text(json.dumps({"usage": {"cost": cost}}))
+    for relative, text in (files or {}).items():
+        target = directory / "snapshot" / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text)
+    _write_stages(directory, stages, compress)
+    row = {"problem": problem, "checkpoint": directory.name, "idx": index}
+    row.update(scores if scores is not None else (official_scores(files) if files else {}))
+    with (root / "checkpoint_results.jsonl").open("a") as handle:
+        handle.write(json.dumps(row) + "\n")
     return directory
 
 
-def _write_tarball(path: Path, payload: bytes) -> None:
-    """Mirrors the runner: artifacts sit at the archive root, arcname = file name."""
-    with tarfile.open(path, "w:gz") as archive:
+def _write_stages(directory: Path, stages: dict | None, compress: bool) -> None:
+    if stages is None:
+        return
+    payload = json.dumps(stages).encode()
+    if not compress:
+        (directory / "agent").mkdir()
+        (directory / "agent" / "stages.json").write_bytes(payload)
+        return
+    # Mirrors the runner: artifacts sit at the archive root, arcname = file name.
+    with tarfile.open(directory / "agent.tar.gz", "w:gz") as archive:
         info = tarfile.TarInfo("stages.json")
         info.size = len(payload)
         archive.addfile(info, io.BytesIO(payload))

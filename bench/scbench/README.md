@@ -24,31 +24,42 @@ without costing correctness.
 
 ## analysis/
 
-`analysis/` reads each arm's `slop-code eval` output and A1's per-checkpoint
-`stages.json` (from `checkpoint_<n>/agent/`, or from `agent.tar.gz` when artifacts are
-compressed; a missing one is an error), then writes the decision table as `report.md` and `report.json`. It contains:
+`analysis/` reads each arm's run directory after `slop-code eval`, plus A1's
+per-checkpoint `stages.json`. That file is in `checkpoint_<n>/agent/`, or in
+`agent.tar.gz` when artifacts are compressed; a missing one is an error. The script
+writes the decision table as `report.md` and `report.json`. It contains:
 
 - paired per-checkpoint deltas
 - per-problem final checkpoints
 - the adopt / iterate / drop verdict
 - the gaming checks
 - mechanism signals
-- erosion and verbosity recomputed with the agent's tests directory excluded
+- a sensitivity run of erosion and verbosity with the agent's tests directory excluded
 
 ```
 cd bench/scbench
-python3 -m analysis --a0 <A0 eval dir> --a1a <A1a eval dir> --a1 <A1 eval dir> \
-  --out <report dir> [--a0-replicate <A0' eval dir>] [--tests-dir tests]
+python3 -m analysis --a0 <A0 run dir> --a1a <A1a run dir> --a1 <A1 run dir> \
+  --out <report dir> [--a0-replicate <A0' run dir>] [--tests-dir tests] \
+  [--scratch ~/.cache/scbench-analysis] [--skip-sensitivity]
 ```
 
 **Why Python:** `slop-code` and `scb-check` are Python tools run through `uv`, and their
 output is JSON written by Python. The checkout under `~/projects/_bench/` already has
 Python, so the script needs nothing installed. It uses only the standard library.
 
-**Eval format is assumed.** No real eval output has been read yet. Every format
-assumption lives in `analysis/inputs.py`, so a fix there corrects the whole script. The
-report's parity gap column compares each official metric with a recompute from per-file
-rows. A gap above about 0.01 means the assumptions are wrong.
+**Format.** Everything format-specific is in `analysis/inputs.py`. The format comes from
+the runner's code at `31ceea3` and was checked against one real eval output:
+
+- Solve counts come from each checkpoint's `evaluation.json` (`pass_counts`,
+  `total_counts`).
+- Cost comes from `inference_result.json`.
+- Official erosion and verbosity come from the run's `checkpoint_results.jsonl`.
+
+**Sensitivity run.** scb-check counts test files. So the script re-runs the same pinned
+`uvx scb-check==0.1.3` on each checkpoint's `snapshot/`, once whole and once without the
+tests directory, using a copy in `--scratch`. It reads only the report totals. The
+report's parity gap compares the recorded scores with the whole-snapshot rerun. A gap
+above about 0.001 means the rerun does not reproduce the grade.
 
 **Tests** use the standard library's `unittest` and run as part of `pnpm test`, which
 is also how CI runs them:
