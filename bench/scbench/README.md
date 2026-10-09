@@ -51,6 +51,11 @@ checkout, and the runner's default `save_dir` (`outputs`) is one.
   (529) throws instead of retrying. So an overload can end a checkpoint's solve early.
   Report such checkpoints per arm. The env is the same for all three arms.
 
+## tiert/
+
+Test-shape checks for pytest functions: assertion-free, weak-oracle-only, duplicate
+assert and self-compare, written as `findings.jsonl` rows. See `tiert/README.md`.
+
 ## analysis/
 
 `analysis/` reads each arm's run directory after `slop-code eval`, plus A1's
