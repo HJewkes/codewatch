@@ -1,7 +1,7 @@
 """One validated commit per item: propose, check, review, then keep or revert that commit alone.
 
-A phase-1 commit may touch only the tests directory and must leave the suite green. A
-phase-2 or phase-3 commit must leave the suite green and add no ratchet violation. A
+A test-gap commit, in any phase, may touch only the tests directory and must leave the
+suite green. A quality commit must leave the suite green and add no ratchet violation. A
 commit that passes goes to the review hook (U17); on a conflict the session is resumed
 once, and the commit is reverted if the conflict stands. A phase-3 item works on its own
 branch from the PR branch, merged back only when kept.
@@ -13,8 +13,8 @@ import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
-from .git import Git
-from .items import Item
+from .git import Git, scoped
+from .items import TEST_GAP, Item
 from .session import FixSession, conflict_prompt, first_prompt, render_item
 from .validate import Check, GraphCheck, Reviewer, Snapshot, TestRunner, ratchet_check
 
@@ -64,12 +64,17 @@ class Fixer:
     stale: bool = False
     feedback: str = ""
 
+    @property
+    def fix_ref(self) -> str:
+        return scoped(FIX_REF, self.base_branch)
+
     def fix(self, n: int, item: Item) -> dict:
-        if item.phase > 1 and self.stale:
-            self.current, self.stale = self.graph.snapshot(FIX_REF, self.clock.remaining()), False
-        if item.phase > 1 and self.current is None:
+        tests_only = item.kind == TEST_GAP
+        if not tests_only and self.stale:
+            self.current, self.stale = self.graph.snapshot(self.fix_ref, self.clock.remaining()), False
+        if not tests_only and self.current is None:
             return {"status": "not-started", "reason": "graph check could not run"}
-        branch = f"cw-backlog-{n}" if item.phase == 3 else None
+        branch = scoped(f"cw-backlog-{n}", self.base_branch) if item.phase == 3 else None
         if branch:
             self.git.switch(branch, create=True)
         try:
@@ -123,20 +128,21 @@ class Fixer:
         return call
 
     def _validate(self, item: Item, sha: str, before: Snapshot | None) -> tuple[Check, Snapshot | None]:
-        if item.phase == 1:
+        tests_only = item.kind == TEST_GAP
+        if tests_only:
             outside = sorted(p for p in self.git.files_in(sha) if not p.startswith(f"{self.tests_dir}/"))
             if outside:
-                return Check("scope", False, f"phase 1 changed files outside {self.tests_dir}/: {', '.join(outside)}"), None
+                return Check("scope", False, f"a test gap changed files outside {self.tests_dir}/: {', '.join(outside)}"), None
         tests = self.tests(self.env, self.clock.remaining())
-        if not tests.passed or item.phase == 1:
+        if not tests.passed or tests_only:
             return tests, None
-        after = self.graph.snapshot(FIX_REF, self.clock.remaining())
+        after = self.graph.snapshot(self.fix_ref, self.clock.remaining())
         return ratchet_check(before, after), after
 
     def _kept(self, item: Item, sha: str, before: Snapshot | None, after: Snapshot | None,
               review: dict | None, resumed: bool) -> dict:
         added: list[dict] = []
-        if item.phase == 1:
+        if item.kind == TEST_GAP:
             self.stale = True
         elif before is not None and after is not None:
             added = self.graph.added_symbols(before.id, after.id, self.clock.remaining())

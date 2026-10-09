@@ -22,7 +22,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .items import Item
+from .items import QUALITY, TEST_GAP, Item
 
 Run = Callable[[Sequence[str], Mapping[str, str], str, float | None], tuple[int | None, str, bool]]
 
@@ -38,12 +38,11 @@ Rules:
 - Do not install packages; there is no network.
 """
 
-PHASE_RULES = {
-    1: "Add or strengthen tests only, under tests/; change no other file. The tests must pass on "
+KIND_RULES = {
+    TEST_GAP: "Add or strengthen tests only, under tests/; change no other file. The tests must pass on "
        "the current code. Use pytest-regressions or syrupy only if already installed; otherwise "
        "write golden files under tests/ and compare with plain asserts.",
-    2: "Keep the behaviour the same; the full test suite must stay green.",
-    3: "Keep the behaviour the same; the full test suite must stay green.",
+    QUALITY: "Keep the behaviour the same; the full test suite must stay green.",
 }
 
 
@@ -85,12 +84,12 @@ def render_item(index: int, item: Item, feedback: str = "") -> str:
     target = f"{item.path} ({item.symbol})" if item.symbol else item.path
     lines = [
         *([feedback, ""] if feedback else []),
-        f"Item {index} [{'test gap' if item.phase == 1 else item.kind}] {target}",
+        f"Item {index} [{'test gap' if item.kind == TEST_GAP else item.kind}] {target}",
         f"Question: {item.question}",
         f"Answer: {item.verdict}. {item.rationale}".rstrip(),
         f"Evidence: {', '.join(item.citations) or 'none'}",
         f"Fix: {item.fix}",
-        f"Rule for this item: {PHASE_RULES[item.phase]}",
+        f"Rule for this item: {KIND_RULES[item.kind]}",
     ]
     return "\n".join(lines)
 

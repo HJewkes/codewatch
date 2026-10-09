@@ -99,8 +99,9 @@ the agent passes in, and then resets the work tree to the last kept commit.
    analysis can tell its trace from the solve's in the shared `~/.claude`. The prompts
    name no grader, grader tool or grader metric.
 3. **One commit per item**, kept only if it passes these checks:
-   - phase 1: it changes files under the tests directory only, and the suite is green;
-   - phases 2 and 3: the suite is green, and `codewatch graph check --baseline
+   - a test gap, in any phase: it changes files under the tests directory only, and the
+     suite is green;
+   - a quality item: the suite is green, and `codewatch graph check --baseline
      <merge-base>` lists no violation the tree before the commit did not already have.
      The merge-base is indexed with `graph index --rev` unless `--baseline` names it.
 
@@ -111,8 +112,13 @@ the agent passes in, and then resets the work tree to the last kept commit.
    conflict the session is resumed once with the finding, and the revised commit is
    checked and reviewed again. If the conflict stands, the commit is reverted. With no
    command, the verdict is recorded as `not-configured`.
-5. **Phase 3** items each get their own branch, `cw-backlog-<n>`, from the PR branch. A
-   branch is merged back with `--no-ff` only when its commit is kept.
+5. **Phase 3** items each get their own branch, `cw-backlog-<n>-<PR branch>`, from the PR
+   branch. A branch is merged back with `--no-ff` only when its commit is kept.
+
+   The hidden repository and the graph database outlive a checkpoint. So every name the
+   stage creates carries the PR branch (`cw-backlog-<n>-cp-N`, and the graph refs
+   `cw-merge-base-cp-N` and `cw-fix-cp-N`), and a rerun on the same checkpoint resets a
+   backlog branch an earlier run left behind.
 6. **Safety net.** The whole workspace is copied to `--scratch` (default
    `~/.cache/codewatch-remediation`) first. After an error, or a SIGTERM (the command
    `exec`s python), the stage resets to the last kept commit and drops the copy. If that

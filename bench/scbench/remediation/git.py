@@ -26,6 +26,15 @@ class GitError(RuntimeError):
     pass
 
 
+def scoped(name: str, pr_branch: str) -> str:
+    """A name the stage creates, unique to this checkpoint's PR branch.
+
+    The hidden repository and the graph database outlive a checkpoint, so a bare name
+    would collide with, or silently resolve to, what an earlier checkpoint left behind.
+    """
+    return f"{name}-{pr_branch}"
+
+
 @dataclass(frozen=True)
 class Git:
     workspace: Path
@@ -83,7 +92,8 @@ class Git:
         self.run("revert", "--no-edit", commit)
 
     def switch(self, branch: str, create: bool = False) -> None:
-        self.run("switch", "-q", *(["-c"] if create else []), branch)
+        """`create` resets a branch a crashed run on this checkpoint left behind."""
+        self.run("switch", "-q", *(["-C"] if create else []), branch)
 
     def merge(self, branch: str, message: str) -> None:
         self.run("merge", "-q", "--no-ff", "-m", message, branch)
