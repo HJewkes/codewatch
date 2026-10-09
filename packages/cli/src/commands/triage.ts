@@ -11,6 +11,7 @@ import { DEFAULT_HARNESS, preflightAuth, readerRunner, type CallTrace, type Read
 import { countBy, failedOf, skippedOf, verdictCounts, writeTriageOutputs, type TriageReport, type VerdictRecord } from "./triage-output.js";
 import { persistVerdicts } from "./triage-persist.js";
 import { scoreControlItems, type ControlReport } from "./triage-score.js";
+import { inScratchDir, redactSpec } from "./triage-spec.js";
 import { verifyItemOutput, type DroppedRow, type VerifiedRow } from "./triage-verify.js";
 import { fanOutReads, READ_STEP } from "./triage-workflow.js";
 
@@ -143,6 +144,12 @@ function buildReport(input: ReportInput): TriageReport {
 
 const maxFailuresOf = (options: TriageRunOptions) => options.maxFailures ?? DEFAULT_MAX_FAILURES;
 
+/** The workflow store keeps every reader output, which quotes the spec when there is one, so that store lives outside the workspace and is removed. */
+function readItems(items: TriageItem[], plan: TriagePlan, options: TriageRunOptions, runner: StepRunner, outDir: string): Promise<MapResult<TriageItem>> {
+  const fanOut = (dir: string) => fanOutReads(items, { ...options, maxFailures: maxFailuresOf(options), runner, dbPath: path.join(dir, "triage.sqlite3") });
+  return plan.spec ? inScratchDir(fanOut) : fanOut(outDir);
+}
+
 function buildReader(options: TriageRunOptions, root: string, traces: CallTrace[]): StepRunner {
   const harness = options.harness ?? DEFAULT_HARNESS;
   if (!options.buildReader) preflightAuth(harness);
@@ -160,10 +167,10 @@ export async function runTriage(options: TriageRunOptions): Promise<TriageRunRes
   const plan = planTriage(options);
   const runId = options.seed ?? randomUUID();
   const items = workItems(plan, options, runId);
-  const mapped = await fanOutReads(items, { ...options, maxFailures: maxFailuresOf(options), runner, dbPath: path.join(outDir, "triage.sqlite3") });
+  const mapped = await readItems(items, plan, options, runner, outDir);
   const verified = verifyAll(mapped);
   const controls = scoreControlItems(items, verified.kept);
-  const records = toRecords(items, verified, controls, runId, modelByItem(traces, options.model));
+  const records = redactSpec(toRecords(items, verified, controls, runId, modelByItem(traces, options.model)), plan.spec);
   const known = new Map([...plan.keys].map(([finding, key]) => [key, finding]));
   const view = persistVerdicts(plan.dbPath, plan.snapshotId, records, known);
   const report = buildReport({ plan, options, runId, startedAt, mapped, verified, controls, records, traces });

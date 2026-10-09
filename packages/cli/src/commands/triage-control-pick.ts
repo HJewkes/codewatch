@@ -7,6 +7,9 @@ const KIND_SIGNALS: Readonly<Record<ControlKind, readonly string[]>> = {
   comment: ["symbol-narrating-comments", "symbol-comment-ratio"],
   "unnecessary-isinstance": ["pyright/reportUnnecessaryIsInstance", "pyright/reportUnnecessaryCast"],
   "pass-through": ["symbol-pass-through"],
+  "regnet-diff": ["regnet-diff"],
+  "weak-oracle": ["symbol_weak_oracle_only", "symbol_assertion_free", "symbol_duplicate_assert", "symbol_self_compare"],
+  clone: ["clone"],
 };
 
 const KINDS = Object.keys(KIND_SIGNALS) as ControlKind[];

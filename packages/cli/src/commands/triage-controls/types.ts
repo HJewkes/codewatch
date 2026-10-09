@@ -4,8 +4,15 @@ export type ControlLabel = "clean" | "slop";
 /** The verdict a correct reader gives every finding in a control. */
 export type ExpectedVerdict = "confirmed" | "justified";
 
-/** The triage question a control exercises; one clean and one slop control per kind. */
-export type ControlKind = "single-caller-helper" | "comment" | "unnecessary-isinstance" | "pass-through";
+/** The triage question a control exercises: a clean and slop pair per code-quality kind, one control per change-check kind. */
+export type ControlKind =
+  | "single-caller-helper"
+  | "comment"
+  | "unnecessary-isinstance"
+  | "pass-through"
+  | "regnet-diff"
+  | "weak-oracle"
+  | "clone";
 
 /** A finding row as `codewatch audit` writes it to findings.jsonl, minus the run-specific fields. */
 export interface ControlFindingRow {
@@ -15,6 +22,7 @@ export interface ControlFindingRow {
   symbol?: string;
   signal: string;
   tool: string;
+  evidence?: string;
 }
 
 /** A finding as authored in a control, with the text that must start its first cited line. */
@@ -30,6 +38,8 @@ export interface ControlDefinition {
   rationale: string;
   path: string;
   text: string;
+  /** The checkpoint spec shown beside the file, for kinds whose question needs one. */
+  spec?: string;
   findings: readonly ControlFindingDefinition[];
 }
 
@@ -44,5 +54,6 @@ export interface Control {
   label: ControlLabel;
   path: string;
   text: string;
+  spec?: string;
   findings: ControlFinding[];
 }

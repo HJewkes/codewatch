@@ -24,21 +24,24 @@ function shifted(def: ControlDefinition, by: number): ControlDefinition {
 }
 
 describe("triage control corpus", () => {
-  it("loads four clean and four slop controls with unique ids", () => {
+  it("loads every control under a unique id", () => {
     const controls = loadControls();
 
-    expect(controls).toHaveLength(8);
-    expect(controls.filter((c) => c.label === "clean")).toHaveLength(4);
-    expect(controls.filter((c) => c.label === "slop")).toHaveLength(4);
-    expect(new Set(controls.map((c) => c.id)).size).toBe(8);
+    expect(controls).toHaveLength(11);
+    expect(new Set(controls.map((c) => c.id)).size).toBe(11);
   });
 
-  it("pairs one clean and one slop control for every question kind", () => {
-    const pairs = new Map<string, string[]>();
-    for (const c of loadControls()) pairs.set(c.kind, [...(pairs.get(c.kind) ?? []), c.label].sort());
+  it("pairs clean and slop for each code-quality kind and plants one control per change-check kind", () => {
+    const labels = new Map<string, string[]>();
+    for (const c of loadControls()) labels.set(c.kind, [...(labels.get(c.kind) ?? []), c.label].sort());
 
-    expect(pairs.size).toBe(4);
-    for (const labels of pairs.values()) expect(labels).toEqual(["clean", "slop"]);
+    for (const kind of ["single-caller-helper", "comment", "unnecessary-isinstance", "pass-through"]) expect(labels.get(kind)).toEqual(["clean", "slop"]);
+    for (const kind of ["regnet-diff", "weak-oracle", "clone"]) expect(labels.get(kind)).toHaveLength(1);
+    expect(labels.size).toBe(7);
+  });
+
+  it("gives the regnet-diff control a spec of its own and no other control one", () => {
+    expect(loadControls().filter((c) => c.spec !== undefined).map((c) => c.kind)).toEqual(["regnet-diff"]);
   });
 
   it("expects confirmed on every slop finding and justified on every clean one", () => {
@@ -65,7 +68,8 @@ describe("triage control corpus", () => {
 
   it("keeps the label out of what the reader sees", () => {
     for (const c of loadControls()) {
-      expect(`${c.path}\n${c.text}`.toLowerCase()).not.toMatch(/\b(slop|clean|control|planted)\b/);
+      const evidence = c.findings.map((f) => f.evidence ?? "").join("\n");
+      expect(`${c.path}\n${c.text}\n${c.spec ?? ""}\n${evidence}`.toLowerCase()).not.toMatch(/\b(slop|clean|control|planted)\b/);
     }
   });
 });
