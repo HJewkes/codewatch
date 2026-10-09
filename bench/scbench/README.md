@@ -73,6 +73,10 @@ The image copies it in, and `agent/claude_code_cw.yaml` runs it from the workspa
 `exec env PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m remediation`.
 It works on the PR branch (`cp-N`) of the hidden repository (`GIT_DIR=.codewatch/repo.git`,
 created by the U15 stages); with no repository, or with uncommitted changes, it skips.
+Before that check it adds tool output (`.codewatch/`, `__pycache__/`, `*.pyc`,
+`.pytest_cache/`, `.venv/` and other caches; `TOOL_OUTPUT` in `git.py`) to
+`$GIT_DIR/info/exclude`, so only source and test edits count as changes, get committed or
+are removed by a reset.
 
 **No caps by default.** There is no item cap and no turn cap. `--max-items` and
 `--max-turns` exist only as opt-in flags with no default. The stage stops starting items

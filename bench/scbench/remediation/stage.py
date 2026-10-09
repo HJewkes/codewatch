@@ -54,6 +54,7 @@ def remediate(config: Config, env: Mapping[str, str], run_claude: Run, run_tool:
     git = Git(config.workspace, config.git_dir)
     if not git.exists():
         return {"outcome": "skipped", "reason": f"no hidden repository at {config.git_dir}"}
+    git.ignore_tool_output()
     if git.dirty():
         return {"outcome": "skipped", "reason": "the work tree has uncommitted changes"}
     items, held_back = load_items(config, git.changed_files(git.merge_base()))

@@ -15,6 +15,11 @@ from pathlib import Path
 DEFAULT_GIT_DIR = Path(".codewatch") / "repo.git"
 BASE_BRANCH = "main"
 AUTHOR = ("codewatch-fix", "codewatch-fix@localhost")
+# Tool output, never part of a fix: the stage's own state, and what test runs and the
+# workspace virtualenv leave behind. Excluded, these never count as an edit, are never
+# committed, and survive `clean -fd`.
+TOOL_OUTPUT = (".codewatch/", "__pycache__/", "*.py[cod]", ".pytest_cache/", ".venv/",
+               ".mypy_cache/", ".ruff_cache/", ".coverage", ".coverage.*", "htmlcov/")
 
 
 class GitError(RuntimeError):
@@ -41,6 +46,15 @@ class Git:
 
     def exists(self) -> bool:
         return (self.git_dir / "HEAD").is_file()
+
+    def ignore_tool_output(self) -> None:
+        """Add `TOOL_OUTPUT` to `info/exclude`, keeping whatever patterns are already there."""
+        exclude = self.git_dir / "info" / "exclude"
+        exclude.parent.mkdir(parents=True, exist_ok=True)
+        lines = exclude.read_text().splitlines() if exclude.is_file() else []
+        missing = [p for p in TOOL_OUTPUT if p not in lines]
+        if missing:
+            exclude.write_text("".join(f"{line}\n" for line in [*lines, *missing]))
 
     def head(self) -> str:
         return self.run("rev-parse", "HEAD")
