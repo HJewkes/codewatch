@@ -8,6 +8,10 @@ from agent.output_guard import RunDirInRepo, refuse_repo_run_dir
 
 CHECKOUT_DIR = Path(__file__).resolve().parents[1]
 OUTSIDE = "/nonexistent-scbench-runs/A0/run"
+RUN_DEFAULTS = {"config": None, "agent_config_path": None, "environment_config_path": None,
+                "prompt_template_path": None, "model_override": None, "provider_api_key_env": None,
+                "problem_names": [], "num_workers": 1, "evaluate": True, "concurrent_evaluation": False,
+                "live_progress": False, "dry_run": False, "overrides": None}
 
 
 class RefuseRepoRunDirTest(unittest.TestCase):
@@ -40,7 +44,8 @@ class InstallTest(unittest.TestCase):
         from slop_code.entrypoints.commands import run_agent
 
         stock = mock.Mock(return_value=(Path(OUTSIDE), False))
-        with mock.patch.object(run_agent, "_resolve_output_directory", stock):
+        with mock.patch.object(run_agent, "_resolve_output_directory", stock), \
+                mock.patch.object(run_agent, "_validate_resume_flags", run_agent._validate_resume_flags):
             output_guard.install()
             output_guard.install()
             with self.assertRaises(RunDirInRepo):
@@ -51,6 +56,33 @@ class InstallTest(unittest.TestCase):
 
         stock.assert_called_once_with(OUTSIDE, debug=False)
         self.assertEqual(result, (Path(OUTSIDE), False))
+
+    def test_resume_into_a_checkout_stops_before_the_run_dir_is_read(self):
+        from slop_code.entrypoints.commands import run_agent
+
+        stock_validate = run_agent._validate_resume_flags
+        load = mock.Mock(side_effect=AssertionError("the run dir was read"))
+        with mock.patch.object(run_agent, "_validate_resume_flags", stock_validate), \
+                mock.patch.object(run_agent, "load_config_from_run_dir", load), \
+                mock.patch.object(run_agent, "_resolve_output_directory", mock.Mock()):
+            output_guard.install()
+            with self.assertRaises(RunDirInRepo):
+                run_agent.run_agent(mock.Mock(), resume=CHECKOUT_DIR, **RUN_DEFAULTS)
+            with self.assertRaises(RunDirInRepo):
+                run_agent._validate_resume_flags(CHECKOUT_DIR, None, None, None, None, None, None)
+
+        load.assert_not_called()
+
+    def test_resume_outside_any_checkout_passes_the_guard(self):
+        from slop_code.entrypoints.commands import run_agent
+
+        stock_validate = mock.Mock()
+        with mock.patch.object(run_agent, "_validate_resume_flags", stock_validate), \
+                mock.patch.object(run_agent, "_resolve_output_directory", mock.Mock()):
+            output_guard.install()
+            run_agent._validate_resume_flags(resume=Path(OUTSIDE), config=None)
+
+        stock_validate.assert_called_once_with(resume=Path(OUTSIDE), config=None)
 
 
 if __name__ == "__main__":

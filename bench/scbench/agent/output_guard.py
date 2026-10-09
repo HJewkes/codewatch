@@ -34,16 +34,35 @@ def refuse_repo_run_dir(output_path: str) -> None:
         )
 
 
-def install() -> None:
-    from slop_code.entrypoints.commands import run_agent
-
-    stock = run_agent._resolve_output_directory
-    if getattr(stock, "guarded", False) is True:
-        return
-
+def _guard_resolver(stock):
     def resolve(config_output_path: str, *, debug: bool):
         refuse_repo_run_dir(config_output_path)
         return stock(config_output_path, debug=debug)
 
-    resolve.guarded = True
-    run_agent._resolve_output_directory = resolve
+    return resolve
+
+
+def _guard_resume(stock):
+    def validate(*args, **kwargs):
+        resume = kwargs["resume"] if "resume" in kwargs else (args[0] if args else None)
+        if resume is not None:
+            refuse_repo_run_dir(str(resume))
+        return stock(*args, **kwargs)
+
+    return validate
+
+
+def install() -> None:
+    """Guard both ways `slop-code run` picks a run dir: a fresh save dir and `--resume`.
+
+    `--resume <dir>` uses the dir as given and skips the resolver, so the guard also
+    wraps `_validate_resume_flags`, the first call that sees the resume path.
+    """
+    from slop_code.entrypoints.commands import run_agent
+
+    for name, guard in (("_resolve_output_directory", _guard_resolver), ("_validate_resume_flags", _guard_resume)):
+        stock = getattr(run_agent, name)
+        if getattr(stock, "guarded", False) is not True:
+            wrapped = guard(stock)
+            wrapped.guarded = True
+            setattr(run_agent, name, wrapped)
