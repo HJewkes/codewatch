@@ -72,7 +72,11 @@ line for `stages.json`. They call the image's pinned tools by full path under
   executes, as signal `diff-uncovered`. The baseline is an earlier snapshot directory or a
   git revision (for a PR, its merge-base with main). It runs pytest under coverage.py, or
   reads existing `coverage json` output. An unreadable baseline or a missing report is
-  unknown, not a finding: it writes no rows and exits 1.
+  unknown, not a finding: it writes no rows and exits 1. So is a pytest run that did not
+  run the tests (exit 2 to 5, such as a collection error) or a report that measured none
+  of the workspace's files. The image's coverage and pytest live in their own venv, which
+  lacks the workspace's third-party dependencies; a workspace that needs them gets
+  `no-coverage` unless the caller passes a report made with the workspace's interpreter.
 
 ```
 cd bench/scbench

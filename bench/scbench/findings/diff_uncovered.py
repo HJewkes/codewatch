@@ -35,6 +35,7 @@ SIGNAL = "diff-uncovered"
 DEFAULT_COVERAGE = "/opt/codewatch-a1/bin/coverage"
 # The tools' own output goes to the process's stderr, keeping stdout for the summary line.
 STDERR_FD = 2
+TESTS_RAN = (0, 1)
 
 BaseReader = Callable[[str], str | None]
 
@@ -130,8 +131,9 @@ def git_base(workspace: Path, rev: str) -> BaseReader | None:
 def run_coverage(workspace: Path, coverage_bin: str, scratch: Path) -> Path | None:
     """Runs pytest under coverage.py, keeping its data and caches out of the workspace.
 
-    Failing tests still leave a report. Earlier data is removed first, so a run that
-    measures nothing, or a coverage binary that cannot start, returns no report.
+    Only pytest exits 0 (passed) and 1 (some tests failed) mean the tests ran. A collection
+    error, internal error, usage error or empty collection returns no report, as does a
+    coverage binary that cannot start. Earlier data is removed first.
     """
     scratch.mkdir(parents=True, exist_ok=True)
     data_file, report = scratch / ".coverage", scratch / "coverage.json"
@@ -142,7 +144,9 @@ def run_coverage(workspace: Path, coverage_bin: str, scratch: Path) -> Path | No
     pytest = [coverage_bin, "run", data, "-m", "pytest", "-q", "-p", "no:cacheprovider"]
     to_json = [coverage_bin, "json", data, "-o", str(report)]
     try:
-        subprocess.run(pytest, cwd=workspace, env=env, stdout=STDERR_FD, check=False)
+        tested = subprocess.run(pytest, cwd=workspace, env=env, stdout=STDERR_FD, check=False)
+        if tested.returncode not in TESTS_RAN:
+            return None
         made = subprocess.run(to_json, cwd=workspace, stdout=STDERR_FD, check=False)
     except OSError:
         return None
@@ -158,20 +162,29 @@ def main(argv: list[str] | None = None) -> int:
     read_base = dir_base(Path(args.base_dir)) if args.base_dir else git_base(workspace, args.base_rev)
     if read_base is None:
         return _unknown(out, "no-baseline", f"cannot read the baseline {args.base_dir or args.base_rev}")
-    report = _coverage_report(args, workspace, out)
-    if report is None:
-        return _unknown(out, "no-coverage", "no coverage report")
-    changed, rows = diff_uncovered(workspace, read_base, read_coverage_json(report, workspace))
+    coverage = _trusted_coverage(args, workspace, out)
+    if coverage is None:
+        return _unknown(out, "no-coverage", "no coverage report the tests fully produced")
+    changed, rows = diff_uncovered(workspace, read_base, coverage)
     write_findings(out, rows)
     print_summary(outcome="ok", items_in=changed, items_out=len(rows))
     return 0
 
 
-def _coverage_report(args: argparse.Namespace, workspace: Path, out: Path) -> Path | None:
-    if not args.coverage_json:
-        return run_coverage(workspace, args.coverage, out.parent / "coverage")
-    given = Path(args.coverage_json)
-    return given if given.is_file() else None
+def _trusted_coverage(args: argparse.Namespace, workspace: Path, out: Path) -> dict[str, FileCoverage] | None:
+    """The report, or None when there is none, it does not parse, or it measured none of
+    the workspace's source files (a run that imported nothing, or paths from elsewhere)."""
+    if args.coverage_json:
+        report = Path(args.coverage_json) if Path(args.coverage_json).is_file() else None
+    else:
+        report = run_coverage(workspace, args.coverage, out.parent / "coverage")
+    if report is None:
+        return None
+    try:
+        coverage = read_coverage_json(report, workspace)
+    except (ValueError, AttributeError):
+        return None
+    return coverage if coverage.keys() & set(source_files(workspace)) else None
 
 
 def _unknown(out: Path, outcome: str, reason: str) -> int:

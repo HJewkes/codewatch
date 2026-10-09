@@ -159,6 +159,39 @@ class DiffUncoveredTests(unittest.TestCase):
                         self.assertEqual(summary, {"outcome": outcome, "items_in": 0, "items_out": 0})
                         self.assertEqual(self.out.read_text(), "")
 
+    def fake_coverage(self, pytest_exit: int) -> str:
+        """A coverage binary whose pytest run exits `pytest_exit` and whose json step writes a
+        report covering lines 1-3 of shop/pricing.py, as a collection error would still do."""
+        report = json.dumps({"files": {"shop/pricing.py": {"executed_lines": [1, 3], "missing_lines": [7, 8, 9]}}})
+        script = self.root / f"coverage-{pytest_exit}"
+        script.write_text(
+            f'#!/bin/sh\nif [ "$1" = run ]; then exit {pytest_exit}; fi\n'
+            'while [ $# -gt 0 ]; do [ "$1" = -o ] && out="$2"; shift; done\n'
+            f"printf '%s' '{report}' > \"$out\"\n"
+        )
+        script.chmod(0o755)
+        return str(script)
+
+    def test_only_a_pytest_run_whose_tests_ran_counts_as_coverage(self):
+        expected = {0: "ok", 1: "ok", 2: "no-coverage", 3: "no-coverage", 4: "no-coverage", 5: "no-coverage"}
+        for pytest_exit, outcome in expected.items():
+            with self.subTest(pytest_exit=pytest_exit):
+                argv = ["--base-dir", str(self.base), "--coverage", self.fake_coverage(pytest_exit)]
+
+                summary = self.run_main(*argv, code=0 if outcome == "ok" else 1)
+
+                self.assertEqual(summary["outcome"], outcome)
+                self.assertEqual(len(self.rows()), 1 if outcome == "ok" else 0)
+
+    def test_a_report_measuring_none_of_the_workspace_files_is_not_coverage(self):
+        files = {"/elsewhere/shop/pricing.py": {"executed_lines": [1, 3], "missing_lines": [7, 8, 9]}}
+        report = self.root / "coverage.json"
+        report.write_text(json.dumps({"files": files}))
+
+        summary = self.run_main("--base-dir", str(self.base), "--coverage-json", str(report), code=1)
+
+        self.assertEqual(summary, {"outcome": "no-coverage", "items_in": 0, "items_out": 0})
+
     def test_a_workspace_inside_a_larger_repository_reads_its_baseline_from_its_own_directory(self):
         repo, self.workspace = self.workspace, self.workspace / "app"
         git = ["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@example.com"]
@@ -180,6 +213,15 @@ class DiffUncoveredTests(unittest.TestCase):
         self.assertEqual([r["symbol"] for r in self.rows()], ["surcharge"])
         self.assertEqual(summary["outcome"], "ok")
         self.assertFalse((self.workspace / ".coverage").exists())
+
+    @unittest.skipUnless(Path(PINNED_COVERAGE).exists(), "needs the pinned coverage.py (A1 image or SCBENCH_COVERAGE)")
+    def test_a_test_collection_error_reports_no_coverage_rather_than_untested_functions(self):
+        write(self.workspace, {"tests/test_cfg.py": "import not_installed_anywhere\n\n\ndef test_x():\n    pass\n"})
+
+        summary = self.run_main("--base-dir", str(self.base), "--coverage", PINNED_COVERAGE, code=1)
+
+        self.assertEqual(summary["outcome"], "no-coverage")
+        self.assertEqual(self.out.read_text(), "")
 
 
 if __name__ == "__main__":
