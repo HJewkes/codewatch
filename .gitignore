@@ -11,3 +11,4 @@ coverage/
 docs/*-handoff.md
 docs/diagnostic/*/scorecard.md
 docs/diagnostic/*/test-bench/
+__pycache__/
