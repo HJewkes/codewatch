@@ -36,11 +36,12 @@ uv run --frozen --project agent python -m agent run \
   --agent <claude_code.yaml or agent/claude_code_cw.yaml> \
   --environment configs/environments/docker-python3.12-uv-rootless.yaml \
   --prompt <just-solve | a1a> --model claude_code_oauth/sonnet-5.5 --problem <name> \
-  save_dir=~/.cache/codewatch-scbench/runs/<arm>/<UTC timestamp> save_template=run
+  save_dir="$HOME/.cache/codewatch-scbench/runs/<arm>/<UTC timestamp>" save_template=run
 ```
 
 The runner ignores `output_path=`. The launcher refuses a run dir inside any repo
-checkout, and the runner's default `save_dir` (`outputs`) is one.
+checkout, and the runner's default `save_dir` (`outputs`) is one. It also refuses a
+`save_dir` that starts with a literal `~`, because the runner does not expand it.
 
 ## Validity notes
 

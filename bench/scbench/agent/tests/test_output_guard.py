@@ -20,6 +20,13 @@ class RefuseRepoRunDirTest(unittest.TestCase):
                 self.assertRaises(RunDirInRepo):
             refuse_repo_run_dir("outputs/sonnet-5.5/run")
 
+    def test_an_unexpanded_tilde_path_is_refused_because_the_runner_keeps_it_relative(self):
+        with mock.patch.object(os, "getcwd", return_value=str(CHECKOUT_DIR)), \
+                self.assertRaises(RunDirInRepo) as caught:
+            refuse_repo_run_dir("~/x")
+
+        self.assertIn("$HOME", str(caught.exception.code))
+
     def test_a_dir_outside_any_checkout_is_allowed(self):
         with mock.patch.object(os, "getcwd", return_value=str(CHECKOUT_DIR)):
             refuse_repo_run_dir(OUTSIDE)

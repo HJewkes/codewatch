@@ -5,7 +5,8 @@ land in a repo. The runner's default `save_dir` is `outputs` under the working
 directory, which for this launcher is a codewatch checkout. `install()` wraps the
 runner's output-directory resolver so a run stops before it creates anything there.
 Set `save_dir=<dir outside any checkout>` and `save_template=<name>` instead; the
-runner ignores `output_path=`.
+runner ignores `output_path=`. The guard resolves a path the way the runner does, with no
+`~` expansion, and refuses a literal `~` outright: zsh leaves `save_dir=~/...` unexpanded.
 """
 
 from __future__ import annotations
@@ -18,7 +19,7 @@ class RunDirInRepo(SystemExit):
 
 
 def enclosing_checkout(path: Path) -> Path | None:
-    resolved = path.expanduser().resolve()
+    resolved = path.resolve()
     for candidate in (resolved, *resolved.parents):
         if (candidate / ".git").exists():
             return candidate
@@ -26,6 +27,11 @@ def enclosing_checkout(path: Path) -> Path | None:
 
 
 def refuse_repo_run_dir(output_path: str) -> None:
+    if output_path.startswith("~"):
+        raise RunDirInRepo(
+            f"refusing run dir {output_path}: the runner does not expand ~, so it would create "
+            "a directory named ~ under the working directory. Pass save_dir=\"$HOME/...\"."
+        )
     checkout = enclosing_checkout(Path(output_path))
     if checkout is not None:
         raise RunDirInRepo(
