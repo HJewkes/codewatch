@@ -58,8 +58,12 @@ def _relative(name: str, root: Path) -> str:
 
 
 def changed_functions(current: str, base: str | None) -> list[FunctionSpan]:
-    before = {f.qualname: f.source for f in functions(base)} if base is not None else {}
-    return [f for f in functions(current) if before.get(f.qualname) != f.source]
+    """A property's getter and setter, overloads and branch-defined functions share a
+    name, so a function is unchanged when any baseline function of its name matches."""
+    before: dict[str, set[str]] = {}
+    for f in functions(base) if base is not None else []:
+        before.setdefault(f.qualname, set()).add(f.source)
+    return [f for f in functions(current) if f.source not in before.get(f.qualname, set())]
 
 
 def is_uncovered(span: FunctionSpan, coverage: FileCoverage | None) -> bool:
@@ -98,7 +102,7 @@ def dir_base(base_dir: Path) -> BaseReader:
 def git_base(workspace: Path, rev: str) -> BaseReader:
     def read(path: str) -> str | None:
         shown = subprocess.run(
-            ["git", "-C", str(workspace), "show", f"{rev}:{path}"],
+            ["git", "-C", str(workspace), "show", f"{rev}:./{path}"],
             capture_output=True,
             check=False,
         )
@@ -108,16 +112,25 @@ def git_base(workspace: Path, rev: str) -> BaseReader:
 
 
 def run_coverage(workspace: Path, coverage_bin: str, scratch: Path) -> Path | None:
-    """Runs pytest under coverage.py, keeping its data and caches out of the workspace."""
+    """Runs pytest under coverage.py, keeping its data and caches out of the workspace.
+
+    Failing tests still leave a report. Earlier data is removed first, so a run that
+    measures nothing, or a coverage binary that cannot start, returns no report.
+    """
     scratch.mkdir(parents=True, exist_ok=True)
-    data = f"--data-file={scratch / '.coverage'}"
-    report = scratch / "coverage.json"
+    data_file, report = scratch / ".coverage", scratch / "coverage.json"
+    data_file.unlink(missing_ok=True)
+    report.unlink(missing_ok=True)
+    data = f"--data-file={data_file}"
     env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
     pytest = [coverage_bin, "run", data, "-m", "pytest", "-q", "-p", "no:cacheprovider"]
-    subprocess.run(pytest, cwd=workspace, env=env, stdout=sys.stderr, check=False)
     to_json = [coverage_bin, "json", data, "-o", str(report)]
-    made = subprocess.run(to_json, cwd=workspace, stdout=sys.stderr, check=False)
-    return report if made.returncode == 0 else None
+    try:
+        subprocess.run(pytest, cwd=workspace, env=env, stdout=sys.stderr, check=False)
+        made = subprocess.run(to_json, cwd=workspace, stdout=sys.stderr, check=False)
+    except OSError:
+        return None
+    return report if made.returncode == 0 and report.is_file() else None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -129,6 +142,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     coverage = read_coverage_json(report, workspace) if report else {}
     changed, rows = diff_uncovered(workspace, read_base, coverage)
+    # Without a report nothing was measured, so no function is known to be untested.
+    rows = rows if report else []
     write_findings(Path(args.out), rows)
     print_summary(items_in=changed, items_out=len(rows), coverage_report=report is not None)
     return 0

@@ -121,6 +121,44 @@ class DiffUncoveredTests(unittest.TestCase):
 
         self.assertEqual(summary, {"items_in": 2, "items_out": 1, "coverage_report": True})
 
+    def test_an_unchanged_property_with_a_setter_is_not_counted_as_changed(self):
+        box = "class Box:\n    @property\n    def size(self):\n        return self._size\n\n" \
+              "    @size.setter\n    def size(self, value):\n        self._size = value\n"
+        write(self.base, {"shop/box.py": box})
+        write(self.workspace, {"shop/box.py": box})
+        report = coverage_json(self.root / "coverage.json", executed=[1, 3, 6, 12, 13], missing=[7, 8, 9])
+
+        summary = self.run_main("--base-dir", str(self.base), "--coverage-json", str(report))
+
+        self.assertEqual(summary["items_in"], 2)
+        self.assertEqual([r["symbol"] for r in self.rows()], ["surcharge"])
+
+    def test_a_coverage_run_that_fails_reports_no_untested_functions(self):
+        failing = self.root / "coverage"
+        failing.write_text("#!/bin/sh\nexit 2\n")
+        failing.chmod(0o755)
+
+        for binary in (str(failing), str(self.root / "missing-coverage")):
+            with self.subTest(binary=binary):
+                summary = self.run_main("--base-dir", str(self.base), "--coverage", binary)
+
+                self.assertEqual(summary, {"items_in": 2, "items_out": 0, "coverage_report": False})
+                self.assertEqual(self.out.read_text(), "")
+
+    def test_a_workspace_inside_a_larger_repository_reads_its_baseline_from_its_own_directory(self):
+        repo, self.workspace = self.workspace, self.workspace / "app"
+        git = ["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@example.com"]
+        write(self.workspace, {"shop/pricing.py": BASE_PRICING})
+        subprocess.run([*git, "init", "-q"], check=True)
+        subprocess.run([*git, "add", "-A"], check=True)
+        subprocess.run([*git, "commit", "-qm", "base"], check=True)
+        write(self.workspace, {"shop/pricing.py": HEAD_PRICING})
+        report = coverage_json(self.root / "coverage.json", executed=[1, 3, 6, 12, 13], missing=[7, 8, 9])
+
+        summary = self.run_main("--base-rev", "HEAD", "--coverage-json", str(report))
+
+        self.assertEqual(summary, {"items_in": 2, "items_out": 1, "coverage_report": True})
+
     @unittest.skipUnless(Path(PINNED_COVERAGE).exists(), "needs the pinned coverage.py (A1 image or SCBENCH_COVERAGE)")
     def test_the_pytest_run_under_coverage_finds_the_untested_function(self):
         summary = self.run_main("--base-dir", str(self.base), "--coverage", PINNED_COVERAGE)
