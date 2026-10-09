@@ -118,7 +118,7 @@ function verdictStoreOf(input: ReportInput): TriageReport["verdictStore"] {
   const { from, carried, reused, fromFiles } = input.plan.verdicts;
   const store = { carriedFrom: from ?? null, carried, fresh: input.records.length, skippedByVerdict: reused.length, reused };
   const dir = input.options.verdictsDir;
-  return dir === undefined ? store : { ...store, files: { dir, reused: fromFiles.length, fragment: input.fragment ?? null } };
+  return dir === undefined ? store : { ...store, files: { dir: path.resolve(dir), reused: fromFiles.length, fragment: input.fragment ?? null } };
 }
 
 function buildReport(input: ReportInput): TriageReport {

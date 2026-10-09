@@ -81,13 +81,21 @@ export function readVerdictFiles(dir: string, warnings: string[]): Map<string, V
   return byKey;
 }
 
-/** Writes this run's verdicts as one fragment beside the head file, which is never touched; none is written when the run judged nothing. */
+/**
+ * Writes this run's verdicts as one fragment beside the head file, which is never touched; none is written when the run judged nothing.
+ * A rerun under the same run id merges into its fragment, newer rows winning by key, so a retry never drops what the first attempt judged.
+ */
 export function writeVerdictFragment(dir: string, runId: string, records: readonly VerdictRecord[]): string | undefined {
   if (records.length === 0) return undefined;
   const fragmentDir = path.join(dir, FRAGMENT_DIR);
   mkdirSync(fragmentDir, { recursive: true });
   const file = path.join(fragmentDir, `${runId}.jsonl`);
-  const sorted = [...records].sort((a, b) => a.path.localeCompare(b.path) || a.key.localeCompare(b.key));
+  const unreadable: string[] = [];
+  const earlier = existsSync(file) ? readVerdictLines(file, unreadable) : [];
+  if (unreadable.length > 0) throw new Error(`${unreadable.join("; ")}; refusing to rewrite ${file} (this run's verdicts are saved in graph.db)`);
+  const merged = new Map(earlier.map((r) => [r.key, r]));
+  for (const record of records) merged.set(record.key, record);
+  const sorted = [...merged.values()].sort((a, b) => a.path.localeCompare(b.path) || a.key.localeCompare(b.key));
   writeFileSync(file, sorted.map((r) => `${JSON.stringify(r)}\n`).join(""));
   return file;
 }

@@ -107,9 +107,9 @@ describe("triage verdict carry from committed files", () => {
     expect(view.every((r) => r.provenance === "file" && r.runId === "cp-1")).toBe(true);
   });
 
-  it("asks again after a rebuild when the flag is not given, and writes no fragment", async () => {
+  it("ignores committed files and writes no fragment when the flag is not given", async () => {
     await triage(countingReader().runner, withFiles("cp-1"));
-    rmSync(join(verdictsDir, "verdicts.d"), { recursive: true });
+    const fragmentBytes = readFileSync(fragment("cp-1"), "utf8");
 
     await rebuildGraphDb();
     const again = countingReader();
@@ -117,7 +117,28 @@ describe("triage verdict carry from committed files", () => {
 
     expect(again.asked.map((q) => q.path).sort()).toEqual(["pkg/core.py", "pkg/extra.py"]);
     expect(report.verdictStore.files).toBeUndefined();
-    expect(existsSync(join(verdictsDir, "verdicts.d"))).toBe(false);
+    expect(readdirSync(join(verdictsDir, "verdicts.d"))).toEqual(["cp-1.jsonl"]);
+    expect(readFileSync(fragment("cp-1"), "utf8")).toBe(fragmentBytes);
+  });
+
+  it("keeps the first attempt's verdicts when a run id is reused for a retry", async () => {
+    const partial = fakeReader((q, prompt) => (q.path === "pkg/extra.py" ? [] : [row(q, prompt, "justified")]));
+    await triage(partial, withFiles("cp-2"));
+    expect(readJsonl(fragment("cp-2")).map((r) => r.path)).toEqual(["pkg/core.py"]);
+
+    const retry = countingReader();
+    await triage(retry.runner, withFiles("cp-2"));
+
+    expect(retry.asked.map((q) => q.path)).toEqual(["pkg/extra.py"]);
+    expect(readJsonl(fragment("cp-2")).map((r) => r.path)).toEqual(["pkg/core.py", "pkg/extra.py"]);
+  });
+
+  it("refuses to rewrite a fragment it cannot read whole", async () => {
+    mkdirSync(join(verdictsDir, "verdicts.d"));
+    writeFileSync(fragment("cp-2"), "{not json\n");
+
+    await expect(triage(countingReader().runner, withFiles("cp-2"))).rejects.toThrow(/refusing to rewrite/);
+    expect(readFileSync(fragment("cp-2"), "utf8")).toBe("{not json\n");
   });
 
   it("writes only the changed finding's verdict to the new fragment and leaves the head file alone", async () => {
