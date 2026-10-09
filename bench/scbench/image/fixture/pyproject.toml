@@ -1,0 +1,13 @@
+[project]
+name = "shop"
+version = "0.0.0"
+
+[tool.importlinter]
+root_package = "shop"
+
+[[tool.importlinter.contracts]]
+name = "Pricing does not depend on the cart"
+id = "pricing-below-cart"
+type = "forbidden"
+source_modules = ["shop.pricing"]
+forbidden_modules = ["shop.cart"]
