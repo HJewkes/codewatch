@@ -1,0 +1,22 @@
+# Stock claude_code.yaml plus the A1 stage fields. Keep every stock field equal to
+# the config A1a runs with, so that A1 minus A1a is the stages only.
+type: claude_code_cw
+binary: claude
+permission_mode: bypassPermissions
+version: 2.0.51
+cost_limits:
+  cost_limit: 0
+  step_limit: 100
+  net_cost_limit: 0
+stage_budget_s: 1500
+checkpoint_cap_s: 7200
+stage_reserve_s: 1200
+# A stage runs when enabled. With no command it is recorded as "missing".
+stages:
+  inject: {enabled: false}
+  index: {enabled: false}
+  audit: {enabled: false}
+  replay: {enabled: false}
+  triage: {enabled: false}
+  remediation: {enabled: false}
+  synthesis: {enabled: false}
