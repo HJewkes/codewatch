@@ -19,8 +19,8 @@ launcher, with `type: claude_code`, so all three arms share one dependency set.
 `python -m agent` runs `bootstrap.setup()` before any command. The runner runs each
 problem in a spawned worker, and spawn never re-runs `agent/__main__.py`. So `setup()`
 also makes itself the default initializer of every `ProcessPoolExecutor`, and each
-worker runs it before its first task. It does three things: it registers
-`claude_code_cw`, and it does the two steps below.
+worker runs it before its first task. It registers `claude_code_cw` and does the
+three steps below.
 
 - **Catalogs.** The runner's wheel ships no `configs/`, so its model and provider
   catalogs would load empty. `runner_configs.preload()` loads models from the runner
@@ -28,15 +28,22 @@ worker runs it before its first task. It does three things: it registers
   `~/.cache/bs-30/slop-code-bench/configs`), then the vendored
   `bench/scbench/configs/models` on top. `providers.yaml` comes from the checkout.
   Agent, environment and prompt configs are passed as paths. `record_manifest.py`
-  records the dirs used and the sha256 of each vendored model under `runnerConfigs`.
+  records the dirs used and the sha256 of each vendored config under `runnerConfigs`.
 - **Tokens by name.** The runner passes env to `docker exec` as `--env KEY=VALUE`, which
   would put a token on the host's process list. `secret_env.install()` passes
   credential-like keys (`*_TOKEN`, `*_API_KEY`, `*_SECRET`, `*_PASSWORD`) as `--env KEY`
   and gives their values to the docker client through its env. The container env and
   the claude argv are unchanged.
+- **No run dir in a checkout.** `output_guard.install()` stops `slop-code run` before it
+  creates a run dir inside any repo checkout. Pass `save_dir=` and `save_template=`,
+  because the runner ignores `output_path=`.
 
-The vendored `sonnet-5.5.yaml` exists because the runner at `31ceea3` has no 5.5
-model. Its prices are assumed, for cost accounting only.
+Vendored configs in `bench/scbench/configs/`:
+
+- `models/sonnet-5.5.yaml`: the runner at `31ceea3` has no 5.5 model. Its prices are
+  assumed, for cost accounting only.
+- `environments/docker-python3.12-uv-rootless.yaml`: the BS-30 rootless env plus
+  `IS_SANDBOX=1`, used by all three arms. See the validity notes in `../README.md`.
 
 ## Stages
 

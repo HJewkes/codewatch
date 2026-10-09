@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import concurrent.futures
 
-from agent import runner_configs, secret_env
+from agent import output_guard, runner_configs, secret_env
 
 _STOCK_POOL_INIT = concurrent.futures.ProcessPoolExecutor.__init__
 
@@ -21,6 +21,7 @@ def setup() -> None:
 
     runner_configs.preload()
     secret_env.install()
+    output_guard.install()
     wrap_process_pools()
 
 

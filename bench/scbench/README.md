@@ -22,6 +22,35 @@ without costing correctness.
 - **The loop never sees the grader** (design section 3). No stage reads scb-check output,
   and the analysis never writes per-rule scb-check breakdowns.
 
+## Running an arm
+
+All three arms use the launcher in `agent/` and the vendored configs in `configs/`. Run
+from `bench/scbench`:
+
+```
+DOCKER_HOST=unix:///run/user/1000/docker.sock \
+CLAUDE_CODE_OAUTH_TOKEN="$(cat ~/.config/scbench/claude-oauth-token-server)" \
+uv run --frozen --project agent python -m agent run \
+  --agent <claude_code.yaml or agent/claude_code_cw.yaml> \
+  --environment configs/environments/docker-python3.12-uv-rootless.yaml \
+  --prompt <just-solve | a1a> --model claude_code_oauth/sonnet-5.5 --problem <name> \
+  save_dir=~/.cache/codewatch-scbench/runs/<arm>/<UTC timestamp> save_template=run
+```
+
+The runner ignores `output_path=`. The launcher refuses a run dir inside any repo
+checkout, and the runner's default `save_dir` (`outputs`) is one.
+
+## Validity notes
+
+- **The agent runs as container root.** Rootless Docker needs `user: "0:0"` so the
+  agent can write the mounted workspace. The paper used a non-root user. The setup is the
+  same for A0, A1a and A1.
+- **`IS_SANDBOX=1`.** Claude Code 2.0.51 refuses `--dangerously-skip-permissions` as
+  uid 0 unless `IS_SANDBOX` is set, so the pilot env sets it. The claude argv is
+  unchanged. A side effect in the same CLI: under `IS_SANDBOX`, an API overloaded error
+  (529) throws instead of retrying. So an overload can end a checkpoint's solve early.
+  Report such checkpoints per arm. The env is the same for all three arms.
+
 ## analysis/
 
 `analysis/` reads each arm's run directory after `slop-code eval`, plus A1's
