@@ -14,6 +14,26 @@ slop-code-bench is pinned by commit in `pyproject.toml`, because the runner has 
 release past v0.3. `uv.lock` pins its dependencies. Run A0 and A1a through the same
 launcher, with `type: claude_code`, so all three arms share one dependency set.
 
+## Launcher setup
+
+`python -m agent` does two things before any command runs, in every worker process:
+
+- **Catalogs.** The runner's wheel ships no `configs/`, so its model and provider
+  catalogs would load empty. `runner_configs.preload()` loads models from the runner
+  checkout's `configs/models` (`$SCBENCH_RUNNER_CONFIGS`, default
+  `~/.cache/bs-30/slop-code-bench/configs`), then the vendored
+  `bench/scbench/configs/models` on top. `providers.yaml` comes from the checkout.
+  Agent, environment and prompt configs are passed as paths. `record_manifest.py`
+  records the dirs used and the sha256 of each vendored model under `runnerConfigs`.
+- **Tokens by name.** The runner passes env to `docker exec` as `--env KEY=VALUE`, which
+  would put a token on the host's process list. `secret_env.install()` passes
+  credential-like keys (`*_TOKEN`, `*_API_KEY`, `*_SECRET`, `*_PASSWORD`) as `--env KEY`
+  and gives their values to the docker client through its env. The container env and
+  the claude argv are unchanged.
+
+The vendored `sonnet-5.5.yaml` exists because the runner at `31ceea3` has no 5.5
+model. Its prices are assumed, for cost accounting only.
+
 ## Stages
 
 | When | Stages |
