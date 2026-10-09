@@ -11,12 +11,12 @@ import tempfile
 from pathlib import Path
 
 
-def _within(parent: Path, child: Path) -> bool:
-    return child.resolve().is_relative_to(parent.resolve())
+def inside(workspace: Path, path: Path) -> bool:
+    return path.resolve().is_relative_to(workspace.resolve())
 
 
 def backup(workspace: Path, scratch: Path) -> Path:
-    if _within(workspace, scratch):
+    if inside(workspace, scratch):
         raise ValueError(f"scratch {scratch} is inside the workspace {workspace}")
     scratch.mkdir(parents=True, exist_ok=True)
     target = Path(tempfile.mkdtemp(prefix="remediation-", dir=scratch)) / "workspace"

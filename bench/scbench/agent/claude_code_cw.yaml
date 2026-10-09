@@ -18,10 +18,8 @@ stages:
   audit: {enabled: false}
   replay: {enabled: false}
   triage: {enabled: false}
-  # Its claude session writes to ~/.claude like the solve, so restore access the same way.
+  # exec, so a SIGTERM reaches python and the workspace is restored.
   remediation:
     enabled: false
-    command: >-
-      trap 'chmod -R u+rwX "$HOME/.claude" 2>/dev/null || true' EXIT;
-      /opt/codewatch-a1/py/bin/python -P -m remediation
+    command: exec /opt/codewatch-a1/py/bin/python -P -m remediation
   synthesis: {enabled: false}

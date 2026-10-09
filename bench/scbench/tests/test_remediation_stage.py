@@ -1,7 +1,10 @@
 import json
+import stat
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
+from unittest import mock
 
 from remediation.stage import Config, remediate
 
@@ -167,6 +170,50 @@ class RemediationStageTest(unittest.TestCase):
             self.run_stage(claude, FakeTools())
 
         self.assertFalse((self.root / "src" / "helper.py").exists())
+
+    def backups(self):
+        return list(self.config.scratch.glob("remediation-*/workspace"))
+
+    def test_a_failed_restore_keeps_the_backup_and_reports_where_it_is(self):
+        with mock.patch("remediation.workspace.restore", side_effect=PermissionError("read-only dir")):
+            report = self.run_stage(FakeClaude(edit=edit_app), FakeTools(tests=(0, 1)))
+
+        saved = self.backups()
+        self.assertEqual(report["outcome"], "discarded")
+        self.assertIn("restore failed (PermissionError: read-only dir)", report["reason"])
+        self.assertEqual([report["backup"]], [str(p) for p in saved])
+        self.assertEqual((saved[0] / "src" / "app.py").read_text(), "x = 1\n")
+
+    def test_a_failed_restore_after_an_error_keeps_the_backup(self):
+        claude = FakeClaude(edit=edit_app, error=KeyboardInterrupt())
+
+        with mock.patch("remediation.workspace.restore", side_effect=OSError("disk")), \
+                self.assertRaises(KeyboardInterrupt):
+            self.run_stage(claude, FakeTools())
+
+        self.assertEqual(len(self.backups()), 1)
+
+    def test_a_scratch_dir_inside_the_workspace_skips_with_a_report(self):
+        config = replace(self.config, scratch=self.root / "scratch")
+        claude = FakeClaude()
+
+        report = remediate(config, ENV, claude, FakeTools())
+
+        self.assertEqual(report["outcome"], "skipped")
+        self.assertIn("inside the workspace", report["reason"])
+        self.assertEqual(claude.calls, [])
+
+    def test_the_session_gives_the_owner_access_to_claude_home_again(self):
+        home = self.config.scratch.parent / "home"
+        locked = home / ".claude" / "projects" / "trace.jsonl"
+        locked.parent.mkdir(parents=True)
+        locked.write_text("{}")
+        locked.chmod(0o000)
+
+        remediate(self.config, {**ENV, "HOME": str(home)}, FakeClaude(), FakeTools())
+
+        mode = locked.stat().st_mode
+        self.assertEqual(mode & (stat.S_IRUSR | stat.S_IWUSR), stat.S_IRUSR | stat.S_IWUSR)
 
     def test_no_confirmed_items_skips_the_session(self):
         verdicts = self.root / ".codewatch" / "audit" / "verdicts.jsonl"

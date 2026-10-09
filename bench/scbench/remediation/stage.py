@@ -6,6 +6,7 @@ It returns the report line the stage agent copies into `stages.json`: `outcome` 
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -66,6 +67,8 @@ def remediate(config: Config, env: Mapping[str, str], run_claude: Run, run_tool:
     base = {"items_in": len(items), "held_back": held_back}
     if not items:
         return {**base, "outcome": "skipped", "reason": "no confirmed items"}
+    if ws.inside(config.workspace, config.scratch):
+        return {**base, "outcome": "skipped", "reason": f"scratch {config.scratch} is inside the workspace"}
     tools = tools_for(config, run_tool)
     pre = tools.graph.snapshot("remediation-pre")
     if pre is None:
@@ -76,15 +79,35 @@ def remediate(config: Config, env: Mapping[str, str], run_claude: Run, run_tool:
     try:
         session = run_session(items, env, str(config.workspace), config.session_timeout, run_claude)
         verdict = _judge(session, tools, env, pre["snapshot"]["id"], replay_before, tests_before)
-        if verdict["outcome"] != "kept":
-            ws.restore(config.workspace, saved)
     except BaseException:
-        ws.restore(config.workspace, saved)
+        error = _restore_or_keep(config.workspace, saved)
+        if error:
+            print(f"remediation: restore failed ({error}); backup kept at {saved}", file=sys.stderr)
         raise
-    finally:
-        ws.drop(saved)
+    verdict = _settle(config.workspace, saved, verdict)
     kept = verdict["outcome"] == "kept"
     return {**base, **_session_fields(session), **verdict, "items_out": len(items) if kept else 0}
+
+
+def _restore_or_keep(workspace: Path, saved: Path) -> str | None:
+    """Restores and then drops the backup; on a failed restore the backup stays and the error is returned."""
+    try:
+        ws.restore(workspace, saved)
+    except Exception as error:  # noqa: BLE001 - the backup must survive any restore failure
+        return f"{type(error).__name__}: {error}"
+    ws.drop(saved)
+    return None
+
+
+def _settle(workspace: Path, saved: Path, verdict: dict) -> dict:
+    if verdict["outcome"] == "kept":
+        ws.drop(saved)
+        return verdict
+    error = _restore_or_keep(workspace, saved)
+    if error is None:
+        return verdict
+    note = f"restore failed ({error}); backup kept at {saved}"
+    return {**verdict, "reason": f"{verdict['reason']}; {note}", "backup": str(saved)}
 
 
 def _judge(session: SessionResult, tools: Tools, env: Mapping[str, str], pre_id: int,

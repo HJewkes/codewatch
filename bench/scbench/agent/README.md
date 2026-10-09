@@ -43,8 +43,8 @@ at that 20-minute line. All three values are config fields.
 
 **Report line.** A stage command may print a JSON object as its last stdout line. These
 keys are copied into `stages.json`: `tokens`, `usd`, `items_in`, `items_out`, `outcome`,
-`reason`, `fixed_replay_diffs`, `added_symbols`, `session_id`, `turns`, `held_back` and
-`validation`.
+`reason`, `fixed_replay_diffs`, `added_symbols`, `session_id`, `turns`, `held_back`,
+`validation` and `backup`.
 
 **Stage env.** Besides the solve's env and credential, a stage gets `CW_STAGE`,
 `CW_CHECKPOINT`, and the solve's `CW_CLAUDE_BINARY`, `CW_MODEL` and `CW_PERMISSION_MODE`,

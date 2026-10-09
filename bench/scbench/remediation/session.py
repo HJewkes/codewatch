@@ -11,11 +11,15 @@ the grader, its tool or its metrics (design section 3).
 
 from __future__ import annotations
 
+import contextlib
 import json
+import os
+import stat
 import subprocess
 import uuid
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 
 from .items import Item
 
@@ -92,9 +96,29 @@ def _tokens(usage: Mapping) -> int:
     return sum(int(usage.get(k) or 0) for k in keys)
 
 
+def restore_claude_access(env: Mapping[str, str]) -> None:
+    """Gives the owner read and write access to ~/.claude again, as the stock agent's exit trap does."""
+    if not env.get("HOME"):
+        return
+    for root, dirs, files in os.walk(Path(env["HOME"]) / ".claude"):
+        for name in dirs:
+            _add_mode(Path(root) / name, stat.S_IRWXU)
+        for name in files:
+            _add_mode(Path(root) / name, stat.S_IRUSR | stat.S_IWUSR)
+
+
+def _add_mode(path: Path, bits: int) -> None:
+    with contextlib.suppress(OSError):
+        if not path.is_symlink():
+            path.chmod(path.stat().st_mode | bits)
+
+
 def run_session(items: Sequence[Item], env: Mapping[str, str], cwd: str, timeout: float, run: Run) -> SessionResult:
     session_id = str(uuid.uuid4())
-    exit_code, stdout, timed_out = run(claude_argv(env, session_id, render_prompt(items)), env, cwd, timeout)
+    try:
+        exit_code, stdout, timed_out = run(claude_argv(env, session_id, render_prompt(items)), env, cwd, timeout)
+    finally:
+        restore_claude_access(env)
     result = parse_result(stdout)
     return SessionResult(
         session_id=session_id, exit_code=exit_code, timed_out=timed_out,

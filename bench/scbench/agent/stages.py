@@ -25,7 +25,7 @@ FIRST_INJECT_CHECKPOINT = 2
 METRIC_FIELDS = ("tokens", "usd", "items_in", "items_out")
 PASSTHROUGH_FIELDS = (
     "outcome", "reason", "fixed_replay_diffs", "added_symbols",
-    "session_id", "turns", "held_back", "validation",
+    "session_id", "turns", "held_back", "validation", "backup",
 )
 
 

@@ -69,7 +69,7 @@ it in, and `agent/claude_code_cw.yaml` runs it in the checkpoint's container as
 
 1. **Items.** At most 8 confirmed items from `.codewatch/audit/`, in this order:
    regressions (`regnet-diff` verdicts), uncovered changed symbols (`diff-uncovered`
-   findings), weak oracles, then quality findings. Each carries its question, verdict,
+   findings, which nothing emits until U5 lands), weak oracles, then quality findings. Each carries its question, verdict,
    citations and a one-line fix sketch. When `triage.json` says the controls failed, or a
    verdict is itself provisional, only regression and coverage items go in; `held_back`
    counts the rest.
@@ -85,7 +85,9 @@ it in, and `agent/claude_code_cw.yaml` runs it in the checkpoint's container as
 4. **Discard.** The whole workspace, `.codewatch/` included, is copied to `--scratch`
    (default `~/.cache/codewatch-remediation`) before the session and copied back when any
    check fails, the session times out (`--session-timeout`, 15 minutes) or fails, or the
-   stage is stopped.
+   stage is stopped (the stage command `exec`s python, so a SIGTERM reaches it). The copy
+   is deleted only once the edit is kept or the restore has finished. If the restore
+   fails, the copy stays and the report gives its path as `backup`.
 
 The replay net (U3) is not built. `--replay-command` is the plug: a command that prints
 `{"diffs": [call ids]}` as its last line. With no command, or no `.codewatch/regnet/`,
