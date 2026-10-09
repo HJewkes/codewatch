@@ -18,9 +18,11 @@ launcher, with `type: claude_code`, so all three arms share one dependency set.
 
 `python -m agent` runs `bootstrap.setup()` before any command. The runner runs each
 problem in a spawned worker, and spawn never re-runs `agent/__main__.py`. So `setup()`
-also makes itself the default initializer of every `ProcessPoolExecutor`, and each
-worker runs it before its first task. It registers `claude_code_cw` and does the
-three steps below.
+also makes itself the initializer of every `ProcessPoolExecutor`, and each worker
+runs it before its first task. A pool's own initializer runs after it. If `setup()`
+fails in a worker, the pool breaks and no task runs there. `setup()` registers
+`claude_code_cw` and does the three steps below. Never launch with a bare
+`slop-code run`, which skips all of this.
 
 - **Catalogs.** The runner's wheel ships no `configs/`, so its model and provider
   catalogs would load empty. `runner_configs.preload()` loads models from the runner
@@ -31,12 +33,17 @@ three steps below.
   records the dirs used and the sha256 of each vendored config under `runnerConfigs`.
 - **Tokens by name.** The runner passes env to `docker exec` as `--env KEY=VALUE`, which
   would put a token on the host's process list. `secret_env.install()` passes
-  credential-like keys (`*_TOKEN`, `*_API_KEY`, `*_SECRET`, `*_PASSWORD`) as `--env KEY`
-  and gives their values to the docker client through its env. The container env and
-  the claude argv are unchanged.
+  credential-like keys as `--env KEY` and gives their values to the docker client
+  through its env. A key is credential-like if it is on an explicit list, or if it
+  contains one of the runner's own log-mask markers: token, secret, key, password,
+  credential or authorization. The runner's two exemptions, `MAX_THINKING_TOKENS` and
+  `CLAUDE_CODE_MAX_OUTPUT_TOKENS`, keep their values. The container env and the claude
+  argv are unchanged. If the runner's docker runtime lacks the hooks this replaces,
+  `install()` aborts.
 - **No run dir in a checkout.** `output_guard.install()` stops `slop-code run` before it
-  creates a run dir inside any repo checkout. Pass `save_dir=` and `save_template=`,
-  because the runner ignores `output_path=`.
+  creates or reads a run dir inside any repo checkout, for a fresh run and for
+  `--resume`. Pass `save_dir=` and `save_template=`, because the runner ignores
+  `output_path=`.
 
 Vendored configs in `bench/scbench/configs/`:
 

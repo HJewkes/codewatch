@@ -24,8 +24,10 @@ without costing correctness.
 
 ## Running an arm
 
-All three arms use the launcher in `agent/` and the vendored configs in `configs/`. Run
-from `bench/scbench`:
+All three arms use the launcher in `agent/` and the vendored configs in `configs/`.
+Always launch with `python -m agent`. Never use a bare `slop-code run`: it skips the
+launcher setup, so the token would go on the `docker exec` argv, the model catalog
+would be empty, and nothing would guard the run dir. Run from `bench/scbench`:
 
 ```
 DOCKER_HOST=unix:///run/user/1000/docker.sock \
