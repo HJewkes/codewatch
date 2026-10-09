@@ -29,7 +29,9 @@ require_base() {
 
 build_image() {
   docker build --build-arg "BASE_IMAGE=$base_image" --build-arg "CODEWATCH_VERSION=$codewatch_version" \
-    --build-context "stages=$here/../remediation" -t "$image" "$here"
+    --build-context "synthesis=$here/../synthesis" --build-context "tiert=$here/../tiert" \
+    --build-context "remediation=$here/../remediation" \
+    -t "$image" "$here"
 }
 
 count_tool() {
@@ -47,6 +49,9 @@ run_smoke() {
   smoke_findings="$fixture/.codewatch/audit/findings.jsonl"
   [ "$(count_tool "$smoke_findings" ruff)" -ge 1 ] || fail "no ruff finding in $smoke_findings"
   [ "$(count_tool "$smoke_findings" code-graph)" -ge 1 ] || fail "no code-graph finding in $smoke_findings"
+  local tiert_rows
+  tiert_rows="$(docker run --rm --network none "$image" python3 /opt/codewatch-a1/tiert /opt/codewatch-a1/tiert/fixtures/flagged | wc -l)"
+  [ "$tiert_rows" -eq 7 ] || fail "tiert gave $tiert_rows rows on its flagged fixture, expected 7"
 }
 
 record_manifest() {

@@ -15,11 +15,18 @@ stage_reserve_s: 1200
 stages:
   inject: {enabled: false}
   index: {enabled: false}
-  audit: {enabled: false}
+  # Tier T rows join the audit's findings.jsonl; tiert's counts are the report line.
+  audit:
+    enabled: false
+    command: >-
+      codewatch audit /workspace &&
+      python3 /opt/codewatch-a1/tiert /workspace --out /workspace/.codewatch/audit/findings.jsonl --append
   replay: {enabled: false}
   triage: {enabled: false}
   # exec, so a SIGTERM reaches python and the workspace is restored.
   remediation:
     enabled: false
-    command: exec /opt/codewatch-a1/py/bin/python -P -m remediation
-  synthesis: {enabled: false}
+    command: exec env PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m remediation
+  synthesis:
+    enabled: false
+    command: PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -m synthesis
