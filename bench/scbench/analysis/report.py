@@ -100,10 +100,11 @@ def _summary_section(a: Analysis) -> str:
         f"| {_num(s.parity_gap)} |"
         for name, s in a.summaries.items()
     ]
+    excluded = ", ".join(a.tests_dirs) or "(sensitivity run skipped)"
     note = (
-        f"Tests-excluded columns recompute the official metrics without "
-        f"{', '.join(a.tests_dirs)}. A parity gap above about 0.01 means the eval format "
-        "assumptions in inputs.py are off."
+        f"Tests-excluded columns re-run the pinned scb-check on each snapshot without "
+        f"{excluded}. The parity gap compares the recorded scores with a rerun on the full "
+        "snapshot; anything above about 0.001 means the rerun does not reproduce the grade."
     )
     return "\n".join(["## Arms", "", header, "|---" * 10 + "|", *rows, "", note])
 

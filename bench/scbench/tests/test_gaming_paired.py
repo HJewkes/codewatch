@@ -10,7 +10,7 @@ from .test_verdict import arm
 def result(problem="p", index=1, strict=False, erosion=None, stages=None) -> CheckpointResult:
     return CheckpointResult(
         problem=problem, index=index, strict=strict, iso=strict, core=strict, cost_usd=1.0,
-        erosion=erosion, verbosity=None, files=None, stage_log=stages,
+        erosion=erosion, verbosity=None, rerun=None, stage_log=stages,
     )
 
 
@@ -75,6 +75,11 @@ class GamingTests(unittest.TestCase):
 
         self.assertEqual((check.split_symbols, check.split_share), (0, 0.0))
         self.assertTrue(check.clean)
+
+    def test_zero_scores_in_both_arms_read_as_no_change_not_unknown(self):
+        check = gaming_check([], arm(verbosity=0.3, ex=(0.5, 0.0)), arm(erosion=0.4, verbosity=0.3, ex=(0.4, 0.0)))
+
+        self.assertTrue(check.sensitivity_agrees)
 
     def test_a_tests_excluded_run_pointing_the_other_way_fails_the_check(self):
         check = gaming_check([], arm(), arm(erosion=0.4, ex=(0.6, 0.3)))
