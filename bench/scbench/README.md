@@ -61,6 +61,24 @@ tests directory, using a copy in `--scratch`. It reads only the report totals. T
 report's parity gap compares the recorded scores with the whole-snapshot rerun. A gap
 above about 0.001 means the rerun does not reproduce the grade.
 
+## findings/
+
+Finding producers for A1's audit stage. Each writes `findings.jsonl` rows in the contract
+`codewatch audit` and `codewatch triage` read, and prints a JSON summary as its last stdout
+line for `stages.json`. They call the image's pinned tools by full path under
+`/opt/codewatch-a1/bin/`.
+
+- `diff_uncovered`: functions changed since a caller-supplied baseline that no test
+  executes, as signal `diff-uncovered`. The baseline is an earlier snapshot directory or a
+  git revision (for a PR, its merge-base with main). It runs pytest under coverage.py, or
+  reads existing `coverage json` output.
+
+```
+cd bench/scbench
+python3 -m findings.diff_uncovered --workspace <dir> (--base-rev <sha> | --base-dir <dir>) \
+  --out <findings.jsonl> [--coverage-json <file>]
+```
+
 **Tests** use the standard library's `unittest` and run as part of `pnpm test`, which
 is also how CI runs them:
 
