@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .gaming import GamingCheck, fire_rate, gaming_check, mechanism_signals
-from .inputs import load_arm
+from .inputs import RerunSettings, load_arm
 from .metrics import ArmSummary, summarise
 from .paired import ARMS, CheckpointRow, Consistency, consistency, final_rows, paired_rows
 from .verdict import Decision, DecisionInputs, decide
@@ -27,13 +27,14 @@ class Analysis:
 
 
 def analyse(
-    arm_dirs: dict[str, Path], tests_dirs: tuple[str, ...], replicate_dir: Path | None = None
+    arm_dirs: dict[str, Path], rerun: RerunSettings | None, replicate_dir: Path | None = None
 ) -> Analysis:
-    arms = {name: load_arm(arm_dirs[name], require_stages=name == "A1") for name in ARMS}
+    """`rerun` None skips the tests-excluded scb-check run; the gaming check then fails."""
+    arms = {name: load_arm(arm_dirs[name], name == "A1", rerun) for name in ARMS}
     rows = paired_rows(arms)
-    summaries = {name: summarise(arms[name], len(rows), tests_dirs) for name in ARMS}
+    summaries = {name: summarise(arms[name], len(rows)) for name in ARMS}
     if replicate_dir is not None:
-        summaries["A0'"] = summarise(load_arm(replicate_dir), len(rows), tests_dirs)
+        summaries["A0'"] = summarise(load_arm(replicate_dir), len(rows))
     finals = final_rows(rows)
     inputs = DecisionInputs(
         a0=summaries["A0"],
@@ -55,5 +56,5 @@ def analyse(
         fire_rate=inputs.fire_rate,
         mechanism=mechanism_signals(rows),
         decision=decide(inputs),
-        tests_dirs=tests_dirs,
+        tests_dirs=rerun.tests_dirs if rerun else (),
     )
