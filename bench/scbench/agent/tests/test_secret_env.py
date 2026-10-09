@@ -80,13 +80,25 @@ class TokenByNameTest(unittest.TestCase):
 
             self.assertIs(DockerStreamingRuntime._start_exec_process, secret_env._start_exec_process)
 
-    def test_only_credential_like_keys_are_hidden(self):
+    def test_keys_matching_the_runners_own_mask_markers_are_hidden(self):
         hidden = ["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "OPENAI_API_KEY",
-                  "AWS_BEARER_TOKEN_BEDROCK"]
-        shown = ["MAX_THINKING_TOKENS", "CLAUDE_CODE_MAX_OUTPUT_TOKENS", "CLAUDE_CODE_EFFORT_LEVEL", "HOME"]
+                  "AWS_BEARER_TOKEN_BEDROCK", "AWS_ACCESS_KEY_ID", "GH_TOKENS", "DB_PASSWORD_FILE",
+                  "client_secret", "GOOGLE_APPLICATION_CREDENTIALS", "HTTP_AUTHORIZATION"]
+        shown = ["MAX_THINKING_TOKENS", "CLAUDE_CODE_MAX_OUTPUT_TOKENS", "CLAUDE_CODE_EFFORT_LEVEL", "HOME",
+                 "IS_SANDBOX", "DISABLE_AUTOUPDATER"]
 
-        self.assertTrue(all(secret_env.is_credential(k) for k in hidden))
-        self.assertFalse(any(secret_env.is_credential(k) for k in shown))
+        self.assertEqual([k for k in hidden if not secret_env.is_credential(k)], [])
+        self.assertEqual([k for k in shown if secret_env.is_credential(k)], [])
+
+    def test_install_aborts_when_the_runner_lacks_the_exec_launcher_it_replaces(self):
+        class ChangedRuntime(DockerStreamingRuntime):
+            _start_exec_process = None
+
+        with self.assertRaises(secret_env.RunnerMismatch) as caught:
+            secret_env.install(ChangedRuntime)
+
+        self.assertIn("_start_exec_process", str(caught.exception))
+        self.assertIsNone(ChangedRuntime._start_exec_process)
 
 
 if __name__ == "__main__":

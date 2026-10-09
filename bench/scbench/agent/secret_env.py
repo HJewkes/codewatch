@@ -20,12 +20,20 @@ CREDENTIAL_KEYS = frozenset({
     "ANTHROPIC_API_KEY",
     "ANTHROPIC_AUTH_TOKEN",
     "AWS_BEARER_TOKEN_BEDROCK",
+    "OPENROUTER_API_KEY",
 })
-_CREDENTIAL_PATTERN = re.compile(r"(_TOKEN|_API_KEY|_SECRET|_PASSWORD)$")
+# The markers the runner's own log masking uses (slop_code/common/common.py), with
+# its two exemptions. Hiding a non-secret is harmless: docker still gets the value.
+_CREDENTIAL_PATTERN = re.compile(r"token|secret|key|password|credential|authorization", re.IGNORECASE)
+_NOT_CREDENTIALS = frozenset({"CLAUDE_CODE_MAX_OUTPUT_TOKENS", "MAX_THINKING_TOKENS"})
+_RUNTIME_HOOKS = ("_start_exec_process", "_prepare_command", "_ensure_container_running",
+                  "_merge_env", "_container_workdir")
 
 
 def is_credential(key: str) -> bool:
-    return key in CREDENTIAL_KEYS or bool(_CREDENTIAL_PATTERN.search(key))
+    if key in CREDENTIAL_KEYS:
+        return True
+    return key.upper() not in _NOT_CREDENTIALS and bool(_CREDENTIAL_PATTERN.search(key))
 
 
 def build_exec(runtime, command: str, env: dict[str, str]) -> tuple[list[str], dict[str, str]]:
@@ -64,7 +72,15 @@ def _start_exec_process(self, command: str, env: dict[str, str]) -> subprocess.P
     return proc
 
 
-def install() -> None:
-    from slop_code.execution.docker_runtime.streaming import DockerStreamingRuntime
+class RunnerMismatch(RuntimeError):
+    pass
 
-    DockerStreamingRuntime._start_exec_process = _start_exec_process
+
+def install(runtime_cls: type | None = None) -> None:
+    """Swap in the name-only launcher; abort if the runner no longer has the hooks it replaces."""
+    if runtime_cls is None:
+        from slop_code.execution.docker_runtime.streaming import DockerStreamingRuntime as runtime_cls
+    missing = [name for name in _RUNTIME_HOOKS if not callable(getattr(runtime_cls, name, None))]
+    if missing:
+        raise RunnerMismatch(f"{runtime_cls.__name__} lacks {missing}; refusing to run with tokens on argv")
+    runtime_cls._start_exec_process = _start_exec_process
