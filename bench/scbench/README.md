@@ -68,40 +68,60 @@ above about 0.001 means the rerun does not reproduce the grade.
 
 ## remediation/
 
-The A1 `remediation` stage (design unit U8): propose, validate, discard. The image copies
-it in, and `agent/claude_code_cw.yaml` runs it in the checkpoint's container as
-`/opt/codewatch-a1/py/bin/python -P -m remediation`, from the workspace.
+The A1 fix stage (design unit U8, Revision 1): one validated commit per confirmed item.
+The image copies it in, and `agent/claude_code_cw.yaml` runs it from the workspace as
+`exec env PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m remediation`.
+It works on the PR branch (`cp-N`) of the hidden repository (`GIT_DIR=.codewatch/repo.git`,
+created by the U15 stages); with no repository, or with uncommitted changes, it skips.
 
-1. **Items.** At most 8 confirmed items from `.codewatch/audit/`, in this order:
-   regressions (`regnet-diff` verdicts), uncovered changed symbols (`diff-uncovered`
-   findings, which nothing emits until U5 lands), weak oracles, then quality findings. Each carries its question, verdict,
-   citations and a one-line fix sketch. When `triage.json` says the controls failed, or a
-   verdict is itself provisional, only regression and coverage items go in; `held_back`
-   counts the rest.
-2. **Session.** One claude CLI session with the solve's binary, model, permission mode and
-   credential env, capped at 30 turns. It runs under a fresh `--session-id`, recorded as
-   `session_id` in `stages.json`, so the transcript audit and the analysis can tell its
-   trace from the solve's in the shared `~/.claude`. The prompt names no grader, grader
-   tool or grader metric.
-3. **Validation.** The agent's tests pass (`--test-command`, run with the workspace's
-   `.venv/bin` first on `PATH`; "no tests collected" passes). The replay shows no diff
-   that was not there before the session. `codewatch graph check --baseline <the snapshot
-   indexed just before the session>` reports no new violation.
-4. **Discard.** The whole workspace, `.codewatch/` included, is copied to `--scratch`
-   (default `~/.cache/codewatch-remediation`) before the session and copied back when any
-   check fails, the session times out (`--session-timeout`, 15 minutes) or fails, or the
-   stage is stopped (the stage command `exec`s python, so a SIGTERM reaches it). The copy
-   is deleted only once the edit is kept or the restore has finished. If the restore
-   fails, the copy stays and the report gives its path as `backup`.
+**No caps by default.** There is no item cap and no turn cap. `--max-items` and
+`--max-turns` exist only as opt-in flags with no default. The stage stops starting items
+when less than `--reset-margin` (180 s) remains before `CW_DEADLINE`, the stage deadline
+the agent passes in, and then resets the work tree to the last kept commit.
 
-The replay net (U3) is not built. `--replay-command` is the plug: a command that prints
-`{"diffs": [call ids]}` as its last line. With no command, or no `.codewatch/regnet/`,
-the check passes and records `replay unavailable`.
+1. **Items** come from `.codewatch/audit/` in three phases. Each carries its question,
+   verdict, citations and a one-line fix sketch.
+   - Phase 1, test gaps on files the PR changed (`git diff <merge-base>`): `diff-uncovered`
+     findings (U5), confirmed weak-oracle verdicts, and confirmed `missing-test-kind`
+     verdicts (U7b).
+   - Phase 2, confirmed quality findings on changed files.
+   - Phase 3, confirmed findings on any other file, test gaps first.
 
-The report line sets `outcome` (`kept`, `discarded` or `skipped`), `reason`,
-`validation` (each check's name, pass and detail), `session_id`, `turns`, `tokens`,
-`usd`, `items_in`, `items_out` (items sent in a kept session), `held_back` and
-`fixed_replay_diffs` (diffs gone after a kept session).
+   When `triage.json` says the controls failed, or a verdict is itself provisional,
+   quality items are held back (`held_back` counts them).
+2. **Session.** One claude session with the solve's binary, model, permission mode and
+   credential env. The first item starts it under a fresh `--session-id`, and each later
+   item resumes it. `stages.json` records the id, so the transcript audit and the
+   analysis can tell its trace from the solve's in the shared `~/.claude`. The prompts
+   name no grader, grader tool or grader metric.
+3. **One commit per item**, kept only if it passes these checks:
+   - phase 1: it changes files under the tests directory only, and the suite is green;
+   - phases 2 and 3: the suite is green, and `codewatch graph check --baseline
+     <merge-base>` lists no violation the tree before the commit did not already have.
+     The merge-base is indexed with `graph index --rev` unless `--baseline` names it.
+
+   A failing commit is reverted alone (`git revert`), and the next item still runs; the
+   session is told which item was reverted and why.
+4. **Review hook (U17).** A commit that passes goes to `--review-command <sha>` when one
+   is set. That command prints `{"verdict": "ok"|"conflict", "spec_line", "reason"}`. On a
+   conflict the session is resumed once with the finding, and the revised commit is
+   checked and reviewed again. If the conflict stands, the commit is reverted. With no
+   command, the verdict is recorded as `not-configured`.
+5. **Phase 3** items each get their own branch, `cw-backlog-<n>`, from the PR branch. A
+   branch is merged back with `--no-ff` only when its commit is kept.
+6. **Safety net.** The whole workspace is copied to `--scratch` (default
+   `~/.cache/codewatch-remediation`) first. After an error, or a SIGTERM (the command
+   `exec`s python), the stage resets to the last kept commit and drops the copy. If that
+   reset fails, it restores the copy. If the restore also fails, the copy stays, and its
+   path is printed on stderr.
+
+The report line sets `outcome` (`kept` if any commit was kept, else `reverted`,
+`unchanged` or `skipped`), `reason`, `items_in`, `items_out` (commits kept), `held_back`,
+`stopped_by`, `session_id`, `turns`, `tokens`, `usd`, `added_symbols` (from kept phase-2
+and phase-3 commits, flagged `single-caller-helper` when exactly one call reaches them),
+and `items`. Each entry in `items` gives the phase, signal, path, status (`kept`,
+`reverted`, `unchanged`, `time limit` or `not-started`), commit sha, reason, review
+verdict and whether the session was resumed.
 
 **Tests** use the standard library's `unittest` and run as part of `pnpm test`, which
 is also how CI runs them:

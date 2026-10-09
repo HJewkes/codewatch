@@ -75,6 +75,7 @@ class StageRunnerTest(unittest.TestCase):
     def test_stage_report_line_fills_metrics_and_passthrough_fields(self):
         report = {"tokens": 900, "usd": 0.31, "items_in": 5, "items_out": 4,
                   "outcome": "kept", "reason": "all checks passed", "session_id": "sid",
+                  "items": [{"phase": 1, "status": "kept", "commit": "abc"}],
                   "fixed_replay_diffs": 1,
                   "added_symbols": [{"path": "src/a.py", "name": "_h", "flags": ["x"]}]}
         stdout = "progress\n" + json.dumps(report) + "\n"
@@ -88,9 +89,12 @@ class StageRunnerTest(unittest.TestCase):
         self.assertEqual(row["exit"], 0)
         self.assertEqual((row["tokens"], row["usd"], row["items_in"], row["items_out"]), (900, 0.31, 5, 4))
         self.assertEqual((row["outcome"], row["reason"], row["session_id"]), ("kept", "all checks passed", "sid"))
+        self.assertEqual(row["items"][0]["commit"], "abc")
         self.assertEqual(row["added_symbols"][0]["flags"], ["x"])
         self.assertLess(row["start"], row["end"])
-        self.assertEqual(executor.calls[0][1], {"CW_CHECKPOINT": "3", "CW_STAGE": "remediation"})
+        deadline = str(int(1_000_000 + 100 * MINUTE))
+        self.assertEqual(executor.calls[0][1],
+                         {"CW_CHECKPOINT": "3", "CW_STAGE": "remediation", "CW_DEADLINE": deadline})
 
     def test_a_failing_stage_is_logged_and_later_stages_still_run(self):
         executor = RecordingExecutor({"boom": RuntimeError("docker gone"), "bad": ExecResult(2, "", False)})

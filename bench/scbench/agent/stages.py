@@ -25,7 +25,7 @@ FIRST_INJECT_CHECKPOINT = 2
 METRIC_FIELDS = ("tokens", "usd", "items_in", "items_out")
 PASSTHROUGH_FIELDS = (
     "outcome", "reason", "fixed_replay_diffs", "added_symbols",
-    "session_id", "turns", "held_back", "validation", "backup",
+    "session_id", "turns", "held_back", "items", "stopped_by",
 )
 
 
@@ -124,9 +124,9 @@ class StageRunner:
             return StageRecord(stage=name, status="skipped_budget")
         record = StageRecord(stage=name, status="ok", start=_iso(now))
         try:
-            result = self.executor(
-                setting.command, {**env, "CW_STAGE": name}, self.budget.timeout(now)
-            )
+            timeout = self.budget.timeout(now)
+            stage_env = {**env, "CW_STAGE": name, "CW_DEADLINE": f"{now + timeout:.0f}"}
+            result = self.executor(setting.command, stage_env, timeout)
             _apply_result(record, result)
         except Exception as error:  # noqa: BLE001 - a stage must never end the checkpoint
             record.status = "failed"

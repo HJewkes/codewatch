@@ -1,143 +1,138 @@
-"""Propose, validate, discard: the remediation stage of arm A1 (design unit U8).
+"""The A1 fix stage (design unit U8, Revision 1): one validated commit per confirmed item.
 
-It returns the report line the stage agent copies into `stages.json`: `outcome` is
-`kept`, `discarded` or `skipped`, and `reason` says why.
+It works on the PR branch of the hidden repository, in phase order, and stops only when
+the items run out or the stage deadline nears. Then it resets the work tree to the last
+kept commit. A whole-workspace backup is the last resort: it is restored only if that
+reset fails after an error, and it is kept, with its path reported, if the restore fails.
+
+It returns the report line the stage agent copies into `stages.json`.
 """
 
 from __future__ import annotations
 
 import sys
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 
 from . import workspace as ws
+from .fixer import TIME_LIMIT, Clock, Fixer
+from .git import Git
 from .items import Item, controls_failed, read_jsonl, select_items
-from .session import Run, SessionResult, run_session
-from .validate import (
-    Check,
-    CommandReplay,
-    GraphCheck,
-    TestRunner,
-    ratchet_check,
-    replay_check,
-)
+from .session import FixSession, Run
+from .validate import GraphCheck, Reviewer, TestRunner
 
 AUDIT_DIR = Path(".codewatch") / "audit"
-MAX_TURNS_SUBTYPE = "error_max_turns"
+MERGE_BASE_REF = "cw-merge-base"
 
 
 @dataclass(frozen=True)
 class Config:
     workspace: Path
     scratch: Path
+    git_dir: Path
     codewatch: str
+    db: str
+    check_config: str
+    baseline: str | None
+    tests_dir: str
     test_command: Sequence[str]
-    replay_command: Sequence[str] | None
-    session_timeout: float
-    tool_timeout: float
+    review_command: Sequence[str] | None
+    deadline: float | None
+    reset_margin: float
+    max_items: int | None = None
+    max_turns: int | None = None
 
 
-@dataclass(frozen=True)
-class Tools:
-    tests: TestRunner
-    replay: CommandReplay
-    graph: GraphCheck
+def load_items(config: Config, changed: set[str]) -> tuple[list[Item], int]:
+    audit = config.workspace / AUDIT_DIR
+    return select_items(read_jsonl(audit / "verdicts.jsonl"), read_jsonl(audit / "findings.jsonl"),
+                        changed, controls_failed(audit / "triage.json"), config.max_items)
 
 
-def load_items(root: Path) -> tuple[list[Item], int]:
-    audit = root / AUDIT_DIR
-    return select_items(
-        read_jsonl(audit / "verdicts.jsonl"), read_jsonl(audit / "findings.jsonl"),
-        controls_failed(audit / "triage.json"),
-    )
-
-
-def tools_for(config: Config, run: Run) -> Tools:
-    root, timeout = config.workspace, config.tool_timeout
-    return Tools(
-        tests=TestRunner(root, config.test_command, run, timeout),
-        replay=CommandReplay(root, config.replay_command, run, timeout),
-        graph=GraphCheck(root, config.codewatch, run, timeout),
-    )
-
-
-def remediate(config: Config, env: Mapping[str, str], run_claude: Run, run_tool: Run) -> dict:
-    items, held_back = load_items(config.workspace)
+def remediate(config: Config, env: Mapping[str, str], run_claude: Run, run_tool: Run, clock: Clock) -> dict:
+    git = Git(config.workspace, config.git_dir)
+    if not git.exists():
+        return {"outcome": "skipped", "reason": f"no hidden repository at {config.git_dir}"}
+    if git.dirty():
+        return {"outcome": "skipped", "reason": "the work tree has uncommitted changes"}
+    items, held_back = load_items(config, git.changed_files(git.merge_base()))
     base = {"items_in": len(items), "held_back": held_back}
     if not items:
         return {**base, "outcome": "skipped", "reason": "no confirmed items"}
     if ws.inside(config.workspace, config.scratch):
         return {**base, "outcome": "skipped", "reason": f"scratch {config.scratch} is inside the workspace"}
-    tools = tools_for(config, run_tool)
-    pre = tools.graph.snapshot("remediation-pre")
-    if pre is None:
-        return {**base, "outcome": "skipped", "reason": "graph check could not run before remediation"}
-    replay_before = tools.replay.diffs()
-    tests_before = tools.tests(env)
+    fixer = build_fixer(config, env, git, run_claude, run_tool, clock)
     saved = ws.backup(config.workspace, config.scratch)
     try:
-        session = run_session(items, env, str(config.workspace), config.session_timeout, run_claude)
-        verdict = _judge(session, tools, env, pre["snapshot"]["id"], replay_before, tests_before)
+        records, stopped = run_items(fixer, items)
     except BaseException:
-        error = _restore_or_keep(config.workspace, saved)
-        if error:
-            print(f"remediation: restore failed ({error}); backup kept at {saved}", file=sys.stderr)
+        _recover(fixer, config.workspace, saved)
         raise
-    verdict = _settle(config.workspace, saved, verdict)
-    kept = verdict["outcome"] == "kept"
-    return {**base, **_session_fields(session), **verdict, "items_out": len(items) if kept else 0}
-
-
-def _restore_or_keep(workspace: Path, saved: Path) -> str | None:
-    """Restores and then drops the backup; on a failed restore the backup stays and the error is returned."""
-    try:
-        ws.restore(workspace, saved)
-    except Exception as error:  # noqa: BLE001 - the backup must survive any restore failure
-        return f"{type(error).__name__}: {error}"
     ws.drop(saved)
-    return None
+    return {**base, **summarize(records, stopped), **_session_fields(fixer.session)}
 
 
-def _settle(workspace: Path, saved: Path, verdict: dict) -> dict:
-    if verdict["outcome"] == "kept":
-        ws.drop(saved)
-        return verdict
-    error = _restore_or_keep(workspace, saved)
-    if error is None:
-        return verdict
-    note = f"restore failed ({error}); backup kept at {saved}"
-    return {**verdict, "reason": f"{verdict['reason']}; {note}", "backup": str(saved)}
+def build_fixer(config: Config, env: Mapping[str, str], git: Git, run_claude: Run, run_tool: Run,
+                clock: Clock) -> Fixer:
+    tool_env = {**env, **git.env()}
+    graph = GraphCheck(config.workspace, config.codewatch, config.db, config.check_config,
+                       config.baseline or MERGE_BASE_REF, run_tool, tool_env)
+    if config.baseline is None:
+        index = ["graph", "index", ".", "--db", config.db, "--rev", git.merge_base(), "--ref", MERGE_BASE_REF]
+        run_tool([config.codewatch, *index], tool_env, str(config.workspace), clock.remaining())
+    return Fixer(
+        git=git, session=FixSession(env, str(config.workspace), run_claude, config.max_turns),
+        tests=TestRunner(config.workspace, config.test_command, config.tests_dir, run_tool),
+        graph=graph, reviewer=Reviewer(config.review_command, config.workspace, run_tool, tool_env),
+        clock=clock, env=env, tests_dir=config.tests_dir, base_branch=git.branch(),
+        kept_head=git.head(), current=graph.snapshot("cw-fix", clock.remaining()),
+    )
 
 
-def _judge(session: SessionResult, tools: Tools, env: Mapping[str, str], pre_id: int,
-           replay_before: frozenset[str] | None, tests_before: Check) -> dict:
-    if session.timed_out:
-        return {"outcome": "discarded", "reason": "session timed out", "validation": []}
-    if session.exit_code != 0 and session.subtype != MAX_TURNS_SUBTYPE:
-        return {"outcome": "discarded", "reason": f"session failed: exit {session.exit_code}", "validation": []}
-    tests = tools.tests(env)
-    replay, fixed = replay_check(replay_before, tools.replay.diffs())
-    ratchet = ratchet_check(tools.graph.snapshot("remediation-post", baseline=pre_id))
-    checks = [tests, replay, ratchet]
-    failed = [c for c in checks if not c.passed]
+def run_items(fixer: Fixer, items: list[Item]) -> tuple[list[dict], str | None]:
+    records, stopped = [], None
+    for n, item in enumerate(items, start=1):
+        if stopped is None and not fixer.clock.may_start():
+            stopped = TIME_LIMIT
+        outcome = {"status": "not-started", "reason": stopped} if stopped else fixer.fix(n, item)
+        if outcome["status"] == TIME_LIMIT:
+            stopped = TIME_LIMIT
+        records.append({**describe(item), **outcome})
+    if stopped:
+        fixer.git.reset_to(fixer.base_branch, fixer.kept_head)
+    return records, stopped
+
+
+def describe(item: Item) -> dict:
+    return {"phase": item.phase, "signal": item.signal, "path": item.path, "symbol": item.symbol}
+
+
+def summarize(records: list[dict], stopped: str | None) -> dict:
+    statuses = [r["status"] for r in records]
+    kept = [r for r in records if r["status"] == "kept"]
+    outcome = "kept" if kept else "reverted" if "reverted" in statuses else "unchanged"
+    reason = f"{len(kept)} kept, {statuses.count('reverted')} reverted of {len(records)}"
     return {
-        "outcome": "discarded" if failed else "kept",
-        "reason": _reason(failed, tests_before),
-        "validation": [asdict(c) for c in checks],
-        "fixed_replay_diffs": 0 if failed else fixed,
+        "outcome": outcome, "reason": reason + (f"; stopped at the {stopped}" if stopped else ""),
+        "items_out": len(kept), "stopped_by": stopped, "items": records,
+        "added_symbols": [s for r in kept for s in r.get("added_symbols", [])],
     }
 
 
-def _reason(failed: list[Check], tests_before: Check) -> str:
-    if not failed:
-        return "all checks passed"
-    reasons = [f"{c.name}: {c.detail}" for c in failed]
-    if any(c.name == "tests" for c in failed) and not tests_before.passed:
-        reasons.append(f"tests were already failing before remediation ({tests_before.detail})")
-    return "; ".join(reasons)
+def _recover(fixer: Fixer, workspace: Path, saved: Path) -> None:
+    """After an error: reset to the last kept commit, else restore the backup, else keep it."""
+    try:
+        fixer.git.reset_to(fixer.base_branch, fixer.kept_head)
+    except Exception as error:  # noqa: BLE001 - fall back to the whole-workspace backup
+        print(f"remediation: git reset failed ({error}); restoring the backup", file=sys.stderr)
+        failure = ws.restore_or_keep(workspace, saved)
+        if failure:
+            print(f"remediation: restore failed ({failure}); backup kept at {saved}", file=sys.stderr)
+        return
+    ws.drop(saved)
 
 
-def _session_fields(session: SessionResult) -> dict:
-    return {"session_id": session.session_id, "turns": session.turns,
+def _session_fields(session: FixSession) -> dict:
+    return {"session_id": session.session_id if session.started else None, "turns": session.turns,
             "tokens": session.tokens, "usd": session.usd}

@@ -51,11 +51,12 @@ at that 20-minute line. All three values are config fields.
 **Report line.** A stage command may print a JSON object as its last stdout line. These
 keys are copied into `stages.json`: `tokens`, `usd`, `items_in`, `items_out`, `outcome`,
 `reason`, `fixed_replay_diffs`, `added_symbols`, `session_id`, `turns`, `held_back`,
-`validation` and `backup`.
+`items` and `stopped_by`.
 
 **Stage env.** Besides the solve's env and credential, a stage gets `CW_STAGE`,
-`CW_CHECKPOINT`, and the solve's `CW_CLAUDE_BINARY`, `CW_MODEL` and `CW_PERMISSION_MODE`,
-so a stage's claude session runs like the solve's.
+`CW_CHECKPOINT`, `CW_DEADLINE` (the epoch second at which the stage is cut off) and the
+solve's `CW_CLAUDE_BINARY`, `CW_MODEL` and `CW_PERMISSION_MODE`, so a stage's claude
+session runs like the solve's and can stop cleanly before it is cut off.
 
 ## stages.json
 

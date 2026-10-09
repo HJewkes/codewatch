@@ -1,241 +1,341 @@
+"""The fix stage on a real hidden repository; claude, codewatch and the reviewer are fakes."""
+
 import json
+import os
 import stat
+import subprocess
 import tempfile
 import unittest
 from dataclasses import replace
 from pathlib import Path
 from unittest import mock
 
+from remediation.fixer import Clock
+from remediation.git import Git
 from remediation.stage import Config, remediate
 
 TESTS = ["python", "-m", "pytest", "-q", "tests"]
-REPLAY = ["replay"]
-ENV = {"CW_MODEL": "sonnet-5.5", "PATH": "/usr/bin"}
+REVIEW = ["review"]
+ENV = {"CW_MODEL": "sonnet-5.5", "PATH": os.environ.get("PATH", "")}
 
 
-def result_line(cost=0.25, turns=7, subtype="success"):
-    usage = {"input_tokens": 100, "output_tokens": 50, "cache_creation_input_tokens": 10,
-             "cache_read_input_tokens": 40}
-    return json.dumps({"type": "result", "subtype": subtype, "num_turns": turns,
-                       "total_cost_usd": cost, "usage": usage})
+def git(root, *args):
+    env = {**os.environ, "GIT_DIR": str(root / ".codewatch" / "repo.git"), "GIT_WORK_TREE": str(root),
+           "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+    done = subprocess.run(["git", *args], cwd=root, env=env, capture_output=True, text=True, check=False)
+    if done.returncode != 0:
+        raise AssertionError(f"git {' '.join(args)}: {done.stderr}")
+    return done.stdout.strip()
 
 
-class FakeClaude:
-    """Stands in for the claude CLI: applies `edit` to the workspace and prints a result event."""
-
-    def __init__(self, edit=None, exit_code=0, timed_out=False, stdout=None, error=None):
-        self.edit, self.exit_code, self.timed_out, self.error = edit, exit_code, timed_out, error
-        self.stdout = result_line() if stdout is None else stdout
-        self.calls = []
-
-    def __call__(self, argv, env, cwd, timeout):
-        self.calls.append(list(argv))
-        if self.edit:
-            self.edit(Path(cwd))
-        if self.error:
-            raise self.error
-        return self.exit_code, self.stdout, self.timed_out
-
-
-class FakeTools:
-    """Answers codewatch, the test command and the replay command by argv."""
-
-    def __init__(self, tests=(0, 0), new_violations=(), replay=None):
-        self.tests = list(tests)
-        self.new_violations = list(new_violations)
-        self.replay = list(replay or [])
-        self.calls = []
-
-    def __call__(self, argv, env, cwd, timeout):
-        argv = list(argv)
-        self.calls.append(argv)
-        if argv == TESTS:
-            return self.tests.pop(0), "", False
-        if argv == REPLAY:
-            return 0, json.dumps({"diffs": sorted(self.replay.pop(0))}), False
-        if "index" in argv:
-            return 0, "", False
-        return self._check(argv)
-
-    def _check(self, argv):
-        baseline = "--baseline" in argv
-        violations = [{"nodeId": "src/app.py", "isCarryover": True}]
-        if baseline:
-            violations += [{"nodeId": n, "isCarryover": False} for n in self.new_violations]
-        report = {"snapshot": {"id": 8 if baseline else 7}, "result": {"violations": violations}}
-        return (1 if violations else 0), json.dumps(report), False
+def make_repo(root):
+    """main holds the earlier checkpoint; cp-2 holds the solve, which changed src/app.py and its test."""
+    for path, text in {"src/app.py": "x = 1\n", "src/old.py": "y = 1\n", "tests/test_app.py": "def test(): pass\n"}.items():
+        (root / path).parent.mkdir(parents=True, exist_ok=True)
+        (root / path).write_text(text)
+    (root / ".codewatch").mkdir()
+    git(root, "init", "-q", "-b", "main")
+    (root / ".codewatch" / "repo.git" / "info" / "exclude").write_text(".codewatch/\n")
+    git(root, "add", "-A")
+    git(root, "commit", "-q", "-m", "cp-1")
+    git(root, "switch", "-q", "-c", "cp-2")
+    (root / "src" / "app.py").write_text("x = 2\n")
+    (root / "tests" / "test_app.py").write_text("def test(): assert True\n")
+    git(root, "commit", "-qam", "solve cp-2")
 
 
-def write_audit(root, verdicts, triage=None):
+def write_verdicts(root, rows, triage=None):
     audit = root / ".codewatch" / "audit"
-    audit.mkdir(parents=True)
-    (audit / "verdicts.jsonl").write_text("".join(json.dumps(v) + "\n" for v in verdicts))
+    audit.mkdir(parents=True, exist_ok=True)
+    (audit / "verdicts.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
     if triage is not None:
         (audit / "triage.json").write_text(json.dumps(triage))
 
 
 def confirmed(signal="symbol-cognitive", path="src/app.py"):
-    return {"key": "k", "signal": signal, "path": path, "verdict": "confirmed", "rationale": "r",
-            "citations": [{"path": path, "lineStart": 1, "lineEnd": 2, "quote": "q"}], "controlRun": "ok"}
+    return {"key": f"{signal}:{path}", "signal": signal, "path": path, "verdict": "confirmed", "rationale": "r",
+            "citations": [{"path": path, "lineStart": 1, "lineEnd": 1, "quote": "q"}], "controlRun": "ok"}
 
 
-def edit_app(root):
-    (root / "src" / "app.py").write_text("x = 2\n")
-    (root / "src" / "helper.py").write_text("y = 1\n")
+def writes(path, text):
+    def edit(root):
+        (root / path).parent.mkdir(parents=True, exist_ok=True)
+        (root / path).write_text(text)
+    return edit
 
 
-class RemediationStageTest(unittest.TestCase):
+class FakeClaude:
+    """Applies one edit per call and answers with a stream-json result event."""
+
+    def __init__(self, *edits, timeout_on=None, error=None):
+        self.edits, self.timeout_on, self.error = list(edits), timeout_on, error
+        self.calls = []
+
+    def __call__(self, argv, env, cwd, timeout):
+        self.calls.append(list(argv))
+        if self.edits and (edit := self.edits.pop(0)):
+            edit(Path(cwd))
+        if self.error:
+            raise self.error
+        flag = "--resume" if "--resume" in argv else "--session-id"
+        result = {"type": "result", "subtype": "success", "num_turns": 3, "total_cost_usd": 0.1,
+                  "session_id": argv[argv.index(flag) + 1], "usage": {"input_tokens": 10, "output_tokens": 5}}
+        return (None, "", True) if len(self.calls) == self.timeout_on else (0, json.dumps(result), False)
+
+    def prompts(self):
+        return [argv[-1] for argv in self.calls]
+
+
+class FakeTools:
+    """Answers the test command, codewatch and the review command by argv."""
+
+    def __init__(self, tests=(), violations=(), diff=None, reviews=()):
+        self.tests, self.violations, self.reviews = list(tests), list(violations), list(reviews)
+        self.diff = diff or {}
+        self.calls = []
+        self.snapshot_id = 0
+
+    def __call__(self, argv, env, cwd, timeout):
+        argv = list(argv)
+        self.calls.append(argv)
+        if argv == TESTS:
+            return (self.tests.pop(0) if self.tests else 0), "", False
+        if argv[:1] == REVIEW:
+            return 0, json.dumps(self.reviews.pop(0) if self.reviews else {"verdict": "ok"}), False
+        if argv[1:3] == ["graph", "check"]:
+            return self._check()
+        if argv[1:3] == ["graph", "diff"]:
+            return 0, json.dumps({"diff": self.diff}), False
+        return 0, "", False
+
+    def _check(self):
+        self.snapshot_id += 1
+        names = self.violations.pop(0) if self.violations else []
+        violations = [{"ruleId": "max-cc", "nodeId": n, "isCarryover": False} for n in names]
+        return 1 if names else 0, json.dumps({"snapshot": {"id": self.snapshot_id},
+                                              "result": {"violations": violations}}), False
+
+
+class StageTestCase(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.root = Path(tmp.name) / "workspace"
-        (self.root / "src").mkdir(parents=True)
-        (self.root / "src" / "app.py").write_text("x = 1\n")
-        self.config = Config(workspace=self.root, scratch=Path(tmp.name) / "scratch", codewatch="codewatch",
-                             test_command=TESTS, replay_command=REPLAY, session_timeout=60, tool_timeout=60)
-        write_audit(self.root, [confirmed()])
+        self.root.mkdir()
+        make_repo(self.root)
+        self.config = Config(
+            workspace=self.root, scratch=Path(tmp.name) / "scratch", git_dir=self.root / ".codewatch" / "repo.git",
+            codewatch="codewatch", db=".codewatch/cache/graph.db", check_config=".codewatch/check.json",
+            baseline=None, tests_dir="tests", test_command=TESTS, review_command=REVIEW, deadline=None,
+            reset_margin=60)
 
-    def run_stage(self, claude, tools):
-        return remediate(self.config, ENV, claude, tools)
+    def run_stage(self, claude, tools, config=None, clock=None):
+        return remediate(config or self.config, ENV, claude, tools, clock or Clock(None, 60))
 
-    def test_a_validated_remediation_is_kept_and_reports_its_session(self):
-        claude = FakeClaude(edit=edit_app)
+    def log(self, *args):
+        return git(self.root, "log", "--format=%s", *args).splitlines()
+
+
+class PhaseOneTest(StageTestCase):
+    def test_a_test_gap_becomes_one_reviewed_commit_on_the_pr_branch(self):
+        write_verdicts(self.root, [confirmed("symbol_weak_oracle_only", "tests/test_app.py")])
+
+        report = self.run_stage(FakeClaude(writes("tests/test_app.py", "def test(): assert 1 == 1\n")), FakeTools())
+
+        item = report["items"][0]
+        self.assertEqual((report["outcome"], item["phase"], item["status"]), ("kept", 1, "kept"))
+        self.assertEqual(git(self.root, "rev-parse", "HEAD"), item["commit"])
+        self.assertEqual(self.log("-1"), ["codewatch fix 1: symbol_weak_oracle_only in tests/test_app.py"])
+        self.assertEqual((item["review"]["verdict"], git(self.root, "branch", "--show-current")), ("ok", "cp-2"))
+        self.assertEqual((report["tokens"], report["usd"], report["turns"]), (15, 0.1, 3))
+
+    def test_a_test_gap_commit_that_edits_source_is_reverted_and_the_next_item_still_runs(self):
+        write_verdicts(self.root, [confirmed("symbol_weak_oracle_only", "tests/test_app.py"),
+                                   confirmed("symbol-cognitive")])
+        claude = FakeClaude(writes("src/app.py", "x = 3\n"), writes("src/app.py", "x = 4\n"))
 
         report = self.run_stage(claude, FakeTools())
 
-        self.assertEqual(report["outcome"], "kept")
+        first, second = report["items"]
+        self.assertEqual(first["status"], "reverted")
+        self.assertIn("outside tests/: src/app.py", first["reason"])
+        self.assertEqual(second["status"], "kept")
+        self.assertIn("Your change for item 1 was reverted", claude.prompts()[1])
+        self.assertTrue(self.log("-3")[1].startswith("Revert"))
+        self.assertEqual((self.root / "src" / "app.py").read_text(), "x = 4\n")
+
+
+class PhaseTwoTest(StageTestCase):
+    def test_a_new_ratchet_violation_reverts_only_that_commit(self):
+        write_verdicts(self.root, [confirmed("symbol-cognitive"), confirmed("clone")])
+        claude = FakeClaude(writes("src/app.py", "x = 3\n"), writes("src/app.py", "x = 4\n"))
+        tools = FakeTools(violations=[["src/app.py#solve"], ["src/app.py#solve", "src/app.py#f"], ["src/app.py#solve"]])
+
+        report = self.run_stage(claude, tools)
+
+        first, second = report["items"]
+        self.assertEqual(first["status"], "reverted")
+        self.assertIn("graph-check: new violations: max-cc:src/app.py#f", first["reason"])
+        self.assertEqual(second["status"], "kept")
+        baseline_index = next(c for c in tools.calls if "--rev" in c)
+        self.assertEqual(baseline_index[baseline_index.index("--rev") + 1], git(self.root, "rev-parse", "main"))
+        check = next(c for c in tools.calls if c[1:3] == ["graph", "check"])
+        self.assertEqual(check[check.index("--baseline") + 1], "cw-merge-base")
+
+    def test_failing_tests_revert_the_commit(self):
+        write_verdicts(self.root, [confirmed()])
+
+        report = self.run_stage(FakeClaude(writes("src/app.py", "x = 3\n")), FakeTools(tests=[1]))
+
+        self.assertEqual((report["outcome"], report["items"][0]["reason"]), ("reverted", "tests: exit 1"))
         self.assertEqual((self.root / "src" / "app.py").read_text(), "x = 2\n")
-        self.assertEqual((report["items_in"], report["items_out"], report["turns"]), (1, 1, 7))
-        self.assertEqual((report["tokens"], report["usd"]), (200, 0.25))
-        self.assertIn(report["session_id"], claude.calls[0])
-        replay = next(c for c in report["validation"] if c["name"] == "replay")
-        self.assertEqual(replay["detail"], "replay unavailable")
-        self.assertEqual(list((self.config.scratch).iterdir()), [])
 
-    def test_failing_tests_discard_the_edit_and_restore_the_workspace(self):
-        report = self.run_stage(FakeClaude(edit=edit_app), FakeTools(tests=(1, 1)))
+    def test_kept_commits_report_the_symbols_they_added(self):
+        write_verdicts(self.root, [confirmed()])
+        diff = {"addedNodes": [{"id": "src/app.py#_helper", "kind": "function", "name": "_helper"},
+                               {"id": "src/app.py#Box", "kind": "class", "name": "Box"}],
+                "addedEdges": [{"srcId": "src/app.py#run", "dstId": "src/app.py#_helper", "kind": "calls"}]}
 
-        self.assertEqual(report["outcome"], "discarded")
-        self.assertIn("tests: exit 1", report["reason"])
-        self.assertIn("already failing before remediation", report["reason"])
-        self.assertEqual((self.root / "src" / "app.py").read_text(), "x = 1\n")
-        self.assertFalse((self.root / "src" / "helper.py").exists())
-        self.assertEqual(report["items_out"], 0)
+        report = self.run_stage(FakeClaude(writes("src/app.py", "x = 3\n")), FakeTools(diff=diff))
 
-    def test_a_new_ratchet_violation_discards_the_edit(self):
-        report = self.run_stage(FakeClaude(edit=edit_app), FakeTools(new_violations=["src/helper.py"]))
+        expected = [{"path": "src/app.py", "name": "_helper", "flags": ["single-caller-helper"]}]
+        self.assertEqual(report["added_symbols"], expected)
+        self.assertEqual(report["items"][0]["added_symbols"], expected)
 
-        self.assertEqual(report["outcome"], "discarded")
-        self.assertIn("graph-check: new violations: src/helper.py", report["reason"])
-        self.assertFalse((self.root / "src" / "helper.py").exists())
 
-    def test_the_ratchet_compares_against_the_pre_remediation_snapshot(self):
-        tools = FakeTools()
+class PhaseThreeTest(StageTestCase):
+    def test_a_finding_elsewhere_is_fixed_on_its_own_branch_and_merged(self):
+        write_verdicts(self.root, [confirmed("clone", "src/old.py"), confirmed("ERA001", "src/old.py")])
+        claude = FakeClaude(writes("src/old.py", "y = 2\n"), writes("src/old.py", "y = 3\n"))
 
-        self.run_stage(FakeClaude(), tools)
+        report = self.run_stage(claude, FakeTools(tests=[0, 1]))
 
-        checks = [c for c in tools.calls if "check" in c]
-        self.assertNotIn("--baseline", checks[0])
-        self.assertEqual(checks[1][checks[1].index("--baseline") + 1], "7")
+        kept, failed = report["items"]
+        self.assertEqual((kept["phase"], kept["status"], failed["status"]), (3, "kept", "reverted"))
+        self.assertIn("cw-backlog-2 not merged", failed["reason"])
+        self.assertEqual(self.log("-2", "--first-parent"), ["Merge cw-backlog-1", "solve cp-2"])
+        self.assertEqual(git(self.root, "branch", "--show-current"), "cp-2")
+        self.assertEqual((self.root / "src" / "old.py").read_text(), "y = 2\n")
 
-    def test_replay_fixes_count_and_new_diffs_discard(self):
-        (self.root / ".codewatch" / "regnet").mkdir()
-        fixed = self.run_stage(FakeClaude(), FakeTools(replay=[{"a", "b"}, {"b"}]))
-        broke = self.run_stage(FakeClaude(), FakeTools(replay=[{"a"}, {"a", "c"}]))
 
-        self.assertEqual((fixed["outcome"], fixed["fixed_replay_diffs"]), ("kept", 1))
-        self.assertEqual(broke["outcome"], "discarded")
-        self.assertIn("new unexplained diffs: c", broke["reason"])
+class ReviewTest(StageTestCase):
+    def test_a_conflict_resumes_the_session_once_and_the_revised_commit_is_kept(self):
+        write_verdicts(self.root, [confirmed()])
+        claude = FakeClaude(writes("src/app.py", "x = 3\n"), writes("src/app.py", "x = 2  # same\n"))
+        tools = FakeTools(reviews=[{"verdict": "conflict", "spec_line": "7", "reason": "output changed"},
+                                   {"verdict": "ok"}])
 
-    def test_a_timed_out_session_is_discarded_without_validation(self):
-        tools = FakeTools()
+        report = self.run_stage(claude, tools)
 
-        report = self.run_stage(FakeClaude(edit=edit_app, exit_code=None, timed_out=True), tools)
+        item = report["items"][0]
+        self.assertEqual((item["status"], item["resumed"], item["review"]["verdict"]), ("kept", True, "ok"))
+        self.assertIn("--resume", claude.calls[1])
+        self.assertIn("specification line 7", claude.prompts()[1])
+        self.assertEqual(len(self.log("main..HEAD")), 2)
 
-        self.assertEqual((report["outcome"], report["reason"]), ("discarded", "session timed out"))
-        self.assertFalse((self.root / "src" / "helper.py").exists())
-        self.assertEqual(sum(c == TESTS for c in tools.calls), 1)
+    def test_a_conflict_that_stands_after_the_resume_reverts_the_commit(self):
+        write_verdicts(self.root, [confirmed()])
+        conflict = {"verdict": "conflict", "spec_line": None, "reason": "output changed"}
 
-    def test_a_session_that_hits_the_turn_cap_is_still_validated(self):
-        claude = FakeClaude(edit=edit_app, exit_code=1, stdout=result_line(subtype="error_max_turns"))
+        report = self.run_stage(FakeClaude(writes("src/app.py", "x = 3\n"), None),
+                                FakeTools(reviews=[conflict, conflict]))
+
+        self.assertEqual(report["items"][0]["status"], "reverted")
+        self.assertIn("review: conflict after one resume", report["items"][0]["reason"])
+
+    def test_without_a_review_command_the_verdict_is_recorded_as_not_configured(self):
+        write_verdicts(self.root, [confirmed()])
+
+        report = self.run_stage(FakeClaude(writes("src/app.py", "x = 3\n")), FakeTools(),
+                                config=replace(self.config, review_command=None))
+
+        self.assertEqual(report["items"][0]["review"], {"verdict": "not-configured"})
+
+
+class TimeLimitTest(StageTestCase):
+    def test_no_item_starts_inside_the_reset_margin(self):
+        write_verdicts(self.root, [confirmed(), confirmed("clone")])
+        now = {"t": 0.0}
+
+        def edit_then_wait(root):
+            writes("src/app.py", "x = 3\n")(root)
+            now["t"] = 950.0
+
+        report = self.run_stage(FakeClaude(edit_then_wait), FakeTools(), clock=Clock(1000, 60, now=lambda: now["t"]))
+
+        self.assertEqual([i["status"] for i in report["items"]], ["kept", "not-started"])
+        self.assertEqual(report["stopped_by"], "time limit")
+
+    def test_a_session_cut_off_by_the_deadline_resets_to_the_last_kept_commit(self):
+        write_verdicts(self.root, [confirmed(), confirmed("clone")])
+        head = git(self.root, "rev-parse", "HEAD")
+        claude = FakeClaude(writes("src/app.py", "x = 3\n"), writes("src/new.py", "z = 1\n"), timeout_on=2)
 
         report = self.run_stage(claude, FakeTools())
 
-        self.assertEqual(report["outcome"], "kept")
+        self.assertEqual([i["status"] for i in report["items"]], ["kept", "time limit"])
+        self.assertNotEqual(git(self.root, "rev-parse", "HEAD"), head)
+        self.assertFalse((self.root / "src" / "new.py").exists())
+        self.assertEqual(git(self.root, "status", "--porcelain"), "")
 
-    def test_an_error_mid_session_restores_the_workspace_and_propagates(self):
-        claude = FakeClaude(edit=edit_app, error=KeyboardInterrupt())
+
+class SafetyTest(StageTestCase):
+    def backups(self):
+        return list(self.config.scratch.glob("remediation-*/workspace"))
+
+    def test_an_error_resets_to_the_last_kept_commit_and_drops_the_backup(self):
+        write_verdicts(self.root, [confirmed()])
+        claude = FakeClaude(writes("src/app.py", "x = 9\n"), error=KeyboardInterrupt())
 
         with self.assertRaises(KeyboardInterrupt):
             self.run_stage(claude, FakeTools())
 
-        self.assertFalse((self.root / "src" / "helper.py").exists())
+        self.assertEqual((self.root / "src" / "app.py").read_text(), "x = 2\n")
+        self.assertEqual(self.backups(), [])
 
-    def backups(self):
-        return list(self.config.scratch.glob("remediation-*/workspace"))
+    def test_when_the_reset_and_the_restore_both_fail_the_backup_is_kept(self):
+        write_verdicts(self.root, [confirmed()])
+        claude = FakeClaude(writes("src/app.py", "x = 9\n"), error=KeyboardInterrupt())
 
-    def test_a_failed_restore_keeps_the_backup_and_reports_where_it_is(self):
-        with mock.patch("remediation.workspace.restore", side_effect=PermissionError("read-only dir")):
-            report = self.run_stage(FakeClaude(edit=edit_app), FakeTools(tests=(0, 1)))
-
-        saved = self.backups()
-        self.assertEqual(report["outcome"], "discarded")
-        self.assertIn("restore failed (PermissionError: read-only dir)", report["reason"])
-        self.assertEqual([report["backup"]], [str(p) for p in saved])
-        self.assertEqual((saved[0] / "src" / "app.py").read_text(), "x = 1\n")
-
-    def test_a_failed_restore_after_an_error_keeps_the_backup(self):
-        claude = FakeClaude(edit=edit_app, error=KeyboardInterrupt())
-
-        with mock.patch("remediation.workspace.restore", side_effect=OSError("disk")), \
+        with mock.patch.object(Git, "reset_to", side_effect=RuntimeError("git gone")), \
+                mock.patch("remediation.workspace.restore", side_effect=PermissionError("read-only")), \
                 self.assertRaises(KeyboardInterrupt):
             self.run_stage(claude, FakeTools())
 
-        self.assertEqual(len(self.backups()), 1)
-
-    def test_a_scratch_dir_inside_the_workspace_skips_with_a_report(self):
-        config = replace(self.config, scratch=self.root / "scratch")
-        claude = FakeClaude()
-
-        report = remediate(config, ENV, claude, FakeTools())
-
-        self.assertEqual(report["outcome"], "skipped")
-        self.assertIn("inside the workspace", report["reason"])
-        self.assertEqual(claude.calls, [])
+        saved = self.backups()
+        self.assertEqual(len(saved), 1)
+        self.assertEqual((saved[0] / "src" / "app.py").read_text(), "x = 2\n")
 
     def test_the_session_gives_the_owner_access_to_claude_home_again(self):
-        home = self.config.scratch.parent / "home"
-        locked = home / ".claude" / "projects" / "trace.jsonl"
+        write_verdicts(self.root, [confirmed()])
+        locked = self.config.scratch.parent / "home" / ".claude" / "projects" / "trace.jsonl"
         locked.parent.mkdir(parents=True)
         locked.write_text("{}")
         locked.chmod(0o000)
 
-        remediate(self.config, {**ENV, "HOME": str(home)}, FakeClaude(), FakeTools())
+        remediate(self.config, {**ENV, "HOME": str(locked.parents[2])}, FakeClaude(None), FakeTools(), Clock(None, 60))
 
-        mode = locked.stat().st_mode
-        self.assertEqual(mode & (stat.S_IRUSR | stat.S_IWUSR), stat.S_IRUSR | stat.S_IWUSR)
+        self.assertEqual(locked.stat().st_mode & (stat.S_IRUSR | stat.S_IWUSR), stat.S_IRUSR | stat.S_IWUSR)
 
-    def test_no_confirmed_items_skips_the_session(self):
-        verdicts = self.root / ".codewatch" / "audit" / "verdicts.jsonl"
-        verdicts.write_text(json.dumps({**confirmed(), "verdict": "justified"}) + "\n")
-        claude = FakeClaude()
 
-        report = self.run_stage(claude, FakeTools())
-
-        self.assertEqual((report["outcome"], report["reason"]), ("skipped", "no confirmed items"))
-        self.assertEqual(claude.calls, [])
-
-    def test_failed_controls_send_only_regression_items(self):
-        verdicts = self.root / ".codewatch" / "audit" / "verdicts.jsonl"
-        verdicts.write_text("".join(json.dumps(v) + "\n" for v in [confirmed(), confirmed("regnet-diff")]))
-        (verdicts.parent / "triage.json").write_text(json.dumps({"controls": {"controlRun": "provisional"}}))
-        claude = FakeClaude()
-
-        report = self.run_stage(claude, FakeTools())
-
-        self.assertEqual((report["items_in"], report["held_back"]), (1, 1))
-        self.assertIn("[regression]", claude.calls[0][-1])
-        self.assertNotIn("[quality]", claude.calls[0][-1])
+class SkipTest(StageTestCase):
+    def test_the_stage_skips_without_items_a_repo_a_clean_tree_or_an_outside_scratch(self):
+        cases = {
+            "no confirmed items": (lambda: write_verdicts(self.root, [{**confirmed(), "verdict": "justified"}]), None),
+            "uncommitted changes": (lambda: (self.root / "src" / "app.py").write_text("x = 5\n"), None),
+            "inside the workspace": (lambda: None, replace(self.config, scratch=self.root / "scratch")),
+            "no hidden repository": (lambda: None, replace(self.config, git_dir=self.root / "missing.git")),
+        }
+        for reason, (arrange, config) in cases.items():
+            with self.subTest(reason):
+                write_verdicts(self.root, [confirmed()])
+                arrange()
+                claude = FakeClaude()
+                report = self.run_stage(claude, FakeTools(), config=config)
+                git(self.root, "checkout", "--", ".")
+                self.assertEqual(report["outcome"], "skipped")
+                self.assertIn(reason, report["reason"])
+                self.assertEqual(claude.calls, [])
 
 
 if __name__ == "__main__":

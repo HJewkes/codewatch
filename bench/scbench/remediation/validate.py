@@ -1,11 +1,13 @@
-"""The three checks a remediation must pass to be kept.
+"""Checks on each fix commit, and the hook for the spec-aware commit review (U17).
 
-1. The agent's tests pass.
-2. The replay shows no new unexplained diff. The replay net (design unit U3) is not
-   built, so it is a pluggable `Replay`: any object whose `diffs()` returns the ids of
-   the calls whose output changed, or None when no replay can run. With no corpus or no
-   replay command the check passes and records "replay unavailable".
-3. `codewatch graph check --baseline <pre-remediation snapshot>` reports no new violation.
+- Tests: the agent's whole suite is green.
+- Ratchet: `codewatch graph check --baseline <merge-base>` lists no violation the tree
+  before the commit did not already have. The solve's own new violations are not the
+  fix's, so the comparison is against the state before the commit.
+- Added symbols: functions and methods the commit added, flagged `single-caller-helper`
+  when exactly one `calls` edge reaches them (the U11 gaming check reads these).
+- Review: an optional command that gets the commit sha and prints
+  `{"verdict": "ok"|"conflict", "spec_line": ..., "reason": ...}` as its last line.
 """
 
 from __future__ import annotations
@@ -15,14 +17,11 @@ import os
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
 
-Run = Callable[[Sequence[str], Mapping[str, str], str, float], tuple[int | None, str, bool]]
+Run = Callable[[Sequence[str], Mapping[str, str], str, float | None], tuple[int | None, str, bool]]
 
 PYTEST_NO_TESTS = 5
-REPLAY_CORPUS = Path(".codewatch") / "regnet"
-GRAPH_DB = ".codewatch/graph.db"
-CHECK_CONFIG = ".codewatch/check.json"
+SYMBOL_KINDS = frozenset({"function", "method"})
 
 
 @dataclass(frozen=True)
@@ -32,85 +31,103 @@ class Check:
     detail: str
 
 
-class Replay(Protocol):
-    def diffs(self) -> frozenset[str] | None: ...
-
-
 @dataclass(frozen=True)
 class TestRunner:
     workspace: Path
     command: Sequence[str]
+    tests_dir: str
     run: Run
-    timeout: float
 
-    def __call__(self, env: Mapping[str, str]) -> Check:
+    def __call__(self, env: Mapping[str, str], timeout: float | None) -> Check:
+        if not (self.workspace / self.tests_dir).is_dir():
+            return Check("tests", True, f"no {self.tests_dir}/ directory")
         venv_bin = self.workspace / ".venv" / "bin"
         if venv_bin.is_dir():
             env = {**env, "PATH": f"{venv_bin}{os.pathsep}{env.get('PATH', '')}"}
-        code, _, timed_out = self.run(self.command, env, str(self.workspace), self.timeout)
+        code, _, timed_out = self.run(self.command, env, str(self.workspace), timeout)
         if timed_out:
             return Check("tests", False, "tests timed out")
-        passed = code in (0, PYTEST_NO_TESTS)
-        return Check("tests", passed, f"exit {code}")
+        return Check("tests", code in (0, PYTEST_NO_TESTS), f"exit {code}")
 
 
 @dataclass(frozen=True)
-class CommandReplay:
-    """Runs a replay command that prints {"diffs": [call ids]} as its last stdout line."""
-
-    workspace: Path
-    command: Sequence[str] | None
-    run: Run
-    timeout: float
-
-    def diffs(self) -> frozenset[str] | None:
-        if not self.command or not (self.workspace / REPLAY_CORPUS).is_dir():
-            return None
-        code, stdout, timed_out = self.run(self.command, dict(os.environ), str(self.workspace), self.timeout)
-        report = _last_json(stdout)
-        if timed_out or code != 0 or not isinstance(report.get("diffs"), list):
-            return None
-        return frozenset(str(d) for d in report["diffs"])
-
-
-def replay_check(before: frozenset[str] | None, after: frozenset[str] | None) -> tuple[Check, int]:
-    """Passes when every diff after remediation was already there before it; returns the diffs fixed."""
-    if before is None or after is None:
-        return Check("replay", True, "replay unavailable"), 0
-    new = sorted(after - before)
-    detail = f"new unexplained diffs: {', '.join(new)}" if new else f"{len(after)} diffs, none new"
-    return Check("replay", not new, detail), len(before - after)
+class Snapshot:
+    id: int
+    new_violations: frozenset[str]
 
 
 @dataclass(frozen=True)
 class GraphCheck:
     workspace: Path
     codewatch: str
+    db: str
+    config: str
+    baseline: str
     run: Run
-    timeout: float
+    env: Mapping[str, str]
 
-    def snapshot(self, ref: str, baseline: int | None = None) -> dict | None:
-        """Indexes the workspace, then runs graph check on it; None when either step fails."""
-        env, cwd = dict(os.environ), str(self.workspace)
-        index = [self.codewatch, "graph", "index", ".", "--db", GRAPH_DB, "--ref", ref]
-        code, _, timed_out = self.run(index, env, cwd, self.timeout)
-        if timed_out or code != 0:
+    def _call(self, args: list[str], timeout: float | None) -> tuple[int | None, str]:
+        code, stdout, timed_out = self.run([self.codewatch, *args], self.env, str(self.workspace), timeout)
+        return (None if timed_out else code), stdout
+
+    def snapshot(self, ref: str, timeout: float | None) -> Snapshot | None:
+        """Indexes the work tree and checks it against the baseline; None when either step fails."""
+        code, _ = self._call(["graph", "index", ".", "--db", self.db, "--ref", ref], timeout)
+        if code != 0:
             return None
-        check = [self.codewatch, "graph", "check", "--db", GRAPH_DB, "--config", CHECK_CONFIG, "--json"]
-        if baseline is not None:
-            check += ["--baseline", str(baseline)]
-        code, stdout, timed_out = self.run(check, env, cwd, self.timeout)
+        check = ["graph", "check", "--db", self.db, "--config", self.config, "--baseline", self.baseline, "--json"]
+        code, stdout = self._call(check, timeout)
         report = _json_object(stdout)
-        return None if timed_out or code not in (0, 1) or "snapshot" not in report else report
+        if code not in (0, 1) or "snapshot" not in report:
+            return None
+        violations = (report.get("result") or {}).get("violations") or []
+        keys = frozenset(f"{v.get('ruleId')}:{v.get('nodeId')}" for v in violations if not v.get("isCarryover"))
+        return Snapshot(int(report["snapshot"]["id"]), keys)
+
+    def added_symbols(self, before: int, after: int, timeout: float | None) -> list[dict]:
+        code, stdout = self._call(["graph", "diff", "--db", self.db, "--from", str(before),
+                                   "--to", str(after), "--json"], timeout)
+        diff = (_json_object(stdout).get("diff") or {}) if code == 0 else {}
+        return symbols_added(diff)
 
 
-def ratchet_check(report: dict | None) -> Check:
-    if report is None:
+def symbols_added(diff: Mapping) -> list[dict]:
+    calls: dict[str, int] = {}
+    for edge in diff.get("addedEdges") or []:
+        if edge.get("kind") == "calls":
+            calls[edge.get("dstId")] = calls.get(edge.get("dstId"), 0) + 1
+    return [
+        {"path": node["id"].split("#")[0], "name": node.get("name", ""),
+         "flags": ["single-caller-helper"] if calls.get(node["id"]) == 1 else []}
+        for node in diff.get("addedNodes") or []
+        if node.get("kind") in SYMBOL_KINDS and "id" in node
+    ]
+
+
+def ratchet_check(before: Snapshot | None, after: Snapshot | None) -> Check:
+    if before is None or after is None:
         return Check("graph-check", False, "graph check could not run")
-    violations = (report.get("result") or {}).get("violations") or []
-    new = [v.get("nodeId", "?") for v in violations if not v.get("isCarryover")]
-    detail = f"new violations: {', '.join(new[:5])}" if new else "no new violation"
-    return Check("graph-check", not new, detail)
+    new = sorted(after.new_violations - before.new_violations)
+    return Check("graph-check", not new, f"new violations: {', '.join(new[:5])}" if new else "no new violation")
+
+
+@dataclass(frozen=True)
+class Reviewer:
+    """The U17 hook: runs the configured review command on one commit."""
+
+    command: Sequence[str] | None
+    workspace: Path
+    run: Run
+    env: Mapping[str, str]
+
+    def __call__(self, commit: str, timeout: float | None) -> dict:
+        if not self.command:
+            return {"verdict": "not-configured"}
+        code, stdout, timed_out = self.run([*self.command, commit], self.env, str(self.workspace), timeout)
+        report = _last_json(stdout)
+        if timed_out or code != 0 or report.get("verdict") not in ("ok", "conflict"):
+            return {"verdict": "error", "reason": "timed out" if timed_out else f"exit {code}, no verdict"}
+        return {k: report.get(k) for k in ("verdict", "spec_line", "reason")}
 
 
 def _json_object(text: str) -> dict:

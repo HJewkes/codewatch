@@ -1,7 +1,7 @@
-"""Copy the workspace aside before remediation, and put it back when remediation is discarded.
+"""A whole-workspace copy taken before the fix stage: the last resort when an error leaves
+the hidden repository unable to reset the work tree.
 
-The copy is whole, `.codewatch/` and any virtual environment included, so a discarded
-remediation leaves no trace in the graded snapshot or in graph.db.
+The copy includes `.codewatch/` (the hidden repository too) and any virtual environment.
 """
 
 from __future__ import annotations
@@ -39,3 +39,13 @@ def restore(workspace: Path, saved: Path) -> None:
 
 def drop(saved: Path) -> None:
     shutil.rmtree(saved.parent, ignore_errors=True)
+
+
+def restore_or_keep(workspace: Path, saved: Path) -> str | None:
+    """Restores, then drops the backup; on a failed restore the backup stays and the error is returned."""
+    try:
+        restore(workspace, saved)
+    except Exception as error:  # noqa: BLE001 - the backup must survive any restore failure
+        return f"{type(error).__name__}: {error}"
+    drop(saved)
+    return None
