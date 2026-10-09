@@ -8,6 +8,10 @@ because they reach a symbol only through re-export barrels.
 
 - A **SessionStart hook** (`startup|clear|compact`) that injects a short repo snapshot as
   additional context. It exits silently when the repo is not indexed or the CLI is missing.
+  When a review synthesis has left `.codewatch/rubric.md` or `.codewatch/session-brief.json`,
+  it also appends the rubric, at most 3 open review items and the most-imported changed
+  symbols, capped at about 1.5k tokens. Those notes are injected even outside a git
+  repository and when the snapshot itself fails.
 - The **codewatch MCP server** (`graph mcp`), launched by `bin/codewatch-launch.sh`. It
   refuses to start in a repo without `.codewatch/graph.db`, so an unindexed repo shows the
   server as failed in `/mcp` and costs no model tokens.

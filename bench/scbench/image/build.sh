@@ -28,7 +28,8 @@ require_base() {
 }
 
 build_image() {
-  docker build --build-arg "BASE_IMAGE=$base_image" --build-arg "CODEWATCH_VERSION=$codewatch_version" -t "$image" "$here"
+  docker build --build-arg "BASE_IMAGE=$base_image" --build-arg "CODEWATCH_VERSION=$codewatch_version" \
+    --build-context "synthesis=$here/../synthesis" -t "$image" "$here"
 }
 
 count_tool() {

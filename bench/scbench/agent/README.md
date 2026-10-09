@@ -37,6 +37,13 @@ The agent also cannot tell which checkpoint is the last one, so `synthesis` runs
 checkpoint, including the final one. Its output only feeds the next checkpoint's
 injection.
 
+The `synthesis` command in `claude_code_cw.yaml` runs `bench/scbench/synthesis` from the
+image. It writes `.codewatch/rubric.md` (one Sonnet 5.5 call, at most 300 words) and
+`.codewatch/session-brief.json` (at most 3 open items and the most-imported changed
+symbols), which the codewatch plugin's SessionStart hook appends to its snapshot. The
+changed symbols need `graph diff --footprint`, which is newer than `@codewatch/cli` 0.7.0;
+on 0.7.0 that list stays empty.
+
 **Budget.** No stage launches after 25 minutes of stage time in a checkpoint, or once
 fewer than 20 minutes remain under the 2-hour checkpoint cap. A launched stage times out
 at that 20-minute line. All three values are config fields.
