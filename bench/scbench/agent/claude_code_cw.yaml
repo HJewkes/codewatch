@@ -19,4 +19,6 @@ stages:
   replay: {enabled: false}
   triage: {enabled: false}
   remediation: {enabled: false}
-  synthesis: {enabled: false}
+  synthesis:
+    enabled: false
+    command: PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -m synthesis

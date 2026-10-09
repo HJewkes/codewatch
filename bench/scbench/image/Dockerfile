@@ -29,6 +29,9 @@ RUN mkdir -p /opt/codewatch-a1/bin \
         ln -s "/opt/codewatch-a1/node/node_modules/.bin/${tool}" "/opt/codewatch-a1/bin/${tool}"; \
     done
 
+# The synthesis stage (bench/scbench/synthesis), passed by build.sh as a named build context.
+COPY --from=synthesis . /opt/codewatch-a1/synthesis
+
 COPY codewatch-wrapper.sh /usr/local/bin/codewatch
 RUN chmod 755 /usr/local/bin/codewatch \
     && chmod -R a+rX /opt/codewatch-a1 \

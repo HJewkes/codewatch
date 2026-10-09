@@ -1,9 +1,11 @@
 // @ts-check
-// SessionStart hook: inject a codewatch repo snapshot. Every failure path exits 0 with empty stdout.
+// SessionStart hook: inject a codewatch repo snapshot plus any carried synthesis notes.
+// Every failure path exits 0, with empty stdout unless synthesis notes exist.
 
 import { spawn } from "node:child_process"
-import { existsSync } from "node:fs"
+import { existsSync, writeSync } from "node:fs"
 import { join } from "node:path"
+import { formatCarry, readCarry } from "./carry-format.mjs"
 import { findCodewatchBin, git } from "./hook-env.mjs"
 import { formatSnapshot } from "./snapshot-format.mjs"
 
@@ -13,10 +15,19 @@ const DEADLINE_MS = 2500
 /** @type {Set<import("node:child_process").ChildProcess>} */
 const children = new Set()
 
+// Notes carried from the last synthesis still reach the session when the snapshot fails.
+let carried = ""
+
+/** @param {string} additionalContext */
+function emit(additionalContext) {
+  writeSync(1, JSON.stringify({ hookSpecificOutput: { hookEventName: "SessionStart", additionalContext } }))
+}
+
 /** @param {string} message */
 function bail(message) {
   process.stderr.write(`codewatch session-start: ${message}\n`)
   for (const child of children) killGroup(child)
+  if (carried) emit(carried)
   process.exit(0)
 }
 
@@ -68,10 +79,10 @@ function runJson(cli, args) {
 /**
  * @param {string} root
  * @param {string | undefined} snapshotSha
- * @param {string} head
+ * @param {string | undefined} head
  */
 function commitsBehind(root, snapshotSha, head) {
-  if (!snapshotSha || snapshotSha === head) return undefined
+  if (!head || !snapshotSha || snapshotSha === head) return undefined
   try {
     return Number(git(["-C", root, "rev-list", "--count", `${snapshotSha}..${head}`]))
   } catch {
@@ -79,22 +90,37 @@ function commitsBehind(root, snapshotSha, head) {
   }
 }
 
+/**
+ * The git toplevel; outside git, the project dir only when it carries synthesis notes.
+ * @param {string} projectDir
+ * @returns {{ root: string, inGit: boolean }}
+ */
+function resolveRoot(projectDir) {
+  try {
+    return { root: git(["-C", projectDir, "rev-parse", "--show-toplevel"]), inGit: true }
+  } catch {
+    return { root: projectDir, inGit: false }
+  }
+}
+
 async function main() {
   const timer = setTimeout(() => bail(`timed out after ${DEADLINE_MS} ms`), DEADLINE_MS)
-  const root = git(["-C", process.env.CLAUDE_PROJECT_DIR || process.cwd(), "rev-parse", "--show-toplevel"])
+  const { root, inGit } = resolveRoot(process.env.CLAUDE_PROJECT_DIR || process.cwd())
+  carried = formatCarry(readCarry(root))
+  if (!inGit && !carried) return bail(`${root} is not a git repository`)
   const db = join(root, ".codewatch", "graph.db")
   if (!existsSync(db)) return bail(`no .codewatch/graph.db under ${root}`)
   const cli = resolveCli()
   if (!cli) return bail("cannot find the codewatch CLI; set CODEWATCH_BIN")
-  const head = git(["-C", root, "rev-parse", "HEAD"])
+  const head = inGit ? git(["-C", root, "rev-parse", "HEAD"]) : undefined
   const [conventions, top] = await Promise.all([
     runJson(cli, ["graph", "conventions", "--offline", "--json", "--db", db]),
     runJson(cli, ["graph", "top", "--metric", "fan_in", "--kind", "file", "--exclude-role", "test", "--limit", "5", "--json", "--db", db]),
   ])
   const behind = commitsBehind(root, top?.snapshot?.commitHash, head)
-  const additionalContext = formatSnapshot({ conventions, top, head, commitsBehind: behind })
+  const snapshot = formatSnapshot({ conventions, top, head, commitsBehind: behind })
   clearTimeout(timer)
-  process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "SessionStart", additionalContext } }))
+  emit(carried ? `${snapshot}\n\n${carried}` : snapshot)
 }
 
 main().catch((error) => bail(error instanceof Error ? error.message : String(error)))
