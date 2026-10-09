@@ -10,7 +10,7 @@ export type ControlKind =
   | "comment"
   | "unnecessary-isinstance"
   | "pass-through"
-  | "regnet-diff"
+  | "missing-test-kind"
   | "weak-oracle"
   | "clone";
 
@@ -38,7 +38,9 @@ export interface ControlDefinition {
   rationale: string;
   path: string;
   text: string;
-  /** The checkpoint spec shown beside the file, for kinds whose question needs one. */
+  /** Other files shown whole beside this one, such as the tests a finding's evidence names, by path. */
+  related?: Readonly<Record<string, string>>;
+  /** The checkpoint spec shown beside the file, for kinds whose question uses one. */
   spec?: string;
   findings: readonly ControlFindingDefinition[];
 }
@@ -54,6 +56,7 @@ export interface Control {
   label: ControlLabel;
   path: string;
   text: string;
+  related?: Readonly<Record<string, string>>;
   spec?: string;
   findings: ControlFinding[];
 }

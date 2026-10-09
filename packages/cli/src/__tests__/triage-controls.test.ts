@@ -36,12 +36,19 @@ describe("triage control corpus", () => {
     for (const c of loadControls()) labels.set(c.kind, [...(labels.get(c.kind) ?? []), c.label].sort());
 
     for (const kind of ["single-caller-helper", "comment", "unnecessary-isinstance", "pass-through"]) expect(labels.get(kind)).toEqual(["clean", "slop"]);
-    for (const kind of ["regnet-diff", "weak-oracle", "clone"]) expect(labels.get(kind)).toHaveLength(1);
+    for (const kind of ["missing-test-kind", "weak-oracle", "clone"]) expect(labels.get(kind)).toHaveLength(1);
     expect(labels.size).toBe(7);
   });
 
-  it("gives the regnet-diff control a spec of its own and no other control one", () => {
-    expect(loadControls().filter((c) => c.spec !== undefined).map((c) => c.kind)).toEqual(["regnet-diff"]);
+  it("gives no control a spec of its own", () => {
+    expect(loadControls().filter((c) => c.spec !== undefined)).toEqual([]);
+  });
+
+  it("carries the tests a missing-test-kind finding names beside its file", () => {
+    const control = loadControls().find((c) => c.kind === "missing-test-kind")!;
+    const named = [...control.findings[0]!.evidence!.matchAll(/([^\s,]+):\d+-\d+/g)].map((m) => m[1]);
+
+    expect(new Set(named)).toEqual(new Set(Object.keys(control.related ?? {})));
   });
 
   it("expects confirmed on every slop finding and justified on every clean one", () => {
@@ -69,7 +76,8 @@ describe("triage control corpus", () => {
   it("keeps the label out of what the reader sees", () => {
     for (const c of loadControls()) {
       const evidence = c.findings.map((f) => f.evidence ?? "").join("\n");
-      expect(`${c.path}\n${c.text}\n${c.spec ?? ""}\n${evidence}`.toLowerCase()).not.toMatch(/\b(slop|clean|control|planted)\b/);
+      const related = Object.entries(c.related ?? {}).flat().join("\n");
+      expect(`${c.path}\n${c.text}\n${related}\n${c.spec ?? ""}\n${evidence}`.toLowerCase()).not.toMatch(/\b(slop|clean|control|planted)\b/);
     }
   });
 });
