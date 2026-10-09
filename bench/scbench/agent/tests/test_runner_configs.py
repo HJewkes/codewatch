@@ -9,6 +9,7 @@ from agent.runner_configs import VENDORED_CONFIGS, ConfigsNotFound, manifest_ent
 FIXTURE_RUNNER = Path(__file__).parent / "fixtures" / "runner-configs"
 EMPTY = Path(__file__).parent / "fixtures" / "no-such-configs"
 VENDORED_SONNET = VENDORED_CONFIGS / "models" / "sonnet-5.5.yaml"
+VENDORED_ENV = VENDORED_CONFIGS / "environments" / "docker-python3.12-uv-rootless.yaml"
 HAS_RUNNER = importlib.util.find_spec("slop_code") is not None
 
 
@@ -25,11 +26,14 @@ class ResolutionTest(unittest.TestCase):
         with self.assertRaises(ConfigsNotFound):
             providers_file(VENDORED_CONFIGS, EMPTY)
 
-    def test_the_manifest_entry_pins_the_vendored_sonnet_file_by_sha(self):
+    def test_the_manifest_entry_pins_every_vendored_config_by_sha(self):
         entry = manifest_entry(VENDORED_CONFIGS, FIXTURE_RUNNER)
 
-        expected = hashlib.sha256(VENDORED_SONNET.read_bytes()).hexdigest()
-        self.assertEqual(entry["vendoredModels"]["bench/scbench/configs/models/sonnet-5.5.yaml"], expected)
+        pins = entry["vendoredConfigs"]
+        self.assertEqual(pins["bench/scbench/configs/models/sonnet-5.5.yaml"],
+                         hashlib.sha256(VENDORED_SONNET.read_bytes()).hexdigest())
+        self.assertEqual(pins[f"bench/scbench/configs/environments/{VENDORED_ENV.name}"],
+                         hashlib.sha256(VENDORED_ENV.read_bytes()).hexdigest())
         self.assertEqual(entry["providersFile"], str(FIXTURE_RUNNER / "providers.yaml"))
 
 

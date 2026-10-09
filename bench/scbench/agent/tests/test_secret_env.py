@@ -7,19 +7,21 @@ try:
 except ModuleNotFoundError:
     raise unittest.SkipTest("slop-code-bench is not installed; run pnpm test:bench:agent")
 
+from slop_code.entrypoints.config.loader import resolve_environment
 from slop_code.execution import DockerConfig, DockerEnvironmentSpec
 from slop_code.execution.docker_runtime.streaming import DockerStreamingRuntime
 
 from agent import secret_env
 
+PILOT_ENV = Path(__file__).parents[2] / "configs" / "environments" / "docker-python3.12-uv-rootless.yaml"
 FAKE_TOKEN = "fake-oauth-value-not-a-real-token"
 FAKE_KEY = "fake-api-key-value"
 ENV = {"CLAUDE_CODE_OAUTH_TOKEN": FAKE_TOKEN, "ANTHROPIC_API_KEY": FAKE_KEY, "DISABLE_AUTOUPDATER": "1"}
 STOCK_START = DockerStreamingRuntime._start_exec_process
 
 
-def _runtime():
-    spec = DockerEnvironmentSpec(name="env", docker=DockerConfig(image="python:3.12"))
+def _runtime(spec=None):
+    spec = spec or DockerEnvironmentSpec(name="env", docker=DockerConfig(image="python:3.12"))
     with mock.patch("docker.from_env"):
         runtime = DockerStreamingRuntime(spec, Path("/workspace"), {}, is_evaluation=False, ports={},
                                          mounts={}, env_vars={}, setup_command=None, user="0:0",
@@ -63,6 +65,14 @@ class TokenByNameTest(unittest.TestCase):
         self.assertEqual(argv, expected)
         self.assertEqual(argv[argv.index("CLAUDE_CODE_OAUTH_TOKEN") - 1], "--env")
         self.assertIn("DISABLE_AUTOUPDATER=1", argv)
+
+    def test_the_pilot_env_sends_is_sandbox_to_docker_exec_and_leaves_the_command_alone(self):
+        argv, _, _ = _launch(_runtime(resolve_environment(PILOT_ENV)), secret_env._start_exec_process)
+        stock_argv, _, _ = _launch(_runtime(), secret_env._start_exec_process)
+
+        self.assertEqual(argv[argv.index("IS_SANDBOX=1") - 1], "--env")
+        self.assertEqual(argv[-3:], stock_argv[-3:])
+        self.assertEqual(argv[-1], "claude -p task")
 
     def test_install_replaces_the_runner_exec_launcher(self):
         with mock.patch.object(DockerStreamingRuntime, "_start_exec_process", STOCK_START):

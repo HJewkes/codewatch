@@ -17,6 +17,7 @@ from slop_code.agent_runner.credentials import CredentialType, ProviderCredentia
 from slop_code.agent_runner.registry import build_agent_config, get_agent_cls
 from slop_code.agent_runner.runner import get_task_for_checkpoint
 from slop_code.common.llms import APIPricing, ModelDefinition
+from slop_code.entrypoints.config.loader import resolve_environment
 from slop_code.execution import DockerConfig, DockerEnvironmentSpec
 from slop_code.execution.runtime import RuntimeEvent, RuntimeResult
 
@@ -76,11 +77,14 @@ def _credential():
                               destination_key="CLAUDE_CODE_OAUTH_TOKEN", credential_type=CredentialType.ENV_VAR)
 
 
-def _build(config, runtime):
+PILOT_ENV = Path(__file__).parents[2] / "configs" / "environments" / "docker-python3.12-uv-rootless.yaml"
+
+
+def _build(config, runtime, environment=None):
     agent = Agent.from_config(config, _model(), _credential(), "problem", False, "image", "high")
     agent._runtime = runtime
     agent._workspace = Path("/workspace")
-    agent._environment = DockerEnvironmentSpec(name="env", docker=DockerConfig(image="python:3.12"))
+    agent._environment = environment or DockerEnvironmentSpec(name="env", docker=DockerConfig(image="python:3.12"))
     return agent
 
 
@@ -148,6 +152,24 @@ class StockEquivalenceTest(unittest.TestCase):
         self.assertEqual(PROMPTS, stock_prompts)
         self.assertEqual(PROMPTS[0], TASK.encode())
         self.assertEqual(cw_runtime.streamed, stock_runtime.streamed)
+
+    def test_the_pilot_env_leaves_claude_argv_env_and_prompt_equal_to_stock(self):
+        pilot = resolve_environment(PILOT_ENV)
+        captures = []
+        PROMPTS.clear()
+        for config, env in [(ClaudeCodeConfig(type="claude_code", **STOCK_FIELDS), None),
+                            (ClaudeCodeConfig(type="claude_code", **STOCK_FIELDS), pilot),
+                            (_cw_config({}), pilot)]:
+            capture = SolveCapture()
+            _solve(_build(config, FakeRuntime(), env), capture)
+            captures.append(capture.calls)
+
+        self.assertEqual(captures[1], captures[0])
+        self.assertEqual(captures[2], captures[0])
+        self.assertEqual(PROMPTS, [TASK.encode()] * 3)
+        self.assertNotIn("IS_SANDBOX", captures[0][0][1])
+        self.assertEqual(pilot.get_full_env({})["IS_SANDBOX"], "1")
+        self.assertEqual(pilot.docker.user, "0:0")
 
     def test_the_rendered_prompt_does_not_depend_on_the_agent_type(self):
         env = DockerEnvironmentSpec(name="env", docker=DockerConfig(image="python:3.12"))

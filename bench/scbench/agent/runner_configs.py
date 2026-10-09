@@ -45,13 +45,12 @@ def models_dirs(vendored: Path = VENDORED_CONFIGS, runner: Path | None = None) -
 
 
 def manifest_entry(vendored: Path = VENDORED_CONFIGS, runner: Path | None = None) -> dict:
-    vendored_models = sorted((vendored / "models").glob("*.yaml"))
     return {
         "providersFile": str(providers_file(vendored, runner)),
         "modelsDirs": [str(d) for d in models_dirs(vendored, runner)],
-        "vendoredModels": {
-            f"bench/scbench/configs/models/{p.name}": hashlib.sha256(p.read_bytes()).hexdigest()
-            for p in vendored_models
+        "vendoredConfigs": {
+            f"bench/scbench/configs/{p.relative_to(vendored).as_posix()}": hashlib.sha256(p.read_bytes()).hexdigest()
+            for p in sorted(vendored.rglob("*.yaml"))
         },
     }
 
