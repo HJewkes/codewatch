@@ -18,5 +18,10 @@ stages:
   audit: {enabled: false}
   replay: {enabled: false}
   triage: {enabled: false}
-  remediation: {enabled: false}
+  # Its claude session writes to ~/.claude like the solve, so restore access the same way.
+  remediation:
+    enabled: false
+    command: >-
+      trap 'chmod -R u+rwX "$HOME/.claude" 2>/dev/null || true' EXIT;
+      /opt/codewatch-a1/py/bin/python -P -m remediation
   synthesis: {enabled: false}

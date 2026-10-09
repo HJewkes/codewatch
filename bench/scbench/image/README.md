@@ -8,6 +8,8 @@ build-agent`) with:
 - pyright and jscpd from npm, on the base image's Node 22
 - ruff, vulture, pydoclint, import-linter, coverage.py and pytest in a separate venv; the
   pins are in `requirements.txt`
+- the remediation stage (`bench/scbench/remediation`, passed as the `stages` build
+  context) under `/opt/codewatch-a1/stages`, importable by that venv's python only
 
 The tools sit in `/opt/codewatch-a1/bin`. Only the `codewatch` wrapper puts that directory
 on `PATH`, so the solve session sees the same `PATH` and `python` as arm A1a. Later stages

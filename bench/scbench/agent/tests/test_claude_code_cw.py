@@ -186,7 +186,11 @@ class StageHookTest(unittest.TestCase):
         self.assertEqual(by_stage["audit"]["items_out"], 42)
         self.assertEqual(by_stage["triage"]["status"], "missing")
         self.assertEqual(by_stage["remediation"]["status"], "disabled")
-        self.assertEqual(dict(runtime.streamed[-1][1])["CW_CHECKPOINT"], "2")
+        stage_env = dict(runtime.streamed[-1][1])
+        self.assertEqual(stage_env["CW_CHECKPOINT"], "2")
+        self.assertEqual((stage_env["CW_MODEL"], stage_env["CW_CLAUDE_BINARY"]), (agent.model, "claude"))
+        self.assertEqual(stage_env["CW_PERMISSION_MODE"], "bypassPermissions")
+        self.assertEqual(stage_env["CLAUDE_CODE_OAUTH_TOKEN"], "fake-token")
 
     def test_mcp_tool_calls_count_only_this_checkpoints_mcp_tool_uses(self):
         payloads = [{"message": {"role": "assistant", "content": [

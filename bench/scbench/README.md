@@ -61,6 +61,41 @@ tests directory, using a copy in `--scratch`. It reads only the report totals. T
 report's parity gap compares the recorded scores with the whole-snapshot rerun. A gap
 above about 0.001 means the rerun does not reproduce the grade.
 
+## remediation/
+
+The A1 `remediation` stage (design unit U8): propose, validate, discard. The image copies
+it in, and `agent/claude_code_cw.yaml` runs it in the checkpoint's container as
+`/opt/codewatch-a1/py/bin/python -P -m remediation`, from the workspace.
+
+1. **Items.** At most 8 confirmed items from `.codewatch/audit/`, in this order:
+   regressions (`regnet-diff` verdicts), uncovered changed symbols (`diff-uncovered`
+   findings), weak oracles, then quality findings. Each carries its question, verdict,
+   citations and a one-line fix sketch. When `triage.json` says the controls failed, or a
+   verdict is itself provisional, only regression and coverage items go in; `held_back`
+   counts the rest.
+2. **Session.** One claude CLI session with the solve's binary, model, permission mode and
+   credential env, capped at 30 turns. It runs under a fresh `--session-id`, recorded as
+   `session_id` in `stages.json`, so the transcript audit and the analysis can tell its
+   trace from the solve's in the shared `~/.claude`. The prompt names no grader, grader
+   tool or grader metric.
+3. **Validation.** The agent's tests pass (`--test-command`, run with the workspace's
+   `.venv/bin` first on `PATH`; "no tests collected" passes). The replay shows no diff
+   that was not there before the session. `codewatch graph check --baseline <the snapshot
+   indexed just before the session>` reports no new violation.
+4. **Discard.** The whole workspace, `.codewatch/` included, is copied to `--scratch`
+   (default `~/.cache/codewatch-remediation`) before the session and copied back when any
+   check fails, the session times out (`--session-timeout`, 15 minutes) or fails, or the
+   stage is stopped.
+
+The replay net (U3) is not built. `--replay-command` is the plug: a command that prints
+`{"diffs": [call ids]}` as its last line. With no command, or no `.codewatch/regnet/`,
+the check passes and records `replay unavailable`.
+
+The report line sets `outcome` (`kept`, `discarded` or `skipped`), `reason`,
+`validation` (each check's name, pass and detail), `session_id`, `turns`, `tokens`,
+`usd`, `items_in`, `items_out` (items sent in a kept session), `held_back` and
+`fixed_replay_diffs` (diffs gone after a kept session).
+
 **Tests** use the standard library's `unittest` and run as part of `pnpm test`, which
 is also how CI runs them:
 

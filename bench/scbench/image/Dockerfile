@@ -29,6 +29,12 @@ RUN mkdir -p /opt/codewatch-a1/bin \
         ln -s "/opt/codewatch-a1/node/node_modules/.bin/${tool}" "/opt/codewatch-a1/bin/${tool}"; \
     done
 
+# The remediation stage (bench/scbench/remediation, a build context) runs on the tools venv's
+# python as `python -P -m remediation`; a .pth puts it on that python's path only.
+COPY --from=stages . /opt/codewatch-a1/stages/remediation/
+RUN echo /opt/codewatch-a1/stages > "$(/opt/codewatch-a1/py/bin/python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')/codewatch-stages.pth" \
+    && /opt/codewatch-a1/py/bin/python -P -m remediation --help > /dev/null
+
 COPY codewatch-wrapper.sh /usr/local/bin/codewatch
 RUN chmod 755 /usr/local/bin/codewatch \
     && chmod -R a+rX /opt/codewatch-a1 \
