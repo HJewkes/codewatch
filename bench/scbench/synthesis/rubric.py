@@ -74,14 +74,21 @@ def cap_words(text: str, limit: int = MAX_RUBRIC_WORDS) -> str:
     return "\n".join(kept).strip() + "\n"
 
 
+# Claude Code's built-in tools. `--disallowedTools` is the flag the pinned runner itself passes
+# to CC 2.0.51, so it is known to parse there; an unknown name in the list is ignored.
+BUILT_IN_TOOLS = ("Task", "Bash", "BashOutput", "KillShell", "Glob", "Grep", "Read", "Edit", "Write",
+                  "NotebookEdit", "WebFetch", "WebSearch", "TodoWrite", "ExitPlanMode", "SlashCommand", "Skill")
+
+
 def claude_argv(model: str) -> list[str]:
     return ["claude", "-p", "--model", model, "--output-format", "json", "--max-turns", "1",
+            "--disallowedTools", ",".join(BUILT_IN_TOOLS),
             "--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}', "--setting-sources", "",
             "--system-prompt", SYSTEM_PROMPT]
 
 
 def call_claude(prompt: str) -> ModelReply:
-    """One headless `claude -p` turn with no tools, no MCP servers and no settings (so no hooks)."""
+    """One headless `claude -p` turn with built-in tools disallowed, no MCP servers and no settings (so no hooks)."""
     model = os.environ.get("CW_SYNTHESIS_MODEL", DEFAULT_MODEL)
     done = subprocess.run(claude_argv(model), input=prompt, capture_output=True, text=True, timeout=300)
     reply = json.loads(done.stdout)

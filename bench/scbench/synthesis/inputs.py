@@ -21,10 +21,11 @@ def run_codewatch(args: list[str]) -> str:
 
 
 def read_verdicts(path: Path) -> list[dict]:
+    """Every well-formed verdict row; a malformed line is skipped on its own."""
     if not path.is_file():
         return []
-    rows = (json.loads(line) for line in path.read_text().splitlines() if line.strip())
-    return [row for row in rows if isinstance(row, dict)]
+    rows = (_json_or_none(line) for line in path.read_text().splitlines() if line.strip())
+    return [row for row in rows if row is not None]
 
 
 def _json_or_none(text: str) -> dict | None:

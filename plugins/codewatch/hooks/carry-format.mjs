@@ -59,6 +59,13 @@ function itemLine(item) {
 /** @param {unknown} value */
 const listOf = (value) => (Array.isArray(value) ? value : [])
 
+/** @param {any} item */
+const isOpenItem = (item) =>
+  typeof item?.kind === "string" && typeof item?.path === "string" && typeof item?.text === "string"
+
+/** @param {any} symbol */
+const isChangedSymbol = (symbol) => typeof symbol?.symbol === "string" && Number.isFinite(symbol?.importers)
+
 /**
  * @param {string[]} rubric
  * @param {string[]} items
@@ -74,12 +81,15 @@ function assemble(rubric, items, symbols) {
 
 /**
  * Render the carried notes, never longer than MAX_CARRY_CHARS and never cut mid-line; "" when there are none.
+ * Malformed entries are skipped, so a bad brief can never cost the session its snapshot.
  * @param {Carry} carry
  */
 export function formatCarry({ rubric, brief }) {
-  const rubricLines = (rubric ?? "").trim() === "" ? [] : (rubric ?? "").trim().split("\n")
-  const items = listOf(brief?.openItems).slice(0, MAX_OPEN_ITEMS).map(itemLine)
+  const rubricText = typeof rubric === "string" ? rubric.trim() : ""
+  const rubricLines = rubricText === "" ? [] : rubricText.split("\n")
+  const items = listOf(brief?.openItems).filter(isOpenItem).slice(0, MAX_OPEN_ITEMS).map(itemLine)
   const symbols = listOf(brief?.changedSymbols)
+    .filter(isChangedSymbol)
     .slice(0, MAX_CHANGED_SYMBOLS)
     .map((s) => `- ${s.symbol} (${s.importers} importer${s.importers === 1 ? "" : "s"})`)
   let output = assemble(rubricLines, items, symbols)

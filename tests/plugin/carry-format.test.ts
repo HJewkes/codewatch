@@ -57,6 +57,20 @@ describe("formatCarry", () => {
     }
   })
 
+  it("skips malformed entries instead of throwing", () => {
+    const malformed = {
+      openItems: [null, { kind: "quality", path: "a.py", line: 1, text: null }, "x", brief.openItems[0]],
+      changedSymbols: [null, { symbol: 3, importers: 1 }, { symbol: "a.py#f", importers: "many" }],
+    }
+
+    const output: string = formatCarry({ rubric: 42, brief: malformed })
+
+    expect(output).toBe(
+      "Open review items:\n" +
+        "- [regression] shop/cart.py:41: The total no longer rounds half-up, and no spec line asks for the change.",
+    )
+  })
+
   it("clips a long item text to one line", () => {
     const item = { kind: "quality", path: "a.py", line: 1, text: `${"word ".repeat(80)}\nsecond line` }
 

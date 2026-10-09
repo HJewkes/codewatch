@@ -103,10 +103,23 @@ function resolveRoot(projectDir) {
   }
 }
 
+/**
+ * The carried notes, or "" when they cannot be read: they must never cost the session its snapshot.
+ * @param {string} root
+ */
+function carriedNotes(root) {
+  try {
+    return formatCarry(readCarry(root))
+  } catch (error) {
+    process.stderr.write(`codewatch session-start: ignoring synthesis notes: ${error instanceof Error ? error.message : error}\n`)
+    return ""
+  }
+}
+
 async function main() {
   const timer = setTimeout(() => bail(`timed out after ${DEADLINE_MS} ms`), DEADLINE_MS)
   const { root, inGit } = resolveRoot(process.env.CLAUDE_PROJECT_DIR || process.cwd())
-  carried = formatCarry(readCarry(root))
+  carried = carriedNotes(root)
   if (!inGit && !carried) return bail(`${root} is not a git repository`)
   const db = join(root, ".codewatch", "graph.db")
   if (!existsSync(db)) return bail(`no .codewatch/graph.db under ${root}`)

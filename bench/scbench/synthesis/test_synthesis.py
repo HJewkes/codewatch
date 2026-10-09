@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from synthesis.inputs import read_verdicts
 from synthesis.rubric import (
     INSTRUCTIONS,
     MAX_RUBRIC_WORDS,
@@ -177,6 +178,16 @@ class PromptTest(unittest.TestCase):
         self.assertEqual(argv[argv.index("--max-turns") + 1], "1")
         self.assertEqual(argv[argv.index("--setting-sources") + 1], "")
         self.assertIn("--strict-mcp-config", argv)
+        disallowed = argv[argv.index("--disallowedTools") + 1].split(",")
+        for tool in ("Bash", "Read", "Edit", "Write", "Glob", "Grep", "Task", "WebFetch", "WebSearch"):
+            self.assertIn(tool, disallowed)
+
+    def test_reads_the_other_verdicts_when_one_line_is_malformed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "verdicts.jsonl"
+            path.write_text(json.dumps(VERDICTS[0]) + "\n{truncated\n" + json.dumps(VERDICTS[1]) + "\n")
+
+            self.assertEqual(read_verdicts(path), VERDICTS[:2])
 
 
 class CapWordsTest(unittest.TestCase):

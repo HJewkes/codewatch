@@ -163,6 +163,19 @@ describe("SessionStart hook with a graph.db", () => {
     expect(context).toContain("- shop/pricing.py#apply_discount (3 importers)")
   })
 
+  it("still emits exactly the snapshot when the brief's entries are malformed", () => {
+    mkdirSync(join(repo, ".codewatch"), { recursive: true })
+    writeFileSync(
+      join(repo, ".codewatch", "session-brief.json"),
+      JSON.stringify({ openItems: [null, { kind: "quality", path: "a.py", text: null }], changedSymbols: [null] }),
+    )
+
+    const result = runHook({ CODEWATCH_BIN: fakeBin })
+
+    expect(result.status).toBe(0)
+    expect(contextOf(result.stdout)).toBe(fixtureSnapshot(git("rev-parse", "HEAD")))
+  })
+
   it("still delivers the synthesis notes when the CLI prints invalid JSON", () => {
     writeCarry(repo)
     writeFake("echo not-json")
