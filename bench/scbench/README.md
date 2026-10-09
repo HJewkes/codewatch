@@ -71,7 +71,8 @@ line for `stages.json`. They call the image's pinned tools by full path under
 - `diff_uncovered`: functions changed since a caller-supplied baseline that no test
   executes, as signal `diff-uncovered`. The baseline is an earlier snapshot directory or a
   git revision (for a PR, its merge-base with main). It runs pytest under coverage.py, or
-  reads existing `coverage json` output.
+  reads existing `coverage json` output. An unreadable baseline or a missing report is
+  unknown, not a finding: it writes no rows and exits 1.
 
 ```
 cd bench/scbench

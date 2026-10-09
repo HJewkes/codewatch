@@ -7,7 +7,12 @@ name in the baseline. It is uncovered when none of its body's executable lines r
 
 Coverage comes from `coverage json` output: a file given with `--coverage-json`, or one
 this script makes by running pytest under the pinned coverage.py. Test files are not
-checked. Writes `findings.jsonl` rows with signal `diff-uncovered`.
+checked. Writes `findings.jsonl` rows with signal `diff-uncovered`. When the baseline
+or the coverage report cannot be read, it writes no rows and exits 1, with `outcome`
+`no-baseline` or `no-coverage` in the summary line.
+
+Line coverage cannot tell a one-line function's body from its `def`, which runs at
+import, so such functions always count as covered.
 
     python3 -m findings.diff_uncovered --workspace <dir> --base-rev <sha> --out <file>
 """
@@ -28,6 +33,8 @@ from findings.rows import finding_row, print_summary, write_findings
 
 SIGNAL = "diff-uncovered"
 DEFAULT_COVERAGE = "/opt/codewatch-a1/bin/coverage"
+# The tools' own output goes to the process's stderr, keeping stdout for the summary line.
+STDERR_FD = 2
 
 BaseReader = Callable[[str], str | None]
 
@@ -91,7 +98,11 @@ def _row(path: str, span: FunctionSpan) -> dict:
     return finding_row("coverage", SIGNAL, path, (span.start, span.end), evidence, span.qualname)
 
 
-def dir_base(base_dir: Path) -> BaseReader:
+def dir_base(base_dir: Path) -> BaseReader | None:
+    """Reads an earlier snapshot, or None when there is no such directory."""
+    if not base_dir.is_dir():
+        return None
+
     def read(path: str) -> str | None:
         file = base_dir / path
         return file.read_text(errors="replace") if file.is_file() else None
@@ -99,7 +110,12 @@ def dir_base(base_dir: Path) -> BaseReader:
     return read
 
 
-def git_base(workspace: Path, rev: str) -> BaseReader:
+def git_base(workspace: Path, rev: str) -> BaseReader | None:
+    """Reads a git revision, or None when the workspace has no commit by that name."""
+    verify = ["git", "-C", str(workspace), "rev-parse", "--verify", "--quiet", f"{rev}^{{commit}}"]
+    if subprocess.run(verify, capture_output=True, check=False).returncode != 0:
+        return None
+
     def read(path: str) -> str | None:
         shown = subprocess.run(
             ["git", "-C", str(workspace), "show", f"{rev}:./{path}"],
@@ -126,27 +142,43 @@ def run_coverage(workspace: Path, coverage_bin: str, scratch: Path) -> Path | No
     pytest = [coverage_bin, "run", data, "-m", "pytest", "-q", "-p", "no:cacheprovider"]
     to_json = [coverage_bin, "json", data, "-o", str(report)]
     try:
-        subprocess.run(pytest, cwd=workspace, env=env, stdout=sys.stderr, check=False)
-        made = subprocess.run(to_json, cwd=workspace, stdout=sys.stderr, check=False)
+        subprocess.run(pytest, cwd=workspace, env=env, stdout=STDERR_FD, check=False)
+        made = subprocess.run(to_json, cwd=workspace, stdout=STDERR_FD, check=False)
     except OSError:
         return None
     return report if made.returncode == 0 and report.is_file() else None
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Checks each input once: without a baseline nothing is known to have changed, and
+    without a coverage report nothing is known to be untested, so either writes no rows
+    and exits non-zero rather than reading the gap as findings."""
     args = _parse(argv)
-    workspace = Path(args.workspace)
+    workspace, out = Path(args.workspace), Path(args.out)
     read_base = dir_base(Path(args.base_dir)) if args.base_dir else git_base(workspace, args.base_rev)
-    report = Path(args.coverage_json) if args.coverage_json else run_coverage(
-        workspace, args.coverage, Path(args.out).parent / "coverage"
-    )
-    coverage = read_coverage_json(report, workspace) if report else {}
-    changed, rows = diff_uncovered(workspace, read_base, coverage)
-    # Without a report nothing was measured, so no function is known to be untested.
-    rows = rows if report else []
-    write_findings(Path(args.out), rows)
-    print_summary(items_in=changed, items_out=len(rows), coverage_report=report is not None)
+    if read_base is None:
+        return _unknown(out, "no-baseline", f"cannot read the baseline {args.base_dir or args.base_rev}")
+    report = _coverage_report(args, workspace, out)
+    if report is None:
+        return _unknown(out, "no-coverage", "no coverage report")
+    changed, rows = diff_uncovered(workspace, read_base, read_coverage_json(report, workspace))
+    write_findings(out, rows)
+    print_summary(outcome="ok", items_in=changed, items_out=len(rows))
     return 0
+
+
+def _coverage_report(args: argparse.Namespace, workspace: Path, out: Path) -> Path | None:
+    if not args.coverage_json:
+        return run_coverage(workspace, args.coverage, out.parent / "coverage")
+    given = Path(args.coverage_json)
+    return given if given.is_file() else None
+
+
+def _unknown(out: Path, outcome: str, reason: str) -> int:
+    print(f"diff_uncovered: {reason}; writing no findings", file=sys.stderr)
+    write_findings(out, [])
+    print_summary(outcome=outcome, items_in=0, items_out=0)
+    return 1
 
 
 def _parse(argv: list[str] | None) -> argparse.Namespace:
