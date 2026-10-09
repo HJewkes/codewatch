@@ -114,22 +114,24 @@ function callerExcerpt(f: Finding, source: BundleSource, cap: number): ShownLine
   return fitRange(parsed.fileId, range, [range.start], textOf, cap);
 }
 
-const PEER_RANGE = /(\S+):(\d+)-(\d+)/;
+const NAMED_RANGE = /([^\s,]+):(\d+)-(\d+)/g;
 
-function peerExcerpt(f: Finding, source: BundleSource, cap: number): ShownLines | undefined {
-  const match = PEER_RANGE.exec(f.evidence ?? "");
-  if (!match || !source.lines(match[1]!)) return undefined;
-  const range = { key: match[0], start: Number(match[2]), end: Number(match[3]) };
-  return fitRange(match[1]!, range, [range.start], (p) => source.lines(p) ?? [], cap);
+function namedRangeExcerpts(f: Finding, source: BundleSource, cap: number): ShownLines[] {
+  return [...(f.evidence ?? "").matchAll(NAMED_RANGE)]
+    .filter((match) => source.lines(match[1]!))
+    .map((match) => {
+      const range = { key: match[0], start: Number(match[2]), end: Number(match[3]) };
+      return fitRange(match[1]!, range, [range.start], (p) => source.lines(p) ?? [], cap);
+    });
 }
 
-/** What a question needs shown beside the finding's own range: its sole caller, the clone's other copy, or the spec. */
+/** What a question needs shown beside the finding's own range: its sole caller, the ranges its evidence names, or the spec. */
 function extrasFor(f: Finding, source: BundleSource, cap: number): ShownLines[] {
   const question = questionFor(f.signal);
   const extras = [
     question?.needsCaller ? callerExcerpt(f, source, cap) : undefined,
-    question?.needsPeer ? peerExcerpt(f, source, cap) : undefined,
-    question?.needsSpec ? specShown(source) : undefined,
+    ...(question?.needsRanges ? namedRangeExcerpts(f, source, cap) : []),
+    question?.usesSpec ? specShown(source) : undefined,
   ];
   return extras.filter((x): x is ShownLines => x !== undefined);
 }

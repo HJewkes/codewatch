@@ -70,9 +70,10 @@ function wholeFiles(lines: LineSource, paths: readonly string[]): ShownLines {
   return new Map(paths.map((p) => [p, new Set(lineRange(1, lines.lines(p)?.length ?? 0, Number.MAX_SAFE_INTEGER))]));
 }
 
-/** A control is shown whole, like a small real file, with its own planted spec when it has one. */
+/** A control is shown whole, like a small real file, with its related files and its own planted spec when it has them. */
 export function controlItem(control: Control): TriageItem {
-  const texts = { [control.path]: control.text, ...(control.spec === undefined ? {} : { [SPEC_PATH]: control.spec }) };
+  const spec: Record<string, string> = control.spec === undefined ? {} : { [SPEC_PATH]: control.spec };
+  const texts = { [control.path]: control.text, ...control.related, ...spec };
   const lines = lineSourceFromTexts(texts);
   const text = lines.lines(control.path) ?? [];
   const shown = wholeFiles(lines, Object.keys(texts));

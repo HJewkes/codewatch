@@ -1,23 +1,24 @@
 import type { Finding } from "@titan-design/code-graph";
-import { SPEC_PATH } from "./triage-spec.js";
 
 export const VERDICTS = ["confirmed", "justified", "unclear"] as const;
 export type Verdict = (typeof VERDICTS)[number];
 
 export interface TriageQuestion {
   text: string;
+  /** Fills the text from the finding, for questions that name what the evidence measured. */
+  textFor?: (f: Finding) => string;
   meanings: Record<Verdict, string>;
   /** The reader also needs the one caller's excerpt to judge the finding. */
   needsCaller?: boolean;
-  /** The reader also needs the other copy, named in the evidence as `<path>:<start>-<end>`. */
-  needsPeer?: boolean;
-  /** The reader also needs the checkpoint spec; without one the finding is not asked. */
-  needsSpec?: boolean;
+  /** The reader also needs every range named in the evidence as `<path>:<start>-<end>`: a clone's other copy, or the tests that reach a symbol. */
+  needsRanges?: boolean;
+  /** The reader is also shown the checkpoint spec when the run has one. */
+  usesSpec?: boolean;
   /** A measured change rather than a ranking hint: asked whatever the file's rank or role. */
   everyRow?: boolean;
 }
 
-type QuestionNeeds = Pick<TriageQuestion, "needsCaller" | "needsPeer" | "needsSpec" | "everyRow">;
+type QuestionNeeds = Pick<TriageQuestion, "needsCaller" | "needsRanges" | "usesSpec" | "everyRow">;
 
 const UNCLEAR = "the excerpt does not show enough to decide";
 
@@ -49,6 +50,27 @@ const SWALLOWED = question(
   "an error is silenced that should surface or be handled",
   "ignoring the error is deliberate and correct here",
 );
+
+/** One `<name>: <value>` line of a finding's evidence. */
+function evidenceField(f: Finding, name: string): string | undefined {
+  const line = (f.evidence ?? "").split("\n").find((l) => l.startsWith(`${name}:`));
+  return line?.slice(name.length + 1).trim() || undefined;
+}
+
+/** Evidence names the code kind, the missing test kind and the tests that reach the symbol, one `<name>: <value>` line each. */
+const MISSING_TEST_KIND: TriageQuestion = {
+  ...question(
+    "This symbol's tests lack a test kind its code kind should have. Would a test of that kind catch a plausible change the current tests miss?",
+    "a test of that kind would catch a plausible change the current tests miss",
+    "its output is deliberately unstable, or another test already pins it",
+    { needsRanges: true, usesSpec: true, everyRow: true },
+  ),
+  textFor: (f) =>
+    `\`${f.symbol ?? f.path}\` is a \`${evidenceField(f, "code kind") ?? "symbol"}\`. ` +
+    `Its tests have no \`${evidenceField(f, "missing") ?? "test of the kind it needs"}\` (evidence: the test assertions attached). ` +
+    "Would a test of that kind catch a plausible change the current tests miss? " +
+    "If its output is deliberately unstable, or already pinned by another test, answer justified.",
+};
 
 /** The signals a model can usefully judge; every other signal is a mechanical fact and gets no question. */
 const QUESTIONS: Readonly<Record<string, TriageQuestion>> = {
@@ -93,12 +115,7 @@ const QUESTIONS: Readonly<Record<string, TriageQuestion>> = {
     "each handler covers a distinct, real failure",
   ),
   SIM105: SWALLOWED,
-  "regnet-diff": question(
-    `Does the spec require this change in the program's recorded output? Cite the spec line (path ${SPEC_PATH}) that requires it, or the code that changed it.`,
-    "no spec line calls for the change, so it is a regression",
-    "a spec line requires the new output",
-    { needsSpec: true, everyRow: true },
-  ),
+  "missing-test-kind": MISSING_TEST_KIND,
   symbol_weak_oracle_only: WEAK_ORACLE,
   symbol_assertion_free: WEAK_ORACLE,
   symbol_duplicate_assert: WEAK_ORACLE,
@@ -107,7 +124,7 @@ const QUESTIONS: Readonly<Record<string, TriageQuestion>> = {
     "Should these duplicated lines and their other copy share one implementation?",
     "the copies do the same job and would have to change together",
     "the copies only look alike and serve purposes that may diverge",
-    { needsPeer: true, everyRow: true },
+    { needsRanges: true, everyRow: true },
   ),
 };
 
@@ -121,8 +138,12 @@ export function findingTarget(f: Finding): string {
   return f.symbol ? `${f.path}${lines} (${f.symbol})` : `${f.path}${lines}`;
 }
 
+export function questionText(f: Finding, q: TriageQuestion): string {
+  return q.textFor?.(f) ?? q.text;
+}
+
 /** One question block, headed by the label the reader must answer it with. */
 export function renderQuestion(f: Finding, q: TriageQuestion, label = f.id): string {
   const meanings = VERDICTS.map((v) => `  ${v}: ${q.meanings[v]}`).join("\n");
-  return `[${label}] ${findingTarget(f)}\n${q.text}\nEvidence: ${f.evidence ?? f.signal}\n${meanings}`;
+  return `[${label}] ${findingTarget(f)}\n${questionText(f, q)}\nEvidence: ${f.evidence ?? f.signal}\n${meanings}`;
 }
