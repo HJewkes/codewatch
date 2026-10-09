@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { splitLines } from "@titan-design/evidence";
 import { lineRange, type ShownLines } from "./triage-excerpt.js";
-import type { VerdictRecord } from "./triage-output.js";
+import type { VerdictRow } from "./triage-prompt.js";
 import type { BundleSource } from "./triage-source.js";
 
 /** The path the reader sees and cites the spec under; it names no workspace file. */
@@ -40,14 +40,14 @@ function redactRationale(rationale: string, spec: readonly string[]): string {
   return lines.reduce((text, line) => text.split(line).join(SPEC_PATH), rationale);
 }
 
-/** Verdicts are stored under the workspace, so spec quotes are emptied and spec lines copied into a rationale are replaced. */
-export function redactSpec(records: VerdictRecord[], spec: readonly string[] | undefined): VerdictRecord[] {
-  if (!spec) return records;
-  return records.map((r) => ({
-    ...r,
-    rationale: redactRationale(r.rationale, spec),
-    citations: r.citations.map((c) => (c.path === SPEC_PATH ? { ...c, quote: "" } : c)),
-  }));
+/** Verdicts are stored under the workspace, so a spec quote is emptied and spec lines copied into the rationale are replaced. */
+export function redactSpec(row: VerdictRow, spec: readonly string[] | undefined): VerdictRow {
+  if (!spec) return row;
+  return {
+    ...row,
+    rationale: redactRationale(row.rationale, spec),
+    citations: row.citations.map((c) => (c.path === SPEC_PATH ? { ...c, quote: "" } : c)),
+  };
 }
 
 /** Runs `work` with a scratch directory outside the workspace, removed afterwards. */
