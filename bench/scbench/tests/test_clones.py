@@ -69,6 +69,20 @@ class ClonesTests(unittest.TestCase):
             "evidence": "duplicates pkg/core.py:4-16",
         }])
 
+    def test_a_failed_jscpd_run_reports_no_clones_even_with_an_earlier_report_left_behind(self):
+        stale = self.out.parent / "jscpd" / "jscpd-report.json"
+        stale.parent.mkdir(parents=True)
+        duplicate = {"firstFile": copy("a.py", 1, 9), "secondFile": copy("b.py", 1, 9)}
+        stale.write_text(json.dumps({"duplicates": [duplicate]}))
+        failing = self.root / "jscpd"
+        failing.write_text("#!/bin/sh\nexit 2\n")
+        failing.chmod(0o755)
+
+        summary = self.run_main("--jscpd", str(failing))
+
+        self.assertEqual(summary, {"items_in": 0, "items_out": 0, "jscpd_report": False})
+        self.assertEqual(self.out.read_text(), "")
+
     def test_the_pinned_config_uses_sixty_tokens_and_the_json_reporter(self):
         config = json.loads(CONFIG.read_text())
 

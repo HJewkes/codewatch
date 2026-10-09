@@ -46,12 +46,16 @@ def _row(other: Copy, flagged: Copy) -> dict:
 
 
 def run_jscpd(workspace: Path, jscpd_bin: str, scratch: Path) -> Path | None:
-    """Runs jscpd from the workspace so report paths are relative to it."""
+    """Runs jscpd from the workspace so report paths are relative to it.
+
+    An earlier run's report is removed first, so a failed run never reads as this one's.
+    """
     scratch.mkdir(parents=True, exist_ok=True)
-    command = [jscpd_bin, "--config", str(CONFIG), "--output", str(scratch), "--no-tips", "."]
-    subprocess.run(command, cwd=workspace, stdout=sys.stderr, check=False)
     report = scratch / REPORT_NAME
-    return report if report.is_file() else None
+    report.unlink(missing_ok=True)
+    command = [jscpd_bin, "--config", str(CONFIG), "--output", str(scratch), "--no-tips", "."]
+    ran = subprocess.run(command, cwd=workspace, stdout=sys.stderr, check=False)
+    return report if ran.returncode == 0 and report.is_file() else None
 
 
 def main(argv: list[str] | None = None) -> int:
