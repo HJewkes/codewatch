@@ -16,7 +16,11 @@ launcher, with `type: claude_code`, so all three arms share one dependency set.
 
 ## Launcher setup
 
-`python -m agent` does two things before any command runs, in every worker process:
+`python -m agent` runs `bootstrap.setup()` before any command. The runner runs each
+problem in a spawned worker, and spawn never re-runs `agent/__main__.py`. So `setup()`
+also makes itself the default initializer of every `ProcessPoolExecutor`, and each
+worker runs it before its first task. It does three things: it registers
+`claude_code_cw`, and it does the two steps below.
 
 - **Catalogs.** The runner's wheel ships no `configs/`, so its model and provider
   catalogs would load empty. `runner_configs.preload()` loads models from the runner
