@@ -22,6 +22,11 @@ without costing correctness.
 - **The loop never sees the grader** (design section 3). No stage reads scb-check output,
   and the analysis never writes per-rule scb-check breakdowns.
 
+## tiert/
+
+Test-shape checks for pytest functions: assertion-free, weak-oracle-only, duplicate
+assert and self-compare, written as `findings.jsonl` rows. See `tiert/README.md`.
+
 ## analysis/
 
 `analysis/` reads each arm's run directory after `slop-code eval`, plus A1's

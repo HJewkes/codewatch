@@ -15,7 +15,12 @@ stage_reserve_s: 1200
 stages:
   inject: {enabled: false}
   index: {enabled: false}
-  audit: {enabled: false}
+  # Tier T rows join the audit's findings.jsonl; tiert's counts are the report line.
+  audit:
+    enabled: false
+    command: >-
+      codewatch audit /workspace &&
+      python3 /opt/codewatch-a1/tiert /workspace --out /workspace/.codewatch/audit/findings.jsonl --append
   replay: {enabled: false}
   triage: {enabled: false}
   remediation: {enabled: false}
