@@ -148,11 +148,18 @@ line for `stages.json`. They call the image's pinned tools by full path under
   `patch = subprocess`, then `coverage combine`), except one started under an interpreter
   without coverage installed, such as the workspace's own venv python: its functions
   still read as untested.
+- `clones`: jscpd over the workspace's source and tests with the config pinned in
+  `findings/jscpd.json` (min-tokens 60, JSON reporter), as signal `clone`. Each pair is
+  one row whose evidence names the other copy as `<path>:<start>-<end>`, the form
+  `codewatch triage`'s clone question reads. jscpd matches its ignore globs against
+  absolute paths, so the config names tool directories (`.venv`, `.git`) rather than
+  every hidden directory.
 
 ```
 cd bench/scbench
 python3 -m findings.diff_uncovered --workspace <dir> (--base-rev <sha> | --base-dir <dir>) \
   --out <findings.jsonl> [--coverage-json <file>]
+python3 -m findings.clones --workspace <dir> --out <findings.jsonl> [--report <jscpd json>]
 ```
 
 **Tests** use the standard library's `unittest` and run as part of `pnpm test`, which

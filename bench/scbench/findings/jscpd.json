@@ -1,0 +1,21 @@
+{
+  "minTokens": 60,
+  "mode": "mild",
+  "format": ["python"],
+  "reporters": ["json"],
+  "ignore": [
+    "**/.git/**",
+    "**/.venv/**",
+    "**/.tox/**",
+    "**/.pytest_cache/**",
+    "**/.mypy_cache/**",
+    "**/.ruff_cache/**",
+    "**/__pycache__/**",
+    "**/node_modules/**",
+    "**/site-packages/**",
+    "**/venv/**"
+  ],
+  "noGitignore": true,
+  "absolute": false,
+  "silent": true
+}
