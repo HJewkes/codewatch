@@ -29,7 +29,7 @@ class Analysis:
 def analyse(
     arm_dirs: dict[str, Path], tests_dirs: tuple[str, ...], replicate_dir: Path | None = None
 ) -> Analysis:
-    arms = {name: load_arm(arm_dirs[name]) for name in ARMS}
+    arms = {name: load_arm(arm_dirs[name], require_stages=name == "A1") for name in ARMS}
     rows = paired_rows(arms)
     summaries = {name: summarise(arms[name], len(rows), tests_dirs) for name in ARMS}
     if replicate_dir is not None:

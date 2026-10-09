@@ -17,14 +17,16 @@ without costing correctness.
   synthetic and written by hand.
 - **Runs execute from a checkout under `~/projects/_bench/`.** The slop-code-bench runner
   and its problems live only there. This repo provides the harness code that the
-  checkout calls.
+  checkout calls. The runner has no release past v0.3, so it is pinned by commit
+  (`31ceea3`).
 - **The loop never sees the grader** (design section 3). No stage reads scb-check output,
   and the analysis never writes per-rule scb-check breakdowns.
 
 ## analysis/
 
 `analysis/` reads each arm's `slop-code eval` output and A1's per-checkpoint
-`stages.json`, then writes the decision table as `report.md` and `report.json`. It contains:
+`stages.json` (from `checkpoint_<n>/agent/`, or from `agent.tar.gz` when artifacts are
+compressed; a missing one is an error), then writes the decision table as `report.md` and `report.json`. It contains:
 
 - paired per-checkpoint deltas
 - per-problem final checkpoints

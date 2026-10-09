@@ -31,7 +31,10 @@ class GamingCheck:
 
 
 def split_symbols(result: CheckpointResult | None) -> int:
-    """Symbols a kept remediation added that codewatch flags as a split."""
+    """Symbols a kept remediation added that codewatch flags as a split.
+
+    Counted whatever the stage status: a "kept" outcome means the edit is in the workspace.
+    """
     if result is None or result.stage_log is None:
         return 0
     return sum(
@@ -80,10 +83,13 @@ def _sign(value: float) -> int:
 
 
 def fired(result: CheckpointResult | None) -> bool:
-    """A checkpoint's stages fired when at least one stage exited 0."""
+    """A checkpoint's stages fired when at least one stage ran and succeeded.
+
+    Disabled, missing and budget-skipped stages never ran (exit null), so they do not count.
+    """
     if result is None or result.stage_log is None:
         return False
-    return any(stage.exit == 0 for stage in result.stage_log.stages)
+    return any(stage.succeeded for stage in result.stage_log.stages)
 
 
 def fire_rate(rows: list[CheckpointRow]) -> float:
@@ -93,9 +99,10 @@ def fire_rate(rows: list[CheckpointRow]) -> float:
 
 def mechanism_signals(rows: list[CheckpointRow]) -> dict[str, float | int | None]:
     a1 = [row.cells["A1"] for row in rows if row.cells["A1"] and row.cells["A1"].stage_log]
-    stages = [stage for result in a1 for stage in result.stage_log.stages]
+    every_stage = [stage for result in a1 for stage in result.stage_log.stages]
+    stages = [stage for stage in every_stage if stage.succeeded]
     triage_in = _total(stages, "triage", "items_in")
-    remediation = [s for s in stages if s.name == "remediation"]
+    remediation = [s for s in every_stage if s.name == "remediation"]
     net_fixed = [row for row in rows if _net_fix_kept(row.cells["A1"])]
     return {
         "findings_per_checkpoint": _total(stages, "audit", "items_out") / len(a1) if a1 else None,
@@ -105,7 +112,9 @@ def mechanism_signals(rows: list[CheckpointRow]) -> dict[str, float | int | None
         "replay_diffs_caught": _total(stages, "replay", "items_out"),
         "replay_diffs_fixed": sum(s.fixed_replay_diffs for s in remediation if s.outcome == "kept"),
         "mcp_tool_calls": sum(result.stage_log.mcp_tool_calls for result in a1),
-        "stage_usd": sum(s.usd for s in stages),
+        "stage_usd": sum(s.usd for s in every_stage),
+        "stages_failed_or_timed_out": sum(s.status in ("failed", "timeout") for s in every_stage),
+        "stages_skipped_budget": sum(s.status == "skipped_budget" for s in every_stage),
         "net_fix_checkpoints": len(net_fixed),
         "net_fix_strict_gains": sum(
             row.solved("A1", "strict") and not row.solved("A1a", "strict") for row in net_fixed

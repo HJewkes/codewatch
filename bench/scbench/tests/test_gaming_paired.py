@@ -16,7 +16,12 @@ def result(problem="p", index=1, strict=False, erosion=None, stages=None) -> Che
 
 def remediation(outcome="kept", flags=("single-caller-helper",), fixed=0) -> Stage:
     symbols = (AddedSymbol("src/a.py", "_helper", tuple(flags)),)
-    return Stage("remediation", 0, 0.3, 4, 3, outcome, fixed, symbols)
+    return Stage("remediation", "ok", 0, 0.3, 4, 3, outcome, fixed, symbols)
+
+
+def plain(name: str, status="ok", items_in=0, items_out=0, usd=0.0) -> Stage:
+    exit_code = {"ok": 0, "failed": 2}.get(status)
+    return Stage(name, status, exit_code, usd, items_in, items_out, None, 0, ())
 
 
 def log(*stages: Stage, mcp=0) -> StageLog:
@@ -80,8 +85,8 @@ class GamingTests(unittest.TestCase):
 
 class MechanismTests(unittest.TestCase):
     def test_signals_count_kept_fixes_and_strict_gains_they_explain(self):
-        stages = log(Stage("audit", 0, 0.0, 0, 10, None, 0, ()), Stage("triage", 0, 0.4, 5, 2, None, 0, ()),
-                     Stage("replay", 0, 0.0, 0, 3, None, 0, ()), remediation(fixed=2), mcp=4)
+        stages = log(plain("audit", items_out=10), plain("triage", items_in=5, items_out=2, usd=0.4),
+                     plain("replay", items_out=3), remediation(fixed=2), mcp=4)
         a1 = {("p", 1): result(strict=True, stages=stages), ("p", 2): result(index=2)}
 
         rows = paired_rows(arms_with(a1, a1a={("p", 1): result()}))
@@ -93,6 +98,22 @@ class MechanismTests(unittest.TestCase):
         self.assertEqual((signals["net_fix_checkpoints"], signals["net_fix_strict_gains"]), (1, 1))
         self.assertEqual(signals["mcp_tool_calls"], 4)
         self.assertEqual(fire_rate(rows), 0.5)
+
+    def test_disabled_missing_and_skipped_stages_do_not_fire(self):
+        never_ran = log(plain("index", "disabled"), plain("audit", "missing"), plain("triage", "skipped_budget"))
+        a1 = {("p", 1): result(stages=never_ran), ("p", 2): result(index=2, stages=log(plain("index")))}
+
+        self.assertEqual(fire_rate(paired_rows(arms_with(a1, a1a={}))), 0.5)
+
+    def test_failed_stages_cost_money_but_their_counts_are_not_signals(self):
+        failed = log(plain("audit", "failed", items_out=99, usd=0.2), plain("replay", "timeout", items_out=5))
+        rows = paired_rows(arms_with({("p", 1): result(stages=failed)}, a1a={}))
+
+        signals = mechanism_signals(rows)
+
+        self.assertEqual((signals["findings_per_checkpoint"], signals["replay_diffs_caught"]), (0, 0))
+        self.assertEqual((signals["stage_usd"], signals["stages_failed_or_timed_out"]), (0.2, 2))
+        self.assertEqual(fire_rate(rows), 0.0)
 
 
 if __name__ == "__main__":

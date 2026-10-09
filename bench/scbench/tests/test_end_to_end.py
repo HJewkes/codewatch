@@ -7,7 +7,7 @@ from pathlib import Path
 
 from analysis.__main__ import main
 
-from .fixtures import evaluation, source_file, stage, write_checkpoint
+from .fixtures import evaluation, source_file, stage, stages_json, write_checkpoint
 
 HERE = Path(__file__).parent
 PROBLEMS = ("alpha", "beta", "gamma")
@@ -28,7 +28,7 @@ class EndToEndTests(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory(dir=HERE)
         root = Path(self._tmp.name)
         self.out = root / "out"
-        a1_stages = {"stages": [stage("audit", items_out=4), stage("triage", usd=0.4)]}
+        a1_stages = stages_json(stage("index", "disabled"), stage("audit", items_out=4), stage("triage", usd=0.4))
         write_arm(root / "a0", high_cc=14, cost=1.0)
         write_arm(root / "a1a", high_cc=14, cost=1.1)
         write_arm(root / "a1", high_cc=8, cost=1.2, stages=a1_stages)

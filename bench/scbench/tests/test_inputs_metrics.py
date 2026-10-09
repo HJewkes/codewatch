@@ -3,10 +3,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from analysis.inputs import _parse_files, load_arm
+from analysis.inputs import StagesNotFoundError, _parse_files, load_arm
 from analysis.metrics import is_test_path, recompute_erosion, recompute_verbosity, summarise
 
-from .fixtures import evaluation, source_file, stage, write_checkpoint
+from .fixtures import evaluation, source_file, stage, stages_json, write_checkpoint
 
 HERE = Path(__file__).parent
 
@@ -48,10 +48,10 @@ class SolveDerivationTests(ArmFixture):
         self.assertEqual((summary.ran, summary.expected, summary.erosion), (1, 2, None))
 
     def test_stage_costs_add_to_the_solve_cost(self):
-        stages = {"stages": [stage("triage", usd=0.25), stage("remediation", usd=0.5)]}
+        stages = stages_json(stage("triage", usd=0.25), stage("remediation", usd=0.5))
         write_checkpoint(self.root, "p", 1, evaluation(1, cost=1.0), stages)
 
-        summary = summarise(load_arm(self.root), expected=1, tests_dirs=("tests",))
+        summary = summarise(load_arm(self.root, require_stages=True), expected=1, tests_dirs=("tests",))
 
         self.assertAlmostEqual(summary.usd_per_checkpoint, 1.75)
 
@@ -60,6 +60,51 @@ class SolveDerivationTests(ArmFixture):
         (self.root / "p" / "logs").mkdir()
 
         self.assertEqual(list(load_arm(self.root)), [("p", 1)])
+
+
+class StageLocationTests(ArmFixture):
+    def test_stages_json_is_read_from_the_agent_artifacts_dir(self):
+        write_checkpoint(self.root, "p", 1, evaluation(1), stages_json(stage("audit", items_out=7)))
+
+        log = load_arm(self.root, require_stages=True)[("p", 1)].stage_log
+
+        self.assertEqual(log.stages[0].items_out, 7)
+
+    def test_stages_json_is_read_from_the_compressed_artifacts(self):
+        stages = stages_json(stage("audit", items_out=7), mcp_tool_calls=2)
+        write_checkpoint(self.root, "p", 1, evaluation(1), stages, compress=True)
+
+        log = load_arm(self.root, require_stages=True)[("p", 1)].stage_log
+
+        self.assertEqual((log.stages[0].items_out, log.mcp_tool_calls), (7, 2))
+
+    def test_a1_checkpoint_without_stages_json_raises_a_clear_error(self):
+        write_checkpoint(self.root, "p", 1, evaluation(1))
+
+        with self.assertRaises(StagesNotFoundError) as caught:
+            load_arm(self.root, require_stages=True)
+
+        self.assertIn("agent/stages.json", str(caught.exception))
+        self.assertIn("agent.tar.gz", str(caught.exception))
+
+    def test_arms_without_stages_do_not_look_for_them(self):
+        write_checkpoint(self.root, "p", 1, evaluation(1))
+
+        self.assertIsNone(load_arm(self.root)[("p", 1)].stage_log)
+
+    def test_resumed_runs_key_by_the_runner_directory_not_the_agent_counter(self):
+        write_checkpoint(self.root, "p", 3, evaluation(3), stages_json(stage("audit"), checkpoint=1))
+
+        self.assertEqual(list(load_arm(self.root, require_stages=True)), [("p", 3)])
+
+    def test_stages_that_never_ran_do_not_count_as_succeeded(self):
+        rows = [stage(s, status=s) for s in ("disabled", "missing", "skipped_budget", "failed", "timeout")]
+        write_checkpoint(self.root, "p", 1, evaluation(1), stages_json(*rows))
+
+        log = load_arm(self.root, require_stages=True)[("p", 1)].stage_log
+
+        self.assertFalse(any(s.succeeded for s in log.stages))
+        self.assertEqual([s.exit for s in log.stages], [None, None, None, 2, None])
 
 
 class SensitivityTests(ArmFixture):

@@ -4,10 +4,16 @@ Every assumption about the on-disk format lives in this module, so it can be fix
 one place once real eval output exists. No real output has been read yet; the shapes
 below are inferred from the published metric definitions.
 
-Assumed layout, one directory per arm:
+Layout, one directory per arm:
 
-    <arm>/<problem>/checkpoint_<n>/evaluation.json
-    <arm>/<problem>/checkpoint_<n>/stages.json      (A1 only; optional)
+    <arm>/<problem>/checkpoint_<n>/evaluation.json  (assumed)
+    <arm>/<problem>/checkpoint_<n>/agent/stages.json
+    <arm>/<problem>/checkpoint_<n>/agent.tar.gz     (holds stages.json when the
+                                                     runner compresses artifacts)
+
+The stages.json locations follow the runner's `save_agent_artifacts` at slop-code-bench
+commit 31ceea3. Checkpoints are keyed by the runner's `checkpoint_<n>` directory, never
+by the agent's own `checkpoint` field, which restarts at 1 after `--resume`.
 
 Assumed `evaluation.json`:
 
@@ -27,25 +33,32 @@ A missing `quality` block means scb-check failed; that checkpoint drops out of t
 quality means but still counts in the solve denominators. Any per-rule breakdown in
 the file is deliberately never read (design section 3).
 
-Assumed `stages.json` (written by the U2 stage-hook agent):
+`stages.json`, as the A1 stage-hook agent (`bench/scbench/agent/stages.py`) writes it:
 
-    {"stages": [{"stage": "audit", "exit": 0, "usd": 0.0, "tokens": 0,
-                 "items_in": 0, "items_out": 42},
-                {"stage": "remediation", "exit": 0, "usd": 0.31, "tokens": 900000,
-                 "items_in": 5, "items_out": 4, "outcome": "kept",
-                 "fixed_replay_diffs": 1,
+    {"checkpoint": 2, "mcp_tool_calls": 3,
+     "stages": [{"stage": "index", "status": "disabled", "start": null, "end": null,
+                 "exit": null, "tokens": 0, "usd": 0.0, "items_in": 0, "items_out": 0},
+                {"stage": "remediation", "status": "ok", "start": "...", "end": "...",
+                 "exit": 0, "usd": 0.31, "tokens": 900000, "items_in": 5,
+                 "items_out": 4, "outcome": "kept", "fixed_replay_diffs": 1,
                  "added_symbols": [{"path": "src/a.py", "name": "_h",
-                                    "flags": ["single-caller-helper"]}]}],
-     "mcp_tool_calls": 3}
+                                    "flags": ["single-caller-helper"]}]}]}
+
+`status` is one of disabled, missing, skipped_budget (the command never ran, exit
+null), ok, failed or timeout. A failed stage may also carry `error`.
 """
 
 from __future__ import annotations
 
 import json
 import re
+import tarfile
 from dataclasses import dataclass
 from pathlib import Path
 
+AGENT_DIR = "agent"
+AGENT_TARBALL = "agent.tar.gz"
+STAGES_FILE = "stages.json"
 NON_REGRESSION_GROUPS = ("core", "functionality", "error")
 REGRESSION_GROUP = "regression"
 CHECKPOINT_DIR = re.compile(r"^checkpoint_(\d+)$")
@@ -75,6 +88,7 @@ class AddedSymbol:
 @dataclass(frozen=True)
 class Stage:
     name: str
+    status: str | None
     exit: int | None
     usd: float
     items_in: int
@@ -82,6 +96,12 @@ class Stage:
     outcome: str | None
     fixed_replay_diffs: int
     added_symbols: tuple[AddedSymbol, ...]
+
+    @property
+    def succeeded(self) -> bool:
+        if self.status is not None:
+            return self.status == "ok"
+        return self.exit == 0
 
 
 @dataclass(frozen=True)
@@ -104,25 +124,50 @@ class CheckpointResult:
     stage_log: StageLog | None
 
 
-def load_arm(arm_dir: Path) -> dict[tuple[str, int], CheckpointResult]:
+class StagesNotFoundError(FileNotFoundError):
+    pass
+
+
+def load_arm(arm_dir: Path, require_stages: bool = False) -> dict[tuple[str, int], CheckpointResult]:
+    """Load one arm. `require_stages` is set for A1, whose agent always writes stages.json."""
     results = {}
     for problem_dir in sorted(p for p in arm_dir.iterdir() if p.is_dir()):
         for checkpoint_dir in sorted(problem_dir.iterdir()):
             match = CHECKPOINT_DIR.match(checkpoint_dir.name)
-            evaluation = checkpoint_dir / "evaluation.json"
-            if match and evaluation.is_file():
+            if match and (checkpoint_dir / "evaluation.json").is_file():
                 index = int(match.group(1))
+                stage_log = read_stage_log(checkpoint_dir) if require_stages else None
                 results[(problem_dir.name, index)] = _load_checkpoint(
-                    problem_dir.name, index, checkpoint_dir
+                    problem_dir.name, index, checkpoint_dir, stage_log
                 )
     return results
 
 
-def _load_checkpoint(problem: str, index: int, checkpoint_dir: Path) -> CheckpointResult:
+def read_stage_log(checkpoint_dir: Path) -> StageLog:
+    plain = checkpoint_dir / AGENT_DIR / STAGES_FILE
+    if plain.is_file():
+        return _parse_stage_log(json.loads(plain.read_text()))
+    tarball = checkpoint_dir / AGENT_TARBALL
+    if tarball.is_file():
+        with tarfile.open(tarball, "r:gz") as archive:
+            member = next((m for m in archive.getmembers() if _is_stages_member(m)), None)
+            if member is not None:
+                return _parse_stage_log(json.load(archive.extractfile(member)))
+    raise StagesNotFoundError(
+        f"{checkpoint_dir}: no {AGENT_DIR}/{STAGES_FILE} and no {STAGES_FILE} in {AGENT_TARBALL}"
+    )
+
+
+def _is_stages_member(member: tarfile.TarInfo) -> bool:
+    return member.isfile() and member.name.removeprefix("./") == STAGES_FILE
+
+
+def _load_checkpoint(
+    problem: str, index: int, checkpoint_dir: Path, stage_log: StageLog | None
+) -> CheckpointResult:
     raw = json.loads((checkpoint_dir / "evaluation.json").read_text())
     groups = raw.get("tests") or {}
     quality = raw.get("quality")
-    stages_path = checkpoint_dir / "stages.json"
     return CheckpointResult(
         problem=problem,
         index=index,
@@ -133,7 +178,7 @@ def _load_checkpoint(problem: str, index: int, checkpoint_dir: Path) -> Checkpoi
         erosion=_optional_float(quality.get("erosion")) if quality else None,
         verbosity=_optional_float(quality.get("verbosity")) if quality else None,
         files=_parse_files(quality.get("files")) if quality else None,
-        stage_log=_parse_stage_log(stages_path) if stages_path.is_file() else None,
+        stage_log=stage_log,
     )
 
 
@@ -164,8 +209,7 @@ def _parse_files(files: list | None) -> tuple[FileQuality, ...] | None:
     )
 
 
-def _parse_stage_log(path: Path) -> StageLog:
-    raw = json.loads(path.read_text())
+def _parse_stage_log(raw: dict) -> StageLog:
     return StageLog(
         stages=tuple(_parse_stage(s) for s in raw.get("stages", [])),
         mcp_tool_calls=int(raw.get("mcp_tool_calls", 0)),
@@ -175,6 +219,7 @@ def _parse_stage_log(path: Path) -> StageLog:
 def _parse_stage(raw: dict) -> Stage:
     return Stage(
         name=raw["stage"],
+        status=raw.get("status"),
         exit=raw.get("exit"),
         usd=float(raw.get("usd", 0.0)),
         items_in=int(raw.get("items_in", 0)),

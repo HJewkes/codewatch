@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import io
 import json
 import math
+import tarfile
 from pathlib import Path
 
 ALL_GROUPS = ("core", "functionality", "error", "regression")
@@ -37,13 +39,43 @@ def _erosion(files: list[dict]) -> float:
     return sum(m for cc, m in masses if cc > 10) / sum(m for _, m in masses)
 
 
-def stage(name: str, exit: int = 0, usd: float = 0.0, **extra) -> dict:
-    return {"stage": name, "exit": exit, "usd": usd, **extra}
+EXIT_BY_STATUS = {"ok": 0, "failed": 2}
+RAN = ("ok", "failed", "timeout")
 
 
-def write_checkpoint(root: Path, problem: str, index: int, raw: dict, stages: dict | None = None):
+def stage(name: str, status: str = "ok", usd: float = 0.0, **extra) -> dict:
+    """A row shaped like the agent's StageRecord.to_json() (bench/scbench/agent/stages.py)."""
+    ran = status in RAN
+    return {
+        "stage": name, "status": status,
+        "start": "2026-01-01T00:00:00+00:00" if ran else None,
+        "end": "2026-01-01T00:01:00+00:00" if ran else None,
+        "exit": EXIT_BY_STATUS.get(status), "tokens": 0, "usd": usd,
+        "items_in": 0, "items_out": 0, **extra,
+    }
+
+
+def stages_json(*rows: dict, checkpoint: int = 1, mcp_tool_calls: int = 0) -> dict:
+    return {"checkpoint": checkpoint, "stages": list(rows), "mcp_tool_calls": mcp_tool_calls}
+
+
+def write_checkpoint(
+    root: Path, problem: str, index: int, raw: dict, stages: dict | None = None, compress=False
+) -> Path:
     directory = root / problem / f"checkpoint_{index}"
     directory.mkdir(parents=True, exist_ok=True)
     (directory / "evaluation.json").write_text(json.dumps(raw))
-    if stages is not None:
-        (directory / "stages.json").write_text(json.dumps(stages))
+    if stages is not None and compress:
+        _write_tarball(directory / "agent.tar.gz", json.dumps(stages).encode())
+    elif stages is not None:
+        (directory / "agent").mkdir()
+        (directory / "agent" / "stages.json").write_text(json.dumps(stages))
+    return directory
+
+
+def _write_tarball(path: Path, payload: bytes) -> None:
+    """Mirrors the runner: artifacts sit at the archive root, arcname = file name."""
+    with tarfile.open(path, "w:gz") as archive:
+        info = tarfile.TarInfo("stages.json")
+        info.size = len(payload)
+        archive.addfile(info, io.BytesIO(payload))
