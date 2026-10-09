@@ -129,28 +129,42 @@ def git_base(workspace: Path, rev: str) -> BaseReader | None:
 
 
 def run_coverage(workspace: Path, coverage_bin: str, scratch: Path) -> Path | None:
-    """Runs pytest under coverage.py, keeping its data and caches out of the workspace.
+    """Runs pytest under coverage.py, keeping its data, config and caches out of the workspace.
 
+    Python subprocesses the tests start are measured too (`patch = subprocess`) and their
+    data combined, so a program the tests run as a child process counts as executed.
     Only pytest exits 0 (passed) and 1 (some tests failed) mean the tests ran. A collection
     error, internal error, usage error or empty collection returns no report, as does a
-    coverage binary that cannot start. Earlier data is removed first.
+    coverage binary that cannot start.
     """
-    scratch.mkdir(parents=True, exist_ok=True)
-    data_file, report = scratch / ".coverage", scratch / "coverage.json"
-    data_file.unlink(missing_ok=True)
-    report.unlink(missing_ok=True)
-    data = f"--data-file={data_file}"
+    rcfile, report = _fresh_scratch(scratch)
+    rc = f"--rcfile={rcfile}"
     env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
-    pytest = [coverage_bin, "run", data, "-m", "pytest", "-q", "-p", "no:cacheprovider"]
-    to_json = [coverage_bin, "json", data, "-o", str(report)]
+    steps = [
+        ([coverage_bin, "run", rc, "-m", "pytest", "-q", "-p", "no:cacheprovider"], TESTS_RAN),
+        ([coverage_bin, "combine", rc], (0,)),
+        ([coverage_bin, "json", rc, "-o", str(report)], (0,)),
+    ]
     try:
-        tested = subprocess.run(pytest, cwd=workspace, env=env, stdout=STDERR_FD, check=False)
-        if tested.returncode not in TESTS_RAN:
-            return None
-        made = subprocess.run(to_json, cwd=workspace, stdout=STDERR_FD, check=False)
+        for command, accepted in steps:
+            ran = subprocess.run(command, cwd=workspace, env=env, stdout=STDERR_FD, check=False)
+            if ran.returncode not in accepted:
+                return None
     except OSError:
         return None
-    return report if made.returncode == 0 and report.is_file() else None
+    return report if report.is_file() else None
+
+
+def _fresh_scratch(scratch: Path) -> tuple[Path, Path]:
+    """Removes an earlier run's data and report, and writes the run's own rcfile."""
+    scratch.mkdir(parents=True, exist_ok=True)
+    for old in scratch.glob(".coverage*"):
+        old.unlink()
+    report = scratch / "coverage.json"
+    report.unlink(missing_ok=True)
+    rcfile = scratch / "coveragerc"
+    rcfile.write_text(f"[run]\ndata_file = {scratch / '.coverage'}\nparallel = true\npatch = subprocess\n")
+    return rcfile, report
 
 
 def main(argv: list[str] | None = None) -> int:

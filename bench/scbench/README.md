@@ -77,6 +77,10 @@ line for `stages.json`. They call the image's pinned tools by full path under
   of the workspace's files. The image's coverage and pytest live in their own venv, which
   lacks the workspace's third-party dependencies; a workspace that needs them gets
   `no-coverage` unless the caller passes a report made with the workspace's interpreter.
+  Python subprocesses the tests start are measured too (a scratch rcfile with
+  `patch = subprocess`, then `coverage combine`), except one started under an interpreter
+  without coverage installed, such as the workspace's own venv python: its functions
+  still read as untested.
 
 ```
 cd bench/scbench

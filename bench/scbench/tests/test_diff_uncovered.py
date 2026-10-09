@@ -166,6 +166,7 @@ class DiffUncoveredTests(unittest.TestCase):
         script = self.root / f"coverage-{pytest_exit}"
         script.write_text(
             f'#!/bin/sh\nif [ "$1" = run ]; then exit {pytest_exit}; fi\n'
+            'if [ "$1" = combine ]; then exit 0; fi\n'
             'while [ $# -gt 0 ]; do [ "$1" = -o ] && out="$2"; shift; done\n'
             f"printf '%s' '{report}' > \"$out\"\n"
         )
@@ -213,6 +214,22 @@ class DiffUncoveredTests(unittest.TestCase):
         self.assertEqual([r["symbol"] for r in self.rows()], ["surcharge"])
         self.assertEqual(summary["outcome"], "ok")
         self.assertFalse((self.workspace / ".coverage").exists())
+
+    @unittest.skipUnless(Path(PINNED_COVERAGE).exists(), "needs the pinned coverage.py (A1 image or SCBENCH_COVERAGE)")
+    def test_code_a_test_runs_as_a_subprocess_counts_as_covered(self):
+        main_py = 'def greet(name):\n    return f"hi {name}"\n\n\ndef main():\n    print(greet("ann"))\n\n\n' \
+                  'if __name__ == "__main__":\n    main()\n'
+        test_cli = 'import subprocess\nimport sys\n\n\ndef test_cli():\n' \
+                   '    out = subprocess.run([sys.executable, "-m", "app.main"], capture_output=True, text=True)\n' \
+                   '    assert out.stdout == "hi ann\\n"\n'
+        write(self.workspace, {"app/__init__.py": "", "app/main.py": main_py, "tests/test_cli.py": test_cli})
+        before = sorted(self.workspace.rglob("*"))
+
+        summary = self.run_main("--base-dir", str(self.base), "--coverage", PINNED_COVERAGE)
+
+        self.assertEqual([r["symbol"] for r in self.rows()], ["surcharge"])
+        self.assertEqual(summary["items_in"], 4)
+        self.assertEqual(sorted(self.workspace.rglob("*")), before)
 
     @unittest.skipUnless(Path(PINNED_COVERAGE).exists(), "needs the pinned coverage.py (A1 image or SCBENCH_COVERAGE)")
     def test_a_test_collection_error_reports_no_coverage_rather_than_untested_functions(self):
