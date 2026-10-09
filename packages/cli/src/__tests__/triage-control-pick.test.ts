@@ -40,6 +40,12 @@ describe("pickRunControls", () => {
     expect(pickRunControls(POOL, signals, "few", 2)).toHaveLength(3);
   });
 
+  it("plants a control for each change-check kind the run asks", () => {
+    const signals = ["regnet-diff", "symbol_assertion_free", "clone"];
+
+    for (const seed of SEEDS) expect(pickRunControls(POOL, signals, seed, 3).map((c) => c.kind).sort()).toEqual(["clone", "regnet-diff", "weak-oracle"]);
+  });
+
   it("plants no control when asked for none", () => {
     expect(pickRunControls(POOL, ["symbol-single-caller-helper"], "none", 0)).toEqual([]);
   });

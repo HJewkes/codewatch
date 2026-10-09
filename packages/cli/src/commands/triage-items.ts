@@ -6,6 +6,7 @@ import type { Control } from "./triage-controls/types.js";
 import { lineRange, renderShown, type ShownLines } from "./triage-excerpt.js";
 import { keyInputOf, type KeySource } from "./triage-keys.js";
 import { questionFor, type TriageQuestion } from "./triage-questions.js";
+import { SPEC_PATH } from "./triage-spec.js";
 
 export interface ItemQuestion {
   /** The code-graph finding key; the reader answers by it and verdicts are stored by it. */
@@ -65,12 +66,17 @@ function controlFinding(control: Control, i: number): Finding {
   return { ...row, id: `${row.tool}:${row.signal}:${row.path}:${row.lineStart}`, severity: "warning" };
 }
 
-/** A control is shown whole, like a small real file. */
+function wholeFiles(lines: LineSource, paths: readonly string[]): ShownLines {
+  return new Map(paths.map((p) => [p, new Set(lineRange(1, lines.lines(p)?.length ?? 0, Number.MAX_SAFE_INTEGER))]));
+}
+
+/** A control is shown whole, like a small real file, with its own planted spec when it has one. */
 export function controlItem(control: Control): TriageItem {
-  const lines = lineSourceFromTexts({ [control.path]: control.text });
+  const texts = { [control.path]: control.text, ...(control.spec === undefined ? {} : { [SPEC_PATH]: control.spec }) };
+  const lines = lineSourceFromTexts(texts);
   const text = lines.lines(control.path) ?? [];
-  const shown: ShownLines = new Map([[control.path, new Set(lineRange(1, text.length, text.length))]]);
-  const excerpt = renderShown(shown, () => text);
+  const shown = wholeFiles(lines, Object.keys(texts));
+  const excerpt = renderShown(shown, (p) => lines.lines(p) ?? []);
   const source: KeySource = { lines: () => text, symbols: () => symbolSpans(control) };
   const keyables = control.findings.map((_, i) => keyableOf(controlFinding(control, i), hashContent(excerpt), source));
   const keyed = keyAll(keyables);

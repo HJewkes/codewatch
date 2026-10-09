@@ -5,7 +5,9 @@ import { defaultGraphDbPath, openGraphStore } from "../utils/graph-store.js";
 import { buildBundles, DEFAULT_TOKEN_CAP, type TriageBundle } from "./triage-bundle.js";
 import { readAuditOutputs, selectTriageFiles, type TriageSelectOptions, type TriageSelection } from "./triage-select.js";
 import { carryPriorVerdicts, skipJudged, type ReusedVerdict, type VerdictCarry } from "./triage-persist.js";
+import { questionFor } from "./triage-questions.js";
 import { fileRoles, snapshotSource } from "./triage-source.js";
+import { readSpec, withSpec } from "./triage-spec.js";
 
 /** Planning figures from the C-96 Layer 2 plan, replaced once a measured run exists. */
 export const ESTIMATE = {
@@ -21,6 +23,8 @@ export interface TriagePlanOptions extends TriageSelectOptions {
   db?: string;
   auditDir?: string;
   tokenCap?: number;
+  /** The checkpoint spec, read from a file outside the workspace; regnet-diff findings are asked only with one. */
+  specFile?: string;
 }
 
 export interface TriageEstimate {
@@ -48,6 +52,8 @@ export interface TriagePlan {
   /** Every selected finding's stored key, including the ones skipped for an existing verdict. */
   keys: ReadonlyMap<Finding, string>;
   verdicts: VerdictReuse;
+  /** The spec's lines, held in memory only. */
+  spec?: string[];
 }
 
 export function estimateCost(bundles: readonly TriageBundle[]): TriageEstimate {
@@ -70,6 +76,11 @@ export function defaultAuditDir(root: string): string {
   return path.join(detectGitToplevel(root) ?? root, ".codewatch", "audit");
 }
 
+function specWarning(findings: readonly Finding[], hasSpec: boolean): string[] {
+  const unasked = hasSpec ? 0 : findings.filter((f) => questionFor(f.signal)?.needsSpec).length;
+  return unasked === 0 ? [] : [`${unasked} findings need a spec to judge and were not asked; pass --spec <file>`];
+}
+
 /** Carries earlier verdicts forward, then selects the files and findings still unjudged and builds their bundles, without calling a model. */
 export function planTriage(options: TriagePlanOptions): TriagePlan {
   const root = path.resolve(options.path);
@@ -77,17 +88,18 @@ export function planTriage(options: TriagePlanOptions): TriagePlan {
   const dbPath = path.resolve(options.db ?? defaultGraphDbPath(root));
   const audit = readAuditOutputs(path.resolve(options.auditDir ?? defaultAuditDir(root)));
   const cap = options.tokenCap ?? DEFAULT_TOKEN_CAP;
+  const spec = options.specFile === undefined ? undefined : readSpec(options.specFile, idRoot);
   const store = openGraphStore(dbPath);
   try {
     const snapshotId = latestSnapshotId(dbPath, store);
     const carry = carryPriorVerdicts(store, snapshotId);
-    const warnings: string[] = [];
-    const source = snapshotSource(store, snapshotId, idRoot, warnings);
-    const selected = selectTriageFiles(audit, fileRoles(store, snapshotId), options);
+    const warnings = specWarning(audit.findings, spec !== undefined);
+    const source = withSpec(snapshotSource(store, snapshotId, idRoot, warnings), spec);
+    const selected = selectTriageFiles(audit, fileRoles(store, snapshotId), { ...options, hasSpec: spec !== undefined });
     const { selection, keys, reused } = skipJudged(selected, source, listVerdicts(store, snapshotId), cap);
     const { bundles, skippedFiles } = buildBundles(selection.files, source, cap);
     const verdicts = { ...carry, reused };
-    return { dbPath, snapshotId, selection, bundles, skippedFiles, estimate: estimateCost(bundles), warnings, source: { lines: source.lines }, keys, verdicts };
+    return { dbPath, snapshotId, selection, bundles, skippedFiles, estimate: estimateCost(bundles), warnings, source: { lines: source.lines }, keys, verdicts, ...(spec ? { spec } : {}) };
   } finally {
     store.close();
   }

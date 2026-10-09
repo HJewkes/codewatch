@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import type { Finding, NodeRole } from "@titan-design/code-graph";
 import type { ScoreTable } from "./audit-score.js";
-import { isTriageSignal } from "./triage-questions.js";
+import { questionFor } from "./triage-questions.js";
 
 export const DEFAULT_MIN_RANK = 70;
 
@@ -17,6 +17,8 @@ export interface AuditOutputs {
 export interface TriageSelectOptions {
   minRank: number;
   includeTests: boolean;
+  /** A spec was given, so findings whose question needs one are asked. */
+  hasSpec?: boolean;
 }
 
 export interface SelectedFile {
@@ -46,17 +48,24 @@ export function readAuditOutputs(auditDir: string): AuditOutputs {
 type Exclusion = keyof TriageSelection["excluded"];
 
 function exclusionOf(
+  f: Finding,
   rank: number | undefined,
   role: NodeRole | undefined,
   options: TriageSelectOptions,
 ): Exclusion | undefined {
+  if (questionFor(f.signal)?.everyRow) return undefined;
   if (rank === undefined) return "unscored";
   if (rank < options.minRank) return "belowRank";
   if (!options.includeTests && role !== undefined && TEST_ROLES.has(role)) return "tests";
   return undefined;
 }
 
-/** Files at or above the rank threshold, each with its findings that carry a triage question, highest rank first. */
+function isEligible(f: Finding, options: TriageSelectOptions): boolean {
+  const question = questionFor(f.signal);
+  return question !== undefined && (!question.needsSpec || options.hasSpec === true);
+}
+
+/** Files at or above the rank threshold, plus any holding an every-row finding, each with its findings that carry a triage question, highest rank first. */
 export function selectTriageFiles(
   audit: AuditOutputs,
   roles: ReadonlyMap<string, NodeRole>,
@@ -65,13 +74,13 @@ export function selectTriageFiles(
   const rankByPath = new Map(audit.scores.files.map((f) => [f.path, f.rank]));
   const excluded = { belowRank: 0, tests: 0, unscored: 0 };
   const byPath = new Map<string, Finding[]>();
-  const eligible = audit.findings.filter((f) => isTriageSignal(f.signal));
+  const eligible = audit.findings.filter((f) => isEligible(f, options));
   for (const f of eligible) {
-    const reason = exclusionOf(rankByPath.get(f.path), roles.get(f.path), options);
+    const reason = exclusionOf(f, rankByPath.get(f.path), roles.get(f.path), options);
     if (reason) excluded[reason]++;
     else byPath.set(f.path, [...(byPath.get(f.path) ?? []), f]);
   }
-  const files = [...byPath].map(([p, findings]) => ({ path: p, rank: rankByPath.get(p)!, findings }));
+  const files = [...byPath].map(([p, findings]) => ({ path: p, rank: rankByPath.get(p) ?? 0, findings }));
   files.sort((a, b) => b.rank - a.rank || a.path.localeCompare(b.path));
   return { files, excluded, ineligible: audit.findings.length - eligible.length };
 }

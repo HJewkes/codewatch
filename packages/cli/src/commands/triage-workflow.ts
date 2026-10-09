@@ -13,12 +13,16 @@ import {
 } from "@titan-design/workflow";
 import type { TriageItem } from "./triage-items.js";
 import { renderPrompt } from "./triage-prompt.js";
+import { inScratchDir } from "./triage-spec.js";
 
 const WORKFLOW = "codewatch-triage";
 export const READ_STEP = "read";
 
 export interface FanOutOptions {
+  /** Where the workflow store goes; ignored when `scratch` is set. */
   dbPath: string;
+  /** The store keeps every reader output, which quotes the spec when there is one, so it goes to a removed directory outside the workspace. */
+  scratch?: boolean;
   runner: StepRunner;
   model: string;
   concurrency: number;
@@ -37,7 +41,12 @@ function progress(options: FanOutOptions, total: number): (event: WorkflowEvent)
 }
 
 /** One durable workflow run that sends every item to the reader under the concurrency and budget caps. */
-export async function fanOutReads(items: readonly TriageItem[], options: FanOutOptions): Promise<MapResult<TriageItem>> {
+export function fanOutReads(items: readonly TriageItem[], options: FanOutOptions): Promise<MapResult<TriageItem>> {
+  if (!options.scratch) return readWithStore(items, options);
+  return inScratchDir((dir) => readWithStore(items, { ...options, dbPath: path.join(dir, "triage.sqlite3") }));
+}
+
+async function readWithStore(items: readonly TriageItem[], options: FanOutOptions): Promise<MapResult<TriageItem>> {
   mkdirSync(path.dirname(options.dbPath), { recursive: true });
   const db = openDatabase(options.dbPath);
   try {

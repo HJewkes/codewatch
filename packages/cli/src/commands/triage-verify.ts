@@ -1,6 +1,7 @@
 import { verifyCitation, type CitationRejection } from "@titan-design/evidence";
 import type { ItemQuestion, TriageItem } from "./triage-items.js";
 import { ReaderOutputSchema, type VerdictRow } from "./triage-prompt.js";
+import { redactSpec, SPEC_PATH } from "./triage-spec.js";
 
 export type DropReason = CitationRejection | "unasked-key" | "duplicate-key" | "unparseable-output";
 
@@ -53,7 +54,7 @@ export function normaliseKey(key: string): string {
   return (end === -1 ? key : key.slice(0, end)).trim();
 }
 
-/** Keeps a verdict only when it answers an asked question and every citation checks out against the lines shown. */
+/** Keeps a verdict only when it answers an asked question and every citation checks out against the lines shown; a kept verdict carries no spec text. */
 export function verifyItemOutput(item: TriageItem, output: string | undefined): ItemVerification {
   const rows = parseOutput(output);
   if (typeof rows === "string") {
@@ -66,7 +67,7 @@ export function verifyItemOutput(item: TriageItem, output: string | undefined): 
     const row = { ...returned, key: normaliseKey(returned.key) };
     const failure = rowFailure(item, row, seen);
     if (failure) result.dropped.push({ item: item.id, key: row.key, ...failure });
-    else result.kept.push({ row, question: byKey.get(row.key)! });
+    else result.kept.push({ row: redactSpec(row, item.lines.lines(SPEC_PATH)), question: byKey.get(row.key)! });
     seen.add(row.key);
   }
   return result;
