@@ -32,6 +32,9 @@ RUN mkdir -p /opt/codewatch-a1/bin \
 # The synthesis stage (bench/scbench/synthesis), passed by build.sh as a named build context.
 COPY --from=synthesis . /opt/codewatch-a1/synthesis
 
+# The spec-aware commit review (bench/scbench/review); it imports synthesis's model call.
+COPY --from=review . /opt/codewatch-a1/review
+
 # Tier T test-shape checks, run by path: python3 /opt/codewatch-a1/tiert <root>.
 COPY --from=tiert . /opt/codewatch-a1/tiert
 

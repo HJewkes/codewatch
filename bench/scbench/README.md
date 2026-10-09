@@ -27,6 +27,51 @@ without costing correctness.
 Test-shape checks for pytest functions: assertion-free, weak-oracle-only, duplicate
 assert and self-compare, written as `findings.jsonl` rows. See `tiert/README.md`.
 
+## review/
+
+The spec-aware commit review (design unit U17): one Sonnet 5.5 call per commit, with no
+tools, asking whether the commit changes behaviour the checkpoint spec defines.
+
+```
+PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m review \
+  [--spec <file>] [--mode fix|expected-output] [--workspace .] [--tests-dir tests] <sha>
+```
+
+- **Inputs.** The commit's `git show` diff (from the repository `GIT_DIR` names, so it
+  runs in the stage's environment), the spec and the workspace's `NOTES.md`. The spec
+  comes from `--spec` or `$CW_SPEC_FILE`. A spec file inside the workspace is refused, and
+  no spec text is written anywhere.
+- **The call** reuses the synthesis stage's `claude -p` invocation: built-in tools
+  disallowed, an empty MCP config and `--setting-sources ""`. The model is
+  `$CW_REVIEW_MODEL`, default `claude-sonnet-5-5`. The prompt names no grader or grader
+  metric.
+- **Output.** The last stdout line is `{"verdict": "ok"|"conflict", "spec_line",
+  "reason", "citation", "commit", "mode", "files", "tokens", "usd"}`, with exit 0. Any
+  failure exits 1 with the reason on stderr.
+- **Citation check.** The model cites a spec line by number and copies its text. The
+  citation is `verified` only when that line exists and contains the copied text.
+  Otherwise `spec_line` is null and `citation` is `failed` (`none` when nothing was
+  cited); the verdict stands. Spec lines the model repeats in `reason` become `<spec>`.
+
+**Fix commits** (`--mode fix`, the default) review the whole commit. The fix stage calls
+it as `--review-command "<the command above> --spec <file>"`; its hook appends the sha,
+reads `verdict`, `spec_line` and `reason`, and resumes the fix session once on a
+conflict.
+
+**The solve commit** (`--mode expected-output`) reviews only the files that change
+expected outputs: snapshot or golden files (`__snapshots__/`, `golden/`, `expected/`,
+`*.snap`, `*.golden`, `*.ambr`, `*.approved`, `*.expected.*`), and test files whose diff
+removes an assertion line. When there are none it prints `ok` with no model call. The
+`solve-review` stage runs after `commit-ratchet` (U15) has committed the solve on `cp-N`:
+
+```
+<the command above> --mode expected-output --spec <file> $(git rev-parse cp-N)
+```
+
+On a conflict it resumes the solve session once (`--resume <solve session id>`) with the
+reason and spec line, commits the revision and reviews it again. It writes the report
+line, plus `resumed` and the second verdict, into `stages.json`.
+
 ## analysis/
 
 `analysis/` reads each arm's run directory after `slop-code eval`, plus A1's
