@@ -4,7 +4,8 @@ import type { LineSource } from "@titan-design/evidence";
 import { defaultGraphDbPath, openGraphStore } from "../utils/graph-store.js";
 import { buildBundles, DEFAULT_TOKEN_CAP, type TriageBundle } from "./triage-bundle.js";
 import { readAuditOutputs, selectTriageFiles, type TriageSelectOptions, type TriageSelection } from "./triage-select.js";
-import { carryPriorVerdicts, skipJudged, type ReusedVerdict, type VerdictCarry } from "./triage-persist.js";
+import type { VerdictRecord } from "./triage-output.js";
+import { carryPriorVerdicts, readVerdictFiles, skipJudged, type ReusedVerdict, type VerdictCarry } from "./triage-persist.js";
 import { questionFor } from "./triage-questions.js";
 import { fileRoles, snapshotSource } from "./triage-source.js";
 import { readSpec, withSpec } from "./triage-spec.js";
@@ -25,6 +26,8 @@ export interface TriagePlanOptions extends TriageSelectOptions {
   tokenCap?: number;
   /** The checkpoint spec, read from a file outside the workspace; regnet-diff findings are asked only with one. */
   specFile?: string;
+  /** Holds the committed `verdicts.jsonl` and `verdicts.d/*.jsonl`; their verdicts are reused like graph.db's. */
+  verdictsDir?: string;
 }
 
 export interface TriageEstimate {
@@ -37,6 +40,8 @@ export interface TriageEstimate {
 /** How the verdicts already in graph.db shaped this plan. */
 export interface VerdictReuse extends VerdictCarry {
   reused: ReusedVerdict[];
+  /** Committed verdicts reused for findings graph.db held no verdict for. */
+  fromFiles: VerdictRecord[];
 }
 
 export interface TriagePlan {
@@ -96,9 +101,10 @@ export function planTriage(options: TriagePlanOptions): TriagePlan {
     const warnings = specWarning(audit.findings, spec !== undefined);
     const source = withSpec(snapshotSource(store, snapshotId, idRoot, warnings), spec);
     const selected = selectTriageFiles(audit, fileRoles(store, snapshotId), { ...options, hasSpec: spec !== undefined });
-    const { selection, keys, reused } = skipJudged(selected, source, listVerdicts(store, snapshotId), cap);
+    const files = options.verdictsDir === undefined ? undefined : readVerdictFiles(path.resolve(options.verdictsDir), warnings);
+    const { selection, keys, reused, fromFiles } = skipJudged(selected, source, listVerdicts(store, snapshotId), cap, files);
     const { bundles, skippedFiles } = buildBundles(selection.files, source, cap);
-    const verdicts = { ...carry, reused };
+    const verdicts = { ...carry, reused, fromFiles };
     return { dbPath, snapshotId, selection, bundles, skippedFiles, estimate: estimateCost(bundles), warnings, source: { lines: source.lines }, keys, verdicts, ...(spec ? { spec } : {}) };
   } finally {
     store.close();
