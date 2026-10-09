@@ -1,3 +1,4 @@
+import { pyClonedReaders } from "./python/cloned-readers.js";
 import { pyCommentClean } from "./python/comment-clean.js";
 import { pyCommentSlop } from "./python/comment-slop.js";
 import { pyHelperClean } from "./python/helper-clean.js";
@@ -6,6 +7,8 @@ import { pyIsinstanceClean } from "./python/isinstance-clean.js";
 import { pyIsinstanceSlop } from "./python/isinstance-slop.js";
 import { pyPassThroughClean } from "./python/pass-through-clean.js";
 import { pyPassThroughSlop } from "./python/pass-through-slop.js";
+import { pyRegnetRequired } from "./python/regnet-required.js";
+import { pyWeakOracle } from "./python/weak-oracle.js";
 import type { Control, ControlDefinition, ControlLabel, ExpectedVerdict } from "./types.js";
 
 export const CONTROL_DEFINITIONS: readonly ControlDefinition[] = [
@@ -17,6 +20,9 @@ export const CONTROL_DEFINITIONS: readonly ControlDefinition[] = [
   pyIsinstanceSlop,
   pyPassThroughClean,
   pyPassThroughSlop,
+  pyRegnetRequired,
+  pyWeakOracle,
+  pyClonedReaders,
 ];
 
 export function expectedVerdict(label: ControlLabel): ExpectedVerdict {
@@ -31,6 +37,7 @@ function toControl(def: ControlDefinition): Control {
     label: def.label,
     path: def.path,
     text: def.text,
+    ...(def.spec === undefined ? {} : { spec: def.spec }),
     findings: def.findings.map(({ anchor: _anchor, ...row }) => ({ path: def.path, ...row, expected })),
   };
 }

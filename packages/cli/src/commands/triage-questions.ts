@@ -1,4 +1,5 @@
 import type { Finding } from "@titan-design/code-graph";
+import { SPEC_PATH } from "./triage-spec.js";
 
 export const VERDICTS = ["confirmed", "justified", "unclear"] as const;
 export type Verdict = (typeof VERDICTS)[number];
@@ -8,12 +9,20 @@ export interface TriageQuestion {
   meanings: Record<Verdict, string>;
   /** The reader also needs the one caller's excerpt to judge the finding. */
   needsCaller?: boolean;
+  /** The reader also needs the other copy, named in the evidence as `<path>:<start>-<end>`. */
+  needsPeer?: boolean;
+  /** The reader also needs the checkpoint spec; without one the finding is not asked. */
+  needsSpec?: boolean;
+  /** A measured change rather than a ranking hint: asked whatever the file's rank or role. */
+  everyRow?: boolean;
 }
+
+type QuestionNeeds = Pick<TriageQuestion, "needsCaller" | "needsPeer" | "needsSpec" | "everyRow">;
 
 const UNCLEAR = "the excerpt does not show enough to decide";
 
-function question(text: string, confirmed: string, justified: string, needsCaller = false): TriageQuestion {
-  return { text, meanings: { confirmed, justified, unclear: UNCLEAR }, ...(needsCaller ? { needsCaller } : {}) };
+function question(text: string, confirmed: string, justified: string, needs: QuestionNeeds = {}): TriageQuestion {
+  return { text, meanings: { confirmed, justified, unclear: UNCLEAR }, ...needs };
 }
 
 const COMMENTED_CODE = question(
@@ -28,6 +37,13 @@ const DEFENSIVE_CHECK = question(
   "the check guards a case the types do not rule out at runtime",
 );
 
+const WEAK_ORACLE = question(
+  "Would this test still pass if the behaviour it names were wrong?",
+  "its assertions are too weak to catch a wrong result",
+  "its assertions pin the behaviour it checks, or it is a deliberate smoke test",
+  { everyRow: true },
+);
+
 const SWALLOWED = question(
   "Does this except block hide failures a caller should see?",
   "an error is silenced that should surface or be handled",
@@ -40,7 +56,7 @@ const QUESTIONS: Readonly<Record<string, TriageQuestion>> = {
     "Is this helper, called from exactly one place, justified as a separate function?",
     "inlining it into its caller would read at least as clearly",
     "it names a real concept, isolates a test seam, or keeps the caller readable",
-    true,
+    { needsCaller: true },
   ),
   "symbol-cognitive": question(
     "Is this function's complexity avoidable?",
@@ -77,14 +93,26 @@ const QUESTIONS: Readonly<Record<string, TriageQuestion>> = {
     "each handler covers a distinct, real failure",
   ),
   SIM105: SWALLOWED,
+  "regnet-diff": question(
+    `Does the spec require this change in the program's recorded output? Cite the spec line (path ${SPEC_PATH}) that requires it, or the code that changed it.`,
+    "no spec line calls for the change, so it is a regression",
+    "a spec line requires the new output",
+    { needsSpec: true, everyRow: true },
+  ),
+  symbol_weak_oracle_only: WEAK_ORACLE,
+  symbol_assertion_free: WEAK_ORACLE,
+  symbol_duplicate_assert: WEAK_ORACLE,
+  symbol_self_compare: WEAK_ORACLE,
+  clone: question(
+    "Should these duplicated lines and their other copy share one implementation?",
+    "the copies do the same job and would have to change together",
+    "the copies only look alike and serve purposes that may diverge",
+    { needsPeer: true, everyRow: true },
+  ),
 };
 
 export function questionFor(signal: string): TriageQuestion | undefined {
   return QUESTIONS[signal];
-}
-
-export function isTriageSignal(signal: string): boolean {
-  return signal in QUESTIONS;
 }
 
 /** Where a question points: the named symbol, the flagged lines, or the whole file. */

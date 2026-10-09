@@ -11,6 +11,7 @@ import {
 import { questionFor, type TriageQuestion } from "./triage-questions.js";
 import type { SelectedFile } from "./triage-select.js";
 import type { BundleSource } from "./triage-source.js";
+import { specShown } from "./triage-spec.js";
 
 export const DEFAULT_TOKEN_CAP = 24_000;
 /** Lines kept either side of a flagged line when a symbol is too large to show whole. */
@@ -113,6 +114,31 @@ function callerExcerpt(f: Finding, source: BundleSource, cap: number): ShownLine
   return fitRange(parsed.fileId, range, [range.start], textOf, cap);
 }
 
+const PEER_RANGE = /(\S+):(\d+)-(\d+)/;
+
+function peerExcerpt(f: Finding, source: BundleSource, cap: number): ShownLines | undefined {
+  const match = PEER_RANGE.exec(f.evidence ?? "");
+  if (!match || !source.lines(match[1]!)) return undefined;
+  const range = { key: match[0], start: Number(match[2]), end: Number(match[3]) };
+  return fitRange(match[1]!, range, [range.start], (p) => source.lines(p) ?? [], cap);
+}
+
+/** What a question needs shown beside the finding's own range: its sole caller, the clone's other copy, or the spec. */
+function extrasFor(f: Finding, source: BundleSource, cap: number): ShownLines[] {
+  const question = questionFor(f.signal);
+  const extras = [
+    question?.needsCaller ? callerExcerpt(f, source, cap) : undefined,
+    question?.needsPeer ? peerExcerpt(f, source, cap) : undefined,
+    question?.needsSpec ? specShown(source) : undefined,
+  ];
+  return extras.filter((x): x is ShownLines => x !== undefined);
+}
+
+function withExtras(shown: ShownLines, findings: readonly Finding[], source: BundleSource, cap: number): ShownLines {
+  for (const f of findings) for (const extra of extrasFor(f, source, cap)) mergeShown(shown, extra);
+  return shown;
+}
+
 function groupByRange(file: SelectedFile, spans: readonly SymbolSpan[], lineCount: number): Map<string, RangeGroup> {
   const byRange = new Map<string, RangeGroup>();
   for (const f of file.findings) {
@@ -127,11 +153,7 @@ function groupByRange(file: SelectedFile, spans: readonly SymbolSpan[], lineCoun
 function unitFor({ range, findings }: RangeGroup, p: string, source: BundleSource, cap: number): Unit {
   const textOf: TextOf = (x) => source.lines(x) ?? [];
   const shown = fitRange(p, range, findings.flatMap(flaggedLines), textOf, cap);
-  for (const f of findings.filter((x) => questionFor(x.signal)?.needsCaller)) {
-    const caller = callerExcerpt(f, source, cap);
-    if (caller) mergeShown(shown, caller);
-  }
-  return { firstLine: range.start, shown, findings };
+  return { firstLine: range.start, shown: withExtras(shown, findings, source, cap), findings };
 }
 
 /** A file-level finding has no line, so it rides on the file's other excerpts and shows the whole file only when alone. */
@@ -140,7 +162,7 @@ function buildUnits(file: SelectedFile, source: BundleSource, cap: number): Unit
   const fileLevel = groups.size > 1 ? groups.get(file.path) : undefined;
   if (fileLevel) groups.delete(file.path);
   const units = [...groups.values()].map((group) => unitFor(group, file.path, source, cap));
-  if (fileLevel) units.push({ firstLine: 0, shown: new Map(), findings: fileLevel.findings });
+  if (fileLevel) units.push({ firstLine: 0, shown: withExtras(new Map(), fileLevel.findings, source, cap), findings: fileLevel.findings });
   return units;
 }
 
@@ -160,14 +182,13 @@ function packUnits(units: readonly Unit[], textOf: TextOf, cap: number): Unit[][
   return groups.map((g) => g.units);
 }
 
-/** What a reader is shown for this finding alone: its range fitted to the cap, plus its caller when its question needs one. */
+/** What a reader is shown for this finding alone: its range fitted to the cap, plus whatever its question needs beside it. */
 function findingExcerpt(f: Finding, source: BundleSource, cap: number): ShownLines | undefined {
   const text = source.lines(f.path);
   if (!text) return undefined;
   const textOf: TextOf = (x) => source.lines(x) ?? [];
   const shown = fitRange(f.path, rangeOf(f, source.symbols(f.path), text.length), flaggedLines(f), textOf, cap);
-  const caller = questionFor(f.signal)?.needsCaller ? callerExcerpt(f, source, cap) : undefined;
-  return caller ? mergeShown(shown, caller) : shown;
+  return withExtras(shown, [f], source, cap);
 }
 
 /** One finding's excerpt hash, independent of which other findings share its bundle; audit stores it and carry-forward compares it. */

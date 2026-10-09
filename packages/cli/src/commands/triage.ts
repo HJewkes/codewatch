@@ -160,7 +160,7 @@ export async function runTriage(options: TriageRunOptions): Promise<TriageRunRes
   const plan = planTriage(options);
   const runId = options.seed ?? randomUUID();
   const items = workItems(plan, options, runId);
-  const mapped = await fanOutReads(items, { ...options, maxFailures: maxFailuresOf(options), runner, dbPath: path.join(outDir, "triage.sqlite3") });
+  const mapped = await fanOutReads(items, { ...options, maxFailures: maxFailuresOf(options), runner, dbPath: path.join(outDir, "triage.sqlite3"), scratch: plan.spec !== undefined });
   const verified = verifyAll(mapped);
   const controls = scoreControlItems(items, verified.kept);
   const records = toRecords(items, verified, controls, runId, modelByItem(traces, options.model));

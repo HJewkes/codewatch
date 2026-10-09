@@ -15,6 +15,7 @@ interface TriageCliOptions {
   out?: string;
   db?: string;
   audit?: string;
+  spec?: string;
 }
 
 function nonNegative(value: string): number {
@@ -39,7 +40,7 @@ async function runDryRun(target: string, options: TriageCliOptions): Promise<voi
   const { planTriage } = await import("./triage-plan.js");
   const { formatTriagePlan } = await import("./triage-format.js");
   const includeTests = options.includeTests ?? false;
-  const plan = planTriage({ path: target, db: options.db, auditDir: options.audit, minRank: options.minRank, includeTests });
+  const plan = planTriage({ path: target, db: options.db, auditDir: options.audit, specFile: options.spec, minRank: options.minRank, includeTests });
   for (const warning of plan.warnings) console.error(`codewatch triage: ${warning}`);
   console.log(formatTriagePlan(plan, { ...options, includeTests }));
 }
@@ -51,6 +52,7 @@ async function runModelTriage(target: string, options: TriageCliOptions): Promis
     ...options,
     path: target,
     auditDir: options.audit,
+    specFile: options.spec,
     includeTests: options.includeTests ?? false,
     onProgress: (line) => console.error(`codewatch triage: ${line}`),
   });
@@ -76,6 +78,7 @@ export function registerTriageCommand(program: Command): void {
     .option("--out <dir>", "Output directory for verdicts (default: <path>/.codewatch/audit)")
     .option("--db <path>", "Graph database (default: <path>/.codewatch/graph.db)")
     .option("--audit <dir>", "Audit output to read (default: <path>/.codewatch/audit)")
+    .option("--spec <file>", "Checkpoint spec that regnet-diff findings are judged against; must sit outside the workspace, and no spec text is written under it")
     .action(async (target: string, options: TriageCliOptions) => {
       try {
         await (options.dryRun ? runDryRun(target, options) : runModelTriage(target, options));
