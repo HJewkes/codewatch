@@ -123,6 +123,17 @@ class RegistrationTest(unittest.TestCase):
 
         self.assertEqual(sorted(config.stages), sorted(STAGE_NAMES))
         self.assertFalse(any(s.enabled for s in config.stages.values()))
+        self.assertIsNone(config.stage_budget_s)
+        self.assertEqual((config.checkpoint_cap_s, config.stage_reserve_s), (7200, 180))
+
+    def test_stage_budget_has_no_default_and_is_an_opt_in_cap(self):
+        unset = _build(_cw_config({}), FakeRuntime())
+        capped = _build(ClaudeCodeCwConfig(type="claude_code_cw", stage_budget_s=600, **STOCK_FIELDS),
+                        FakeRuntime())
+
+        self.assertIsNone(unset.budget_args["stage_seconds"])
+        self.assertEqual(unset.budget_args["reserve_seconds"], 180)
+        self.assertEqual(capped.budget_args["stage_seconds"], 600)
 
     def test_unknown_stage_names_are_rejected(self):
         with self.assertRaises(ValueError):
@@ -163,10 +174,12 @@ class StockEquivalenceTest(unittest.TestCase):
 
 class StageHookTest(unittest.TestCase):
     def test_stages_run_around_the_solve_and_failures_do_not_end_the_checkpoint(self):
-        runtime = FakeRuntime({"cw-index": RuntimeError("container hiccup"),
+        runtime = FakeRuntime({"cw-ratchet": RuntimeError("container hiccup"),
                                "cw-audit": _result(stdout='{"items_out": 42}')})
-        stages = {"inject": {"enabled": True, "command": "cw-inject"},
-                  "index": {"enabled": True, "command": "cw-index"},
+        stages = {"repo-init": {"enabled": True, "command": "cw-init"},
+                  "pr-open": {"enabled": True, "command": "cw-pr"},
+                  "inject": {"enabled": True, "command": "cw-inject"},
+                  "commit-ratchet": {"enabled": True, "command": "cw-ratchet"},
                   "audit": {"enabled": True, "command": "cw-audit"},
                   "triage": {"enabled": True}}
         agent = _build(_cw_config(stages), runtime)
@@ -178,14 +191,16 @@ class StageHookTest(unittest.TestCase):
 
         self.assertFalse(any(r.had_error for r in results))
         stage_commands = [c for c, _ in runtime.streamed if c.startswith("cw-")]
-        self.assertEqual(stage_commands, ["cw-index", "cw-audit", "cw-inject", "cw-index", "cw-audit"])
+        self.assertEqual(stage_commands, ["cw-init", "cw-pr", "cw-ratchet", "cw-audit",
+                                          "cw-pr", "cw-inject", "cw-ratchet", "cw-audit"])
         by_stage = {row["stage"]: row for row in raw["stages"]}
         self.assertEqual(raw["checkpoint"], 2)
+        self.assertNotIn("repo-init", by_stage)
         self.assertEqual(by_stage["inject"]["exit"], 0)
-        self.assertEqual(by_stage["index"]["status"], "failed")
+        self.assertEqual(by_stage["commit-ratchet"]["status"], "failed")
         self.assertEqual(by_stage["audit"]["items_out"], 42)
         self.assertEqual(by_stage["triage"]["status"], "missing")
-        self.assertEqual(by_stage["remediation"]["status"], "disabled")
+        self.assertEqual(by_stage["fix"]["status"], "disabled")
         self.assertEqual(dict(runtime.streamed[-1][1])["CW_CHECKPOINT"], "2")
 
     def test_mcp_tool_calls_count_only_this_checkpoints_mcp_tool_uses(self):
