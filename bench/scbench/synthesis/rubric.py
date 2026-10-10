@@ -80,17 +80,21 @@ BUILT_IN_TOOLS = ("Task", "Bash", "BashOutput", "KillShell", "Glob", "Grep", "Re
                   "NotebookEdit", "WebFetch", "WebSearch", "TodoWrite", "ExitPlanMode", "SlashCommand", "Skill")
 
 
-def claude_argv(model: str) -> list[str]:
+def claude_argv(model: str, system_prompt: str = SYSTEM_PROMPT) -> list[str]:
     return ["claude", "-p", "--model", model, "--output-format", "json", "--max-turns", "1",
             "--disallowedTools", ",".join(BUILT_IN_TOOLS),
             "--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}', "--setting-sources", "",
-            "--system-prompt", SYSTEM_PROMPT]
+            "--system-prompt", system_prompt]
 
 
 def call_claude(prompt: str) -> ModelReply:
+    return call_claude_no_tools(prompt, os.environ.get("CW_SYNTHESIS_MODEL", DEFAULT_MODEL), SYSTEM_PROMPT)
+
+
+def call_claude_no_tools(prompt: str, model: str, system_prompt: str) -> ModelReply:
     """One headless `claude -p` turn with built-in tools disallowed, no MCP servers and no settings (so no hooks)."""
-    model = os.environ.get("CW_SYNTHESIS_MODEL", DEFAULT_MODEL)
-    done = subprocess.run(claude_argv(model), input=prompt, capture_output=True, text=True, timeout=300)
+    done = subprocess.run(claude_argv(model, system_prompt), input=prompt, capture_output=True, text=True,
+                          timeout=300, check=False)
     reply = json.loads(done.stdout)
     if done.returncode != 0 or reply.get("is_error"):
         raise RuntimeError(f"claude exited {done.returncode}: {str(reply.get('result'))[:200]}")
