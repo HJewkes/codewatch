@@ -116,7 +116,7 @@ class RepoInitTest(RepoTestCase):
         repo_init(self.repo, self.codewatch)
         exclude = (self.workspace / GIT_DIR / "info" / "exclude").read_text().splitlines()
         for rel in (".codewatch/cache/graph.db", ".codewatch/audit/findings.jsonl", ".venv/bin/python",
-                    ".codewatch/taste.md", "app.py"):
+                    ".codewatch/session-brief.json", ".codewatch/taste.md", "app.py"):
             self.write(rel)
 
         self.checkpoint(1, {})

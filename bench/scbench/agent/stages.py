@@ -29,7 +29,7 @@ DEFAULT_CAP_SECONDS = 2 * 60 * 60
 
 METRIC_FIELDS = ("tokens", "usd", "items_in", "items_out")
 PASSTHROUGH_FIELDS = ("outcome", "reason", "fixed_replay_diffs", "added_symbols",
-                      "branch", "solve_commit", "merge_base", "baseline")
+                      "branch", "solve_commit", "merge_base", "baseline", "merge", "merge_commit")
 
 
 @dataclass(frozen=True)

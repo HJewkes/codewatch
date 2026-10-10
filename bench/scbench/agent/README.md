@@ -84,11 +84,22 @@ checkpoint, including the final one. Its output only feeds the next checkpoint's
 injection.
 
 The `synthesis` command in `claude_code_cw.yaml` runs `bench/scbench/synthesis` from the
-image. It writes `.codewatch/rubric.md` (one Sonnet 5.5 call, at most 300 words) and
-`.codewatch/session-brief.json` (at most 3 open items and the most-imported changed
-symbols), which the codewatch plugin's SessionStart hook appends to its snapshot. The
-changed symbols need `graph diff --footprint`, which is newer than `@codewatch/cli` 0.7.0;
-on 0.7.0 that list stays empty.
+image and ends the checkpoint's PR. It ratchets the PR head against its merge-base again
+(`graph check --baseline cw-merge-base-cp-N`, `graph diff --footprint` between the two
+snapshots), then writes:
+
+- `.codewatch/taste.d/cp-N.md`: one Sonnet 5.5 call, at most 300 words. Each line cites a
+  verdict and ends in `{inferred cpN fp:<finding key>}`; a line citing none is dropped.
+- `.codewatch/session-brief.json`: new violations and the most-imported changed symbols.
+  It is derived and never committed.
+- `.codewatch/audit/pr-report.json`: a `codewatch-pr-report@1`-shaped report (check,
+  deltas, at most 3 questions).
+
+It then merges `cp-N` into `main` with the report's markdown as the commit message. The
+codewatch plugin's SessionStart hook appends the taste and verdict heads plus unmerged
+fragments, and the brief, to its snapshot. Folding fragments into the heads is a separate
+job. On `@codewatch/cli` 0.7.0, which has no `graph index --rev`, there is no merge-base
+snapshot, so every violation counts as new and the changed-symbol list stays empty.
 
 **Budget.** Caps are opt-in, never defaults. With `stage_budget_s` unset, stages stop
 launching only once fewer than `stage_reserve_s` (default 180 s) remain under
@@ -105,8 +116,8 @@ the way `.git` is, so it must be listed in `info/exclude`.
 
 **Report line.** A stage command may print a JSON object as its last stdout line. These
 keys are copied into `stages.json`: `tokens`, `usd`, `items_in`, `items_out`, `outcome`,
-`reason`, `fixed_replay_diffs`, `added_symbols`, `branch`, `solve_commit`, `merge_base`
-and `baseline`.
+`reason`, `fixed_replay_diffs`, `added_symbols`, `branch`, `solve_commit`, `merge_base`,
+`baseline`, `merge` and `merge_commit`.
 
 **PR flow.** `repo-init`, `pr-open` and `commit-ratchet` run `bench/scbench/prflow` from
 the image: one checkpoint is one PR on a hidden repository at `.codewatch/repo.git`. See

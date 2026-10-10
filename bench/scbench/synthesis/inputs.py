@@ -1,4 +1,4 @@
-"""Read the synthesis inputs: triage verdicts, new ratchet violations and changed symbols."""
+"""Read the synthesis inputs: triage verdicts, recorded taste, and the PR's deltas against its merge-base."""
 
 from __future__ import annotations
 
@@ -11,13 +11,16 @@ Cli = Callable[[list[str]], str]
 
 MAX_OPEN_ITEMS = 3
 MAX_CHANGED_SYMBOLS = 5
-REGRESSION_SIGNAL = "regnet-diff"
 
 
 def run_codewatch(args: list[str]) -> str:
-    """stdout of `codewatch <args>`; `graph check` exits non-zero when it finds violations."""
+    """stdout of `codewatch <args>`."""
     done = subprocess.run(["codewatch", *args], capture_output=True, text=True, timeout=120)
     return done.stdout
+
+
+def read_json(path: Path) -> dict | None:
+    return _json_or_none(path.read_text()) if path.is_file() else None
 
 
 def read_verdicts(path: Path) -> list[dict]:
@@ -36,26 +39,31 @@ def _json_or_none(text: str) -> dict | None:
     return parsed if isinstance(parsed, dict) else None
 
 
-def new_violations(cli: Cli, db: Path, config: Path) -> list[dict]:
-    """Violations in the latest snapshot that the previous snapshot did not have."""
-    if not config.is_file():
-        return []
-    args = ["graph", "check", "--db", str(db), "--config", str(config), "--baseline", "previous", "--json"]
-    report = _json_or_none(cli(args)) or {}
-    violations = (report.get("result") or {}).get("violations") or []
+def recorded_taste(codewatch: Path, own_fragment: str) -> list[str]:
+    """The taste head's lines, then each other unmerged fragment's, so synthesis does not repeat them."""
+    fragments = sorted((p for p in (codewatch / "taste.d").glob("*.md") if p.name != own_fragment),
+                       key=lambda p: p.name)
+    files = [p for p in (codewatch / "taste.md", *fragments) if p.is_file()]
+    return [line.rstrip() for p in files for line in p.read_text().splitlines() if line.strip()]
+
+
+def new_violations(check: dict | None) -> list[dict]:
+    """The violations a `graph check --baseline <merge-base>` report finds new in the PR head."""
+    violations = ((check or {}).get("result") or {}).get("violations") or []
     return [v for v in violations if isinstance(v, dict) and not v.get("isCarryover")]
 
 
-def changed_symbols(cli: Cli, db: Path) -> list[dict]:
-    """Symbols whose footprint changed since the previous snapshot, most-imported file first."""
-    top = _json_or_none(cli(["graph", "top", "--db", str(db), "--metric", "fan_in", "--kind", "file",
-                             "--limit", "100000", "--json"]))
-    snapshot_id = ((top or {}).get("snapshot") or {}).get("id")
-    if snapshot_id is None:
+def changed_symbols(cli: Cli, db: Path, check: dict | None) -> list[dict]:
+    """Symbols whose footprint changed between the check's baseline and head, most-imported file first."""
+    head = ((check or {}).get("snapshot") or {}).get("id")
+    base = ((check or {}).get("baselineSnapshot") or {}).get("id")
+    if head is None or base is None:
         return []
+    top = _json_or_none(cli(["graph", "top", "--db", str(db), "--snapshot", str(head), "--metric", "fan_in",
+                             "--kind", "file", "--limit", "100000", "--json"])) or {}
     importers = {row["nodeId"]: row.get("value") or 0 for row in top.get("rows", [])}
-    diff = _json_or_none(cli(["graph", "diff", "--db", str(db), "--footprint", "--from", "previous",
-                              "--to", str(snapshot_id), "--json"])) or {}
+    diff = _json_or_none(cli(["graph", "diff", "--db", str(db), "--footprint", "--from", str(base),
+                              "--to", str(head), "--json"])) or {}
     symbols = [
         {"symbol": change["symbolId"], "importers": int(importers.get(change.get("fileId"), 0))}
         for change in diff.get("changes") or []
@@ -65,22 +73,7 @@ def changed_symbols(cli: Cli, db: Path) -> list[dict]:
     return ranked[:MAX_CHANGED_SYMBOLS]
 
 
-def _verdict_item(kind: str, row: dict) -> dict:
-    citations = row.get("citations") or [{}]
-    return {"kind": kind, "path": row.get("path", ""), "line": citations[0].get("lineStart"),
-            "text": row.get("rationale", "")}
-
-
-def _violation_item(violation: dict) -> dict:
-    return {"kind": "ratchet", "path": violation.get("path") or violation.get("nodeId", ""),
-            "line": violation.get("lineStart"),
-            "text": violation.get("evidence") or violation.get("message", "")}
-
-
-def open_items(verdicts: list[dict], violations: list[dict]) -> list[dict]:
-    """At most 3 items in a fixed order: confirmed regressions, new violations, other confirmed findings."""
-    confirmed = [row for row in verdicts if row.get("verdict") == "confirmed"]
-    regressions = [_verdict_item("regression", r) for r in confirmed if r.get("signal") == REGRESSION_SIGNAL]
-    quality = [_verdict_item("quality", r) for r in confirmed if r.get("signal") != REGRESSION_SIGNAL]
-    ratchet = [_violation_item(v) for v in violations]
-    return (regressions + ratchet + quality)[:MAX_OPEN_ITEMS]
+def ratchet_items(violations: list[dict]) -> list[dict]:
+    """The brief's open items: new violations. The hook adds confirmed verdicts from the verdict files."""
+    return [{"kind": "ratchet", "path": v.get("path") or v.get("nodeId", ""), "line": v.get("lineStart"),
+             "text": v.get("evidence") or v.get("message", "")} for v in violations][:MAX_OPEN_ITEMS]

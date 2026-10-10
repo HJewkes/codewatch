@@ -1,12 +1,17 @@
-"""The A1 `synthesis` stage (design unit U9).
+"""The A1 `synthesis` stage (design units U9 and U9b): the job that ends a checkpoint's PR.
 
-It reads the triage verdicts and the snapshot deltas, asks one Sonnet 5.5 call for a
-review rubric of at most 300 words, and writes the two files the codewatch plugin's
-SessionStart hook injects at the next checkpoint:
+It ratchets the PR head against its merge-base, asks one Sonnet 5.5 call for new taste
+lines, and writes:
 
-- `.codewatch/rubric.md`: the rubric.
-- `.codewatch/session-brief.json`: at most 3 open items (regressions, then ratchet, then
-  quality) and the changed symbols whose files have the most importers.
+- `.codewatch/taste.d/cp-N.md`: at most 300 words of taste lines, each ending in a
+  provenance tag `{inferred cpN fp:<finding key>}`. A PR never edits `taste.md`; the fold
+  job merges fragments into it.
+- `.codewatch/session-brief.json`: derived and never committed. New violations and the
+  changed symbols whose files have the most importers.
+- `.codewatch/audit/pr-report.json`: a `codewatch-pr-report@1`-shaped report, whose
+  markdown form is the message of the merge of `cp-N` into `main`.
 
-Standard library only: it runs in the A1 image with `codewatch` and `claude` on PATH.
+The codewatch plugin's SessionStart hook injects these at the next checkpoint. Standard
+library only: it runs in the A1 image with `codewatch` and `claude` on PATH, and imports
+`prflow` from beside it.
 """

@@ -72,12 +72,13 @@ Only stage processes set `GIT_DIR`, so the solve session sees no `.git` and no
   `graph index --rev` is newer than `@codewatch/cli` 0.7.0. Without it, the stage
   indexes the work tree, checks with no baseline, writes no diff, and records the reason.
 - `python -m prflow pr-merge` merges the checked-out PR branch into `main` and leaves
-  HEAD on `main`, for the stage that ends the PR.
+  HEAD on `main`. The `synthesis` stage ends the PR the same way, with its PR report as
+  the merge-commit message (`agent/README.md`, "Stages").
 
 None of these changes a file in the work tree: they only move refs and the index.
 `info/exclude` lists the repository itself (git skips a GIT_DIR inside the work tree only
-when it is named `.git`), `.codewatch/cache/`, `.codewatch/audit/` and test and
-virtualenv output.
+when it is named `.git`), `.codewatch/cache/`, `.codewatch/audit/`, the derived
+`.codewatch/session-brief.json` and test and virtualenv output.
 
 **Not graded.** The runner snapshots the whole workspace for grading
 (`Snapshot.from_environment_spec`, 31ceea3). So the pilot env adds `.codewatch/*` to the
