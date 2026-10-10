@@ -32,6 +32,9 @@ RUN mkdir -p /opt/codewatch-a1/bin \
 # The synthesis stage (bench/scbench/synthesis), passed by build.sh as a named build context.
 COPY --from=synthesis . /opt/codewatch-a1/synthesis
 
+# The spec-aware commit review (bench/scbench/review); it imports synthesis's model call.
+COPY --from=review . /opt/codewatch-a1/review
+
 # The PR-flow stages (bench/scbench/prflow): repo-init, pr-open and commit-ratchet.
 COPY --from=prflow . /opt/codewatch-a1/prflow
 
