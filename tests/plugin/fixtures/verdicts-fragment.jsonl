@@ -1,0 +1,2 @@
+{"key":"diff-uncovered:diff-uncovered:shop/cart.py#Cart.total:2c3d4e5f6a7b8c9d#0","verdict":"confirmed","signal":"diff-uncovered","path":"shop/cart.py","rationale":"No test executes the new rounding branch of Cart.total.","citations":[{"path":"shop/cart.py","lineStart":41,"lineEnd":44}],"excerptHash":"bb"}
+{"key":"code-graph:clone:shop/cart.py:3d4e5f6a7b8c9d0e#0","verdict":"confirmed","signal":"clone","path":"shop/cart.py","rationale":"A fourth item is never shown.","citations":[{"path":"shop/cart.py","lineStart":8,"lineEnd":12}],"excerptHash":"dd"}

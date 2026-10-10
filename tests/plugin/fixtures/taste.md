@@ -1,0 +1,2 @@
+- Errors are raised at the CLI edge; library functions never print. {owner docs/style.md}
+- Records are dataclasses, not dicts. {inferred cp1 fp:code-graph:symbol-pass-through:shop/cart.py#Cart:0a1b2c3d4e5f6a7b#0}

@@ -16,11 +16,13 @@ GIT_DIR = Path(".codewatch") / "repo.git"
 BASE_BRANCH = "main"
 AUTHOR = ("codewatch-bench", "codewatch-bench@localhost")
 # Git ignores a GIT_DIR inside the work tree only when it is named `.git`, so without its
-# own line `git add -A` stages the repository into itself. The index cache and the audit
-# output are rebuilt every run and never committed (design section 1, "Carry"). The rest
+# own line `git add -A` stages the repository into itself. The index cache, the audit
+# output and the session brief are rebuilt every run and never committed (design section
+# 1, "Carry"). The rest
 # is what test runs and virtualenvs leave behind, which the grader's snapshot skips too.
 EXCLUDES = (
     "/.codewatch/repo.git/", "/.codewatch/cache/", "/.codewatch/audit/", "/.codewatch/graph.db*",
+    "/.codewatch/session-brief.json",
     "__pycache__/", "*.py[cod]", ".venv/", "venv/", ".pytest_cache/", ".ruff_cache/",
     ".mypy_cache/", ".coverage", ".coverage.*", "htmlcov/", "node_modules/",
     "/.evaluation_tests/", "/.claude/", "/.opencode/",
