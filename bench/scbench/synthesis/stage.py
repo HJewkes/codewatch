@@ -2,7 +2,8 @@
 
 The stage ends the PR: it ratchets the PR head against its merge-base again (the fix stage
 may have moved it), writes the taste fragment, the derived brief and the PR report, then
-merges `cp-N` into `main` with the report's markdown as the merge-commit message.
+merges `cp-N` into `main` with the report's markdown as the merge-commit message. On
+`main` it then acts as the merging job, folding every fragment into its head (`fold_job`).
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from prflow.pr import commit_pending, merge_pr
 from prflow.ratchet import AUDIT, CHECK_CONFIG, CHECK_OUT, DB, DIFF_OUT, Tool, ratchet
 from prflow.repo import GitError, HiddenRepo, pr_branch
 
+from .fold_job import head_anchors, run_fold
 from .inputs import Cli, changed_symbols, new_violations, ratchet_items, read_json, read_verdicts, recorded_taste
 from .report import pr_report, render_markdown
 from .taste import Model, build_prompt, cap_lines, listed_verdicts, tagged_lines
@@ -95,6 +97,12 @@ def merge(repo: HiddenRepo, branch: str, markdown: str) -> dict:
         return {"outcome": "failed", "reason": str(error)}
 
 
+def fold(repo: HiddenRepo, db: Path, check: dict | None) -> dict:
+    """The merging job on `main`: fragments, this PR's included, fold into the heads in one commit."""
+    snapshot = ((check or {}).get("snapshot") or {}).get("id")
+    return run_fold(repo, head_anchors(db, snapshot))
+
+
 def run_stage(workspace: Path, checkpoint: int, cli: Cli, model: Model, tool: Tool) -> dict:
     codewatch, repo, branch = workspace / ".codewatch", HiddenRepo.at(workspace), pr_branch(checkpoint)
     ratcheted = refresh_ratchet(repo, branch, tool)
@@ -108,7 +116,9 @@ def run_stage(workspace: Path, checkpoint: int, cli: Cli, model: Model, tool: To
     markdown = write_pr_report(workspace, check)
     report = write_taste(codewatch, checkpoint, verdicts, violations, symbols, model)
     merged = merge(repo, branch, markdown)
-    reasons = [r for r in (ratcheted.get("reason"), merged.get("reason")) if r]
+    folded = fold(repo, workspace / DB, check) if merged["outcome"] == "merged" else {}
+    reasons = [r for r in (ratcheted.get("reason"), merged.get("reason"), folded.get("reason")) if r]
     return {**report, "branch": branch, "baseline": ratcheted.get("baseline"), "merge": merged["outcome"],
             **({"merge_commit": merged["merge_commit"]} if "merge_commit" in merged else {}),
+            **({"fold": {k: v for k, v in folded.items() if k != "reason"}} if folded else {}),
             **({"reason": "; ".join(reasons)} if reasons else {})}
