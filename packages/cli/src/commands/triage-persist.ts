@@ -14,9 +14,9 @@ import {
 import { openGraphStore } from "../utils/graph-store.js";
 import { keyWithExcerpts } from "./triage-keys.js";
 import type { VerdictRecord } from "./triage-output.js";
-import { VERDICTS } from "./triage-questions.js";
 import type { TriageSelection } from "./triage-select.js";
 import type { BundleSource } from "./triage-source.js";
+import { parseCommittedVerdict } from "./triage-verdict-row.js";
 
 /** A question left unasked because its finding already holds a verdict in this snapshot. */
 export interface ReusedVerdict {
@@ -48,26 +48,10 @@ export interface JudgedSplit {
 const HEAD_FILE = "verdicts.jsonl";
 export const FRAGMENT_DIR = "verdicts.d";
 
-/** Holds a committed row to the rules graph.db enforces, so a bad row is skipped instead of failing the save after the model calls. */
-function isVerdictRecord(value: unknown): value is VerdictRecord {
-  const r = value as Partial<VerdictRecord> | null;
-  const shaped = typeof r?.key === "string" && typeof r.path === "string" && typeof r.excerptHash === "string" && r.excerptHash !== "";
-  return shaped && (VERDICTS as readonly unknown[]).includes(r.verdict) && typeof r.rationale === "string" && Array.isArray(r.citations);
-}
-
-function parseVerdict(line: string): VerdictRecord | undefined {
-  try {
-    const parsed: unknown = JSON.parse(line);
-    return isVerdictRecord(parsed) ? parsed : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 function readVerdictLines(file: string, warnings: string[]): VerdictRecord[] {
   return readFileSync(file, "utf8").split("\n").flatMap((line, i) => {
     if (line.trim() === "") return [];
-    const record = parseVerdict(line);
+    const record = parseCommittedVerdict(line);
     if (!record) warnings.push(`${file}:${i + 1} is not a verdict row; skipped`);
     return record ? [record] : [];
   });
@@ -127,9 +111,8 @@ function reusedOf(finding: Finding, v: StoredVerdict): ReusedVerdict {
 function fileVerdictFor(stored: StoredFinding, files: ReadonlyMap<string, VerdictRecord>): VerdictRecord | undefined {
   const record = files.get(stored.key);
   if (!record || record.excerptHash !== stored.excerptHash) return undefined;
-  const { carriedFrom: _snapshotOfAnotherDb, ...rest } = record;
   const f = stored.finding;
-  return { ...rest, path: f.path, signal: f.signal, tool: f.tool, provenance: "file" };
+  return { ...record, path: f.path, signal: f.signal, tool: f.tool, provenance: "file" };
 }
 
 /** Keys the whole selection, then drops every finding that already holds a verdict in this snapshot or, failing that, in the committed verdict files. */
@@ -183,12 +166,16 @@ function snapshotView(store: CodeGraphStore, snapshotId: number, fresh: readonly
   return [...fresh, ...earlier].sort((a, b) => a.path.localeCompare(b.path) || a.key.localeCompare(b.key));
 }
 
-/** Saves this run's verdicts and returns the snapshot's full verdict view for verdicts.jsonl. */
-export function persistVerdicts(dbPath: string, snapshotId: number, fresh: readonly VerdictRecord[], known: ReadonlyMap<string, Finding>): VerdictRecord[] {
+/**
+ * Saves this run's model verdicts, then the reused committed ones in their own save, so a committed row
+ * graph.db rejects cannot take the paid verdicts down with it; returns the snapshot's full view for verdicts.jsonl.
+ */
+export function persistVerdicts(dbPath: string, snapshotId: number, judged: readonly VerdictRecord[], fromFiles: readonly VerdictRecord[], known: ReadonlyMap<string, Finding>): VerdictRecord[] {
   const store = openGraphStore(dbPath);
   try {
-    saveVerdicts(store, snapshotId, fresh.map(toStored));
-    return snapshotView(store, snapshotId, fresh, known);
+    saveVerdicts(store, snapshotId, judged.map(toStored));
+    saveVerdicts(store, snapshotId, fromFiles.map(toStored));
+    return snapshotView(store, snapshotId, [...judged, ...fromFiles], known);
   } finally {
     store.close();
   }
