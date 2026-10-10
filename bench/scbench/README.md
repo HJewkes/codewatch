@@ -66,6 +66,33 @@ tests directory, using a copy in `--scratch`. It reads only the report totals. T
 report's parity gap compares the recorded scores with the whole-snapshot rerun. A gap
 above about 0.001 means the rerun does not reproduce the grade.
 
+## findings/
+
+Finding producers for A1's audit stage. Each writes `findings.jsonl` rows in the contract
+`codewatch audit` and `codewatch triage` read, and prints a JSON summary as its last stdout
+line for `stages.json`. They call the image's pinned tools by full path under
+`/opt/codewatch-a1/bin/`.
+
+- `diff_uncovered`: functions changed since a caller-supplied baseline that no test
+  executes, as signal `diff-uncovered`. The baseline is an earlier snapshot directory or a
+  git revision (for a PR, its merge-base with main). It runs pytest under coverage.py, or
+  reads existing `coverage json` output. An unreadable baseline or a missing report is
+  unknown, not a finding: it writes no rows and exits 1. So is a pytest run that did not
+  run the tests (exit 2 to 5, such as a collection error) or a report that measured none
+  of the workspace's files. The image's coverage and pytest live in their own venv, which
+  lacks the workspace's third-party dependencies; a workspace that needs them gets
+  `no-coverage` unless the caller passes a report made with the workspace's interpreter.
+  Python subprocesses the tests start are measured too (a scratch rcfile with
+  `patch = subprocess`, then `coverage combine`), except one started under an interpreter
+  without coverage installed, such as the workspace's own venv python: its functions
+  still read as untested.
+
+```
+cd bench/scbench
+python3 -m findings.diff_uncovered --workspace <dir> (--base-rev <sha> | --base-dir <dir>) \
+  --out <findings.jsonl> [--coverage-json <file>]
+```
+
 **Tests** use the standard library's `unittest` and run as part of `pnpm test`, which
 is also how CI runs them:
 
