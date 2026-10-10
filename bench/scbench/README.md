@@ -54,6 +54,36 @@ checkout, and the runner's default `save_dir` (`outputs`) is one. It also refuse
   (529) throws instead of retrying. So an overload can end a checkpoint's solve early.
   Report such checkpoints per arm. The env is the same for all three arms.
 
+## prflow/
+
+A1's PR flow (design unit U15): one checkpoint is one PR. The stages keep a git
+repository at `GIT_DIR=.codewatch/repo.git` with `core.worktree` set to the workspace.
+Only stage processes set `GIT_DIR`, so the solve session sees no `.git` and no
+`GIT_DIR`, as in A1a.
+
+- `repo-init` (checkpoint 1) creates the repository. `main` starts with one commit that
+  holds only `.codewatch/check.json`, codewatch's default check config. It is idempotent.
+- `pr-open` (every checkpoint) opens `cp-N` from `main`. If the previous PR branch was
+  never merged, it merges it first.
+- `commit-ratchet` commits the solve as `cp-N: solve`. It indexes the head and the
+  merge-base with `main` into `.codewatch/cache/graph.db` as `cw-head-cp-N` and
+  `cw-merge-base-cp-N`. Then it writes `graph check --baseline cw-merge-base-cp-N` to
+  `.codewatch/audit/ratchet-check.json` and `graph diff` to `ratchet-diff.json`.
+  `graph index --rev` is newer than `@codewatch/cli` 0.7.0. Without it, the stage
+  indexes the work tree, checks with no baseline, writes no diff, and records the reason.
+- `python -m prflow pr-merge` merges the checked-out PR branch into `main` and leaves
+  HEAD on `main`, for the stage that ends the PR.
+
+None of these changes a file in the work tree: they only move refs and the index.
+`info/exclude` lists the repository itself (git skips a GIT_DIR inside the work tree only
+when it is named `.git`), `.codewatch/cache/`, `.codewatch/audit/` and test and
+virtualenv output.
+
+**Not graded.** The runner snapshots the whole workspace for grading
+(`Snapshot.from_environment_spec`, 31ceea3). So the pilot env adds `.codewatch/*` to the
+snapshot's ignore globs. One side effect: a `--resume` restores the workspace from that
+snapshot, so the repository and the carry files start fresh after a resume.
+
 ## tiert/
 
 Test-shape checks for pytest functions: assertion-free, weak-oracle-only, duplicate

@@ -50,7 +50,9 @@ Vendored configs in `bench/scbench/configs/`:
 - `models/sonnet-5.5.yaml`: the runner at `31ceea3` has no 5.5 model. Its prices are
   assumed, for cost accounting only.
 - `environments/docker-python3.12-uv-rootless.yaml`: the BS-30 rootless env plus
-  `IS_SANDBOX=1`, used by all three arms. See the validity notes in `../README.md`.
+  `IS_SANDBOX=1`, used by all three arms. Its snapshot ignore list is the runner's
+  default plus `.codewatch/*`, so nothing A1 keeps there is graded. See the validity
+  notes in `../README.md`.
 
 ## Stages
 
@@ -103,13 +105,17 @@ the way `.git` is, so it must be listed in `info/exclude`.
 
 **Report line.** A stage command may print a JSON object as its last stdout line. These
 keys are copied into `stages.json`: `tokens`, `usd`, `items_in`, `items_out`, `outcome`,
-`reason`, `fixed_replay_diffs`, `added_symbols`, `session_id`, `turns`, `held_back`,
-`items` and `stopped_by`.
+`reason`, `fixed_replay_diffs`, `added_symbols`, `branch`, `solve_commit`, `merge_base`,
+`baseline`, `session_id`, `turns`, `held_back`, `items` and `stopped_by`.
 
 **Stage env.** Besides the solve's env and credential, a stage gets `CW_STAGE`,
-`CW_CHECKPOINT`, `CW_STAGE_DEADLINE` (the epoch second at which the stage is cut off) and the
-solve's `CW_CLAUDE_BINARY`, `CW_MODEL` and `CW_PERMISSION_MODE`, so a stage's claude
+`CW_CHECKPOINT`, `CW_STAGE_DEADLINE` (the epoch second at which the stage is cut off) and
+the solve's `CW_CLAUDE_BINARY`, `CW_MODEL` and `CW_PERMISSION_MODE`, so a stage's claude
 session runs like the solve's and can stop cleanly before it is cut off.
+
+**PR flow.** `repo-init`, `pr-open` and `commit-ratchet` run `bench/scbench/prflow` from
+the image: one checkpoint is one PR on a hidden repository at `.codewatch/repo.git`. See
+`../README.md`, "prflow/".
 
 ## stages.json
 

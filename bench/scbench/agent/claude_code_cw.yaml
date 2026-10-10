@@ -14,10 +14,18 @@ checkpoint_cap_s: 7200
 stage_reserve_s: 180
 # A stage runs when enabled. With no command it is recorded as "missing".
 stages:
-  repo-init: {enabled: false}
-  pr-open: {enabled: false}
+  # The PR flow (bench/scbench/prflow): a hidden repo at .codewatch/repo.git, one cp-N per
+  # checkpoint. -P keeps the workspace's own modules off the stage's import path.
+  repo-init:
+    enabled: false
+    command: PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m prflow repo-init --workspace /workspace
+  pr-open:
+    enabled: false
+    command: PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m prflow pr-open --workspace /workspace
   inject: {enabled: false}
-  commit-ratchet: {enabled: false}
+  commit-ratchet:
+    enabled: false
+    command: PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m prflow commit-ratchet --workspace /workspace
   # Tier T rows join the audit's findings.jsonl; tiert's counts are the report line.
   audit:
     enabled: false

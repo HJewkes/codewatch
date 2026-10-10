@@ -100,6 +100,19 @@ class StageRunnerTest(unittest.TestCase):
         self.assertEqual(executor.calls[0][1],
                          {"CW_CHECKPOINT": "3", "CW_STAGE": "fix", "CW_STAGE_DEADLINE": deadline})
 
+    def test_the_commit_ratchet_report_keeps_its_commits_baseline_and_reason(self):
+        report = {"outcome": "ok", "solve_commit": "a1", "merge_base": "b2", "baseline": None,
+                  "reason": "no --rev", "head_ref": "cw-head-cp-1"}
+        executor = RecordingExecutor({"cw-ratchet": ExecResult(0, json.dumps(report), False)})
+        runner = make_runner({"commit-ratchet": StageSetting(True, "cw-ratchet")}, executor)
+
+        runner.run(("commit-ratchet",), {})
+
+        row = runner.records[0].to_json()
+        self.assertEqual({k: row[k] for k in ("solve_commit", "merge_base", "baseline", "reason")},
+                         {"solve_commit": "a1", "merge_base": "b2", "baseline": None, "reason": "no --rev"})
+        self.assertNotIn("head_ref", row)
+
     def test_a_failing_stage_is_logged_and_later_stages_still_run(self):
         executor = RecordingExecutor({"boom": RuntimeError("docker gone"), "bad": ExecResult(2, "", False)})
         settings = {"commit-ratchet": StageSetting(True, "boom"), "audit": StageSetting(True, "bad"),
