@@ -1,9 +1,4 @@
-import {
-  parseSymbolId,
-  type CodeGraphStore,
-  type GraphMetric,
-  type GraphNode,
-} from "@titan-design/code-graph";
+import { parseSymbolId, type GraphMetric, type GraphNode } from "@titan-design/code-graph";
 import type { FileStats, SymbolStats } from "./audit-score.js";
 
 export interface SnapshotStats {
@@ -12,9 +7,9 @@ export interface SnapshotStats {
   pythonFiles: string[];
 }
 
-type MetricIndex = Map<string, Map<string, number>>;
+export type MetricIndex = Map<string, Map<string, number>>;
 
-function indexMetrics(metrics: readonly GraphMetric[]): MetricIndex {
+export function indexMetrics(metrics: readonly GraphMetric[]): MetricIndex {
   const byName: MetricIndex = new Map();
   for (const m of metrics) {
     if (m.value === null) continue;
@@ -25,7 +20,7 @@ function indexMetrics(metrics: readonly GraphMetric[]): MetricIndex {
   return byName;
 }
 
-function lineAttr(node: GraphNode, key: string): number | undefined {
+export function lineAttr(node: GraphNode, key: string): number | undefined {
   const value = node.attrs?.[key];
   return typeof value === "number" ? value : undefined;
 }
@@ -50,10 +45,8 @@ function maxCognitiveByFile(symbols: readonly SymbolStats[]): Map<string, number
   return max;
 }
 
-/** File and symbol measurements the score table ranks, read from one snapshot. */
-export function collectSnapshotStats(store: CodeGraphStore, snapshotId: number): SnapshotStats {
-  const nodes = store.listNodes(snapshotId, { includeSymbols: true });
-  const metrics = indexMetrics(store.listMetrics(snapshotId));
+/** File and symbol measurements the score table ranks, from one snapshot's nodes and metrics. */
+export function collectSnapshotStats(nodes: readonly GraphNode[], metrics: MetricIndex): SnapshotStats {
   const symbols = nodes
     .filter((n) => n.kind === "symbol")
     .map((n) => symbolStats(n, metrics))
