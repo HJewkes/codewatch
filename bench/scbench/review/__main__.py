@@ -12,7 +12,7 @@ import os
 import sys
 from pathlib import Path
 
-from synthesis.rubric import DEFAULT_MODEL, call_claude_no_tools
+from synthesis.taste import DEFAULT_MODEL, call_claude_no_tools
 
 from .stage import Request, review
 from .verdict import EXPECTED_OUTPUT, FIX, SYSTEM_PROMPT
