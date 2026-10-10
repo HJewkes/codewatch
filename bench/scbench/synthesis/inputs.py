@@ -9,7 +9,8 @@ from pathlib import Path
 
 Cli = Callable[[list[str]], str]
 
-MAX_OPEN_ITEMS = 3
+# Opt-in: None keeps every ratchet item.
+MAX_OPEN_ITEMS: int | None = None
 MAX_CHANGED_SYMBOLS = 5
 
 
