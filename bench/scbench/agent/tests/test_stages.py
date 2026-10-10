@@ -5,6 +5,7 @@ from pathlib import Path
 
 from agent.stages import (
     AFTER_SOLVE,
+    STAGE_NAMES,
     ExecResult,
     StageBudget,
     StageRunner,
@@ -48,15 +49,17 @@ def make_runner(settings, executor, clock=None, budget=None, logs=None):
 
 
 class StagePlanTest(unittest.TestCase):
-    def test_inject_runs_only_from_the_second_checkpoint(self):
-        self.assertEqual(stages_for(1, before_solve=True), ())
-        self.assertEqual(stages_for(2, before_solve=True), ("inject",))
+    def test_repo_init_runs_on_the_first_checkpoint_and_inject_from_the_second(self):
+        self.assertEqual(stages_for(1, before_solve=True), ("repo-init", "pr-open"))
+        self.assertEqual(stages_for(2, before_solve=True), ("pr-open", "inject"))
 
     def test_after_solve_stages_run_in_design_order_every_checkpoint(self):
-        self.assertEqual(
-            stages_for(1, before_solve=False),
-            ("index", "audit", "replay", "triage", "remediation", "synthesis"),
-        )
+        expected = ("commit-ratchet", "audit", "triage", "solve-review", "fix", "synthesis")
+        self.assertEqual(stages_for(1, before_solve=False), expected)
+        self.assertEqual(stages_for(4, before_solve=False), expected)
+
+    def test_the_replay_stage_is_gone(self):
+        self.assertNotIn("replay", STAGE_NAMES)
 
 
 class StageRunnerTest(unittest.TestCase):
@@ -68,7 +71,7 @@ class StageRunnerTest(unittest.TestCase):
 
         statuses = {r.stage: r.status for r in runner.records}
         self.assertEqual(statuses["audit"], "missing")
-        self.assertEqual(statuses["index"], "disabled")
+        self.assertEqual(statuses["commit-ratchet"], "disabled")
         self.assertEqual(executor.calls, [])
         self.assertTrue(all(r.exit is None for r in runner.records))
 
@@ -77,10 +80,12 @@ class StageRunnerTest(unittest.TestCase):
                   "outcome": "kept", "fixed_replay_diffs": 1,
                   "added_symbols": [{"path": "src/a.py", "name": "_h", "flags": ["x"]}]}
         stdout = "progress\n" + json.dumps(report) + "\n"
-        executor = RecordingExecutor({"fix": ExecResult(0, stdout, False)})
-        runner = make_runner({"remediation": StageSetting(True, "fix")}, executor, FakeClock(step=30))
+        executor = RecordingExecutor({"cw-fix": ExecResult(0, stdout, False)})
+        clock = FakeClock(step=30)
+        deadline = f"{clock.now + 2 * 60 * MINUTE - 3 * MINUTE:.0f}"
+        runner = make_runner({"fix": StageSetting(True, "cw-fix")}, executor, clock)
 
-        runner.run(("remediation",), {"CW_CHECKPOINT": "3"})
+        runner.run(("fix",), {"CW_CHECKPOINT": "3"})
 
         row = runner.records[0].to_json()
         self.assertEqual(row["status"], "ok")
@@ -89,22 +94,36 @@ class StageRunnerTest(unittest.TestCase):
         self.assertEqual(row["outcome"], "kept")
         self.assertEqual(row["added_symbols"][0]["flags"], ["x"])
         self.assertLess(row["start"], row["end"])
-        self.assertEqual(executor.calls[0][1], {"CW_CHECKPOINT": "3", "CW_STAGE": "remediation"})
+        self.assertEqual(executor.calls[0][1],
+                         {"CW_CHECKPOINT": "3", "CW_STAGE": "fix", "CW_STAGE_DEADLINE": deadline})
+
+    def test_the_commit_ratchet_report_keeps_its_commits_baseline_and_reason(self):
+        report = {"outcome": "ok", "solve_commit": "a1", "merge_base": "b2", "baseline": None,
+                  "reason": "no --rev", "head_ref": "cw-head-cp-1"}
+        executor = RecordingExecutor({"cw-ratchet": ExecResult(0, json.dumps(report), False)})
+        runner = make_runner({"commit-ratchet": StageSetting(True, "cw-ratchet")}, executor)
+
+        runner.run(("commit-ratchet",), {})
+
+        row = runner.records[0].to_json()
+        self.assertEqual({k: row[k] for k in ("solve_commit", "merge_base", "baseline", "reason")},
+                         {"solve_commit": "a1", "merge_base": "b2", "baseline": None, "reason": "no --rev"})
+        self.assertNotIn("head_ref", row)
 
     def test_a_failing_stage_is_logged_and_later_stages_still_run(self):
         executor = RecordingExecutor({"boom": RuntimeError("docker gone"), "bad": ExecResult(2, "", False)})
-        settings = {"index": StageSetting(True, "boom"), "audit": StageSetting(True, "bad"),
-                    "replay": StageSetting(True, "ok")}
+        settings = {"commit-ratchet": StageSetting(True, "boom"), "audit": StageSetting(True, "bad"),
+                    "triage": StageSetting(True, "ok")}
         logs = []
         runner = make_runner(settings, executor, logs=logs)
 
-        runner.run(("index", "audit", "replay"), {})
+        runner.run(("commit-ratchet", "audit", "triage"), {})
 
         rows = [r.to_json() for r in runner.records]
         self.assertEqual([r["status"] for r in rows], ["failed", "failed", "ok"])
         self.assertIn("docker gone", rows[0]["error"])
         self.assertEqual(rows[1]["exit"], 2)
-        self.assertEqual([kw["stage"] for _, kw in logs], ["index", "audit"])
+        self.assertEqual([kw["stage"] for _, kw in logs], ["commit-ratchet", "audit"])
 
     def test_a_timed_out_stage_is_recorded_as_timeout(self):
         executor = RecordingExecutor({"slow": ExecResult(None, "", True)})
@@ -116,11 +135,26 @@ class StageRunnerTest(unittest.TestCase):
 
 
 class StageBudgetTest(unittest.TestCase):
-    def test_stages_stop_launching_after_25_minutes_of_stage_time(self):
+    def test_with_no_stage_budget_stages_launch_until_the_reserve_before_the_cap(self):
+        executor = RecordingExecutor({})
+        clock = FakeClock(step=10 * MINUTE)
+        settings = {name: StageSetting(True, name) for name in AFTER_SOLVE}
+        budget = StageBudget(checkpoint_start=clock.now - 60 * MINUTE)
+        runner = make_runner(settings, executor, clock, budget)
+
+        runner.run(AFTER_SOLVE, {})
+
+        statuses = [r.status for r in runner.records]
+        self.assertEqual(statuses[:3], ["ok", "ok", "ok"])
+        self.assertEqual(set(statuses[3:]), {"skipped_budget"})
+        self.assertGreater(runner.spent, 25 * MINUTE)
+
+    def test_an_opt_in_stage_budget_stops_launches_after_that_much_stage_time(self):
         executor = RecordingExecutor({})
         clock = FakeClock(step=13 * MINUTE)
         settings = {name: StageSetting(True, name) for name in AFTER_SOLVE}
-        runner = make_runner(settings, executor, clock)
+        budget = StageBudget(checkpoint_start=clock.now, stage_seconds=25 * MINUTE)
+        runner = make_runner(settings, executor, clock, budget)
 
         runner.run(AFTER_SOLVE, {})
 
@@ -129,24 +163,24 @@ class StageBudgetTest(unittest.TestCase):
         self.assertEqual(set(statuses[2:]), {"skipped_budget"})
         self.assertEqual(len(executor.calls), 2)
 
-    def test_stages_stop_launching_when_20_minutes_remain_under_the_cap(self):
+    def test_stages_stop_launching_when_3_minutes_remain_under_the_cap(self):
         clock = FakeClock()
-        budget = StageBudget(checkpoint_start=clock.now - 100 * MINUTE)
+        budget = StageBudget(checkpoint_start=clock.now - 118 * MINUTE)
         executor = RecordingExecutor({})
-        runner = make_runner({"index": StageSetting(True, "index")}, executor, clock, budget)
+        runner = make_runner({"fix": StageSetting(True, "fix")}, executor, clock, budget)
 
-        runner.run(("index",), {})
+        runner.run(("fix",), {})
 
         self.assertEqual(runner.records[0].status, "skipped_budget")
         self.assertEqual(executor.calls, [])
 
     def test_a_launched_stage_times_out_at_the_reserve_line(self):
         clock = FakeClock()
-        budget = StageBudget(checkpoint_start=clock.now - 90 * MINUTE)
+        budget = StageBudget(checkpoint_start=clock.now - 107 * MINUTE)
         executor = RecordingExecutor({})
-        runner = make_runner({"index": StageSetting(True, "index")}, executor, clock, budget)
+        runner = make_runner({"fix": StageSetting(True, "fix")}, executor, clock, budget)
 
-        runner.run(("index",), {})
+        runner.run(("fix",), {})
 
         self.assertEqual(executor.calls[0][2], 10 * MINUTE)
 
@@ -155,7 +189,7 @@ class StagesJsonTest(unittest.TestCase):
     def test_stages_json_carries_every_field_the_analysis_reads(self):
         executor = RecordingExecutor({"a": ExecResult(0, '{"outcome": "kept"}', False)})
         runner = make_runner({"audit": StageSetting(True, "a")}, executor)
-        runner.run(("index", "audit"), {})
+        runner.run(("commit-ratchet", "audit"), {})
 
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "stages.json"

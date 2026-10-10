@@ -30,7 +30,7 @@ require_base() {
 build_image() {
   docker build --build-arg "BASE_IMAGE=$base_image" --build-arg "CODEWATCH_VERSION=$codewatch_version" \
     --build-context "synthesis=$here/../synthesis" --build-context "review=$here/../review" \
-    --build-context "tiert=$here/../tiert" \
+    --build-context "tiert=$here/../tiert" --build-context "prflow=$here/../prflow" \
     -t "$image" "$here"
 }
 

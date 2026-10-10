@@ -22,6 +22,68 @@ without costing correctness.
 - **The loop never sees the grader** (design section 3). No stage reads scb-check output,
   and the analysis never writes per-rule scb-check breakdowns.
 
+## Running an arm
+
+All three arms use the launcher in `agent/` and the vendored configs in `configs/`.
+Always launch with `python -m agent`. Never use a bare `slop-code run`: it skips the
+launcher setup, so the token would go on the `docker exec` argv, the model catalog
+would be empty, and nothing would guard the run dir. Run from `bench/scbench`:
+
+```
+DOCKER_HOST=unix:///run/user/1000/docker.sock \
+CLAUDE_CODE_OAUTH_TOKEN="$(cat ~/.config/scbench/claude-oauth-token-server)" \
+uv run --frozen --project agent python -m agent run \
+  --agent <claude_code.yaml or agent/claude_code_cw.yaml> \
+  --environment configs/environments/docker-python3.12-uv-rootless.yaml \
+  --prompt <just-solve | a1a> --model claude_code_oauth/sonnet-5.5 --problem <name> \
+  save_dir="$HOME/.cache/codewatch-scbench/runs/<arm>/<UTC timestamp>" save_template=run
+```
+
+The runner ignores `output_path=`. The launcher refuses a run dir inside any repo
+checkout, and the runner's default `save_dir` (`outputs`) is one. It also refuses a
+`save_dir` that starts with a literal `~`, because the runner does not expand it.
+
+## Validity notes
+
+- **The agent runs as container root.** Rootless Docker needs `user: "0:0"` so the
+  agent can write the mounted workspace. The paper used a non-root user. The setup is the
+  same for A0, A1a and A1.
+- **`IS_SANDBOX=1`.** Claude Code 2.0.51 refuses `--dangerously-skip-permissions` as
+  uid 0 unless `IS_SANDBOX` is set, so the pilot env sets it. The claude argv is
+  unchanged. A side effect in the same CLI: under `IS_SANDBOX`, an API overloaded error
+  (529) throws instead of retrying. So an overload can end a checkpoint's solve early.
+  Report such checkpoints per arm. The env is the same for all three arms.
+
+## prflow/
+
+A1's PR flow (design unit U15): one checkpoint is one PR. The stages keep a git
+repository at `GIT_DIR=.codewatch/repo.git` with `core.worktree` set to the workspace.
+Only stage processes set `GIT_DIR`, so the solve session sees no `.git` and no
+`GIT_DIR`, as in A1a.
+
+- `repo-init` (checkpoint 1) creates the repository. `main` starts with one commit that
+  holds only `.codewatch/check.json`, codewatch's default check config. It is idempotent.
+- `pr-open` (every checkpoint) opens `cp-N` from `main`. If the previous PR branch was
+  never merged, it merges it first.
+- `commit-ratchet` commits the solve as `cp-N: solve`. It indexes the head and the
+  merge-base with `main` into `.codewatch/cache/graph.db` as `cw-head-cp-N` and
+  `cw-merge-base-cp-N`. Then it writes `graph check --baseline cw-merge-base-cp-N` to
+  `.codewatch/audit/ratchet-check.json` and `graph diff` to `ratchet-diff.json`.
+  `graph index --rev` is newer than `@codewatch/cli` 0.7.0. Without it, the stage
+  indexes the work tree, checks with no baseline, writes no diff, and records the reason.
+- `python -m prflow pr-merge` merges the checked-out PR branch into `main` and leaves
+  HEAD on `main`, for the stage that ends the PR.
+
+None of these changes a file in the work tree: they only move refs and the index.
+`info/exclude` lists the repository itself (git skips a GIT_DIR inside the work tree only
+when it is named `.git`), `.codewatch/cache/`, `.codewatch/audit/` and test and
+virtualenv output.
+
+**Not graded.** The runner snapshots the whole workspace for grading
+(`Snapshot.from_environment_spec`, 31ceea3). So the pilot env adds `.codewatch/*` to the
+snapshot's ignore globs. One side effect: a `--resume` restores the workspace from that
+snapshot, so the repository and the carry files start fresh after a resume.
+
 ## tiert/
 
 Test-shape checks for pytest functions: assertion-free, weak-oracle-only, duplicate
@@ -115,6 +177,40 @@ the runner's code at `31ceea3` and was checked against one real eval output:
 tests directory, using a copy in `--scratch`. It reads only the report totals. The
 report's parity gap compares the recorded scores with the whole-snapshot rerun. A gap
 above about 0.001 means the rerun does not reproduce the grade.
+
+## findings/
+
+Finding producers for A1's audit stage. Each writes `findings.jsonl` rows in the contract
+`codewatch audit` and `codewatch triage` read, and prints a JSON summary as its last stdout
+line for `stages.json`. They call the image's pinned tools by full path under
+`/opt/codewatch-a1/bin/`.
+
+- `diff_uncovered`: functions changed since a caller-supplied baseline that no test
+  executes, as signal `diff-uncovered`. The baseline is an earlier snapshot directory or a
+  git revision (for a PR, its merge-base with main). It runs pytest under coverage.py, or
+  reads existing `coverage json` output. An unreadable baseline or a missing report is
+  unknown, not a finding: it writes no rows and exits 1. So is a pytest run that did not
+  run the tests (exit 2 to 5, such as a collection error) or a report that measured none
+  of the workspace's files. The image's coverage and pytest live in their own venv, which
+  lacks the workspace's third-party dependencies; a workspace that needs them gets
+  `no-coverage` unless the caller passes a report made with the workspace's interpreter.
+  Python subprocesses the tests start are measured too (a scratch rcfile with
+  `patch = subprocess`, then `coverage combine`), except one started under an interpreter
+  without coverage installed, such as the workspace's own venv python: its functions
+  still read as untested.
+- `clones`: jscpd over the workspace's source and tests with the config pinned in
+  `findings/jscpd.json` (min-tokens 60, JSON reporter), as signal `clone`. Each pair is
+  one row whose evidence names the other copy as `<path>:<start>-<end>`, the form
+  `codewatch triage`'s clone question reads. jscpd matches its ignore globs against
+  absolute paths, so the config names tool directories (`.venv`, `.git`) rather than
+  every hidden directory.
+
+```
+cd bench/scbench
+python3 -m findings.diff_uncovered --workspace <dir> (--base-rev <sha> | --base-dir <dir>) \
+  --out <findings.jsonl> [--coverage-json <file>]
+python3 -m findings.clones --workspace <dir> --out <findings.jsonl> [--report <jscpd json>]
+```
 
 **Tests** use the standard library's `unittest` and run as part of `pnpm test`, which
 is also how CI runs them:

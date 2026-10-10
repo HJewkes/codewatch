@@ -1,0 +1,8 @@
+# A runner-side model with the same name as a vendored one; the vendored file must win.
+internal_name: runner-side-sonnet
+provider: anthropic
+pricing:
+  input: 1
+  output: 1
+  cache_read: 1
+  cache_write: 1
