@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 // @ts-expect-error plain ESM hook script without a declaration file
 import { formatSnapshot } from "../../plugins/codewatch/hooks/snapshot-format.mjs"
+import { writeCarryFiles } from "./carry-fixtures"
 
 const here = dirname(fileURLToPath(import.meta.url))
 const SCRIPT = resolve(here, "../../plugins/codewatch/hooks/session-start.mjs")
@@ -54,12 +55,6 @@ function writeFixtureFake(): void {
 function createDb(root = repo): void {
   mkdirSync(join(root, ".codewatch"), { recursive: true })
   writeFileSync(join(root, ".codewatch", "graph.db"), "")
-}
-
-function writeCarry(root: string): void {
-  mkdirSync(join(root, ".codewatch"), { recursive: true })
-  writeFileSync(join(root, ".codewatch", "rubric.md"), readFileSync(join(FIXTURES, "rubric.md")))
-  writeFileSync(join(root, ".codewatch", "session-brief.json"), readFileSync(join(FIXTURES, "session-brief.json")))
 }
 
 function contextOf(stdout: string): string {
@@ -151,14 +146,15 @@ describe("SessionStart hook with a graph.db", () => {
     expect(result.stdout).toBe(JSON.stringify({ hookSpecificOutput: { hookEventName: "SessionStart", additionalContext } }))
   })
 
-  it("appends the rubric, open items and changed symbols after the snapshot", () => {
-    writeCarry(repo)
+  it("appends taste, open items and changed symbols after the snapshot", () => {
+    writeCarryFiles(repo)
 
     const result = runHook({ CODEWATCH_BIN: fakeBin })
 
     const context = contextOf(result.stdout)
-    expect(context.startsWith(`${fixtureSnapshot(git("rev-parse", "HEAD"))}\n\nReview notes from the last session:`)).toBe(true)
-    expect(context).toContain("- [regression] shop/cart.py:41:")
+    expect(context.startsWith(`${fixtureSnapshot(git("rev-parse", "HEAD"))}\n\nConventions for this repository:`)).toBe(true)
+    expect(context).toContain("- Keep the discount rounding in one function. {inferred cp2 fp:")
+    expect(context).toContain("- [test-gap] shop/cart.py:41:")
     expect(context).not.toContain("A fourth item is never shown.")
     expect(context).toContain("- shop/pricing.py#apply_discount (3 importers)")
   })
@@ -177,13 +173,13 @@ describe("SessionStart hook with a graph.db", () => {
   })
 
   it("still delivers the synthesis notes when the CLI prints invalid JSON", () => {
-    writeCarry(repo)
+    writeCarryFiles(repo)
     writeFake("echo not-json")
 
     const result = runHook({ CODEWATCH_BIN: fakeBin })
 
     expect(result.status).toBe(0)
-    expect(contextOf(result.stdout).startsWith("Review notes from the last session:")).toBe(true)
+    expect(contextOf(result.stdout).startsWith("Conventions for this repository:")).toBe(true)
   })
 
   it("stays silent when the CLI prints invalid JSON", () => {
@@ -256,23 +252,23 @@ describe("SessionStart hook in a Python workspace that is not a git repository",
   })
 
   it("injects the snapshot without a staleness line, then the synthesis notes", () => {
-    writeCarry(workspace)
+    writeCarryFiles(workspace)
 
     const result = runHook({ CODEWATCH_BIN: fakeBin, CLAUDE_PROJECT_DIR: workspace })
 
     const context = contextOf(result.stdout)
-    expect(context.startsWith(`${fixtureSnapshot(undefined)}\n\nReview notes from the last session:`)).toBe(true)
+    expect(context.startsWith(`${fixtureSnapshot(undefined)}\n\nConventions for this repository:`)).toBe(true)
     expect(context).not.toContain("edges may be stale")
     expect(readFileSync(callLog, "utf8")).toContain(`--db ${join(workspace, ".codewatch", "graph.db")}`)
   })
 
   it("delivers the synthesis notes alone when the workspace has no graph.db", () => {
     rmSync(join(workspace, ".codewatch", "graph.db"))
-    writeCarry(workspace)
+    writeCarryFiles(workspace)
 
     const result = runHook({ CODEWATCH_BIN: fakeBin, CLAUDE_PROJECT_DIR: workspace })
 
-    expect(contextOf(result.stdout).startsWith("Review notes from the last session:")).toBe(true)
+    expect(contextOf(result.stdout).startsWith("Conventions for this repository:")).toBe(true)
     expect(existsSync(callLog)).toBe(false)
   })
 })

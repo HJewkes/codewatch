@@ -14,7 +14,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from synthesis.rubric import ModelReply, claude_argv
+from synthesis.taste import ModelReply, claude_argv
 
 from review import IMAGE_COMMAND
 from review import __main__ as cli
