@@ -9,7 +9,10 @@ There is no item cap by default; `limit` is opt-in. When triage's controls faile
 verdict is itself provisional, quality items are held back.
 
 The question texts repeat `packages/cli/src/commands/triage-questions.ts`, because
-`verdicts.jsonl` stores the signal but not the question; a test keeps them in step.
+`verdicts.jsonl` stores the signal but not the question; a test checks every signal triage
+asks against them. A verdict row carries no finding evidence, so each item joins its
+finding from `findings.jsonl` (same signal, path and symbol) and carries that evidence,
+such as the code kind and missing test kind of a `missing-test-kind` finding.
 """
 
 from __future__ import annotations
@@ -38,7 +41,8 @@ SWALLOWED = "Does this except block hide failures a caller should see?"
 
 QUESTIONS = {
     UNCOVERED_SIGNAL: "Does any test exercise this symbol, changed in this checkpoint?",
-    MISSING_TEST_KIND: "Would a test of the missing kind catch a plausible change the current tests miss?",
+    MISSING_TEST_KIND: "This symbol's tests lack a test kind its code kind should have. Would a test of that "
+                       "kind catch a plausible change the current tests miss?",
     **{signal: WEAK_ORACLE_QUESTION for signal in WEAK_ORACLE_SIGNALS},
     "symbol-single-caller-helper": SINGLE_CALLER,
     "symbol-cognitive": "Is this function's complexity avoidable?",
@@ -82,6 +86,7 @@ class Item:
     rationale: str
     citations: tuple[str, ...]
     fix: str
+    evidence: str = ""
     provisional: bool = False
     phase: int = 0
 
@@ -105,21 +110,35 @@ def _citation(c: dict) -> str:
     return f"{where}:{c.get('lineStart')}-{c.get('lineEnd')}"
 
 
-def _sketch(signal: str) -> str:
+def evidence_field(evidence: str, name: str) -> str | None:
+    """A `<name>: <value>` line of a finding's evidence, as triage's `evidenceField` reads it."""
+    line = next((line for line in evidence.split("\n") if line.startswith(f"{name}:")), "")
+    return line[len(name) + 1:].strip() or None
+
+
+def _sketch(signal: str, evidence: str = "") -> str:
+    missing = evidence_field(evidence, "missing") if signal == MISSING_TEST_KIND else None
+    if missing:
+        return f"Add a {missing} that pins the current behaviour."
     key = "weak-oracle" if signal in WEAK_ORACLE_SIGNALS else signal
     return FIX_SKETCHES.get(key, DEFAULT_QUALITY_SKETCH)
 
 
-def _from_verdict(row: dict) -> Item | None:
+def _where(row: dict) -> tuple:
+    return row.get("signal"), row.get("path"), row.get("symbol")
+
+
+def _from_verdict(row: dict, findings: dict[tuple, dict]) -> Item | None:
     signal = row.get("signal", "")
     if row.get("verdict") != "confirmed" or signal not in QUESTIONS or signal == UNCOVERED_SIGNAL:
         return None
+    evidence = findings.get(_where(row), {}).get("evidence") or ""
     return Item(
         kind=TEST_GAP if signal in TEST_GAP_SIGNALS else QUALITY, signal=signal,
         path=row.get("path", ""), symbol=row.get("symbol"), question=QUESTIONS[signal],
         verdict="confirmed", rationale=row.get("rationale", ""),
-        citations=tuple(_citation(c) for c in row.get("citations", [])), fix=_sketch(signal),
-        provisional=row.get("controlRun") == "provisional",
+        citations=tuple(_citation(c) for c in row.get("citations", [])), fix=_sketch(signal, evidence),
+        evidence=evidence, provisional=row.get("controlRun") == "provisional",
     )
 
 
@@ -144,7 +163,9 @@ def phase_of(item: Item, changed: Collection[str]) -> int:
 def select_items(verdicts: list[dict], findings: list[dict], changed: Collection[str],
                  run_provisional: bool, limit: int | None = None) -> tuple[list[Item], int]:
     """Returns the items in phase order, and how many quality items were held back as provisional."""
-    candidates = [i for i in map(_from_verdict, verdicts) if i] + [i for i in map(_from_uncovered, findings) if i]
+    by_where = {_where(row): row for row in reversed(findings)}
+    candidates = ([i for i in (_from_verdict(row, by_where) for row in verdicts) if i]
+                  + [i for i in map(_from_uncovered, findings) if i])
     trusted = [i for i in candidates if i.kind == TEST_GAP or not (run_provisional or i.provisional)]
     phased = [replace(i, phase=phase_of(i, changed)) for i in trusted]
     ordered = sorted(phased, key=lambda i: (i.phase, i.kind != TEST_GAP))

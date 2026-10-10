@@ -12,6 +12,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from prflow.repo import EXCLUDES
 from remediation.fixer import Clock
 from remediation.stage import Config, remediate
 
@@ -43,8 +44,9 @@ def make_repo(root):
         (root / path).parent.mkdir(parents=True, exist_ok=True)
         (root / path).write_text(text)
     (root / ".codewatch").mkdir()
+    (root / ".codewatch" / "taste.md").write_text("- prefer small functions\n")
     git(root, "init", "-q", "-b", "main")
-    (root / ".codewatch" / "repo.git" / "info" / "exclude").write_text(".codewatch/\n")
+    (root / ".codewatch" / "repo.git" / "info" / "exclude").write_text("".join(f"{p}\n" for p in EXCLUDES))
     git(root, "add", "-A")
     git(root, "commit", "-q", "-m", "cp-1")
     git(root, "switch", "-q", "-c", "cp-2")

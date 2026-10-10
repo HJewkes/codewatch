@@ -136,10 +136,11 @@ the workspace, as
 `exec env PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m remediation`.
 It works on the PR branch (`cp-N`) of the hidden repository (`GIT_DIR=.codewatch/repo.git`,
 created by the U15 stages); with no repository, or with uncommitted changes, it skips.
-Before that check it adds tool output (`.codewatch/`, `__pycache__/`, `*.pyc`,
-`.pytest_cache/`, `.venv/` and other caches; `TOOL_OUTPUT` in `git.py`) to
-`$GIT_DIR/info/exclude`, so only source and test edits count as changes, get committed or
-are removed by a reset.
+Before that check it adds U15's exclude list (`EXCLUDES` in `prflow/repo.py`) to
+`$GIT_DIR/info/exclude`, so tool output (bytecode, caches, a virtualenv) and the rebuilt
+parts of `.codewatch/` (`repo.git/`, `cache/`, `audit/`) never count as changes, get
+committed or are removed by a reset. The committed parts of `.codewatch/`, such as
+`taste.md`, stay visible.
 
 **No caps by default.** There is no item cap and no turn cap. `--max-items` and
 `--max-turns` exist only as opt-in flags with no default. The stage stops starting items
@@ -147,7 +148,9 @@ when less than `--reset-margin` (180 s) remains before `CW_STAGE_DEADLINE`, the 
 deadline the agent passes in, and then resets the work tree to the last kept commit.
 
 1. **Items** come from `.codewatch/audit/` in three phases. Each carries its question,
-   verdict, citations and a one-line fix sketch.
+   verdict, citations and a one-line fix sketch. A verdict item also carries the evidence of
+   its finding in `findings.jsonl` (same signal, path and symbol); for `missing-test-kind`
+   that names the code kind and the missing test kind, and the fix sketch names the kind.
    - Phase 1, test gaps on files the PR changed (`git diff <merge-base>`): `diff-uncovered`
      findings (U5), confirmed weak-oracle verdicts, and confirmed `missing-test-kind`
      verdicts (U7b).
@@ -166,7 +169,9 @@ deadline the agent passes in, and then resets the work tree to the last kept com
      suite is green;
    - a quality item: the suite is green, and `codewatch graph check --baseline
      <merge-base>` lists no violation the tree before the commit did not already have.
-     The merge-base is indexed with `graph index --rev` unless `--baseline` names it.
+     The baseline is `cw-merge-base-cp-N`, which `commit-ratchet` indexed, unless
+     `--baseline` names another. With a codewatch that has no `graph index --rev`, that
+     ref does not exist and quality items are not started ("graph check could not run").
 
    A failing commit is reverted alone (`git revert`), and the next item still runs; the
    session is told which item was reverted and why.
@@ -180,7 +185,7 @@ deadline the agent passes in, and then resets the work tree to the last kept com
 
    The hidden repository and the graph database outlive a checkpoint. So every name the
    stage creates carries the PR branch (`cw-backlog-<n>-cp-N`, and the graph refs
-   `cw-merge-base-cp-N` and `cw-fix-cp-N`), and a rerun on the same checkpoint resets a
+   `cw-fix-cp-N`, with `scoped` from `prflow/repo.py`), and a rerun on the same checkpoint resets a
    backlog branch an earlier run left behind.
 6. **Safety net.** The whole workspace is copied to `--scratch` (default
    `~/.cache/codewatch-remediation`) first. After an error, or a SIGTERM (the command

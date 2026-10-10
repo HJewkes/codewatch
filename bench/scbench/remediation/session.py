@@ -88,6 +88,7 @@ def render_item(index: int, item: Item, feedback: str = "") -> str:
         f"Question: {item.question}",
         f"Answer: {item.verdict}. {item.rationale}".rstrip(),
         f"Evidence: {', '.join(item.citations) or 'none'}",
+        *([f"Finding: {'; '.join(filter(None, item.evidence.splitlines()))}"] if item.evidence else []),
         f"Fix: {item.fix}",
         f"Rule for this item: {KIND_RULES[item.kind]}",
     ]

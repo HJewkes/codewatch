@@ -1,8 +1,9 @@
 """The bench's hidden repository: `GIT_DIR=.codewatch/repo.git`, work tree = the workspace.
 
 Only stages set `GIT_DIR`, so the solve session never sees a `.git` (design section 1).
-The `repo-init`, `pr-open` and `commit-ratchet` stages (U15) create the repository, open
-`cp-N` and commit the solve; this module only adds, reverts and merges fix commits.
+The `repo-init`, `pr-open` and `commit-ratchet` stages (U15, `prflow/`) create the
+repository, open `cp-N` and commit the solve; this module only adds, reverts and merges fix
+commits. The repository's layout and excludes are U15's, imported from `prflow.repo`.
 """
 
 from __future__ import annotations
@@ -12,27 +13,15 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-DEFAULT_GIT_DIR = Path(".codewatch") / "repo.git"
+from prflow.repo import EXCLUDES
+
 BASE_BRANCH = "main"
 AUTHOR = ("codewatch-fix", "codewatch-fix@localhost")
-# Tool output, never part of a fix: the stage's own state, and what test runs and the
-# workspace virtualenv leave behind. Excluded, these never count as an edit, are never
-# committed, and survive `clean -fd`.
-TOOL_OUTPUT = (".codewatch/", "__pycache__/", "*.py[cod]", ".pytest_cache/", ".venv/",
-               ".mypy_cache/", ".ruff_cache/", ".coverage", ".coverage.*", "htmlcov/")
 
 
 class GitError(RuntimeError):
     pass
 
-
-def scoped(name: str, pr_branch: str) -> str:
-    """A name the stage creates, unique to this checkpoint's PR branch.
-
-    The hidden repository and the graph database outlive a checkpoint, so a bare name
-    would collide with, or silently resolve to, what an earlier checkpoint left behind.
-    """
-    return f"{name}-{pr_branch}"
 
 
 @dataclass(frozen=True)
@@ -57,11 +46,16 @@ class Git:
         return (self.git_dir / "HEAD").is_file()
 
     def ignore_tool_output(self) -> None:
-        """Add `TOOL_OUTPUT` to `info/exclude`, keeping whatever patterns are already there."""
+        """Add U15's `EXCLUDES` to `info/exclude`, keeping whatever patterns are already there.
+
+        They cover tool output (bytecode, caches, a virtualenv) and `.codewatch/`'s rebuilt
+        parts, so those never count as an edit, are never committed, and survive `clean -fd`.
+        The committed parts of `.codewatch/`, such as `taste.md`, stay visible.
+        """
         exclude = self.git_dir / "info" / "exclude"
         exclude.parent.mkdir(parents=True, exist_ok=True)
         lines = exclude.read_text().splitlines() if exclude.is_file() else []
-        missing = [p for p in TOOL_OUTPUT if p not in lines]
+        missing = [p for p in EXCLUDES if p not in lines]
         if missing:
             exclude.write_text("".join(f"{line}\n" for line in [*lines, *missing]))
 

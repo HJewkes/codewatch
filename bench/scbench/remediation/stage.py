@@ -17,13 +17,15 @@ from pathlib import Path
 
 from . import workspace as ws
 from .fixer import TIME_LIMIT, Clock, Fixer
-from .git import Git, scoped
+from prflow.ratchet import MERGE_BASE_REF
+from prflow.repo import scoped
+
+from .git import Git
 from .items import Item, controls_failed, read_jsonl, select_items
 from .session import FixSession, Run
 from .validate import GraphCheck, Reviewer, TestRunner
 
 AUDIT_DIR = Path(".codewatch") / "audit"
-MERGE_BASE_REF = "cw-merge-base"
 
 
 @dataclass(frozen=True)
@@ -77,12 +79,10 @@ def remediate(config: Config, env: Mapping[str, str], run_claude: Run, run_tool:
 def build_fixer(config: Config, env: Mapping[str, str], git: Git, run_claude: Run, run_tool: Run,
                 clock: Clock) -> Fixer:
     tool_env, pr_branch = {**env, **git.env()}, git.branch()
-    merge_base_ref = scoped(MERGE_BASE_REF, pr_branch)
+    # commit-ratchet (U15) indexed the merge-base under this ref; it is not indexed again here.
+    baseline = config.baseline or scoped(MERGE_BASE_REF, pr_branch)
     graph = GraphCheck(config.workspace, config.codewatch, config.db, config.check_config,
-                       config.baseline or merge_base_ref, run_tool, tool_env)
-    if config.baseline is None:
-        index = ["graph", "index", ".", "--db", config.db, "--rev", git.merge_base(), "--ref", merge_base_ref]
-        run_tool([config.codewatch, *index], tool_env, str(config.workspace), clock.remaining())
+                       baseline, run_tool, tool_env)
     fixer = Fixer(
         git=git, session=FixSession(env, str(config.workspace), run_claude, config.max_turns),
         tests=TestRunner(config.workspace, config.test_command, config.tests_dir, run_tool),

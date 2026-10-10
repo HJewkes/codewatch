@@ -3,12 +3,13 @@ import unittest
 from pathlib import Path
 
 from remediation.__main__ import parse_args
-from remediation.items import MISSING_TEST_KIND, QUESTIONS, UNCOVERED_SIGNAL, select_items
+from remediation.items import MISSING_TEST_KIND, QUESTIONS, UNCOVERED_SIGNAL, evidence_field, select_items
 from remediation.session import claude_argv, first_prompt, render_item
 
 TRIAGE_QUESTIONS = Path(__file__).parents[3] / "packages/cli/src/commands/triage-questions.ts"
-# Asked by units not merged yet: diff-uncovered is measured (U5), missing-test-kind arrives with U7b.
-NOT_IN_TRIAGE_YET = {UNCOVERED_SIGNAL, MISSING_TEST_KIND}
+# diff-uncovered is measured by coverage (U5), never asked by triage.
+MEASURED = {UNCOVERED_SIGNAL}
+TEST_KIND_EVIDENCE = "code kind: output boundary\nmissing: snapshot or exact-output test\ntests: tests/test_app.py:4-5"
 CHANGED = {"src/app.py", "tests/test_app.py"}
 
 
@@ -72,12 +73,47 @@ class SelectItemsTest(unittest.TestCase):
         self.assertTrue(item.fix)
 
 
-class QuestionTextTest(unittest.TestCase):
-    def test_question_texts_match_the_triage_questions(self):
-        source = TRIAGE_QUESTIONS.read_text()
-        texts = {text for signal, text in QUESTIONS.items() if signal not in NOT_IN_TRIAGE_YET}
+def triage_signals(source):
+    """The keys of triage-questions.ts's `QUESTIONS` table."""
+    table = source[source.index("const QUESTIONS"):]
+    table = table[:table.index("\n};")]
+    return set(re.findall(r'^  "?([\w/-]+)"?: ', table, flags=re.M))
 
-        self.assertEqual([text for text in texts if text not in source], [])
+
+class QuestionTextTest(unittest.TestCase):
+    def test_every_signal_triage_asks_has_its_question_text_here(self):
+        source = TRIAGE_QUESTIONS.read_text()
+        signals = triage_signals(source)
+
+        self.assertIn(MISSING_TEST_KIND, signals)
+        self.assertEqual(set(QUESTIONS) - MEASURED, signals)
+        self.assertEqual([s for s in signals if QUESTIONS[s] not in source], [])
+
+    def test_the_evidence_fields_read_here_are_the_ones_triage_reads(self):
+        source = TRIAGE_QUESTIONS.read_text()
+
+        for name in ("code kind", "missing"):
+            self.assertIn(f'evidenceField(f, "{name}")', source)
+            self.assertTrue(evidence_field(TEST_KIND_EVIDENCE, name))
+
+
+class FindingJoinTest(unittest.TestCase):
+    def test_a_missing_test_kind_item_names_the_kind_its_finding_says_is_missing(self):
+        finding = {"id": "f1", "signal": MISSING_TEST_KIND, "path": "src/app.py", "symbol": "render",
+                   "evidence": TEST_KIND_EVIDENCE}
+        row = verdict(MISSING_TEST_KIND, symbol="render", tool="test-kinds")
+
+        items, _ = select_items([row], [finding], CHANGED, run_provisional=False)
+
+        text = render_item(1, items[0])
+        self.assertIn("Fix: Add a snapshot or exact-output test that pins the current behaviour.", text)
+        self.assertIn("code kind: output boundary; missing: snapshot or exact-output test", text)
+
+    def test_a_verdict_with_no_matching_finding_falls_back_to_the_generic_sketch(self):
+        items, _ = select_items([verdict(MISSING_TEST_KIND)], [], CHANGED, run_provisional=False)
+
+        self.assertEqual((items[0].evidence, items[0].fix),
+                         ("", "Add a test of the missing kind that pins the current behaviour."))
 
 
 class PromptTest(unittest.TestCase):

@@ -15,8 +15,10 @@ import signal
 import sys
 from pathlib import Path
 
+from prflow.ratchet import CHECK_CONFIG, DB
+from prflow.repo import GIT_DIR as DEFAULT_GIT_DIR
+
 from .fixer import Clock
-from .git import DEFAULT_GIT_DIR
 from .session import run_process
 from .stage import Config, remediate
 
@@ -29,9 +31,10 @@ def parse_args(argv: list[str], env: dict[str, str]) -> Config:
     p.add_argument("--scratch", type=Path, default=Path.home() / ".cache" / "codewatch-remediation")
     p.add_argument("--git-dir", type=Path, default=None, help=f"default <workspace>/{DEFAULT_GIT_DIR}")
     p.add_argument("--codewatch", default=DEFAULT_CODEWATCH)
-    p.add_argument("--db", default=".codewatch/cache/graph.db")
-    p.add_argument("--check-config", default=".codewatch/check.json")
-    p.add_argument("--baseline", default=None, help="merge-base snapshot id or ref; default: index it here")
+    p.add_argument("--db", default=str(DB))
+    p.add_argument("--check-config", default=str(CHECK_CONFIG))
+    p.add_argument("--baseline", default=None, help="merge-base snapshot id or ref; default: commit-ratchet's "
+                   "cw-merge-base-<PR branch>")
     p.add_argument("--tests-dir", default="tests")
     p.add_argument("--test-command", default=None, help="default: python -m pytest -q <tests dir>")
     p.add_argument("--review-command", default=None, help="U17 hook: gets the commit sha, prints a verdict")

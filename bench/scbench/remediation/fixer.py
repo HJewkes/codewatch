@@ -13,7 +13,9 @@ import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
-from .git import Git, scoped
+from prflow.repo import scoped
+
+from .git import Git
 from .items import TEST_GAP, Item
 from .session import FixSession, conflict_prompt, first_prompt, render_item
 from .validate import Check, GraphCheck, Reviewer, Snapshot, TestRunner, ratchet_check

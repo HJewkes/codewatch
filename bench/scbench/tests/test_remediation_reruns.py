@@ -58,5 +58,16 @@ class LaterCheckpointTest(StageTestCase):
         self.assertEqual(refs, {"cw-merge-base-cp-2", "cw-fix-cp-2"})
 
 
+class CodewatchDirTest(StageTestCase):
+    def test_only_the_rebuilt_parts_of_codewatch_dir_are_ignored(self):
+        write_verdicts(self.root, [confirmed()])
+        paths = [".codewatch/audit/verdicts.jsonl", ".codewatch/cache/graph.db",
+                 ".codewatch/taste.md", ".codewatch/verdicts.jsonl", ".codewatch/verdicts.d/cp-2.jsonl"]
+
+        self.run_stage(FakeClaude(writes("src/app.py", "x = 3\n")), FakeTools())
+
+        ignored = git(self.root, "check-ignore", "--no-index", *paths).splitlines()
+        self.assertEqual(ignored, paths[:2])
+
 if __name__ == "__main__":
     unittest.main()

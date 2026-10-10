@@ -52,8 +52,7 @@ class PhaseTwoTest(StageTestCase):
         self.assertEqual(first["status"], "reverted")
         self.assertIn("graph-check: new violations: max-cc:src/app.py#f", first["reason"])
         self.assertEqual(second["status"], "kept")
-        baseline_index = next(c for c in tools.calls if "--rev" in c)
-        self.assertEqual(baseline_index[baseline_index.index("--rev") + 1], git(self.root, "rev-parse", "main"))
+        self.assertFalse(any("--rev" in c for c in tools.calls))
         check = next(c for c in tools.calls if c[1:3] == ["graph", "check"])
         self.assertEqual(check[check.index("--baseline") + 1], "cw-merge-base-cp-2")
 
