@@ -7,7 +7,7 @@ import { pyIsinstanceClean } from "./python/isinstance-clean.js";
 import { pyIsinstanceSlop } from "./python/isinstance-slop.js";
 import { pyPassThroughClean } from "./python/pass-through-clean.js";
 import { pyPassThroughSlop } from "./python/pass-through-slop.js";
-import { pyRegnetRequired } from "./python/regnet-required.js";
+import { pyLooseOutputTests } from "./python/loose-output-tests.js";
 import { pyWeakOracle } from "./python/weak-oracle.js";
 import type { Control, ControlDefinition, ControlLabel, ExpectedVerdict } from "./types.js";
 
@@ -20,7 +20,7 @@ export const CONTROL_DEFINITIONS: readonly ControlDefinition[] = [
   pyIsinstanceSlop,
   pyPassThroughClean,
   pyPassThroughSlop,
-  pyRegnetRequired,
+  pyLooseOutputTests,
   pyWeakOracle,
   pyClonedReaders,
 ];
@@ -37,6 +37,7 @@ function toControl(def: ControlDefinition): Control {
     label: def.label,
     path: def.path,
     text: def.text,
+    ...(def.related === undefined ? {} : { related: def.related }),
     ...(def.spec === undefined ? {} : { spec: def.spec }),
     findings: def.findings.map(({ anchor: _anchor, ...row }) => ({ path: def.path, ...row, expected })),
   };

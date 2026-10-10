@@ -1,0 +1,7 @@
+providers:
+  anthropic:
+    type: env_var
+    env_var: ANTHROPIC_API_KEY
+  claude_code_oauth:
+    type: env_var
+    env_var: CLAUDE_CODE_OAUTH_TOKEN

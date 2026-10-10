@@ -1,6 +1,6 @@
 import type { TriageBundle } from "./triage-bundle.js";
 import type { TriagePlan } from "./triage-plan.js";
-import { findingTarget } from "./triage-questions.js";
+import { findingTarget, questionText } from "./triage-questions.js";
 
 export interface TriageRunSettings {
   minRank: number;
@@ -43,7 +43,7 @@ function estimateLines(plan: TriagePlan, settings: TriageRunSettings): string[] 
 function bundleLines(bundle: TriageBundle, rank: number | undefined): string[] {
   const head = `  ${(rank ?? 0).toFixed(1).padStart(5)}  ${bundle.id}  (${bundle.questions.length} question${bundle.questions.length === 1 ? "" : "s"}, ~${kTokens(bundle.tokens)} tokens)`;
   const questions = bundle.questions.map(
-    ({ finding, question }) => `           ${finding.signal}  ${findingTarget(finding)}: ${question.text}`,
+    ({ finding, question }) => `           ${finding.signal}  ${findingTarget(finding)}: ${questionText(finding, question)}`,
   );
   return [head, ...questions];
 }

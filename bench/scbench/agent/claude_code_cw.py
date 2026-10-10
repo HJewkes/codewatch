@@ -21,6 +21,8 @@ from slop_code.agent_runner.agents.claude_code.agent import (
 from slop_code.agent_runner.registry import register_agent
 
 from .stages import (
+    DEFAULT_CAP_SECONDS,
+    DEFAULT_RESERVE_SECONDS,
     STAGE_NAMES,
     ExecResult,
     StageBudget,
@@ -44,9 +46,9 @@ class StageConfig(BaseModel):
 class ClaudeCodeCwConfig(ClaudeCodeConfig, agent_type="claude_code_cw"):
     type: tp.Literal["claude_code_cw"] = "claude_code_cw"  # type: ignore[assignment]
     stages: dict[str, StageConfig] = Field(default_factory=dict)
-    stage_budget_s: float = 25 * 60
-    checkpoint_cap_s: float = 2 * 60 * 60
-    stage_reserve_s: float = 20 * 60
+    stage_budget_s: float | None = None
+    checkpoint_cap_s: float = DEFAULT_CAP_SECONDS
+    stage_reserve_s: float = DEFAULT_RESERVE_SECONDS
 
     @field_validator("stages")
     @classmethod
@@ -63,7 +65,7 @@ class ClaudeCodeCwAgent(ClaudeCodeAgent):
     def __init__(self, *args: tp.Any, **kwargs: tp.Any) -> None:
         super().__init__(*args, **kwargs)
         self.stage_settings: dict[str, StageSetting] = {}
-        self.budget_args: dict[str, float] = {}
+        self.budget_args: dict[str, float | None] = {}
         self.checkpoint_index = 0
         self.stage_records: list[StageRecord] = []
         self.mcp_tool_calls = 0
@@ -103,6 +105,10 @@ class ClaudeCodeCwAgent(ClaudeCodeAgent):
         env = {key: str(value) for key, value in self.env.items()}
         env.update(self._build_runtime_auth_env())
         env["CW_CHECKPOINT"] = str(self.checkpoint_index)
+        env["CW_CLAUDE_BINARY"] = self.binary
+        env["CW_MODEL"] = self.model
+        if self.permission_mode:
+            env["CW_PERMISSION_MODE"] = self.permission_mode
         return env
 
     def _exec_stage(self, command: str, env: tp.Mapping[str, str], timeout: float) -> ExecResult:

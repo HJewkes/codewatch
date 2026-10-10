@@ -23,10 +23,11 @@ disagreement and is never sent to the reader.
 
 The corpus has one clean and one slop control per code-quality kind: single-caller helper, comment
 (narrating or bloated), unnecessary isinstance, and pass-through wrapper. Each change-check kind has
-one control: a replay diff the spec requires (clean), a test whose assertions cannot catch a wrong
-result (slop), and two readers copied line for line (slop). The replay-diff control carries its own
-`spec`, shown under the same `<spec>` path a real run's spec uses; a run's real spec is never shown
-beside a control. Python only for now.
+one control: a report renderer whose tests check only substrings and a line count (slop), a test
+whose assertions cannot catch a wrong result (slop), and two readers copied line for line (slop).
+The missing-test-kind control carries the tests its evidence names in `related`, shown whole beside
+the file. A control may carry its own `spec`, shown under the same `<spec>` path a real run's spec
+uses; a run's real spec is never shown beside a control. Python only for now.
 
 ## Adding a control
 

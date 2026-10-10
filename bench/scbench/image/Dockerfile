@@ -29,11 +29,22 @@ RUN mkdir -p /opt/codewatch-a1/bin \
         ln -s "/opt/codewatch-a1/node/node_modules/.bin/${tool}" "/opt/codewatch-a1/bin/${tool}"; \
     done
 
-# The synthesis stage (bench/scbench/synthesis), passed by build.sh as a named build context.
-COPY --from=synthesis . /opt/codewatch-a1/synthesis
+# The stage packages below are copied into the build context by build.sh (stage_context).
+# The synthesis stage (bench/scbench/synthesis).
+COPY synthesis /opt/codewatch-a1/synthesis
+
+# The spec-aware commit review (bench/scbench/review); it imports synthesis's model call.
+COPY review /opt/codewatch-a1/review
+
+# The PR-flow stages (bench/scbench/prflow): repo-init, pr-open and commit-ratchet.
+COPY prflow /opt/codewatch-a1/prflow
 
 # Tier T test-shape checks, run by path: python3 /opt/codewatch-a1/tiert <root>.
-COPY --from=tiert . /opt/codewatch-a1/tiert
+COPY tiert /opt/codewatch-a1/tiert
+
+# The remediation stage (bench/scbench/remediation), run as
+# PYTHONPATH=/opt/codewatch-a1 python -P -m remediation.
+COPY remediation /opt/codewatch-a1/remediation
 
 COPY codewatch-wrapper.sh /usr/local/bin/codewatch
 RUN chmod 755 /usr/local/bin/codewatch \

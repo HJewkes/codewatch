@@ -17,8 +17,6 @@ export interface AuditOutputs {
 export interface TriageSelectOptions {
   minRank: number;
   includeTests: boolean;
-  /** A spec was given, so findings whose question needs one are asked. */
-  hasSpec?: boolean;
 }
 
 export interface SelectedFile {
@@ -60,11 +58,6 @@ function exclusionOf(
   return undefined;
 }
 
-function isEligible(f: Finding, options: TriageSelectOptions): boolean {
-  const question = questionFor(f.signal);
-  return question !== undefined && (!question.needsSpec || options.hasSpec === true);
-}
-
 /** Files at or above the rank threshold, plus any holding an every-row finding, each with its findings that carry a triage question, highest rank first. */
 export function selectTriageFiles(
   audit: AuditOutputs,
@@ -74,7 +67,7 @@ export function selectTriageFiles(
   const rankByPath = new Map(audit.scores.files.map((f) => [f.path, f.rank]));
   const excluded = { belowRank: 0, tests: 0, unscored: 0 };
   const byPath = new Map<string, Finding[]>();
-  const eligible = audit.findings.filter((f) => isEligible(f, options));
+  const eligible = audit.findings.filter((f) => questionFor(f.signal) !== undefined);
   for (const f of eligible) {
     const reason = exclusionOf(f, rankByPath.get(f.path), roles.get(f.path), options);
     if (reason) excluded[reason]++;

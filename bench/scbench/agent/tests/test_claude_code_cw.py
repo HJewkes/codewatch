@@ -17,11 +17,16 @@ from slop_code.agent_runner.credentials import CredentialType, ProviderCredentia
 from slop_code.agent_runner.registry import build_agent_config, get_agent_cls
 from slop_code.agent_runner.runner import get_task_for_checkpoint
 from slop_code.common.llms import APIPricing, ModelDefinition
+from slop_code.entrypoints.config.loader import resolve_environment
 from slop_code.execution import DockerConfig, DockerEnvironmentSpec
+from slop_code.execution.models import SnapshotConfig
 from slop_code.execution.runtime import RuntimeEvent, RuntimeResult
+from slop_code.execution.snapshot import Snapshot
 
 from agent.claude_code_cw import ClaudeCodeCwAgent, ClaudeCodeCwConfig, count_mcp_tool_calls
 from agent.stages import STAGE_NAMES
+
+PR_FLOW = ("repo-init", "pr-open", "commit-ratchet")
 
 STOCK_FIELDS = {
     "binary": "claude",
@@ -76,11 +81,14 @@ def _credential():
                               destination_key="CLAUDE_CODE_OAUTH_TOKEN", credential_type=CredentialType.ENV_VAR)
 
 
-def _build(config, runtime):
+PILOT_ENV = Path(__file__).parents[2] / "configs" / "environments" / "docker-python3.12-uv-rootless.yaml"
+
+
+def _build(config, runtime, environment=None):
     agent = Agent.from_config(config, _model(), _credential(), "problem", False, "image", "high")
     agent._runtime = runtime
     agent._workspace = Path("/workspace")
-    agent._environment = DockerEnvironmentSpec(name="env", docker=DockerConfig(image="python:3.12"))
+    agent._environment = environment or DockerEnvironmentSpec(name="env", docker=DockerConfig(image="python:3.12"))
     return agent
 
 
@@ -123,6 +131,17 @@ class RegistrationTest(unittest.TestCase):
 
         self.assertEqual(sorted(config.stages), sorted(STAGE_NAMES))
         self.assertFalse(any(s.enabled for s in config.stages.values()))
+        self.assertIsNone(config.stage_budget_s)
+        self.assertEqual((config.checkpoint_cap_s, config.stage_reserve_s), (7200, 180))
+
+    def test_stage_budget_has_no_default_and_is_an_opt_in_cap(self):
+        unset = _build(_cw_config({}), FakeRuntime())
+        capped = _build(ClaudeCodeCwConfig(type="claude_code_cw", stage_budget_s=600, **STOCK_FIELDS),
+                        FakeRuntime())
+
+        self.assertIsNone(unset.budget_args["stage_seconds"])
+        self.assertEqual(unset.budget_args["reserve_seconds"], 180)
+        self.assertEqual(capped.budget_args["stage_seconds"], 600)
 
     def test_unknown_stage_names_are_rejected(self):
         with self.assertRaises(ValueError):
@@ -149,6 +168,24 @@ class StockEquivalenceTest(unittest.TestCase):
         self.assertEqual(PROMPTS[0], TASK.encode())
         self.assertEqual(cw_runtime.streamed, stock_runtime.streamed)
 
+    def test_the_pilot_env_leaves_claude_argv_env_and_prompt_equal_to_stock(self):
+        pilot = resolve_environment(PILOT_ENV)
+        captures = []
+        PROMPTS.clear()
+        for config, env in [(ClaudeCodeConfig(type="claude_code", **STOCK_FIELDS), None),
+                            (ClaudeCodeConfig(type="claude_code", **STOCK_FIELDS), pilot),
+                            (_cw_config({}), pilot)]:
+            capture = SolveCapture()
+            _solve(_build(config, FakeRuntime(), env), capture)
+            captures.append(capture.calls)
+
+        self.assertEqual(captures[1], captures[0])
+        self.assertEqual(captures[2], captures[0])
+        self.assertEqual(PROMPTS, [TASK.encode()] * 3)
+        self.assertNotIn("IS_SANDBOX", captures[0][0][1])
+        self.assertEqual(pilot.get_full_env({})["IS_SANDBOX"], "1")
+        self.assertEqual(pilot.docker.user, "0:0")
+
     def test_the_rendered_prompt_does_not_depend_on_the_agent_type(self):
         env = DockerEnvironmentSpec(name="env", docker=DockerConfig(image="python:3.12"))
         template = "{% if is_continuation %}Continue.{% endif %}\n{{ spec }}\nRun: {{ entry_command }}\n"
@@ -163,10 +200,12 @@ class StockEquivalenceTest(unittest.TestCase):
 
 class StageHookTest(unittest.TestCase):
     def test_stages_run_around_the_solve_and_failures_do_not_end_the_checkpoint(self):
-        runtime = FakeRuntime({"cw-index": RuntimeError("container hiccup"),
+        runtime = FakeRuntime({"cw-ratchet": RuntimeError("container hiccup"),
                                "cw-audit": _result(stdout='{"items_out": 42}')})
-        stages = {"inject": {"enabled": True, "command": "cw-inject"},
-                  "index": {"enabled": True, "command": "cw-index"},
+        stages = {"repo-init": {"enabled": True, "command": "cw-init"},
+                  "pr-open": {"enabled": True, "command": "cw-pr"},
+                  "inject": {"enabled": True, "command": "cw-inject"},
+                  "commit-ratchet": {"enabled": True, "command": "cw-ratchet"},
                   "audit": {"enabled": True, "command": "cw-audit"},
                   "triage": {"enabled": True}}
         agent = _build(_cw_config(stages), runtime)
@@ -178,15 +217,36 @@ class StageHookTest(unittest.TestCase):
 
         self.assertFalse(any(r.had_error for r in results))
         stage_commands = [c for c, _ in runtime.streamed if c.startswith("cw-")]
-        self.assertEqual(stage_commands, ["cw-index", "cw-audit", "cw-inject", "cw-index", "cw-audit"])
+        self.assertEqual(stage_commands, ["cw-init", "cw-pr", "cw-ratchet", "cw-audit",
+                                          "cw-pr", "cw-inject", "cw-ratchet", "cw-audit"])
         by_stage = {row["stage"]: row for row in raw["stages"]}
         self.assertEqual(raw["checkpoint"], 2)
+        self.assertNotIn("repo-init", by_stage)
         self.assertEqual(by_stage["inject"]["exit"], 0)
-        self.assertEqual(by_stage["index"]["status"], "failed")
+        self.assertEqual(by_stage["commit-ratchet"]["status"], "failed")
         self.assertEqual(by_stage["audit"]["items_out"], 42)
         self.assertEqual(by_stage["triage"]["status"], "missing")
-        self.assertEqual(by_stage["remediation"]["status"], "disabled")
-        self.assertEqual(dict(runtime.streamed[-1][1])["CW_CHECKPOINT"], "2")
+        self.assertEqual(by_stage["fix"]["status"], "disabled")
+        stage_env = dict(runtime.streamed[-1][1])
+        self.assertEqual(stage_env["CW_CHECKPOINT"], "2")
+        self.assertEqual((stage_env["CW_MODEL"], stage_env["CW_CLAUDE_BINARY"]), (agent.model, "claude"))
+        self.assertEqual(stage_env["CW_PERMISSION_MODE"], "bypassPermissions")
+        self.assertEqual(stage_env["CLAUDE_CODE_OAUTH_TOKEN"], "fake-token")
+
+    def test_with_the_pr_flow_on_the_solve_session_gets_no_git_dir(self):
+        shipped = yaml.safe_load((Path(__file__).parents[1] / "claude_code_cw.yaml").read_text())["stages"]
+        flow = {name: {**shipped[name], "enabled": True} for name in PR_FLOW}
+        runtime, capture = FakeRuntime(), SolveCapture()
+        agent = _build(_cw_config(flow), runtime, resolve_environment(PILOT_ENV))
+
+        _solve(agent, capture, checkpoints=2)
+
+        ran = [c.split(" -m prflow ")[1].split()[0] for c, _ in runtime.streamed if " -m prflow " in c]
+        self.assertEqual(ran, ["repo-init", "pr-open", "commit-ratchet", "pr-open", "commit-ratchet"])
+        for _, solve_env in capture.calls:
+            self.assertFalse({"GIT_DIR", "GIT_WORK_TREE"} & set(solve_env))
+        for _, stage_env in runtime.streamed:
+            self.assertNotIn("GIT_DIR", stage_env)
 
     def test_mcp_tool_calls_count_only_this_checkpoints_mcp_tool_uses(self):
         payloads = [{"message": {"role": "assistant", "content": [
@@ -199,6 +259,23 @@ class StageHookTest(unittest.TestCase):
 
         self.assertEqual(agent.mcp_tool_calls, 1)
         self.assertEqual(count_mcp_tool_calls(payloads * 2), 2)
+
+
+class GradedSnapshotTest(unittest.TestCase):
+    def test_the_pilot_snapshot_skips_codewatch_and_keeps_the_runner_defaults(self):
+        pilot = resolve_environment(PILOT_ENV)
+        files = ["main.py", "tests/test_main.py", "NOTES.md", ".codewatch/repo.git/HEAD",
+                 ".codewatch/cache/graph.db", ".codewatch/taste.md", ".venv/bin/python"]
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            for rel in files:
+                (workspace / rel).parent.mkdir(parents=True, exist_ok=True)
+                (workspace / rel).write_text("x\n")
+            snapshot = Snapshot.from_environment_spec(workspace, pilot)
+            snapshot.cleanup()
+
+        self.assertLessEqual(SnapshotConfig().ignore_globs | {".codewatch/*"}, pilot.get_ignore_globs())
+        self.assertEqual(snapshot.matched_paths, {Path("main.py"), Path("tests/test_main.py"), Path("NOTES.md")})
 
 
 if __name__ == "__main__":

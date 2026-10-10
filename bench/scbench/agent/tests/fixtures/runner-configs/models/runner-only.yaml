@@ -1,0 +1,7 @@
+internal_name: runner-only-model
+provider: anthropic
+pricing:
+  input: 1
+  output: 1
+  cache_read: 1
+  cache_write: 1

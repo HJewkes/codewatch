@@ -85,7 +85,7 @@ export function registerTriageCommand(program: Command): void {
     .option("--out <dir>", "Output directory for verdicts (default: <path>/.codewatch/audit)")
     .option("--db <path>", "Graph database (default: <path>/.codewatch/graph.db)")
     .option("--audit <dir>", "Audit output to read (default: <path>/.codewatch/audit)")
-    .option("--spec <file>", "Checkpoint spec that regnet-diff findings are judged against; must sit outside the workspace, and no spec text is written under it")
+    .option("--spec <file>", "Checkpoint spec shown beside missing-test-kind questions; must sit outside the workspace, and no spec text is written under it")
     .option("--verdicts-dir <dir>", "Also reuse the committed verdicts in <dir>/verdicts.jsonl and <dir>/verdicts.d/*.jsonl, and write this run's new verdicts to <dir>/verdicts.d/<run-id>.jsonl; the head file is never written")
     .option("--run-id <id>", "Names this run and its verdicts.d fragment (default: a fresh id)", fragmentName)
     .action(async (target: string, options: TriageCliOptions) => {
