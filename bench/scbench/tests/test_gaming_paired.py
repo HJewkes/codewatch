@@ -1,7 +1,7 @@
 import unittest
 
 from analysis.gaming import fire_rate, gaming_check, mechanism_signals
-from analysis.inputs import AddedSymbol, CheckpointResult, Stage, StageLog
+from analysis.inputs import AddedSymbol, CheckpointResult, FixItem, Stage, StageLog
 from analysis.paired import consistency, final_rows, paired_rows
 
 from .test_verdict import arm
@@ -14,14 +14,19 @@ def result(problem="p", index=1, strict=False, erosion=None, stages=None) -> Che
     )
 
 
-def remediation(outcome="kept", flags=("single-caller-helper",), fixed=0) -> Stage:
-    symbols = (AddedSymbol("src/a.py", "_helper", tuple(flags)),)
-    return Stage("remediation", "ok", 0, 0.3, 4, 3, outcome, fixed, symbols)
+def fix_item(status="kept", phase=2, kind="quality", signal="symbol-single-caller-helper", flags=("single-caller-helper",),
+             resumed=False, review="ok", missing=None) -> FixItem:
+    symbols = (AddedSymbol("src/a.py", "_helper", tuple(flags)),) if flags else ()
+    return FixItem(phase, kind, signal, status, resumed, review, missing, symbols)
+
+
+def remediation(outcome="kept", *items: FixItem, held_back=0) -> Stage:
+    return Stage("fix", "ok", 0, 0.3, 4, 3, outcome, items or (fix_item(outcome),), held_back)
 
 
 def plain(name: str, status="ok", items_in=0, items_out=0, usd=0.0) -> Stage:
     exit_code = {"ok": 0, "failed": 2}.get(status)
-    return Stage(name, status, exit_code, usd, items_in, items_out, None, 0, ())
+    return Stage(name, status, exit_code, usd, items_in, items_out, None)
 
 
 def log(*stages: Stage, mcp=0) -> StageLog:
@@ -67,8 +72,8 @@ class GamingTests(unittest.TestCase):
         self.assertFalse(check.clean)
 
     def test_discarded_or_unflagged_remediation_is_not_a_split(self):
-        a1 = {("p", 1): result(erosion=0.3, stages=log(remediation("discarded"))),
-              ("p", 2): result(index=2, erosion=0.3, stages=log(remediation(flags=())))}
+        a1 = {("p", 1): result(erosion=0.3, stages=log(remediation("reverted"))),
+              ("p", 2): result(index=2, erosion=0.3, stages=log(remediation("kept", fix_item(flags=()))))}
         a1a = {("p", 1): result(erosion=0.5), ("p", 2): result(index=2, erosion=0.5)}
 
         check = gaming_check(paired_rows(arms_with(a1, a1a)), arm(), arm(erosion=0.3))
@@ -91,7 +96,7 @@ class GamingTests(unittest.TestCase):
 class MechanismTests(unittest.TestCase):
     def test_signals_count_kept_fixes_and_strict_gains_they_explain(self):
         stages = log(plain("audit", items_out=10), plain("triage", items_in=5, items_out=2, usd=0.4),
-                     plain("replay", items_out=3), remediation(fixed=2), mcp=4)
+                     remediation(), mcp=4)
         a1 = {("p", 1): result(strict=True, stages=stages), ("p", 2): result(index=2)}
 
         rows = paired_rows(arms_with(a1, a1a={("p", 1): result()}))
@@ -99,7 +104,7 @@ class MechanismTests(unittest.TestCase):
 
         self.assertEqual(signals["findings_per_checkpoint"], 10)
         self.assertEqual(signals["confirmed_share"], 0.4)
-        self.assertEqual((signals["replay_diffs_caught"], signals["replay_diffs_fixed"]), (3, 2))
+        self.assertNotIn("replay_diffs_caught", signals)
         self.assertEqual((signals["net_fix_checkpoints"], signals["net_fix_strict_gains"]), (1, 1))
         self.assertEqual(signals["mcp_tool_calls"], 4)
         self.assertEqual(fire_rate(rows), 0.5)
@@ -111,12 +116,12 @@ class MechanismTests(unittest.TestCase):
         self.assertEqual(fire_rate(paired_rows(arms_with(a1, a1a={}))), 0.5)
 
     def test_failed_stages_cost_money_but_their_counts_are_not_signals(self):
-        failed = log(plain("audit", "failed", items_out=99, usd=0.2), plain("replay", "timeout", items_out=5))
+        failed = log(plain("audit", "failed", items_out=99, usd=0.2), plain("triage", "timeout", items_out=5))
         rows = paired_rows(arms_with({("p", 1): result(stages=failed)}, a1a={}))
 
         signals = mechanism_signals(rows)
 
-        self.assertEqual((signals["findings_per_checkpoint"], signals["replay_diffs_caught"]), (0, 0))
+        self.assertEqual((signals["findings_per_checkpoint"], signals["confirmed_share"]), (0, None))
         self.assertEqual((signals["stage_usd"], signals["stages_failed_or_timed_out"]), (0.2, 2))
         self.assertEqual(fire_rate(rows), 0.0)
 

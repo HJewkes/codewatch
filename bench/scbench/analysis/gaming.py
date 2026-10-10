@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from .inputs import CheckpointResult, Stage
 from .metrics import ArmSummary
 from .paired import CheckpointRow
+from .signals import fix_items, mechanism_counts, split_commits
 
-SPLIT_FLAGS = frozenset({"single-caller-helper", "pass-through"})
 MAX_SPLIT_SHARE = 0.5
 
 
@@ -20,6 +20,7 @@ class GamingCheck:
     split_drop: float
     split_share: float | None
     sensitivity_agrees: bool | None
+    split_commits: int = 0
 
     @property
     def splits_clean(self) -> bool:
@@ -30,20 +31,18 @@ class GamingCheck:
         return self.splits_clean and self.sensitivity_agrees is True
 
 
-def split_symbols(result: CheckpointResult | None) -> int:
-    """Symbols a kept remediation added that codewatch flags as a split.
-
-    Counted whatever the stage status: a "kept" outcome means the edit is in the workspace.
-    """
+def _kept_split_counts(result: CheckpointResult | None) -> list[int]:
     if result is None or result.stage_log is None:
-        return 0
-    return sum(
-        1
-        for stage in result.stage_log.stages
-        if stage.name == "remediation" and stage.outcome == "kept"
-        for symbol in stage.added_symbols
-        if SPLIT_FLAGS.intersection(symbol.flags)
-    )
+        return []
+    return split_commits(fix_items(result.stage_log.stages))
+
+
+def split_symbols(result: CheckpointResult | None) -> int:
+    """Symbols that kept phase-2 or phase-3 commits added and codewatch flags as a split.
+
+    Read per commit, so a reverted commit or a phase-1 test gap never counts, whatever the stage status.
+    """
+    return sum(_kept_split_counts(result))
 
 
 def gaming_check(rows: list[CheckpointRow], a1a: ArmSummary, a1: ArmSummary) -> GamingCheck:
@@ -59,6 +58,7 @@ def gaming_check(rows: list[CheckpointRow], a1a: ArmSummary, a1: ArmSummary) -> 
     return GamingCheck(
         split_checkpoints=len(split),
         split_symbols=sum(split_symbols(row.cells["A1"]) for row in rows),
+        split_commits=sum(n > 0 for row in rows for n in _kept_split_counts(row.cells["A1"])),
         erosion_drop=erosion_drop,
         split_drop=split_drop,
         split_share=split_drop / erosion_drop if erosion_drop > 0 else None,
@@ -101,20 +101,16 @@ def fire_rate(rows: list[CheckpointRow]) -> float:
     return sum(fired(row.cells["A1"]) for row in rows) / len(rows) if rows else 0.0
 
 
-def mechanism_signals(rows: list[CheckpointRow]) -> dict[str, float | int | None]:
+def mechanism_signals(rows: list[CheckpointRow]) -> dict[str, float | int | dict | None]:
     a1 = [row.cells["A1"] for row in rows if row.cells["A1"] and row.cells["A1"].stage_log]
     every_stage = [stage for result in a1 for stage in result.stage_log.stages]
     stages = [stage for stage in every_stage if stage.succeeded]
     triage_in = _total(stages, "triage", "items_in")
-    remediation = [s for s in every_stage if s.name == "remediation"]
     net_fixed = [row for row in rows if _net_fix_kept(row.cells["A1"])]
     return {
         "findings_per_checkpoint": _total(stages, "audit", "items_out") / len(a1) if a1 else None,
         "confirmed_share": _total(stages, "triage", "items_out") / triage_in if triage_in else None,
-        "remediation_kept": sum(s.outcome == "kept" for s in remediation),
-        "remediation_discarded": sum(s.outcome == "discarded" for s in remediation),
-        "replay_diffs_caught": _total(stages, "replay", "items_out"),
-        "replay_diffs_fixed": sum(s.fixed_replay_diffs for s in remediation if s.outcome == "kept"),
+        **mechanism_counts(every_stage),
         "mcp_tool_calls": sum(result.stage_log.mcp_tool_calls for result in a1),
         "stage_usd": sum(s.usd for s in every_stage),
         "stages_failed_or_timed_out": sum(s.status in ("failed", "timeout") for s in every_stage),
@@ -133,7 +129,4 @@ def _total(stages: list[Stage], name: str, field: str) -> int:
 def _net_fix_kept(result: CheckpointResult | None) -> bool:
     if result is None or result.stage_log is None:
         return False
-    return any(
-        s.name == "remediation" and s.outcome == "kept" and s.fixed_replay_diffs > 0
-        for s in result.stage_log.stages
-    )
+    return any(item.status == "kept" for item in fix_items(result.stage_log.stages))
