@@ -5,7 +5,7 @@ import { findingTarget, questionText } from "./triage-questions.js";
 export interface TriageRunSettings {
   minRank: number;
   includeTests: boolean;
-  budgetUsd: number;
+  budgetUsd?: number;
   concurrency: number;
   model: string;
 }
@@ -33,10 +33,10 @@ function estimateLines(plan: TriagePlan, settings: TriageRunSettings): string[] 
   const { estimate, bundles } = plan;
   const excerpt = bundles.reduce((n, b) => n + b.tokens, 0);
   const split = new Set(bundles.filter((b) => b.id !== b.path).map((b) => b.path)).size;
-  const fits = estimate.costUsd <= settings.budgetUsd ? "within" : "OVER";
+  const budget = settings.budgetUsd === undefined ? "no budget cap" : `${estimate.costUsd <= settings.budgetUsd ? "within" : "OVER"} the $${settings.budgetUsd} budget`;
   return [
     `${bundles.length} bundles (${split} files split over the token cap), ~${kTokens(excerpt)} excerpt tokens.`,
-    `Estimate: ${estimate.calls} calls, ~${kTokens(estimate.inputTokens)} input and ~${kTokens(estimate.outputTokens)} output tokens, ~$${estimate.costUsd.toFixed(2)} (${fits} the $${settings.budgetUsd} budget; control bundles not included).`,
+    `Estimate: ${estimate.calls} calls, ~${kTokens(estimate.inputTokens)} input and ~${kTokens(estimate.outputTokens)} output tokens, ~$${estimate.costUsd.toFixed(2)} (${budget}; control bundles not included).`,
   ];
 }
 

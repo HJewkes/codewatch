@@ -192,6 +192,20 @@ describe("runTriage with a fake reader", () => {
     expect(report.cost.spentUsd).toBeCloseTo(1.2);
   });
 
+  it("launches every bundle and records a null budget when --budget-usd is unset", async () => {
+    const reader = fakeReader((q, prompt) => [row(q, prompt, "unclear")]);
+    const costly: LegacyStepRunner = {
+      run: async (input) => ({ ...(await reader.run(input)), usage: { costUsd: 0.4 } }) as Awaited<ReturnType<LegacyStepRunner["run"]>>,
+    };
+
+    const { report } = await runTriage({ ...base(), budgetUsd: undefined, controls: CONTROLS, controlCount: 4, concurrency: 1, runner: idempotentRunner(costly) });
+
+    expect(report.stoppedBy).not.toBe("budget");
+    expect(report.skipped).toHaveLength(0);
+    expect(report.cost.spentUsd).toBeGreaterThan(1);
+    expect(report.settings.budgetUsd).toBeNull();
+  });
+
   it("keeps launching past a retryable failure until --max-failures is exceeded and records each failed call", async () => {
     const flaky: LegacyStepRunner = { run: async () => ({ ok: false, error: "claude -p reached --max-turns 2", retryable: true, usage: { costUsd: 0.1 } }) };
 

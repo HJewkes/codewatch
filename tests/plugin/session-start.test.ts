@@ -155,8 +155,30 @@ describe("SessionStart hook with a graph.db", () => {
     expect(context.startsWith(`${fixtureSnapshot(git("rev-parse", "HEAD"))}\n\nConventions for this repository:`)).toBe(true)
     expect(context).toContain("- Keep the discount rounding in one function. {inferred cp2 fp:")
     expect(context).toContain("- [test-gap] shop/cart.py:41:")
-    expect(context).not.toContain("A fourth item is never shown.")
+    expect(context).toContain("A fourth item is never shown.")
     expect(context).toContain("- shop/pricing.py#apply_discount (3 importers)")
+  })
+
+  it("keeps only the first CODEWATCH_CARRY_MAX_OPEN_ITEMS open items when it is set", () => {
+    writeCarryFiles(repo)
+
+    const result = runHook({ CODEWATCH_BIN: fakeBin, CODEWATCH_CARRY_MAX_OPEN_ITEMS: "3" })
+
+    const context = contextOf(result.stdout)
+    expect(context).toContain("- [quality] shop/pricing.py:30:")
+    expect(context).not.toContain("A fourth item is never shown.")
+  })
+
+  it("drops carried lines past CODEWATCH_CARRY_MAX_TOKENS but not the snapshot when it is set", () => {
+    writeCarryFiles(repo)
+    writeFileSync(join(repo, ".codewatch", "taste.md"), `${Array.from({ length: 200 }, (_, i) => `- Taste line ${i}.`).join("\n")}\n`)
+
+    const uncapped = contextOf(runHook({ CODEWATCH_BIN: fakeBin }).stdout)
+    const capped = contextOf(runHook({ CODEWATCH_BIN: fakeBin, CODEWATCH_CARRY_MAX_TOKENS: "100" }).stdout)
+
+    expect(uncapped).toContain("- Taste line 199.")
+    expect(capped).not.toContain("- Taste line 199.")
+    expect(capped.startsWith(fixtureSnapshot(git("rev-parse", "HEAD")))).toBe(true)
   })
 
   it("still emits exactly the snapshot when the brief's entries are malformed", () => {

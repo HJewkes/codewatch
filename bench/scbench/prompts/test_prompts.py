@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from prompts.record_manifest import A1A_TEMPLATE, PROMPTS_DIR, STOCK_TEMPLATE, record, template_sha256
+from prompts.record_manifest import A1A_TEMPLATE, AGENT_CONFIG, PROMPTS_DIR, STOCK_TEMPLATE, caps_entry, record, template_sha256
 
 try:
     import jinja2
@@ -129,6 +129,55 @@ class RecordManifestTest(unittest.TestCase):
             record(manifest)
 
             self.assertEqual(set(json.loads(manifest.read_text())), {"prompts"})
+
+
+class CapsEntryTests(unittest.TestCase):
+    def _caps(self, tmp: str, command: str, version: str) -> dict:
+        config = Path(tmp) / "cw.yaml"
+        config.write_text(
+            "cost_limits:\n  step_limit: 100\nstages:\n  triage:\n    enabled: true\n"
+            f"    command: {command}\n  fix:\n    command: other --budget-usd 9\n"
+        )
+        dockerfile = Path(tmp) / "Dockerfile"
+        dockerfile.write_text(f"ARG CODEWATCH_VERSION={version}\n")
+        return caps_entry(config, dockerfile)
+
+    def test_the_shipped_config_records_the_pinned_cli_default_budget_and_no_synthesis_cap(self):
+        entry = caps_entry()
+        self.assertEqual(entry["budget_usd"], 5.0)
+        self.assertEqual(entry["triage_cli_version"], "0.7.0")
+        self.assertIsNone(entry["synthesis_open_items_cap"])
+        self.assertEqual(entry["step_limit"], 100)
+
+    def test_a_cli_without_a_budget_default_records_no_cap(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertIsNone(self._caps(tmp, "codewatch triage /workspace", "0.8.0")["budget_usd"])
+
+    def test_a_folded_command_is_read_and_the_next_stage_is_not(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "cw.yaml"
+            config.write_text(
+                "stages:\n  triage:\n    enabled: true\n    command: >-\n      codewatch triage /workspace\n"
+                "      --budget-usd 2\n  fix:\n    command: x --budget-usd 9\n"
+            )
+            dockerfile = Path(tmp) / "Dockerfile"
+            dockerfile.write_text("ARG CODEWATCH_VERSION=0.8.0\n")
+            self.assertEqual(caps_entry(config, dockerfile)["budget_usd"], 2.0)
+            config.write_text("stages:\n  triage:\n    enabled: true\n  fix:\n    command: x --budget-usd 9\n")
+            self.assertIsNone(caps_entry(config, dockerfile)["budget_usd"])
+
+    def test_an_explicit_budget_flag_wins_over_the_cli_default(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(self._caps(tmp, "codewatch triage /workspace --budget-usd 2.5", "0.7.0")["budget_usd"], 2.5)
+
+    def test_record_writes_the_caps_beside_the_other_keys(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "manifest.json"
+            manifest.write_text('{"a1Image": {"digest": "sha256:x"}}')
+            record(manifest, caps={"budget_usd": None})
+            data = json.loads(manifest.read_text())
+        self.assertEqual(data["caps"], {"budget_usd": None})
+        self.assertEqual(data["a1Image"], {"digest": "sha256:x"})
 
 
 if __name__ == "__main__":

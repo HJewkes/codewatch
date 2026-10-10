@@ -13,11 +13,13 @@ import { join } from "node:path"
  * @typedef {{ key: string, verdict: string, signal?: string, path: string, rationale?: string,
  *   citations?: { lineStart?: number }[] }} VerdictRow
  * @typedef {{ taste?: string[], verdicts?: VerdictRow[], brief?: SessionBrief | null }} Carry
+ * @typedef {{ maxChars?: number, maxOpenItems?: number }} CarryLimits
  */
 
-// 1.5k tokens at about 4 characters per token.
-export const MAX_CARRY_CHARS = 6000
-export const MAX_OPEN_ITEMS = 3
+// Opt-in caps; unset means no cap. Tokens are counted at about 4 characters per token.
+const CHARS_PER_TOKEN = 4
+export const TOKEN_CAP_ENV = "CODEWATCH_CARRY_MAX_TOKENS"
+export const OPEN_ITEMS_CAP_ENV = "CODEWATCH_CARRY_MAX_OPEN_ITEMS"
 export const MAX_CHANGED_SYMBOLS = 5
 const MAX_ITEM_TEXT = 200
 // Findings that say changed code lacks a test, or has only a weak one; they come first.
@@ -108,6 +110,28 @@ export function readCarry(root) {
   return { taste, verdicts, brief: brief && typeof brief === "object" ? brief : null }
 }
 
+/**
+ * @param {string | undefined} value
+ * @returns {number | undefined} a whole number >= 1, else undefined (the cap is off)
+ */
+function positiveInt(value) {
+  const n = Number(value)
+  return value !== undefined && value.trim() !== "" && Number.isInteger(n) && n >= 1 ? n : undefined
+}
+
+/**
+ * The opt-in caps named by the environment; a missing or invalid value leaves that cap off.
+ * @param {Record<string, string | undefined>} env
+ * @returns {CarryLimits}
+ */
+export function carryLimitsFromEnv(env) {
+  const tokens = positiveInt(env[TOKEN_CAP_ENV])
+  return {
+    maxChars: tokens === undefined ? undefined : tokens * CHARS_PER_TOKEN,
+    maxOpenItems: positiveInt(env[OPEN_ITEMS_CAP_ENV]),
+  }
+}
+
 /** @param {string} text */
 function oneLine(text) {
   const flat = text.replace(/\s+/g, " ").trim()
@@ -172,19 +196,22 @@ function assemble(taste, items, symbols) {
 }
 
 /**
- * Render the carried notes, never longer than MAX_CARRY_CHARS and never cut mid-line; "" when there are none.
- * Malformed entries are skipped, so a bad file can never cost the session its snapshot.
+ * Render the carried notes; "" when there are none. With `limits.maxChars` set the output is never longer
+ * than that and never cut mid-line; with `limits.maxOpenItems` set only that many open items are kept.
+ * Unset limits cap nothing. Malformed entries are skipped, so a bad file can never cost the session its snapshot.
  * @param {Carry} carry
+ * @param {CarryLimits} [limits]
  */
-export function formatCarry({ taste, verdicts, brief }) {
+export function formatCarry({ taste, verdicts, brief }, limits = {}) {
+  const { maxChars, maxOpenItems } = limits
   const tasteLines = listOf(taste).filter((line) => typeof line === "string" && line.trim() !== "")
-  const items = openItems(verdicts, brief).slice(0, MAX_OPEN_ITEMS).map(itemLine)
+  const items = openItems(verdicts, brief).slice(0, maxOpenItems).map(itemLine)
   const symbols = listOf(brief?.changedSymbols)
     .filter(isChangedSymbol)
     .slice(0, MAX_CHANGED_SYMBOLS)
     .map((s) => `- ${s.symbol} (${s.importers} importer${s.importers === 1 ? "" : "s"})`)
   let output = assemble(tasteLines, items, symbols)
-  while (output.length > MAX_CARRY_CHARS) {
+  while (maxChars !== undefined && output.length > maxChars) {
     if (symbols.length > 0) symbols.pop()
     else if (tasteLines.length > 0) tasteLines.pop()
     else items.pop()

@@ -22,7 +22,7 @@ const MAX_CALL_USD = 1;
 export interface TriageRunOptions extends TriagePlanOptions {
   model: string;
   concurrency: number;
-  budgetUsd: number;
+  budgetUsd?: number;
   /** Retryable reader failures tolerated before launches stop; defaults to 3. */
   maxFailures?: number;
   /** Which agent harness reads the bundles; defaults to claude-print. */
@@ -130,7 +130,7 @@ function buildReport(input: ReportInput): TriageReport {
     snapshotId: plan.snapshotId,
     model: options.model,
     harness: options.harness ?? DEFAULT_HARNESS,
-    settings: { minRank: options.minRank, includeTests: options.includeTests, budgetUsd: options.budgetUsd, concurrency: options.concurrency, maxFailures: maxFailuresOf(options) },
+    settings: { minRank: options.minRank, includeTests: options.includeTests, budgetUsd: options.budgetUsd ?? null, concurrency: options.concurrency, maxFailures: maxFailuresOf(options) },
     wallMs: Date.now() - input.startedAt,
     cost: { spentUsd: mapped.spentUsd, estimateUsd: plan.estimate.costUsd },
     calls: { planned: mapped.results.length + mapped.failed.length + mapped.skipped.length, succeeded: mapped.results.length, failed: failedOf(mapped) },

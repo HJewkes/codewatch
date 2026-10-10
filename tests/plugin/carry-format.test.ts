@@ -3,7 +3,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 // @ts-expect-error plain ESM hook script without a declaration file
-import { formatCarry, MAX_CARRY_CHARS, readCarry } from "../../plugins/codewatch/hooks/carry-format.mjs"
+import { carryLimitsFromEnv, formatCarry, readCarry } from "../../plugins/codewatch/hooks/carry-format.mjs"
 import { fixture, writeCarryFiles } from "./carry-fixtures"
 
 const rows = (name: string) => fixture(name).trim().split("\n").map((line) => JSON.parse(line))
@@ -16,10 +16,10 @@ describe("formatCarry", () => {
     expect(formatCarry({ taste: ["  "], verdicts: rows("verdicts.jsonl").slice(1), brief: { openItems: [] } })).toBe("")
   })
 
-  it("renders taste, then test gaps, ratchet items and confirmed findings, then changed symbols", () => {
-    const verdicts = [...rows("verdicts.jsonl").slice(0, 1), ...rows("verdicts-fragment.jsonl")]
+  const verdicts = () => [...rows("verdicts.jsonl").slice(0, 1), ...rows("verdicts-fragment.jsonl")]
 
-    const output: string = formatCarry({ taste: tasteLines, verdicts, brief })
+  it("renders taste, then every test gap, ratchet item and confirmed finding, then changed symbols, when no cap is set", () => {
+    const output: string = formatCarry({ taste: tasteLines, verdicts: verdicts(), brief })
 
     expect(output).toBe(
       [
@@ -30,12 +30,20 @@ describe("formatCarry", () => {
         "- [test-gap] shop/cart.py:41: No test executes the new rounding branch of Cart.total.",
         "- [ratchet] shop/pricing.py:12: symbol_cyclomatic=14 (max 10)",
         "- [quality] shop/pricing.py:30: The two discount branches do the same job.",
+        "- [quality] shop/cart.py:8: A fourth item is never shown.",
         "",
         "Changed last session, most imported:",
         "- shop/pricing.py#apply_discount (3 importers)",
         "- shop/cart.py#Cart (1 importer)",
       ].join("\n"),
     )
+  })
+
+  it("keeps only the first maxOpenItems open items when that cap is set", () => {
+    const output: string = formatCarry({ taste: [], verdicts: verdicts(), brief }, { maxOpenItems: 3 })
+
+    expect(output).toContain("- [quality] shop/pricing.py:30:")
+    expect(output).not.toContain("A fourth item is never shown.")
   })
 
   it("renders a section alone when only it is present", () => {
@@ -45,13 +53,23 @@ describe("formatCarry", () => {
     expect(output).not.toContain("Conventions")
   })
 
-  it("stays within MAX_CARRY_CHARS by dropping symbols, then taste lines, never cutting a line", () => {
+  it("leaves a long carry whole when no character cap is set", () => {
+    const longTaste = Array.from({ length: 400 }, (_, i) => `- Taste line ${i} with some padding text. {inferred cp1 fp:k${i}}`)
+
+    const output: string = formatCarry({ taste: longTaste, verdicts: [], brief })
+
+    expect(output.length).toBeGreaterThan(6000)
+    expect(output.split("\n").filter((l) => l.startsWith("- Taste line"))).toHaveLength(400)
+    expect(output).toContain("most imported")
+  })
+
+  it("stays within maxChars by dropping symbols, then taste lines, never cutting a line", () => {
     const longTaste = Array.from({ length: 400 }, (_, i) => `- Taste line ${i} with some padding text. {inferred cp1 fp:k${i}}`)
     const manySymbols = Array.from({ length: 5 }, (_, i) => ({ symbol: `pkg/mod.py#f${i}`, importers: 9 - i }))
 
-    const output: string = formatCarry({ taste: longTaste, verdicts: [], brief: { ...brief, changedSymbols: manySymbols } })
+    const output: string = formatCarry({ taste: longTaste, verdicts: [], brief: { ...brief, changedSymbols: manySymbols } }, { maxChars: 6000 })
 
-    expect(output.length).toBeLessThanOrEqual(MAX_CARRY_CHARS)
+    expect(output.length).toBeLessThanOrEqual(6000)
     expect(output).not.toContain("most imported")
     expect(output).toContain("Open review items:")
     for (const line of output.split("\n").filter((l) => l.startsWith("- Taste line"))) {
@@ -78,6 +96,24 @@ describe("formatCarry", () => {
     const line = output.split("\n")[1]
     expect(line.endsWith("...")).toBe(true)
     expect(output.split("\n")).toHaveLength(2)
+  })
+})
+
+describe("carryLimitsFromEnv", () => {
+  it("leaves both caps off when the variables are unset", () => {
+    expect(carryLimitsFromEnv({})).toEqual({ maxChars: undefined, maxOpenItems: undefined })
+  })
+
+  it("turns a token count into a character cap and reads the open-items cap", () => {
+    const env = { CODEWATCH_CARRY_MAX_TOKENS: "1500", CODEWATCH_CARRY_MAX_OPEN_ITEMS: "3" }
+
+    expect(carryLimitsFromEnv(env)).toEqual({ maxChars: 6000, maxOpenItems: 3 })
+  })
+
+  it("ignores values that are not whole numbers of at least 1", () => {
+    const env = { CODEWATCH_CARRY_MAX_TOKENS: "0", CODEWATCH_CARRY_MAX_OPEN_ITEMS: "many" }
+
+    expect(carryLimitsFromEnv(env)).toEqual({ maxChars: undefined, maxOpenItems: undefined })
   })
 })
 

@@ -26,7 +26,7 @@ export interface FanOutOptions {
   runner: StepRunner;
   model: string;
   concurrency: number;
-  budgetUsd: number;
+  budgetUsd?: number;
   /** Retryable reader failures tolerated before launches stop. */
   maxFailures?: number;
   onProgress?: (line: string) => void;

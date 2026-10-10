@@ -8,10 +8,11 @@ because they reach a symbol only through re-export barrels.
 
 - A **SessionStart hook** (`startup|clear|compact`) that injects a short repo snapshot as
   additional context. It exits silently when the repo is not indexed or the CLI is missing.
-  It also appends the carried notes, capped at about 1.5k tokens:
+  It also appends the carried notes, uncapped unless you opt in (see
+  [Carry caps](#carry-caps-opt-in)):
   - the taste lines in `.codewatch/taste.md` plus any unmerged `.codewatch/taste.d/*.md`
     fragments, each line keeping its provenance tag;
-  - at most 3 open review items: confirmed test gaps from `.codewatch/verdicts.jsonl` plus
+  - the open review items: confirmed test gaps from `.codewatch/verdicts.jsonl` plus
     `.codewatch/verdicts.d/*.jsonl` (a later fragment row replaces the row with its key),
     then the new violations in `.codewatch/session-brief.json`, then other confirmed findings;
   - the most-imported changed symbols from `session-brief.json`, a derived file that is
@@ -23,6 +24,18 @@ because they reach a symbol only through re-export barrels.
   refuses to start in a repo without `.codewatch/graph.db`, so an unindexed repo shows the
   server as failed in `/mcp` and costs no model tokens.
 - An **opt-in PostToolUse hook** for `Grep` (see [Grep augment](#grep-augment-opt-in)).
+
+## Carry caps (opt-in)
+
+The carried notes have no size or item limit by default. Set an environment variable in the
+session's environment to turn a cap on; an unset, non-numeric or sub-1 value leaves it off.
+
+| Variable | Effect |
+| --- | --- |
+| `CODEWATCH_CARRY_MAX_TOKENS` | Keep the carried notes within this many tokens (counted as 4 characters each), dropping changed symbols first, then taste lines, then open items, and never cutting a line. The repo snapshot is not counted. |
+| `CODEWATCH_CARRY_MAX_OPEN_ITEMS` | Keep only the first N open review items. |
+
+The most-imported changed symbols list stays at 5 entries.
 
 ## Prerequisites
 
