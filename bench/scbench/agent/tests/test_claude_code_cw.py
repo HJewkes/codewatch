@@ -1,4 +1,5 @@
 import json
+import shlex
 import tempfile
 import unittest
 from pathlib import Path
@@ -232,6 +233,22 @@ class StageHookTest(unittest.TestCase):
         self.assertEqual((stage_env["CW_MODEL"], stage_env["CW_CLAUDE_BINARY"]), (agent.model, "claude"))
         self.assertEqual(stage_env["CW_PERMISSION_MODE"], "bypassPermissions")
         self.assertEqual(stage_env["CLAUDE_CODE_OAUTH_TOKEN"], "fake-token")
+
+    def test_every_shipped_stage_runs_without_side_calls_and_triage_names_its_model(self):
+        shipped = yaml.safe_load((Path(__file__).parents[1] / "claude_code_cw.yaml").read_text())["stages"]
+        stages = {name: {**setting, "enabled": True} for name, setting in shipped.items()}
+        runtime = FakeRuntime()
+        agent = _build(_cw_config(stages), runtime)
+
+        _solve(agent, SolveCapture(), checkpoints=1)
+
+        self.assertTrue(runtime.streamed)
+        for _, stage_env in runtime.streamed:
+            self.assertEqual(stage_env["DISABLE_NON_ESSENTIAL_MODEL_CALLS"], "1")
+        triage = shlex.split(shipped["triage"]["command"])
+        self.assertEqual(triage[:2], ["codewatch", "triage"])
+        self.assertEqual(triage[triage.index("--model") + 1], "claude-sonnet-5-5")
+        self.assertIn(shipped["triage"]["command"], [c for c, _ in runtime.streamed])
 
     def test_with_the_pr_flow_on_the_solve_session_gets_no_git_dir(self):
         shipped = yaml.safe_load((Path(__file__).parents[1] / "claude_code_cw.yaml").read_text())["stages"]

@@ -1,10 +1,11 @@
 import { AuthMisconfiguredError, assertAuthEnvOk, prepareEnv, resolveClaudeBin, type AgentRunConfig } from "@titan-design/agent";
-import { agentRunner, idempotentRunner, type LegacyStepRunner, type StepRunner } from "@titan-design/workflow";
+import { agentRunner, idempotentRunner, type LegacyStepRunner, type StepRunOutcome, type StepRunner } from "@titan-design/workflow";
 import { READER_SYSTEM_PROMPT, ReaderOutputSchema } from "./triage-prompt.js";
 
 /** One reader call as the SDK reported it, for measuring the per-call overhead (plan risk R5). */
 export interface CallTrace {
   stepId: string;
+  sessionId?: string;
   model?: string;
   tools?: string[];
   inputTokens?: number;
@@ -46,19 +47,44 @@ export function preflightAuth(harness: TriageHarness, env: NodeJS.ProcessEnv = p
   }
 }
 
-function absorb(trace: CallTrace, message: SdkMessage): void {
+type ModelUsage = NonNullable<Extract<SdkMessage, { type: "result" }>["modelUsage"]>;
+
+/**
+ * A reader's result also carries Claude Code side calls (a haiku model, session names `agent-*`)
+ * under other `modelUsage` keys. Keep the entries of the model the reader was asked for; when none
+ * match, the requested name is an alias we cannot map, so every entry stays.
+ */
+function readerUsage(usage: ModelUsage, requested: string | undefined): ModelUsage {
+  const wanted = requested?.toLowerCase();
+  const own = Object.entries(usage).filter(([name]) => wanted && name.toLowerCase().includes(wanted));
+  return own.length > 0 ? Object.fromEntries(own) : usage;
+}
+
+function absorb(trace: CallTrace, message: SdkMessage, requested: string | undefined): void {
   if (message.type === "system" && message.subtype === "init") {
+    if (trace.sessionId !== undefined) return;
+    trace.sessionId = message.session_id;
     trace.model = message.model;
     trace.tools = message.tools;
   }
   if (message.type !== "result") return;
-  trace.model ??= Object.keys(message.modelUsage ?? {})[0];
+  if (trace.sessionId !== undefined && message.session_id !== trace.sessionId) return;
+  const all = message.modelUsage ?? {};
+  const own = readerUsage(all, requested);
+  const sideCalls = Object.keys(own).length < Object.keys(all).length;
+  trace.model ??= Object.keys(own)[0];
   trace.inputTokens = message.usage.input_tokens;
   trace.cacheCreationInputTokens = message.usage.cache_creation_input_tokens ?? undefined;
   trace.cacheReadInputTokens = message.usage.cache_read_input_tokens ?? undefined;
   trace.outputTokens = message.usage.output_tokens;
-  trace.costUsd = message.total_cost_usd;
+  trace.costUsd = sideCalls ? Object.values(own).reduce((sum, m) => sum + (m.costUSD ?? 0), 0) : message.total_cost_usd;
   trace.turns = message.num_turns;
+}
+
+/** The step's spend is the reader's, so a run's budget and `spentUsd` exclude side calls. */
+function withReaderCost(outcome: StepRunOutcome, trace: CallTrace): StepRunOutcome {
+  if (!outcome.usage || trace.costUsd === undefined) return outcome;
+  return { ...outcome, usage: { ...outcome.usage, costUsd: trace.costUsd } };
 }
 
 /** agentRunner with no tools and a short system prompt; each call's init and usage land in `traces`. */
@@ -76,10 +102,10 @@ function tracingReader(options: ReaderRunnerOptions): LegacyStepRunner {
           tools: [],
           systemPrompt: READER_SYSTEM_PROMPT,
           outputSchema: ReaderOutputSchema,
-          onMessage: (message) => absorb(trace, message),
+          onMessage: (message) => absorb(trace, message, input.model),
         },
       });
-      return live.run(input);
+      return live.run(input).then((outcome) => withReaderCost(outcome, trace));
     },
   };
 }
