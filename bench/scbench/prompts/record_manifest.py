@@ -4,9 +4,11 @@ Run before a pilot run: `python3 bench/scbench/prompts/record_manifest.py`. The 
 path defaults match `bench/scbench/image/build.sh`; other keys in the manifest are kept.
 It also records, under `runnerConfigs`, which configs the launcher loads its model and
 provider catalogs from, with the sha256 of each vendored config file. Under `caps` it records
-the effective caps: `budget_usd` (the triage stage's `--budget-usd`), `injection_token_cap` and
-`open_items_cap` (`CODEWATCH_CARRY_MAX_TOKENS` and `CODEWATCH_CARRY_MAX_OPEN_ITEMS` in the
-environment of this run), each null when unset, and the runner's `step_limit`.
+what the A1 stages are configured with: `budget_usd` (the triage stage's `--budget-usd`, null
+when the command passes none) beside `triage_cli_version` (the CLI the image pins, whose own
+default applies when the flag is absent), `synthesis_open_items_cap` (the limit synthesis
+applies) and the runner's `step_limit`. The carry hook's env caps are not recorded: nothing
+passes them into the container.
 """
 
 from __future__ import annotations
@@ -24,8 +26,7 @@ RUNNER_COMMIT = "31ceea3"
 STOCK_TEMPLATE = "just-solve.jinja"
 A1A_TEMPLATE = "a1a.jinja"
 AGENT_CONFIG = PROMPTS_DIR.parent / "agent" / "claude_code_cw.yaml"
-TOKEN_CAP_ENV = "CODEWATCH_CARRY_MAX_TOKENS"
-OPEN_ITEMS_CAP_ENV = "CODEWATCH_CARRY_MAX_OPEN_ITEMS"
+DOCKERFILE = PROMPTS_DIR.parent / "image" / "Dockerfile"
 ARM_TEMPLATES = {"A0": STOCK_TEMPLATE, "A1a": A1A_TEMPLATE, "A1": A1A_TEMPLATE}
 
 
@@ -43,25 +44,26 @@ def prompts_entry(prompts_dir: Path = PROMPTS_DIR) -> dict:
     }
 
 
-def _whole_number(value: str | None) -> int | None:
-    """The carry hook's reading: a whole number of at least 1, else the cap is off."""
-    return int(value) if value is not None and re.fullmatch(r"[0-9]+", value.strip()) and int(value) >= 1 else None
-
-
 def _triage_budget(config_text: str) -> float | None:
     match = re.search(r"^ {2}triage:\n(?:.*\n)*?\s+command: (.+)$", config_text, re.MULTILINE)
     words = shlex.split(match.group(1)) if match else []
     return float(words[words.index("--budget-usd") + 1]) if "--budget-usd" in words else None
 
 
-def caps_entry(config: Path = AGENT_CONFIG, env: dict | None = None) -> dict:
-    env = os.environ if env is None else env
+def _pinned_cli_version(dockerfile: Path) -> str | None:
+    match = re.search(r"^ARG CODEWATCH_VERSION=(\S+)$", dockerfile.read_text(), re.MULTILINE)
+    return match.group(1) if match else None
+
+
+def caps_entry(config: Path = AGENT_CONFIG, dockerfile: Path = DOCKERFILE) -> dict:
+    from synthesis.inputs import MAX_OPEN_ITEMS
+
     text = config.read_text()
     step_limit = re.search(r"^ +step_limit: (\d+)$", text, re.MULTILINE)
     return {
         "budget_usd": _triage_budget(text),
-        "injection_token_cap": _whole_number(env.get(TOKEN_CAP_ENV)),
-        "open_items_cap": _whole_number(env.get(OPEN_ITEMS_CAP_ENV)),
+        "triage_cli_version": _pinned_cli_version(dockerfile),
+        "synthesis_open_items_cap": MAX_OPEN_ITEMS,
         "step_limit": int(step_limit.group(1)) if step_limit else None,
     }
 

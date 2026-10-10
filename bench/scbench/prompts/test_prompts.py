@@ -131,29 +131,22 @@ class RecordManifestTest(unittest.TestCase):
             self.assertEqual(set(json.loads(manifest.read_text())), {"prompts"})
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class CapsEntryTests(unittest.TestCase):
-    def test_every_cap_is_null_when_unset_and_the_step_limit_is_kept(self):
-        self.assertEqual(
-            caps_entry(AGENT_CONFIG, {}),
-            {"budget_usd": None, "injection_token_cap": None, "open_items_cap": None, "step_limit": 100},
-        )
+    def test_the_shipped_config_records_no_budget_flag_the_pinned_cli_and_the_synthesis_limit(self):
+        entry = caps_entry()
+        self.assertIsNone(entry["budget_usd"])
+        self.assertRegex(entry["triage_cli_version"], r"^\d+\.\d+\.\d+$")
+        self.assertEqual(entry["synthesis_open_items_cap"], 3)
+        self.assertEqual(entry["step_limit"], 100)
 
-    def test_the_set_caps_are_recorded(self):
-        env = {"CODEWATCH_CARRY_MAX_TOKENS": "1500", "CODEWATCH_CARRY_MAX_OPEN_ITEMS": "3"}
+    def test_an_explicit_budget_flag_is_recorded(self):
         with tempfile.TemporaryDirectory() as tmp:
             config = Path(tmp) / "cw.yaml"
             config.write_text(
                 "cost_limits:\n  step_limit: 100\nstages:\n  triage:\n    enabled: true\n"
                 "    command: codewatch triage /workspace --budget-usd 2.5\n"
             )
-            entry = caps_entry(config, env)
-        self.assertEqual(
-            entry, {"budget_usd": 2.5, "injection_token_cap": 1500, "open_items_cap": 3, "step_limit": 100}
-        )
+            self.assertEqual(caps_entry(config)["budget_usd"], 2.5)
 
     def test_record_writes_the_caps_beside_the_other_keys(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -163,3 +156,7 @@ class CapsEntryTests(unittest.TestCase):
             data = json.loads(manifest.read_text())
         self.assertEqual(data["caps"], {"budget_usd": None})
         self.assertEqual(data["a1Image"], {"digest": "sha256:x"})
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -33,11 +33,12 @@ This writes each arm's template path and sha256 under `prompts` in the run manif
 manifest is `~/.cache/codewatch-scbench/manifest.json`, or `$MANIFEST` or
 `$SCBENCH_RUN_DIR/manifest.json` when set, the same defaults as `../image/build.sh`.
 
-It also writes the effective caps under `caps`: `budget_usd` (the triage stage's
-`--budget-usd` in `../agent/claude_code_cw.yaml`), `injection_token_cap` and
-`open_items_cap` (from `CODEWATCH_CARRY_MAX_TOKENS` and `CODEWATCH_CARRY_MAX_OPEN_ITEMS`
-in the environment of the recording run), and the runner's `step_limit`. A cap that is
-not set is `null`.
+It also writes what the A1 stages are configured with under `caps`: `budget_usd` (the triage
+stage's `--budget-usd` in `../agent/claude_code_cw.yaml`, `null` when none is passed) and
+`triage_cli_version` (the CLI the image pins; a `null` budget means that version's own
+default applies, and 0.7.0 still defaults to 5), `synthesis_open_items_cap` (the limit
+`../synthesis/inputs.py` applies) and the runner's `step_limit`. The carry hook's
+`CODEWATCH_CARRY_*` caps are not recorded, since nothing passes them into the container.
 
 ## Tests
 
