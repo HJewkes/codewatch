@@ -37,9 +37,11 @@ own `checkpoint` field in stages.json, which restarts at 1 after `--resume`.
      "stages": [{"stage": "index", "status": "disabled", "start": null, "end": null,
                  "exit": null, "tokens": 0, "usd": 0.0, "items_in": 0, "items_out": 0},
                 {"stage": "remediation", "status": "ok", "exit": 0, "usd": 0.31, ...,
-                 "outcome": "kept", "fixed_replay_diffs": 1,
-                 "added_symbols": [{"path": "src/a.py", "name": "_h",
-                                    "flags": ["single-caller-helper"]}]}]}
+                 "outcome": "kept", "held_back": 0,
+                 "items": [{"phase": 2, "kind": "quality", "status": "kept", "resumed": false,
+                            "review": {"verdict": "ok"}, "missing": null,
+                            "added_symbols": [{"path": "src/a.py", "name": "_h",
+                                               "flags": ["single-caller-helper"]}]}]}]}
 
 `status` is one of disabled, missing, skipped_budget (the command never ran, exit
 null), ok, failed or timeout.
@@ -80,6 +82,20 @@ class AddedSymbol:
 
 
 @dataclass(frozen=True)
+class FixItem:
+    """One fix item of the `fix` stage: a single commit, kept or reverted (design U8)."""
+
+    phase: int
+    kind: str
+    signal: str
+    status: str
+    resumed: bool
+    review_verdict: str | None
+    missing: str | None
+    added_symbols: tuple[AddedSymbol, ...]
+
+
+@dataclass(frozen=True)
 class Stage:
     name: str
     status: str | None
@@ -88,8 +104,8 @@ class Stage:
     items_in: int
     items_out: int
     outcome: str | None
-    fixed_replay_diffs: int
-    added_symbols: tuple[AddedSymbol, ...]
+    items: tuple[FixItem, ...] = ()
+    held_back: int = 0
 
     @property
     def succeeded(self) -> bool:
@@ -290,6 +306,19 @@ def _parse_stage_log(raw: dict) -> StageLog:
     )
 
 
+def _parse_symbols(rows: list[dict]) -> tuple[AddedSymbol, ...]:
+    return tuple(AddedSymbol(path=a["path"], name=a["name"], flags=tuple(a.get("flags", []))) for a in rows)
+
+
+def _parse_item(raw: dict) -> FixItem:
+    return FixItem(
+        phase=int(raw.get("phase", 0)), kind=raw.get("kind", ""), signal=raw.get("signal", ""),
+        status=raw.get("status", ""), resumed=raw.get("resumed") is True,
+        review_verdict=(raw.get("review") or {}).get("verdict"), missing=raw.get("missing"),
+        added_symbols=_parse_symbols(raw.get("added_symbols", [])),
+    )
+
+
 def _parse_stage(raw: dict) -> Stage:
     return Stage(
         name=raw["stage"],
@@ -299,9 +328,6 @@ def _parse_stage(raw: dict) -> Stage:
         items_in=int(raw.get("items_in", 0)),
         items_out=int(raw.get("items_out", 0)),
         outcome=raw.get("outcome"),
-        fixed_replay_diffs=int(raw.get("fixed_replay_diffs", 0)),
-        added_symbols=tuple(
-            AddedSymbol(path=a["path"], name=a["name"], flags=tuple(a.get("flags", [])))
-            for a in raw.get("added_symbols", [])
-        ),
+        items=tuple(_parse_item(i) for i in raw.get("items", [])),
+        held_back=int(raw.get("held_back", 0)),
     )

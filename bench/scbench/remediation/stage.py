@@ -21,7 +21,7 @@ from prflow.ratchet import MERGE_BASE_REF
 from prflow.repo import scoped
 
 from .git import Git
-from .items import Item, controls_failed, read_jsonl, select_items
+from .items import Item, controls_failed, evidence_field, read_jsonl, select_items
 from .session import FixSession, Run
 from .validate import GraphCheck, Reviewer, TestRunner
 
@@ -109,7 +109,8 @@ def run_items(fixer: Fixer, items: list[Item]) -> tuple[list[dict], str | None]:
 
 
 def describe(item: Item) -> dict:
-    return {"phase": item.phase, "signal": item.signal, "path": item.path, "symbol": item.symbol}
+    return {"phase": item.phase, "kind": item.kind, "signal": item.signal, "path": item.path,
+            "symbol": item.symbol, "missing": evidence_field(item.evidence, "missing")}
 
 
 def summarize(records: list[dict], stopped: str | None) -> dict:
