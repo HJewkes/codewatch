@@ -13,6 +13,8 @@ import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
+// @ts-expect-error plain ESM hook script without a declaration file
+import { formatSnapshot } from "../../plugins/codewatch/hooks/snapshot-format.mjs"
 
 const here = dirname(fileURLToPath(import.meta.url))
 const SCRIPT = resolve(here, "../../plugins/codewatch/hooks/session-start.mjs")
@@ -49,9 +51,25 @@ function writeFixtureFake(): void {
   )
 }
 
-function createDb(): void {
-  mkdirSync(join(repo, ".codewatch"))
-  writeFileSync(join(repo, ".codewatch", "graph.db"), "")
+function createDb(root = repo): void {
+  mkdirSync(join(root, ".codewatch"), { recursive: true })
+  writeFileSync(join(root, ".codewatch", "graph.db"), "")
+}
+
+function writeCarry(root: string): void {
+  mkdirSync(join(root, ".codewatch"), { recursive: true })
+  writeFileSync(join(root, ".codewatch", "rubric.md"), readFileSync(join(FIXTURES, "rubric.md")))
+  writeFileSync(join(root, ".codewatch", "session-brief.json"), readFileSync(join(FIXTURES, "session-brief.json")))
+}
+
+function contextOf(stdout: string): string {
+  return JSON.parse(stdout).hookSpecificOutput.additionalContext
+}
+
+function fixtureSnapshot(head: string | undefined): string {
+  const conventions = JSON.parse(readFileSync(join(FIXTURES, "conventions.json"), "utf8"))
+  const top = JSON.parse(readFileSync(join(FIXTURES, "top.json"), "utf8"))
+  return formatSnapshot({ conventions, top, head, commitsBehind: undefined })
 }
 
 function runHook(env: Record<string, string | undefined>) {
@@ -124,6 +142,50 @@ describe("SessionStart hook with a graph.db", () => {
     expect(context).not.toContain("edges may be stale")
   })
 
+  it("prints exactly the snapshot payload when no synthesis notes exist", () => {
+    const head = git("rev-parse", "HEAD")
+
+    const result = runHook({ CODEWATCH_BIN: fakeBin })
+
+    const additionalContext = fixtureSnapshot(head)
+    expect(result.stdout).toBe(JSON.stringify({ hookSpecificOutput: { hookEventName: "SessionStart", additionalContext } }))
+  })
+
+  it("appends the rubric, open items and changed symbols after the snapshot", () => {
+    writeCarry(repo)
+
+    const result = runHook({ CODEWATCH_BIN: fakeBin })
+
+    const context = contextOf(result.stdout)
+    expect(context.startsWith(`${fixtureSnapshot(git("rev-parse", "HEAD"))}\n\nReview notes from the last session:`)).toBe(true)
+    expect(context).toContain("- [regression] shop/cart.py:41:")
+    expect(context).not.toContain("A fourth item is never shown.")
+    expect(context).toContain("- shop/pricing.py#apply_discount (3 importers)")
+  })
+
+  it("still emits exactly the snapshot when the brief's entries are malformed", () => {
+    mkdirSync(join(repo, ".codewatch"), { recursive: true })
+    writeFileSync(
+      join(repo, ".codewatch", "session-brief.json"),
+      JSON.stringify({ openItems: [null, { kind: "quality", path: "a.py", text: null }], changedSymbols: [null] }),
+    )
+
+    const result = runHook({ CODEWATCH_BIN: fakeBin })
+
+    expect(result.status).toBe(0)
+    expect(contextOf(result.stdout)).toBe(fixtureSnapshot(git("rev-parse", "HEAD")))
+  })
+
+  it("still delivers the synthesis notes when the CLI prints invalid JSON", () => {
+    writeCarry(repo)
+    writeFake("echo not-json")
+
+    const result = runHook({ CODEWATCH_BIN: fakeBin })
+
+    expect(result.status).toBe(0)
+    expect(contextOf(result.stdout).startsWith("Review notes from the last session:")).toBe(true)
+  })
+
   it("stays silent when the CLI prints invalid JSON", () => {
     writeFake("echo not-json")
 
@@ -168,6 +230,49 @@ describe("SessionStart hook without a graph.db", () => {
 
     expect(result.status).toBe(0)
     expect(result.stdout).toBe("")
+    expect(existsSync(callLog)).toBe(false)
+  })
+})
+
+describe("SessionStart hook in a Python workspace that is not a git repository", () => {
+  let workspace: string
+
+  beforeEach(() => {
+    workspace = join(scratch, "workspace")
+    mkdirSync(join(workspace, "shop"), { recursive: true })
+    writeFileSync(join(workspace, "pyproject.toml"), '[project]\nname = "shop"\nversion = "0.1.0"\n')
+    writeFileSync(join(workspace, "shop", "__init__.py"), "")
+    writeFileSync(join(workspace, "shop", "cart.py"), "def total(prices):\n    return sum(prices)\n")
+    createDb(workspace)
+    writeFixtureFake()
+  })
+
+  it("stays silent and calls no CLI when no synthesis notes exist", () => {
+    const result = runHook({ CODEWATCH_BIN: fakeBin, CLAUDE_PROJECT_DIR: workspace })
+
+    expect(result.status).toBe(0)
+    expect(result.stdout).toBe("")
+    expect(existsSync(callLog)).toBe(false)
+  })
+
+  it("injects the snapshot without a staleness line, then the synthesis notes", () => {
+    writeCarry(workspace)
+
+    const result = runHook({ CODEWATCH_BIN: fakeBin, CLAUDE_PROJECT_DIR: workspace })
+
+    const context = contextOf(result.stdout)
+    expect(context.startsWith(`${fixtureSnapshot(undefined)}\n\nReview notes from the last session:`)).toBe(true)
+    expect(context).not.toContain("edges may be stale")
+    expect(readFileSync(callLog, "utf8")).toContain(`--db ${join(workspace, ".codewatch", "graph.db")}`)
+  })
+
+  it("delivers the synthesis notes alone when the workspace has no graph.db", () => {
+    rmSync(join(workspace, ".codewatch", "graph.db"))
+    writeCarry(workspace)
+
+    const result = runHook({ CODEWATCH_BIN: fakeBin, CLAUDE_PROJECT_DIR: workspace })
+
+    expect(contextOf(result.stdout).startsWith("Review notes from the last session:")).toBe(true)
     expect(existsSync(callLog)).toBe(false)
   })
 })

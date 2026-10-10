@@ -24,9 +24,8 @@ export function readSpec(file: string, workspace: string): string[] {
   return splitLines(readFileSync(real, "utf8"));
 }
 
-/** A source that also serves the spec's lines under SPEC_PATH, so bundling and citation checks treat it like a file. */
+/** A source that also serves the spec's lines under SPEC_PATH, so bundling and citation checks treat it like a file; without a spec, SPEC_PATH is never looked up in the tree. */
 export function withSpec(source: BundleSource, spec: readonly string[] | undefined): BundleSource {
-  if (!spec) return source;
   return { ...source, lines: (p) => (p === SPEC_PATH ? spec : source.lines(p)) };
 }
 

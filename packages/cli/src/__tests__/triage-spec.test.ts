@@ -16,16 +16,18 @@ const TEST_SRC = "from pkg.core import summarise\n\n\ndef test_summarise():\n   
 
 const SPEC_LINES = ["# Scores, part 2", "", "The summarise command prints the largest value's share of the total.", "Shares are rounded to one decimal place from this part on."];
 
-/** Rows in the findings.jsonl contract the replay net, the test-shape checks and the clone finder write. */
+const TEST_KIND_EVIDENCE = "code kind: output boundary\nmissing: snapshot or exact-output test\ntests: tests/test_core.py:4-5";
+
+/** Rows in the findings.jsonl contract the test-kind rules, the test-shape checks and the clone finder write. */
 const PRODUCER_ROWS = [
-  { id: "regnet:pkg/core.py:1", tool: "regnet", signal: "regnet-diff", path: "pkg/core.py", lineStart: 1, lineEnd: 3, symbol: "summarise", severity: "warning", evidence: "summarise [1, 3]: stdout changed\n- 0.75\n+ 0.8" },
+  { id: "codewatch:pkg/core.py:1", tool: "codewatch", signal: "missing-test-kind", path: "pkg/core.py", lineStart: 1, lineEnd: 3, symbol: "summarise", severity: "warning", evidence: TEST_KIND_EVIDENCE },
   { id: "tier-t:tests/test_core.py:4", tool: "tier-t", signal: "symbol_weak_oracle_only", path: "tests/test_core.py", lineStart: 4, lineEnd: 5, symbol: "test_summarise", severity: "warning" },
   { id: "jscpd:pkg/util.py:2", tool: "jscpd", signal: "clone", path: "pkg/util.py", lineStart: 2, lineEnd: 3, severity: "warning", evidence: "duplicates pkg/core.py:2-3" },
 ];
 
 const specCitation = (prompt: string, line: number): VerdictRow["citations"][number] => ({ path: SPEC_PATH, lineStart: line, lineEnd: line, quote: shownText(prompt, SPEC_PATH, line) });
 
-/** Answers regnet-diff by citing the spec's rounding line, and copies that line into the rationale. */
+/** Answers missing-test-kind by citing the spec's rounding line, and copies that line into the rationale. */
 function specQuotingReader(prompts: string[]) {
   return fakeReader((q: AskedQuestion, prompt: string) => {
     prompts.push(prompt);
@@ -39,7 +41,7 @@ function filesUnder(dir: string): string[] {
   return readdirSync(dir, { recursive: true, encoding: "utf8" }).map((p) => join(dir, p)).filter((p) => statSync(p).isFile());
 }
 
-describe("triage questions for replay diffs, weak oracles and clones", () => {
+describe("triage questions for missing test kinds, weak oracles and clones", () => {
   let dir: string;
   let specDir: string;
   let specFile: string;
@@ -64,7 +66,7 @@ describe("triage questions for replay diffs, weak oracles and clones", () => {
     rmSync(specDir, { recursive: true, force: true });
   });
 
-  it("asks all three kinds whatever the file's rank or role, with the spec only beside the replay diff and the clone's other copy beside the clone", async () => {
+  it("asks all three kinds whatever the file's rank or role, with the spec and the reaching tests beside the test-kind gap and the clone's other copy beside the clone", async () => {
     const prompts: string[] = [];
 
     await runTriage({ ...base(), runner: specQuotingReader(prompts) });
@@ -72,7 +74,7 @@ describe("triage questions for replay diffs, weak oracles and clones", () => {
     const byPath = new Map(prompts.map((p) => [questionsIn(p)[0]!.path, p]));
     expect([...byPath.keys()].sort()).toEqual(["pkg/core.py", "pkg/util.py", "tests/test_core.py"]);
     expect(byPath.get("pkg/core.py")).toContain(`=== ${SPEC_PATH}\n`);
-    expect(byPath.get("pkg/core.py")).toContain("+ 0.8");
+    expect(byPath.get("pkg/core.py")).toContain("=== tests/test_core.py\n");
     expect(byPath.get("pkg/util.py")).toContain("=== pkg/core.py\n");
     expect(prompts.filter((p) => p.includes(SPEC_LINES[3]!))).toEqual([byPath.get("pkg/core.py")]);
   });
@@ -83,7 +85,7 @@ describe("triage questions for replay diffs, weak oracles and clones", () => {
     const { report, verdicts } = await runTriage({ ...base(), runner: reader });
 
     expect(report.dropped.total).toBe(0);
-    expect(verdicts.find((v) => v.signal === "regnet-diff")?.citations.map((c) => c.path)).toEqual([SPEC_PATH]);
+    expect(verdicts.find((v) => v.signal === "missing-test-kind")?.citations.map((c) => c.path)).toEqual([SPEC_PATH]);
   });
 
   it("drops a spec citation whose quote is not in the spec file", async () => {
@@ -93,15 +95,15 @@ describe("triage questions for replay diffs, weak oracles and clones", () => {
     const { report, verdicts } = await runTriage({ ...base(), runner: reader });
 
     expect(report.dropped.byReason).toEqual({ "quote-mismatch": 1 });
-    expect(verdicts.map((v) => v.signal)).not.toContain("regnet-diff");
+    expect(verdicts.map((v) => v.signal)).not.toContain("missing-test-kind");
   });
 
   it("writes no spec text under the workspace or into graph.db", async () => {
     const { verdicts } = await runTriage({ ...base(), runner: specQuotingReader([]) });
 
-    const regnet = verdicts.find((v) => v.signal === "regnet-diff")!;
-    expect(regnet.citations).toEqual([{ path: SPEC_PATH, lineStart: 4, lineEnd: 4, quote: "" }]);
-    expect(regnet.rationale).toBe(`The spec says: ${SPEC_PATH}`);
+    const gap = verdicts.find((v) => v.signal === "missing-test-kind")!;
+    expect(gap.citations).toEqual([{ path: SPEC_PATH, lineStart: 4, lineEnd: 4, quote: "" }]);
+    expect(gap.rationale).toBe(`The spec says: ${SPEC_PATH}`);
     const written = filesUnder(dir);
     expect(written).toContain(join(dir, ".codewatch", "graph.db"));
     const distinct = SPEC_LINES.filter((l) => l.length >= 12);
@@ -111,11 +113,22 @@ describe("triage questions for replay diffs, weak oracles and clones", () => {
     }
   });
 
-  it("leaves replay diffs unasked, with a warning, when no spec is given", () => {
+  it("still asks a test-kind gap when no spec is given, and shows no spec", () => {
     const plan = planTriage({ path: dir, minRank: 101, includeTests: false });
 
-    expect(plan.warnings).toContain("1 findings need a spec to judge and were not asked; pass --spec <file>");
-    expect(plan.bundles.flatMap((b) => b.questions.map((q) => q.finding.signal)).sort()).toEqual(["clone", "symbol_weak_oracle_only"]);
+    expect(plan.warnings).toEqual([]);
+    expect(plan.bundles.flatMap((b) => b.questions.map((q) => q.finding.signal)).sort()).toEqual(["clone", "missing-test-kind", "symbol_weak_oracle_only"]);
+    expect(plan.bundles.map((b) => b.excerpt).join("\n")).not.toContain(`=== ${SPEC_PATH}`);
+  });
+
+  it("names the symbol, its code kind and the missing test kind in the question", async () => {
+    const prompts: string[] = [];
+
+    await runTriage({ ...base(), runner: specQuotingReader(prompts) });
+
+    const asked = prompts.find((p) => questionsIn(p)[0]!.path === "pkg/core.py")!;
+    expect(asked).toContain("`summarise` is a `output boundary`. Its tests have no `snapshot or exact-output test` (evidence: the test assertions attached).");
+    expect(asked).toContain("If its output is deliberately unstable, or already pinned by another test, answer justified.");
   });
 
   it("refuses a spec file inside the workspace", () => {
@@ -125,15 +138,15 @@ describe("triage questions for replay diffs, weak oracles and clones", () => {
     expect(() => planTriage({ path: dir, specFile: inside, minRank: 101, includeTests: false })).toThrow(/inside the workspace/);
   });
 
-  it("shows the replay-diff control with its own planted spec, never the run's", async () => {
-    const control = loadControls().find((c) => c.kind === "regnet-diff")!;
+  it("shows the test-kind control with its tests and never the run's spec", async () => {
+    const control = loadControls().find((c) => c.kind === "missing-test-kind")!;
     const prompts: string[] = [];
 
     const { report } = await runTriage({ ...base(), controls: [control], controlCount: 1, runner: specQuotingReader(prompts) });
 
     const shown = prompts.find((p) => questionsIn(p)[0]!.path === control.path)!;
-    expect(shown).toContain(`=== ${SPEC_PATH}\n`);
-    expect(shown).toContain("exactly two decimal places");
+    expect(shown).toContain("=== tests/test_report.py\n");
+    expect(shown).not.toContain(`=== ${SPEC_PATH}`);
     expect(shown).not.toContain(SPEC_LINES[3]);
     expect(report.controls.status).toBe("run");
   });
