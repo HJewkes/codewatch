@@ -18,6 +18,23 @@ environment:
     # is set. It also makes an API overload error (529) fail instead of retry; see
     # the validity notes in bench/scbench/README.md.
     IS_SANDBOX: "1"
+# The runner's default ignore globs (31ceea3, execution/models.py SnapshotConfig) plus
+# `.codewatch/*`, so A1's hidden repo, index and carry files never reach the graded
+# snapshot. A0 and A1a write no `.codewatch/`, so their snapshots are unchanged.
+snapshot:
+  ignore_globs:
+    - "*.pyc"
+    - "__pycache__/*"
+    - "venv/*"
+    - ".venv/*"
+    - ".evaluation_tests/*"
+    - ".ruff_cache/*"
+    - ".pytest_cache/*"
+    - ".mypy_cache/*"
+    - ".opencode/*"
+    - ".claude/*"
+    - "node_modules/*"
+    - ".codewatch/*"
 setup:
   eval_commands:
     - uv init
