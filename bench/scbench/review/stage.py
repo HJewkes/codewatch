@@ -6,7 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from synthesis.rubric import ModelReply
+from synthesis.taste import ModelReply
 
 from .inputs import cap_diff, commit_diff, expected_output_diff, read_notes, read_spec, split_files
 from .verdict import EXPECTED_OUTPUT, build_prompt, parse_reply, review_record

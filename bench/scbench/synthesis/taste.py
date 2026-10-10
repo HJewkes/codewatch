@@ -1,33 +1,37 @@
-"""The one model call that writes the review rubric, and its prompt."""
+"""The one model call that writes a taste fragment, its prompt, and the provenance tags."""
 
 from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
 
-MAX_RUBRIC_WORDS = 300
+MAX_FRAGMENT_WORDS = 300
 MAX_PROMPT_VERDICTS = 60
 DEFAULT_MODEL = "claude-sonnet-5-5"
 LISTED_VERDICTS = ("confirmed", "justified")
 
 SYSTEM_PROMPT = (
-    "You write short review notes for the next coding session on a repository. "
+    "You write short convention notes for the next coding session on a repository. "
     "You have no tools. Use only the material in the prompt and invent nothing."
 )
 
 INSTRUCTIONS = """\
-Below are code review verdicts on this repository's latest changes, the rule violations that \
-are new since the previous snapshot, and the changed symbols that the most files import.
+Below are numbered code review verdicts on this pull request's changes, the rule violations \
+it adds against its merge-base, the changed symbols that the most files import, and the \
+conventions already recorded for this repository.
 A confirmed verdict marks a real problem. A justified verdict marks code that looks unusual \
 but is right for this repository, so do not ask for it to change.
 
-Write at most 250 words of plain Markdown in exactly three parts:
-Themes: the recurring problems, in one to three sentences.
-Fix first: the order in which to address the confirmed problems, naming files.
-House style: the conventions this repository keeps, as the justified verdicts show them."""
+Write at most 12 Markdown bullet lines, and nothing else. Each line states one convention \
+this repository keeps, or one problem not to repeat, naming files where it helps. Do not \
+repeat a recorded convention. End each line with the number of the verdict it rests on in \
+square brackets, such as [3]. A line without a listed number is dropped."""
+
+_CITED_LINE = re.compile(r"^\s*[-*]\s+(?P<text>.+?)\s*\[(?P<n>\d+)\]\s*\.?\s*$")
 
 
 @dataclass(frozen=True)
@@ -40,38 +44,54 @@ class ModelReply:
 Model = Callable[[str], ModelReply]
 
 
-def _verdict_line(row: dict) -> str:
+def listed_verdicts(verdicts: list[dict]) -> list[dict]:
+    """The verdicts the prompt numbers from 1: confirmed, then justified, each with a finding key."""
+    keyed = (r for r in verdicts if r.get("verdict") in LISTED_VERDICTS and isinstance(r.get("key"), str))
+    return sorted(keyed, key=lambda r: LISTED_VERDICTS.index(r["verdict"]))[:MAX_PROMPT_VERDICTS]
+
+
+def _verdict_line(n: int, row: dict) -> str:
     citation = (row.get("citations") or [{}])[0]
     where = f"{row.get('path', '')}:{citation.get('lineStart', '')}".rstrip(":")
-    return f"- {row.get('verdict')} {row.get('signal')} {where}: {row.get('rationale', '')}"
+    return f"[{n}] {row.get('verdict')} {row.get('signal')} {where}: {row.get('rationale', '')}"
 
 
-def build_prompt(verdicts: list[dict], violations: list[dict], symbols: list[dict]) -> str:
-    listed = sorted((r for r in verdicts if r.get("verdict") in LISTED_VERDICTS),
-                    key=lambda r: LISTED_VERDICTS.index(r["verdict"]))[:MAX_PROMPT_VERDICTS]
+def build_prompt(listed: list[dict], violations: list[dict], symbols: list[dict], recorded: list[str]) -> str:
     sections = [
         INSTRUCTIONS,
-        "Verdicts:\n" + ("\n".join(_verdict_line(r) for r in listed) or "- none"),
+        "Verdicts:\n" + ("\n".join(_verdict_line(n, r) for n, r in enumerate(listed, 1)) or "- none"),
         "New rule violations:\n" + ("\n".join(
             f"- {v.get('ruleId')} {v.get('path') or v.get('nodeId')}: {v.get('evidence') or v.get('message')}"
             for v in violations) or "- none"),
         "Changed symbols with the most importing files:\n" + ("\n".join(
             f"- {s['symbol']} ({s['importers']})" for s in symbols) or "- none"),
+        "Recorded conventions:\n" + ("\n".join(recorded) or "- none"),
     ]
     return "\n\n".join(sections) + "\n"
 
 
-def cap_words(text: str, limit: int = MAX_RUBRIC_WORDS) -> str:
-    """The text cut after its `limit`-th word, keeping the line breaks before it."""
+def tagged_lines(reply: str, listed: list[dict], checkpoint: int) -> list[str]:
+    """Each reply line that cites a listed verdict, its number replaced by the provenance tag."""
+    lines = []
+    for raw in reply.splitlines():
+        match = _CITED_LINE.match(raw)
+        n = int(match["n"]) if match else 0
+        if 1 <= n <= len(listed):
+            lines.append(f"- {match['text']} {{inferred cp{checkpoint} fp:{listed[n - 1]['key']}}}")
+    return lines
+
+
+def cap_lines(lines: list[str], limit: int = MAX_FRAGMENT_WORDS) -> list[str]:
+    """The leading whole lines whose words, tags included, fit in `limit`: a tag is never cut off."""
     kept: list[str] = []
     remaining = limit
-    for line in text.strip().splitlines():
-        words = line.split()
-        if remaining <= 0:
+    for line in lines:
+        words = len(line.split())
+        if words > remaining:
             break
-        kept.append(" ".join(words[:remaining]) if len(words) > remaining else line.rstrip())
-        remaining -= len(words)
-    return "\n".join(kept).strip() + "\n"
+        kept.append(line)
+        remaining -= words
+    return kept
 
 
 # Claude Code's built-in tools. `--disallowedTools` is the flag the pinned runner itself passes

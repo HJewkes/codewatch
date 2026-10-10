@@ -32,6 +32,7 @@ PASSTHROUGH_FIELDS = (
     "outcome", "reason", "fixed_replay_diffs", "added_symbols",
     "branch", "solve_commit", "merge_base", "baseline",
     "session_id", "turns", "held_back", "items", "stopped_by",
+    "merge", "merge_commit",
 )
 
 
