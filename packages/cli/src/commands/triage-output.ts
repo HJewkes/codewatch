@@ -48,7 +48,7 @@ export interface TriageReport {
   snapshotId: number;
   model: string;
   harness: TriageHarness;
-  settings: { minRank: number; includeTests: boolean; budgetUsd: number; concurrency: number; maxFailures: number };
+  settings: { minRank: number; includeTests: boolean; budgetUsd: number | null; concurrency: number; maxFailures: number };
   wallMs: number;
   cost: { spentUsd: number; estimateUsd: number };
   calls: { planned: number; succeeded: number; failed: FailedCall[] };

@@ -5,7 +5,7 @@ import { DEFAULT_MIN_RANK } from "./triage-select.js";
 
 interface TriageCliOptions {
   minRank: number;
-  budgetUsd: number;
+  budgetUsd?: number;
   concurrency: number;
   maxFailures: number;
   model: string;
@@ -75,7 +75,7 @@ export function registerTriageCommand(program: Command): void {
     .command("triage <path>")
     .description("Ask a model to judge an existing audit's findings, file by file (reads .codewatch/audit)")
     .option("--min-rank <n>", "Only files whose score rank is at least this (0-100)", nonNegative, DEFAULT_MIN_RANK)
-    .option("--budget-usd <usd>", "Stop launching model calls past this spend", nonNegative, 5)
+    .option("--budget-usd <usd>", "Stop launching model calls past this spend (default: no budget cap)", nonNegative)
     .option("--concurrency <n>", "Model calls in flight at once", positiveInt, 4)
     .option("--max-failures <n>", "Failed reader calls tolerated before launching stops", nonNegativeInt, 3)
     .option("--model <name>", "Model for the triage reader", "sonnet")
