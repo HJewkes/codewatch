@@ -36,3 +36,21 @@ describe("codewatch triage --max-failures", () => {
     await expect(triage("--max-failures", "1.5")).rejects.toThrow(/whole number/);
   });
 });
+
+describe("codewatch triage --verdicts-dir and --run-id", () => {
+  beforeEach(() => {
+    runTriage.mockReset();
+    runTriage.mockResolvedValue({ report: REPORT, outDir: "out" });
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+  });
+
+  it("passes the verdict directory and run id to the triage run", async () => {
+    expect(await triage("--verdicts-dir", ".codewatch", "--run-id", "cp-2")).toMatchObject({ verdictsDir: ".codewatch", runId: "cp-2" });
+  });
+
+  it("rejects a run id that would name a file outside verdicts.d", async () => {
+    vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+
+    await expect(triage("--run-id", "../head")).rejects.toThrow(/letters, digits/);
+  });
+});

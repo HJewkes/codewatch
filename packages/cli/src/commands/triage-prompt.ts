@@ -4,7 +4,7 @@ import { renderQuestion, VERDICTS } from "./triage-questions.js";
 
 export const MAX_RATIONALE = 300;
 
-const CitationSchema = z.object({
+export const CitationSchema = z.object({
   path: z.string(),
   lineStart: z.number().int(),
   lineEnd: z.number().int(),
@@ -26,7 +26,7 @@ export type ReaderOutput = z.infer<typeof ReaderOutputSchema>;
 
 export const READER_SYSTEM_PROMPT = [
   "You judge findings from a static analysis of source code. You have no tools; judge only the code in the prompt.",
-  "Answer every question with exactly one verdict row whose key is the question's bracketed key, copied exactly.",
+  "Answer every question with exactly one verdict row whose key is the text between the question's square brackets, copied exactly and without the brackets.",
   "Use the verdict meanings each question gives. When the lines shown are not enough to decide, answer unclear.",
   "Cite 1 to 3 line ranges from the numbered lines shown. Quote the cited code exactly as written, without the line-number prefix.",
   `Keep each rationale under ${MAX_RATIONALE} characters. State the reason for the verdict; do not suggest changes.`,

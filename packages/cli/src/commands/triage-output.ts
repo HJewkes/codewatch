@@ -20,10 +20,17 @@ export interface VerdictRecord extends VerdictRow {
   /** This verdict's share of its call's reported cost. */
   costUsd: number;
   runId: string;
-  /** "model" when this run asked the reader; "carried" when carry-forward copied it from an earlier snapshot. */
-  provenance: "model" | "carried";
+  /** "model" when this run asked the reader; "carried" when carry-forward copied it from an earlier snapshot; "file" when it came from the committed verdict files. */
+  provenance: "model" | "carried" | "file";
   carriedFrom?: number;
   controlRun: ControlRun;
+}
+
+/** With `--verdicts-dir`: verdicts reused from the committed files, and the fragment this run wrote, if any. */
+export interface VerdictFiles {
+  dir: string;
+  reused: number;
+  fragment: string | null;
 }
 
 /** A reader call that failed; its cost is already in `cost.spentUsd`. */
@@ -51,7 +58,7 @@ export interface TriageReport {
   verdicts: { asked: number; written: number; byLabel: Record<Verdict, number> };
   dropped: { total: number; byReason: Record<string, number>; rows: DroppedRow[] };
   /** Verdicts in graph.db: carried from an earlier snapshot, fresh from this run, and questions skipped because one existed. */
-  verdictStore: { carriedFrom: number | null; carried: number; fresh: number; skippedByVerdict: number; reused: ReusedVerdict[] };
+  verdictStore: { carriedFrom: number | null; carried: number; fresh: number; skippedByVerdict: number; reused: ReusedVerdict[]; files?: VerdictFiles };
   controls: ControlReport;
   observedModels: string[];
   traces: CallTrace[];
@@ -105,6 +112,7 @@ export function formatTriageSummary(report: TriageReport, outDir: string): strin
   ];
   const store = report.verdictStore;
   if (store.skippedByVerdict > 0) lines.push(`  ${store.skippedByVerdict} questions skipped for an existing verdict (${store.carried} carried from snapshot ${store.carriedFrom ?? "none"})`);
+  if (store.files) lines.push(`  ${store.files.reused} verdicts reused from ${store.files.dir}; ${store.files.fragment ? `wrote ${store.files.fragment}` : "no new verdicts, no fragment written"}`);
   if (report.calls.failed.length > 0) lines.push(`  ${report.calls.failed.length} calls failed: ${report.calls.failed.map((f) => f.path).join(", ")}`);
   if (report.stoppedBy) lines.push(`  stopped by ${report.stoppedBy}: ${report.skipped.length} bundles skipped`);
   lines.push(`  wrote ${path.join(outDir, "verdicts.jsonl")} and triage.json`);
