@@ -4,7 +4,7 @@ import { renderQuestion, VERDICTS } from "./triage-questions.js";
 
 export const MAX_RATIONALE = 300;
 
-const CitationSchema = z.object({
+export const CitationSchema = z.object({
   path: z.string(),
   lineStart: z.number().int(),
   lineEnd: z.number().int(),

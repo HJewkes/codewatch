@@ -9,7 +9,7 @@ import { bundleItems, controlItem, type TriageItem } from "./triage-items.js";
 import { defaultAuditDir, planTriage, type TriagePlan, type TriagePlanOptions } from "./triage-plan.js";
 import { DEFAULT_HARNESS, preflightAuth, readerRunner, type CallTrace, type ReaderRunnerOptions, type TriageHarness } from "./triage-runner.js";
 import { countBy, failedOf, skippedOf, verdictCounts, writeTriageOutputs, type TriageReport, type VerdictRecord } from "./triage-output.js";
-import { persistVerdicts } from "./triage-persist.js";
+import { persistVerdicts, writeVerdictFragment } from "./triage-persist.js";
 import { scoreControlItems, type ControlReport } from "./triage-score.js";
 import { verifyItemOutput, type DroppedRow, type VerifiedRow } from "./triage-verify.js";
 import { fanOutReads, READ_STEP } from "./triage-workflow.js";
@@ -33,6 +33,8 @@ export interface TriageRunOptions extends TriagePlanOptions {
   controlCount?: number;
   /** Seeds control picks and positions; defaults to a fresh run id. */
   seed?: string;
+  /** Names the run and its `verdicts.d/<run-id>.jsonl` fragment; defaults to the seed, else a fresh id. */
+  runId?: string;
   /** Replaces the model reader (tests); auth preflight is skipped when set. */
   runner?: StepRunner;
   /** Builds the model reader from its options (tests); auth preflight is skipped when set. */
@@ -53,12 +55,12 @@ interface Verified {
 }
 
 /** Controls only measure a run that reads real bundles, so a fully judged plan makes no calls at all. */
-function workItems(plan: TriagePlan, options: TriageRunOptions, runId: string): TriageItem[] {
+function workItems(plan: TriagePlan, options: TriageRunOptions, seed: string): TriageItem[] {
   if (plan.bundles.length === 0) return [];
   const pool = options.controls ?? loadControls();
   const signals = plan.bundles.flatMap((b) => b.questions.map((q) => q.finding.signal));
-  const controls = pickRunControls(pool, signals, runId, options.controlCount ?? DEFAULT_CONTROL_COUNT).map(controlItem);
-  const { sequence } = placeControls(bundleItems(plan.bundles, plan.keys, plan.source), controls, runId);
+  const controls = pickRunControls(pool, signals, seed, options.controlCount ?? DEFAULT_CONTROL_COUNT).map(controlItem);
+  const { sequence } = placeControls(bundleItems(plan.bundles, plan.keys, plan.source), controls, seed);
   return sequence.map((entry) => entry.value);
 }
 
@@ -109,11 +111,14 @@ interface ReportInput {
   controls: ControlReport;
   records: VerdictRecord[];
   traces: CallTrace[];
+  fragment?: string;
 }
 
-function verdictStoreOf(plan: TriagePlan, records: readonly VerdictRecord[]): TriageReport["verdictStore"] {
-  const { from, carried, reused } = plan.verdicts;
-  return { carriedFrom: from ?? null, carried, fresh: records.length, skippedByVerdict: reused.length, reused };
+function verdictStoreOf(input: ReportInput): TriageReport["verdictStore"] {
+  const { from, carried, reused, fromFiles } = input.plan.verdicts;
+  const store = { carriedFrom: from ?? null, carried, fresh: input.records.length, skippedByVerdict: reused.length, reused };
+  const dir = input.options.verdictsDir;
+  return dir === undefined ? store : { ...store, files: { dir: path.resolve(dir), reused: fromFiles.length, fragment: input.fragment ?? null } };
 }
 
 function buildReport(input: ReportInput): TriageReport {
@@ -133,7 +138,7 @@ function buildReport(input: ReportInput): TriageReport {
     skipped: skippedOf(mapped),
     verdicts: { asked, written: records.length, byLabel: verdictCounts(records) },
     dropped: { total: verified.dropped.length, byReason: countBy(verified.dropped, (d) => d.reason), rows: verified.dropped },
-    verdictStore: verdictStoreOf(plan, records),
+    verdictStore: verdictStoreOf(input),
     controls: input.controls,
     observedModels: [...new Set(observed)],
     traces: input.traces,
@@ -158,15 +163,16 @@ export async function runTriage(options: TriageRunOptions): Promise<TriageRunRes
   const traces: CallTrace[] = [];
   const runner = options.runner ?? buildReader(options, root, traces);
   const plan = planTriage(options);
-  const runId = options.seed ?? randomUUID();
-  const items = workItems(plan, options, runId);
+  const runId = options.runId ?? options.seed ?? randomUUID();
+  const items = workItems(plan, options, options.seed ?? runId);
   const mapped = await fanOutReads(items, { ...options, maxFailures: maxFailuresOf(options), runner, dbPath: path.join(outDir, "triage.sqlite3"), scratch: plan.spec !== undefined });
   const verified = verifyAll(mapped);
   const controls = scoreControlItems(items, verified.kept);
   const records = toRecords(items, verified, controls, runId, modelByItem(traces, options.model));
   const known = new Map([...plan.keys].map(([finding, key]) => [key, finding]));
-  const view = persistVerdicts(plan.dbPath, plan.snapshotId, records, known);
-  const report = buildReport({ plan, options, runId, startedAt, mapped, verified, controls, records, traces });
+  const view = persistVerdicts(plan.dbPath, plan.snapshotId, records, plan.verdicts.fromFiles, known);
+  const fragment = options.verdictsDir === undefined ? undefined : writeVerdictFragment(path.resolve(options.verdictsDir), runId, records);
+  const report = buildReport({ plan, options, runId, startedAt, mapped, verified, controls, records, traces, fragment });
   writeTriageOutputs(outDir, view, report);
   return { outDir, report, verdicts: records };
 }

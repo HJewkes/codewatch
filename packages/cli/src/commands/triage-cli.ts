@@ -16,6 +16,8 @@ interface TriageCliOptions {
   db?: string;
   audit?: string;
   spec?: string;
+  verdictsDir?: string;
+  runId?: string;
 }
 
 function nonNegative(value: string): number {
@@ -30,6 +32,11 @@ function nonNegativeInt(value: string): number {
   return n;
 }
 
+function fragmentName(value: string): string {
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value)) throw new InvalidArgumentError("expected letters, digits, '.', '_' or '-', starting with a letter or digit");
+  return value;
+}
+
 function positiveInt(value: string): number {
   const n = Number(value);
   if (!Number.isInteger(n) || n < 1) throw new InvalidArgumentError("expected a whole number >= 1");
@@ -40,7 +47,7 @@ async function runDryRun(target: string, options: TriageCliOptions): Promise<voi
   const { planTriage } = await import("./triage-plan.js");
   const { formatTriagePlan } = await import("./triage-format.js");
   const includeTests = options.includeTests ?? false;
-  const plan = planTriage({ path: target, db: options.db, auditDir: options.audit, specFile: options.spec, minRank: options.minRank, includeTests });
+  const plan = planTriage({ path: target, db: options.db, auditDir: options.audit, specFile: options.spec, verdictsDir: options.verdictsDir, minRank: options.minRank, includeTests });
   for (const warning of plan.warnings) console.error(`codewatch triage: ${warning}`);
   console.log(formatTriagePlan(plan, { ...options, includeTests }));
 }
@@ -79,6 +86,8 @@ export function registerTriageCommand(program: Command): void {
     .option("--db <path>", "Graph database (default: <path>/.codewatch/graph.db)")
     .option("--audit <dir>", "Audit output to read (default: <path>/.codewatch/audit)")
     .option("--spec <file>", "Checkpoint spec shown beside missing-test-kind questions; must sit outside the workspace, and no spec text is written under it")
+    .option("--verdicts-dir <dir>", "Also reuse the committed verdicts in <dir>/verdicts.jsonl and <dir>/verdicts.d/*.jsonl, and write this run's new verdicts to <dir>/verdicts.d/<run-id>.jsonl; the head file is never written")
+    .option("--run-id <id>", "Names this run and its verdicts.d fragment (default: a fresh id)", fragmentName)
     .action(async (target: string, options: TriageCliOptions) => {
       try {
         await (options.dryRun ? runDryRun(target, options) : runModelTriage(target, options));
