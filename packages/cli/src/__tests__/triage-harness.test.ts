@@ -32,9 +32,9 @@ const RESULT = {
 };
 
 /** A stand-in `claude` that logs its argv and whether an API key reached it, then prints one JSON result. */
-function fakeClaude(dir: string): string {
+function fakeClaude(dir: string, result: object = RESULT): string {
   const bin = join(dir, "claude");
-  writeFileSync(join(dir, "result.json"), JSON.stringify(RESULT));
+  writeFileSync(join(dir, "result.json"), JSON.stringify(result));
   const script = [
     "#!/bin/sh",
     'model=; prev=; for a in "$@"; do [ "$prev" = "--model" ] && model="$a"; prev="$a"; done',
@@ -80,5 +80,25 @@ describe("triage on the claude-print harness", () => {
     expect(report.harness).toBe("claude-print");
     expect(report.observedModels).toEqual(["claude-fake-model"]);
     expect(report.traces[0]).toMatchObject({ inputTokens: 1200, outputTokens: 40, costUsd: 0.01 });
+  });
+
+  it("reports the reader model and its spend, not the Claude Code side-call model", async () => {
+    const withSideCall = {
+      ...RESULT,
+      total_cost_usd: 0.05,
+      modelUsage: {
+        "claude-haiku-4-5-20251001": { inputTokens: 300, outputTokens: 10, costUSD: 0.01 },
+        "claude-sonnet-5-5": { inputTokens: 1200, outputTokens: 40, costUSD: 0.04 },
+      },
+    };
+    vi.stubEnv("CLAUDE_BIN", fakeClaude(bin, withSideCall));
+    vi.stubEnv("CLAUDE_CODE_OAUTH_TOKEN", undefined);
+    const controls = loadControls().filter((c) => c.id === "py-helper-clean");
+
+    const { report } = await runTriage({ path: dir, minRank: 0, includeTests: false, model: "claude-sonnet-5-5", concurrency: 1, budgetUsd: 5, controls, controlCount: 1, seed: "s" });
+
+    expect(report.observedModels).toEqual(["claude-sonnet-5-5"]);
+    expect(report.traces.map((t) => t.model)).toEqual(report.traces.map(() => "claude-sonnet-5-5"));
+    expect(report.cost.spentUsd).toBeCloseTo(0.04 * report.calls.succeeded, 6);
   });
 });

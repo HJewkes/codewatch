@@ -104,6 +104,8 @@ class ClaudeCodeCwAgent(ClaudeCodeAgent):
     def _stage_env(self) -> dict[str, str]:
         env = {key: str(value) for key, value in self.env.items()}
         env.update(self._build_runtime_auth_env())
+        # The solve sets this too; without it Claude Code makes haiku side calls in a stage.
+        env["DISABLE_NON_ESSENTIAL_MODEL_CALLS"] = "1"
         env["CW_CHECKPOINT"] = str(self.checkpoint_index)
         env["CW_CLAUDE_BINARY"] = self.binary
         env["CW_MODEL"] = self.model

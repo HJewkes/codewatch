@@ -32,7 +32,10 @@ stages:
     command: >-
       codewatch audit /workspace &&
       python3 /opt/codewatch-a1/tiert /workspace --out /workspace/.codewatch/audit/findings.jsonl --append
-  triage: {enabled: false}
+  # --model is explicit: @codewatch/cli 0.7.0 defaults to the `sonnet` alias.
+  triage:
+    enabled: false
+    command: codewatch triage /workspace --model claude-sonnet-5-5
   solve-review: {enabled: false}
   # exec, so a SIGTERM reaches python and the workspace is restored.
   fix:
