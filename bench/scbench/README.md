@@ -90,6 +90,28 @@ snapshot, so the repository and the carry files start fresh after a resume.
 Test-shape checks for pytest functions: assertion-free, weak-oracle-only, duplicate
 assert and self-compare, written as `findings.jsonl` rows. See `tiert/README.md`.
 
+## smoke/
+
+The U10 credential smoke checks the A1 image's three model paths with the OAuth token:
+one `codewatch triage --budget-usd 0.2` run, one 2-turn fix session (U8's `FixSession`)
+and one U17 review. They run on a synthetic 3-file workspace, and the spec stays outside
+it. Run from `bench/scbench`, with the token as an env prefix:
+
+```
+DOCKER_HOST=unix:///run/user/1000/docker.sock \
+CLAUDE_CODE_OAUTH_TOKEN="$(cat ~/.config/scbench/claude-oauth-token-server)" \
+python3 -m smoke.credential_smoke --out "$HOME/.cache/codewatch-scbench/runs/U10/<UTC ts>"
+```
+
+`docker run` gets the token by name (`-e CLAUDE_CODE_OAUTH_TOKEN`) and uses the default
+bridge network, because the calls need the API. The container runs as 0:0 with
+`IS_SANDBOX=1`, as the pilot env does. The run dir holds the three report lines in
+`stages.json`, each call's raw output, and Claude's home with its session traces, so a
+byte scan for the token covers everything the calls wrote.
+
+The image pins `@codewatch/cli` 0.7.0. Its `triage` has no `--spec`, and its `--model`
+defaults to the `sonnet` alias, so the smoke passes `--model claude-sonnet-5-5`.
+
 ## review/
 
 The spec-aware commit review (design unit U17): one Sonnet 5.5 call per commit, with no
@@ -178,6 +200,79 @@ the runner's code at `31ceea3` and was checked against one real eval output:
 tests directory, using a copy in `--scratch`. It reads only the report totals. The
 report's parity gap compares the recorded scores with the whole-snapshot rerun. A gap
 above about 0.001 means the rerun does not reproduce the grade.
+
+## remediation/
+
+The A1 fix stage (design unit U8, Revision 1): one validated commit per confirmed item.
+The image copies it in, and `agent/claude_code_cw.yaml` runs it as the `fix` stage, from
+the workspace, as
+`exec env PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m remediation`.
+It works on the PR branch (`cp-N`) of the hidden repository (`GIT_DIR=.codewatch/repo.git`,
+created by the U15 stages); with no repository, or with uncommitted changes, it skips.
+Before that check it adds U15's exclude list (`EXCLUDES` in `prflow/repo.py`) to
+`$GIT_DIR/info/exclude`, so tool output (bytecode, caches, a virtualenv) and the rebuilt
+parts of `.codewatch/` (`repo.git/`, `cache/`, `audit/`) never count as changes, get
+committed or are removed by a reset. The committed parts of `.codewatch/`, such as
+`taste.md`, stay visible.
+
+**No caps by default.** There is no item cap and no turn cap. `--max-items` and
+`--max-turns` exist only as opt-in flags with no default. The stage stops starting items
+when less than `--reset-margin` (180 s) remains before `CW_STAGE_DEADLINE`, the stage
+deadline the agent passes in, and then resets the work tree to the last kept commit.
+
+1. **Items** come from `.codewatch/audit/` in three phases. Each carries its question,
+   verdict, citations and a one-line fix sketch. A verdict item also carries the evidence of
+   its finding in `findings.jsonl` (same signal, path and symbol); for `missing-test-kind`
+   that names the code kind and the missing test kind, and the fix sketch names the kind.
+   - Phase 1, test gaps on files the PR changed (`git diff <merge-base>`): `diff-uncovered`
+     findings (U5), confirmed weak-oracle verdicts, and confirmed `missing-test-kind`
+     verdicts (U7b).
+   - Phase 2, confirmed quality findings on changed files.
+   - Phase 3, confirmed findings on any other file, test gaps first.
+
+   When `triage.json` says the controls failed, or a verdict is itself provisional,
+   quality items are held back (`held_back` counts them).
+2. **Session.** One claude session with the solve's binary, model, permission mode and
+   credential env. The first item starts it under a fresh `--session-id`, and each later
+   item resumes it. `stages.json` records the id, so the transcript audit and the
+   analysis can tell its trace from the solve's in the shared `~/.claude`. The prompts
+   name no grader, grader tool or grader metric.
+3. **One commit per item**, kept only if it passes these checks:
+   - a test gap, in any phase: it changes files under the tests directory only, and the
+     suite is green;
+   - a quality item: the suite is green, and `codewatch graph check --baseline
+     <merge-base>` lists no violation the tree before the commit did not already have.
+     The baseline is `cw-merge-base-cp-N`, which `commit-ratchet` indexed, unless
+     `--baseline` names another. With a codewatch that has no `graph index --rev`, that
+     ref does not exist and quality items are not started ("graph check could not run").
+
+   A failing commit is reverted alone (`git revert`), and the next item still runs; the
+   session is told which item was reverted and why.
+4. **Review hook (U17).** A commit that passes goes to `--review-command <sha>` when one
+   is set. That command prints `{"verdict": "ok"|"conflict", "spec_line", "reason"}`. On a
+   conflict the session is resumed once with the finding, and the revised commit is
+   checked and reviewed again. If the conflict stands, the commit is reverted. With no
+   command, the verdict is recorded as `not-configured`.
+5. **Phase 3** items each get their own branch, `cw-backlog-<n>-<PR branch>`, from the PR
+   branch. A branch is merged back with `--no-ff` only when its commit is kept.
+
+   The hidden repository and the graph database outlive a checkpoint. So every name the
+   stage creates carries the PR branch (`cw-backlog-<n>-cp-N`, and the graph refs
+   `cw-fix-cp-N`, with `scoped` from `prflow/repo.py`), and a rerun on the same checkpoint resets a
+   backlog branch an earlier run left behind.
+6. **Safety net.** The whole workspace is copied to `--scratch` (default
+   `~/.cache/codewatch-remediation`) first. After an error, or a SIGTERM (the command
+   `exec`s python), the stage resets to the last kept commit and drops the copy. If that
+   reset fails, it restores the copy. If the restore also fails, the copy stays, and its
+   path is printed on stderr.
+
+The report line sets `outcome` (`kept` if any commit was kept, else `reverted`,
+`unchanged` or `skipped`), `reason`, `items_in`, `items_out` (commits kept), `held_back`,
+`stopped_by`, `session_id`, `turns`, `tokens`, `usd`, `added_symbols` (from kept phase-2
+and phase-3 commits, flagged `single-caller-helper` when exactly one call reaches them),
+and `items`. Each entry in `items` gives the phase, signal, path, status (`kept`,
+`reverted`, `unchanged`, `time limit` or `not-started`), commit sha, reason, review
+verdict and whether the session was resumed.
 
 ## findings/
 

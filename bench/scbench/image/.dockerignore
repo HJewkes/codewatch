@@ -2,3 +2,9 @@
 !requirements.txt
 !codewatch-wrapper.sh
 !assert-clean.sh
+!synthesis
+!review
+!tiert
+!prflow
+!remediation
+**/__pycache__

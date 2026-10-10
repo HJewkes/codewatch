@@ -34,7 +34,10 @@ stages:
       python3 /opt/codewatch-a1/tiert /workspace --out /workspace/.codewatch/audit/findings.jsonl --append
   triage: {enabled: false}
   solve-review: {enabled: false}
-  fix: {enabled: false}
+  # exec, so a SIGTERM reaches python and the workspace is restored.
+  fix:
+    enabled: false
+    command: exec env PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m remediation
   synthesis:
     enabled: false
     command: PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -m synthesis
