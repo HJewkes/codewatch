@@ -1,0 +1,1 @@
+- Keep the discount rounding in one function. {inferred cp2 fp:code-graph:symbol-cognitive:shop/pricing.py#apply_discount:1b2c3d4e5f6a7b8c#0}

@@ -1,9 +1,6 @@
 {
   "openItems": [
-    { "kind": "regression", "path": "shop/cart.py", "line": 41, "text": "The total no longer rounds half-up, and no spec line asks for the change." },
-    { "kind": "ratchet", "path": "shop/pricing.py", "line": 12, "text": "symbol_cyclomatic=14 (max 10)" },
-    { "kind": "quality", "path": "shop/pricing.py", "line": 30, "text": "The two discount branches do the same job." },
-    { "kind": "quality", "path": "shop/cart.py", "line": 8, "text": "A fourth item is never shown." }
+    { "kind": "ratchet", "path": "shop/pricing.py", "line": 12, "text": "symbol_cyclomatic=14 (max 10)" }
   ],
   "changedSymbols": [
     { "symbol": "shop/pricing.py#apply_discount", "importers": 3 },
