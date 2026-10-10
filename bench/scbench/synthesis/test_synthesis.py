@@ -151,6 +151,10 @@ class StageTestCase(unittest.TestCase):
     def read(self, rel: str) -> str:
         return (self.workspace / ".codewatch" / rel).read_text()
 
+    def read_merged(self, rel: str) -> str:
+        """A file as the PR merged it, before the fold on `main` absorbed it."""
+        return self.repo.run("show", f"main^:.codewatch/{rel}") + "\n"
+
 
 class RunStageTest(StageTestCase):
     def test_writes_a_tagged_taste_fragment_and_merges_the_pr_with_the_report_as_its_message(self) -> None:
@@ -159,21 +163,28 @@ class RunStageTest(StageTestCase):
         report = self.run_stage(FakeModel(ModelReply(text=REPLY, tokens=22000, usd=0.07)))
 
         listed = listed_verdicts(VERDICTS)
-        self.assertEqual(self.read("taste.d/cp-1.md").splitlines(), [
+        taste = [
             f"- Keep discount rounding in one function in shop/pricing.py. {{inferred cp1 fp:{listed[0]['key']}}}",
             f"- Share one price parser instead of copying it. {{inferred cp1 fp:{listed[1]['key']}}}",
             f"- The thin Cart wrapper marks the API boundary; keep it. {{inferred cp1 fp:{listed[2]['key']}}}",
-        ])
+        ]
+        self.assertEqual(self.read_merged("taste.d/cp-1.md").splitlines(), taste)
+        self.assertEqual(self.read("taste.md").splitlines(), taste)
         self.assertEqual(report, {"tokens": 22000, "usd": 0.07, "items_in": 4 + 1 + 2, "items_out": 3,
                                   "outcome": "written", "branch": "cp-1", "baseline": "cw-merge-base-cp-1",
-                                  "merge": "merged", "merge_commit": self.repo.rev("main")})
-        message = self.repo.run("log", "-1", "--format=%B", "main")
+                                  "merge": "merged", "merge_commit": self.repo.rev("main^"),
+                                  "fold": {"absorbed": 1, "anchors": "unknown", "outcome": "folded",
+                                           "fold_commit": self.repo.rev("main")}})
+        message = self.repo.run("log", "-1", "--format=%B", "main^")
         self.assertEqual(message, "Merge cp-1 into main\n\n" + render_markdown(json.loads(self.read("audit/pr-report.json"))).strip())
         self.assertEqual(self.repo.branch(), "main")
-        tracked = self.repo.run("ls-tree", "-r", "--name-only", "main").splitlines()
-        self.assertIn(".codewatch/taste.d/cp-1.md", tracked)
-        self.assertNotIn(".codewatch/session-brief.json", tracked)
-        self.assertNotIn(".codewatch/taste.md", tracked)
+        merged = self.repo.run("ls-tree", "-r", "--name-only", "main^").splitlines()
+        self.assertIn(".codewatch/taste.d/cp-1.md", merged)
+        self.assertNotIn(".codewatch/session-brief.json", merged)
+        self.assertNotIn(".codewatch/taste.md", merged)
+        folded = self.repo.run("ls-tree", "-r", "--name-only", "main").splitlines()
+        self.assertIn(".codewatch/taste.md", folded)
+        self.assertNotIn(".codewatch/taste.d/cp-1.md", folded)
 
     def test_ratchets_the_current_head_against_the_merge_base(self) -> None:
         self.open_pr()
@@ -211,7 +222,7 @@ class RunStageTest(StageTestCase):
 
         self.run_stage(FakeModel(ModelReply(long_reply, 1, 0.0)))
 
-        fragment = self.read("taste.d/cp-1.md")
+        fragment = self.read_merged("taste.d/cp-1.md")
         self.assertLessEqual(len(fragment.split()), MAX_FRAGMENT_WORDS)
         self.assertTrue(all(line.endswith("}") and "{inferred cp1 fp:" in line for line in fragment.splitlines()))
 
@@ -233,7 +244,7 @@ class RunStageTest(StageTestCase):
         report = self.run_stage(FakeModel(RuntimeError("claude exited 1")))
 
         self.assertEqual((report["outcome"], report["merge"]), ("model_failed", "merged"))
-        self.assertEqual(self.read("taste.d/cp-1.md"), "- earlier {inferred cp1 fp:k}\n")
+        self.assertEqual(self.read_merged("taste.d/cp-1.md"), "- earlier {inferred cp1 fp:k}\n")
 
     def test_without_graph_index_rev_reports_every_violation_and_no_changed_symbols(self) -> None:
         self.codewatch = FakeCodewatch(has_rev=False)

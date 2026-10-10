@@ -97,8 +97,19 @@ snapshots), then writes:
 
 It then merges `cp-N` into `main` with the report's markdown as the commit message. The
 codewatch plugin's SessionStart hook appends the taste and verdict heads plus unmerged
-fragments, and the brief, to its snapshot. Folding fragments into the heads is a separate
-job. On `@codewatch/cli` 0.7.0, which has no `graph index --rev`, there is no merge-base
+fragments, and the brief, to its snapshot.
+
+On `main`, synthesis then acts as the merging job (`synthesis/fold_job.py`). It folds
+`taste.d/*.md` into `taste.md` and `verdicts.d/*.jsonl` into `verdicts.jsonl`, in id order
+(`cp-2` before `cp-10`), and deletes the absorbed fragments in one commit. An
+`{owner ...}` taste line is never edited or removed, and an inferred line replaces the
+earlier one with the same finding key. For verdicts the latest row per key wins, and a
+key whose anchor symbol is not in the head snapshot's node table is dropped; when that
+table cannot be read, nothing is dropped. A malformed fragment stays in place and is
+listed under `fold.malformed` in `stages.json`. With nothing to absorb there is no commit,
+so a second run is a no-op.
+
+On `@codewatch/cli` 0.7.0, which has no `graph index --rev`, there is no merge-base
 snapshot, so every violation counts as new and the changed-symbol list stays empty.
 
 **Budget.** Caps are opt-in, never defaults. With `stage_budget_s` unset, stages stop
