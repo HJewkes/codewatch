@@ -11,7 +11,7 @@ import {
 } from "@titan-design/code-graph";
 import { OllamaEmbedder, type Embedder } from "@titan-design/embed";
 import { contextBundleFromDb } from "../commands/graph-context.js";
-import type { ContextBundle } from "../commands/graph-context-bundle.js";
+import type { ContextBundle } from "@titan-design/code-graph";
 import {
   READ_API_VERSION,
   type ContextRecord,

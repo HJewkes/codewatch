@@ -6,7 +6,7 @@ import {
   type BundleFor,
   type LineOf,
 } from "../coding-inject.js";
-import type { BundleEdge, ContextBundle } from "../../commands/graph-context-bundle.js";
+import type { BundleEdge, ContextBundle } from "@titan-design/code-graph";
 import type { CodingTask } from "../coding-types.js";
 
 const TEST_FILE = "test/router.test.ts";

@@ -1,18 +1,16 @@
 import type {
+  BundleEdge,
+  BundleEdges,
+  ContextBundle,
   ConventionMap,
   ConventionMatch,
   ConventionQueryResult,
   DeepAst,
+  SourceChunk,
   SimilarCandidate,
   SimilarResult,
 } from "@titan-design/code-graph";
 import type { Embedder } from "@titan-design/embed";
-import type {
-  BundleEdge,
-  BundleEdges,
-  ContextBundle,
-  SourceChunk,
-} from "../commands/graph-context-bundle.js";
 
 /**
  * C-81 — the **stable library-level read API contract**. Consumers (an MCP
