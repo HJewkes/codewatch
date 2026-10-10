@@ -6,7 +6,9 @@ import contextlib
 import io
 import json
 import os
+import shlex
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -14,6 +16,7 @@ from unittest import mock
 
 from synthesis.rubric import ModelReply, claude_argv
 
+from review import IMAGE_COMMAND
 from review import __main__ as cli
 from review.inputs import InputError, expected_output_diff
 from review.stage import Request, review
@@ -129,6 +132,13 @@ class FixCommitTest(HiddenRepoTestCase):
         self.assertEqual(report["reason"], "The spec says: <spec>")
         self.assertNotIn(SPEC[3], json.dumps(report))
 
+    def test_spec_text_repeated_in_another_letter_case_is_replaced(self):
+        sha = self.commit("simplify", {"shop/pricing.py": PRICING.replace(":.2f", "")})
+        model = FakeModel({"verdict": "conflict", "spec_line": 4, "spec_quote": SPEC[3],
+                           "reason": f"It breaks: {SPEC[3].upper()}"})
+
+        self.assertEqual(review(self.request(sha), model)["reason"], "It breaks: <spec>")
+
 
 SOLVE_TEST = TEST.replace('"Total: 2.50"', '"Total: 2.5"')
 GOLDEN = "tests/golden/receipt.txt"
@@ -206,6 +216,25 @@ class CommandTest(HiddenRepoTestCase):
 
         self.assertEqual(code, 1)
         self.assertIn(InputError.__name__, err)
+
+
+BENCH = Path(__file__).resolve().parents[1]
+IMAGE_ROOT, IMAGE_PYTHON = "/opt/codewatch-a1", "/opt/codewatch-a1/py/bin/python"
+
+
+class ImageCommandTest(HiddenRepoTestCase):
+    def test_the_readme_documents_the_image_command(self):
+        self.assertIn(IMAGE_COMMAND, (BENCH / "README.md").read_text())
+
+    def test_the_image_command_runs_as_a_hook_runs_it_split_and_without_a_shell(self):
+        sha = self.commit("rename", {"shop/pricing.py": PRICING.replace("format_total", "render_total")})
+        local = IMAGE_COMMAND.replace(IMAGE_PYTHON, sys.executable).replace(IMAGE_ROOT, str(BENCH))
+        argv = [*shlex.split(local), "--mode", EXPECTED_OUTPUT, "--spec", str(self.spec), sha]
+
+        done = subprocess.run(argv, cwd=self.workspace, capture_output=True, text=True, timeout=60, check=False)
+
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(json.loads(done.stdout.splitlines()[-1])["verdict"], "ok")
 
 
 class PromptTest(unittest.TestCase):

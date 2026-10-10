@@ -3,7 +3,8 @@
 The reply cites one spec line by number and copies its text. The citation counts only
 when that line exists and contains the copied text; otherwise `spec_line` is dropped
 and `citation` says so. The copied text is never passed on, and spec lines the model
-repeats in its reason are replaced, so no spec text reaches `stages.json`.
+repeats word for word in its reason are replaced, in any letter case; a paraphrase is
+not caught.
 """
 
 from __future__ import annotations
@@ -97,7 +98,7 @@ def check_citation(reply: dict, spec: list[str]) -> tuple[int | None, str]:
 def redact(text: str, spec: list[str]) -> str:
     lines = sorted({s.strip() for s in spec if len(s.strip()) >= MIN_REDACTED_LINE}, key=len, reverse=True)
     for line in lines:
-        text = text.replace(line, SPEC_MARK)
+        text = re.sub(re.escape(line), SPEC_MARK, text, flags=re.IGNORECASE)
     return text
 
 
