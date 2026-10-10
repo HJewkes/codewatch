@@ -173,7 +173,9 @@ writes the decision table as `report.md` and `report.json`. It contains:
 - per-problem final checkpoints
 - the adopt / iterate / drop verdict
 - the gaming checks
-- mechanism signals
+- mechanism signals: test-gap items per phase, commits kept against reverted, review
+  conflicts and resumes, tests added by kind (snapshot or golden, exact output, error
+  path, other) and backlog left open, all read from the `fix` stage's `items`
 - a sensitivity run of erosion and verbosity with the agent's tests directory excluded
 
 ```
@@ -270,7 +272,8 @@ The report line sets `outcome` (`kept` if any commit was kept, else `reverted`,
 `unchanged` or `skipped`), `reason`, `items_in`, `items_out` (commits kept), `held_back`,
 `stopped_by`, `session_id`, `turns`, `tokens`, `usd`, `added_symbols` (from kept phase-2
 and phase-3 commits, flagged `single-caller-helper` when exactly one call reaches them),
-and `items`. Each entry in `items` gives the phase, signal, path, status (`kept`,
+and `items`. Each entry in `items` gives the phase, kind (`test-gap` or `quality`), signal,
+the missing test kind (for `missing-test-kind`), path, status (`kept`,
 `reverted`, `unchanged`, `time limit` or `not-started`), commit sha, reason, review
 verdict and whether the session was resumed.
 

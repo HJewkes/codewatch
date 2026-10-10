@@ -113,7 +113,8 @@ def _gaming_section(a: Analysis) -> str:
     g = a.gaming
     splits = (
         f"- Kept remediation split symbols (single-caller helper, pass-through): "
-        f"{g.split_symbols} across {g.split_checkpoints} checkpoints"
+        f"{g.split_symbols} in {g.split_commits} kept phase-2 or phase-3 commits, "
+        f"across {g.split_checkpoints} checkpoints"
     )
     drop = (
         f"- Summed paired erosion drop, A1a to A1: {g.erosion_drop:.3f}; at split checkpoints: "
@@ -129,7 +130,14 @@ def _gaming_section(a: Analysis) -> str:
 
 
 def _mechanism_section(a: Analysis) -> str:
-    lines = [f"- {key.replace('_', ' ')}: {_num(value, '.2f')}" for key, value in a.mechanism.items()]
+    lines = []
+    for key, value in a.mechanism.items():
+        label = key.replace("_", " ")
+        if isinstance(value, dict):
+            parts = ", ".join(f"{name.replace('_', ' ')} {count}" for name, count in value.items())
+            lines.append(f"- {label}: {parts or 'none'}")
+        else:
+            lines.append(f"- {label}: {_num(value, '.2f')}")
     return "\n".join(["## Mechanism signals (A1)", "", *lines])
 
 

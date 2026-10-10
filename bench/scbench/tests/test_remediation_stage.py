@@ -22,6 +22,7 @@ class PhaseOneTest(StageTestCase):
         self.assertEqual(git(self.root, "rev-parse", "HEAD"), item["commit"])
         self.assertEqual(self.log("-1"), ["codewatch fix 1: symbol_weak_oracle_only in tests/test_app.py"])
         self.assertEqual((item["review"]["verdict"], git(self.root, "branch", "--show-current")), ("ok", "cp-2"))
+        self.assertEqual((item["kind"], item["missing"]), ("test-gap", None))
         self.assertEqual((report["tokens"], report["usd"], report["turns"]), (15, 0.1, 3))
 
     def test_a_test_gap_commit_that_edits_source_is_reverted_and_the_next_item_still_runs(self):
