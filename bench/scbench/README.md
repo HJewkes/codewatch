@@ -89,6 +89,28 @@ snapshot, so the repository and the carry files start fresh after a resume.
 Test-shape checks for pytest functions: assertion-free, weak-oracle-only, duplicate
 assert and self-compare, written as `findings.jsonl` rows. See `tiert/README.md`.
 
+## smoke/
+
+The U10 credential smoke checks the A1 image's three model paths with the OAuth token:
+one `codewatch triage --budget-usd 0.2` run, one 2-turn fix session (U8's `FixSession`)
+and one U17 review. They run on a synthetic 3-file workspace, and the spec stays outside
+it. Run from `bench/scbench`, with the token as an env prefix:
+
+```
+DOCKER_HOST=unix:///run/user/1000/docker.sock \
+CLAUDE_CODE_OAUTH_TOKEN="$(cat ~/.config/scbench/claude-oauth-token-server)" \
+python3 -m smoke.credential_smoke --out "$HOME/.cache/codewatch-scbench/runs/U10/<UTC ts>"
+```
+
+`docker run` gets the token by name (`-e CLAUDE_CODE_OAUTH_TOKEN`) and uses the default
+bridge network, because the calls need the API. The container runs as 0:0 with
+`IS_SANDBOX=1`, as the pilot env does. The run dir holds the three report lines in
+`stages.json`, each call's raw output, and Claude's home with its session traces, so a
+byte scan for the token covers everything the calls wrote.
+
+The image pins `@codewatch/cli` 0.7.0. Its `triage` has no `--spec`, and its `--model`
+defaults to the `sonnet` alias, so the smoke passes `--model claude-sonnet-5-5`.
+
 ## review/
 
 The spec-aware commit review (design unit U17): one Sonnet 5.5 call per commit, with no
