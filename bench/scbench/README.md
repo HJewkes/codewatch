@@ -22,6 +22,38 @@ without costing correctness.
 - **The loop never sees the grader** (design section 3). No stage reads scb-check output,
   and the analysis never writes per-rule scb-check breakdowns.
 
+## Running an arm
+
+All three arms use the launcher in `agent/` and the vendored configs in `configs/`.
+Always launch with `python -m agent`. Never use a bare `slop-code run`: it skips the
+launcher setup, so the token would go on the `docker exec` argv, the model catalog
+would be empty, and nothing would guard the run dir. Run from `bench/scbench`:
+
+```
+DOCKER_HOST=unix:///run/user/1000/docker.sock \
+CLAUDE_CODE_OAUTH_TOKEN="$(cat ~/.config/scbench/claude-oauth-token-server)" \
+uv run --frozen --project agent python -m agent run \
+  --agent <claude_code.yaml or agent/claude_code_cw.yaml> \
+  --environment configs/environments/docker-python3.12-uv-rootless.yaml \
+  --prompt <just-solve | a1a> --model claude_code_oauth/sonnet-5.5 --problem <name> \
+  save_dir="$HOME/.cache/codewatch-scbench/runs/<arm>/<UTC timestamp>" save_template=run
+```
+
+The runner ignores `output_path=`. The launcher refuses a run dir inside any repo
+checkout, and the runner's default `save_dir` (`outputs`) is one. It also refuses a
+`save_dir` that starts with a literal `~`, because the runner does not expand it.
+
+## Validity notes
+
+- **The agent runs as container root.** Rootless Docker needs `user: "0:0"` so the
+  agent can write the mounted workspace. The paper used a non-root user. The setup is the
+  same for A0, A1a and A1.
+- **`IS_SANDBOX=1`.** Claude Code 2.0.51 refuses `--dangerously-skip-permissions` as
+  uid 0 unless `IS_SANDBOX` is set, so the pilot env sets it. The claude argv is
+  unchanged. A side effect in the same CLI: under `IS_SANDBOX`, an API overloaded error
+  (529) throws instead of retrying. So an overload can end a checkpoint's solve early.
+  Report such checkpoints per arm. The env is the same for all three arms.
+
 ## tiert/
 
 Test-shape checks for pytest functions: assertion-free, weak-oracle-only, duplicate
@@ -69,7 +101,8 @@ above about 0.001 means the rerun does not reproduce the grade.
 ## remediation/
 
 The A1 fix stage (design unit U8, Revision 1): one validated commit per confirmed item.
-The image copies it in, and `agent/claude_code_cw.yaml` runs it from the workspace as
+The image copies it in, and `agent/claude_code_cw.yaml` runs it as the `fix` stage, from
+the workspace, as
 `exec env PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m remediation`.
 It works on the PR branch (`cp-N`) of the hidden repository (`GIT_DIR=.codewatch/repo.git`,
 created by the U15 stages); with no repository, or with uncommitted changes, it skips.
@@ -80,8 +113,8 @@ are removed by a reset.
 
 **No caps by default.** There is no item cap and no turn cap. `--max-items` and
 `--max-turns` exist only as opt-in flags with no default. The stage stops starting items
-when less than `--reset-margin` (180 s) remains before `CW_DEADLINE`, the stage deadline
-the agent passes in, and then resets the work tree to the last kept commit.
+when less than `--reset-margin` (180 s) remains before `CW_STAGE_DEADLINE`, the stage
+deadline the agent passes in, and then resets the work tree to the last kept commit.
 
 1. **Items** come from `.codewatch/audit/` in three phases. Each carries its question,
    verdict, citations and a one-line fix sketch.
@@ -132,6 +165,33 @@ and phase-3 commits, flagged `single-caller-helper` when exactly one call reache
 and `items`. Each entry in `items` gives the phase, signal, path, status (`kept`,
 `reverted`, `unchanged`, `time limit` or `not-started`), commit sha, reason, review
 verdict and whether the session was resumed.
+
+## findings/
+
+Finding producers for A1's audit stage. Each writes `findings.jsonl` rows in the contract
+`codewatch audit` and `codewatch triage` read, and prints a JSON summary as its last stdout
+line for `stages.json`. They call the image's pinned tools by full path under
+`/opt/codewatch-a1/bin/`.
+
+- `diff_uncovered`: functions changed since a caller-supplied baseline that no test
+  executes, as signal `diff-uncovered`. The baseline is an earlier snapshot directory or a
+  git revision (for a PR, its merge-base with main). It runs pytest under coverage.py, or
+  reads existing `coverage json` output. An unreadable baseline or a missing report is
+  unknown, not a finding: it writes no rows and exits 1. So is a pytest run that did not
+  run the tests (exit 2 to 5, such as a collection error) or a report that measured none
+  of the workspace's files. The image's coverage and pytest live in their own venv, which
+  lacks the workspace's third-party dependencies; a workspace that needs them gets
+  `no-coverage` unless the caller passes a report made with the workspace's interpreter.
+  Python subprocesses the tests start are measured too (a scratch rcfile with
+  `patch = subprocess`, then `coverage combine`), except one started under an interpreter
+  without coverage installed, such as the workspace's own venv python: its functions
+  still read as untested.
+
+```
+cd bench/scbench
+python3 -m findings.diff_uncovered --workspace <dir> (--base-rev <sha> | --base-dir <dir>) \
+  --out <findings.jsonl> [--coverage-json <file>]
+```
 
 **Tests** use the standard library's `unittest` and run as part of `pnpm test`, which
 is also how CI runs them:

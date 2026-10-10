@@ -1,12 +1,14 @@
 """`slop-code` with `claude_code_cw` registered: `python -m agent run ...`.
 
-The import sits at module level so that spawned problem workers, which re-import
-this module, register the agent too.
+Spawned workers do not re-run this module; `bootstrap.setup()` reaches them through
+the process pools' initializer instead.
 """
 
 from slop_code.entrypoints.cli import app
 
-from agent import claude_code_cw  # noqa: F401
+from agent import bootstrap
+
+bootstrap.setup()
 
 if __name__ == "__main__":
     app()

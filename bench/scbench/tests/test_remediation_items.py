@@ -115,7 +115,7 @@ class PromptTest(unittest.TestCase):
 
 class CommandLineTest(unittest.TestCase):
     def test_no_cap_has_a_default_and_the_deadline_comes_from_the_agent(self):
-        config = parse_args(["--workspace", "."], {"CW_DEADLINE": "1700000000"})
+        config = parse_args(["--workspace", "."], {"CW_STAGE_DEADLINE": "1700000000"})
 
         self.assertEqual((config.max_items, config.max_turns), (None, None))
         self.assertEqual(config.deadline, 1_700_000_000.0)

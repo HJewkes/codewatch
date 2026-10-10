@@ -17,10 +17,15 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
-BEFORE_SOLVE = ("inject",)
-AFTER_SOLVE = ("index", "audit", "replay", "triage", "remediation", "synthesis")
+BEFORE_SOLVE = ("repo-init", "pr-open", "inject")
+AFTER_SOLVE = ("commit-ratchet", "audit", "triage", "solve-review", "fix", "synthesis")
 STAGE_NAMES = BEFORE_SOLVE + AFTER_SOLVE
 FIRST_INJECT_CHECKPOINT = 2
+
+# Covers the consistency reset only (README.md, "Budget"): no new stage starts once
+# less than this remains under the checkpoint cap.
+DEFAULT_RESERVE_SECONDS = 3 * 60
+DEFAULT_CAP_SECONDS = 2 * 60 * 60
 
 METRIC_FIELDS = ("tokens", "usd", "items_in", "items_out")
 PASSTHROUGH_FIELDS = (
@@ -48,19 +53,21 @@ Clock = Callable[[], float]
 
 @dataclass(frozen=True)
 class StageBudget:
-    """Stops launching stages after `stage_seconds` of stage time, or once less than
-    `reserve_seconds` remain under the `cap_seconds` checkpoint cap."""
+    """Stops launching stages once less than `reserve_seconds` remain under the
+    `cap_seconds` checkpoint cap. `stage_seconds` is an opt-in cap on total stage time;
+    unset, it never stops a stage."""
 
     checkpoint_start: float
-    stage_seconds: float = 25 * 60
-    cap_seconds: float = 2 * 60 * 60
-    reserve_seconds: float = 20 * 60
+    stage_seconds: float | None = None
+    cap_seconds: float = DEFAULT_CAP_SECONDS
+    reserve_seconds: float = DEFAULT_RESERVE_SECONDS
 
     def launch_deadline(self) -> float:
         return self.checkpoint_start + self.cap_seconds - self.reserve_seconds
 
     def may_launch(self, now: float, spent: float) -> bool:
-        return spent < self.stage_seconds and now < self.launch_deadline()
+        within_stage_cap = self.stage_seconds is None or spent < self.stage_seconds
+        return within_stage_cap and now < self.launch_deadline()
 
     def timeout(self, now: float) -> float:
         return max(self.launch_deadline() - now, 0.0)
@@ -87,7 +94,9 @@ class StageRecord:
 def stages_for(checkpoint: int, before_solve: bool) -> tuple[str, ...]:
     if not before_solve:
         return AFTER_SOLVE
-    return BEFORE_SOLVE if checkpoint >= FIRST_INJECT_CHECKPOINT else ()
+    first = ("repo-init",) if checkpoint == 1 else ()
+    inject = ("inject",) if checkpoint >= FIRST_INJECT_CHECKPOINT else ()
+    return (*first, "pr-open", *inject)
 
 
 class StageRunner:
@@ -123,10 +132,14 @@ class StageRunner:
         if not self.budget.may_launch(now, self.spent):
             return StageRecord(stage=name, status="skipped_budget")
         record = StageRecord(stage=name, status="ok", start=_iso(now))
+        # A long stage such as `fix` reads the deadline to stop starting items itself.
+        stage_env = {
+            **env,
+            "CW_STAGE": name,
+            "CW_STAGE_DEADLINE": f"{self.budget.launch_deadline():.0f}",
+        }
         try:
-            timeout = self.budget.timeout(now)
-            stage_env = {**env, "CW_STAGE": name, "CW_DEADLINE": f"{now + timeout:.0f}"}
-            result = self.executor(setting.command, stage_env, timeout)
+            result = self.executor(setting.command, stage_env, self.budget.timeout(now))
             _apply_result(record, result)
         except Exception as error:  # noqa: BLE001 - a stage must never end the checkpoint
             record.status = "failed"

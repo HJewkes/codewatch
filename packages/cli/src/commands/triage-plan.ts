@@ -5,7 +5,6 @@ import { defaultGraphDbPath, openGraphStore } from "../utils/graph-store.js";
 import { buildBundles, DEFAULT_TOKEN_CAP, type TriageBundle } from "./triage-bundle.js";
 import { readAuditOutputs, selectTriageFiles, type TriageSelectOptions, type TriageSelection } from "./triage-select.js";
 import { carryPriorVerdicts, skipJudged, type ReusedVerdict, type VerdictCarry } from "./triage-persist.js";
-import { questionFor } from "./triage-questions.js";
 import { fileRoles, snapshotSource } from "./triage-source.js";
 import { readSpec, withSpec } from "./triage-spec.js";
 
@@ -23,7 +22,7 @@ export interface TriagePlanOptions extends TriageSelectOptions {
   db?: string;
   auditDir?: string;
   tokenCap?: number;
-  /** The checkpoint spec, read from a file outside the workspace; regnet-diff findings are asked only with one. */
+  /** The checkpoint spec, read from a file outside the workspace and shown beside questions that use one. */
   specFile?: string;
 }
 
@@ -76,11 +75,6 @@ export function defaultAuditDir(root: string): string {
   return path.join(detectGitToplevel(root) ?? root, ".codewatch", "audit");
 }
 
-function specWarning(findings: readonly Finding[], hasSpec: boolean): string[] {
-  const unasked = hasSpec ? 0 : findings.filter((f) => questionFor(f.signal)?.needsSpec).length;
-  return unasked === 0 ? [] : [`${unasked} findings need a spec to judge and were not asked; pass --spec <file>`];
-}
-
 /** Carries earlier verdicts forward, then selects the files and findings still unjudged and builds their bundles, without calling a model. */
 export function planTriage(options: TriagePlanOptions): TriagePlan {
   const root = path.resolve(options.path);
@@ -93,9 +87,9 @@ export function planTriage(options: TriagePlanOptions): TriagePlan {
   try {
     const snapshotId = latestSnapshotId(dbPath, store);
     const carry = carryPriorVerdicts(store, snapshotId);
-    const warnings = specWarning(audit.findings, spec !== undefined);
+    const warnings: string[] = [];
     const source = withSpec(snapshotSource(store, snapshotId, idRoot, warnings), spec);
-    const selected = selectTriageFiles(audit, fileRoles(store, snapshotId), { ...options, hasSpec: spec !== undefined });
+    const selected = selectTriageFiles(audit, fileRoles(store, snapshotId), options);
     const { selection, keys, reused } = skipJudged(selected, source, listVerdicts(store, snapshotId), cap);
     const { bundles, skippedFiles } = buildBundles(selection.files, source, cap);
     const verdicts = { ...carry, reused };

@@ -1,7 +1,7 @@
 """Entry point for the fix stage command; prints the stage report as its last line.
 
 No flag caps the work by default: `--max-items` and `--max-turns` are opt-in. The stage
-stops only at `CW_DEADLINE`, the stage deadline the agent passes in, less
+stops only at `CW_STAGE_DEADLINE`, the stage deadline the agent passes in, less
 `--reset-margin` seconds kept for the consistency reset.
 """
 
@@ -35,7 +35,7 @@ def parse_args(argv: list[str], env: dict[str, str]) -> Config:
     p.add_argument("--tests-dir", default="tests")
     p.add_argument("--test-command", default=None, help="default: python -m pytest -q <tests dir>")
     p.add_argument("--review-command", default=None, help="U17 hook: gets the commit sha, prints a verdict")
-    p.add_argument("--deadline", type=float, default=float(env["CW_DEADLINE"]) if env.get("CW_DEADLINE") else None)
+    p.add_argument("--deadline", type=float, default=float(env["CW_STAGE_DEADLINE"]) if env.get("CW_STAGE_DEADLINE") else None)
     p.add_argument("--reset-margin", type=float, default=180.0)
     p.add_argument("--max-items", type=int, default=None)
     p.add_argument("--max-turns", type=int, default=None)
