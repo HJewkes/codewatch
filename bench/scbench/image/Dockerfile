@@ -41,6 +41,10 @@ COPY --from=prflow . /opt/codewatch-a1/prflow
 # Tier T test-shape checks, run by path: python3 /opt/codewatch-a1/tiert <root>.
 COPY --from=tiert . /opt/codewatch-a1/tiert
 
+# The remediation stage (bench/scbench/remediation), run as
+# PYTHONPATH=/opt/codewatch-a1 python -P -m remediation.
+COPY --from=remediation . /opt/codewatch-a1/remediation
+
 COPY codewatch-wrapper.sh /usr/local/bin/codewatch
 RUN chmod 755 /usr/local/bin/codewatch \
     && chmod -R a+rX /opt/codewatch-a1 \

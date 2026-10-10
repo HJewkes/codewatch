@@ -105,6 +105,10 @@ class ClaudeCodeCwAgent(ClaudeCodeAgent):
         env = {key: str(value) for key, value in self.env.items()}
         env.update(self._build_runtime_auth_env())
         env["CW_CHECKPOINT"] = str(self.checkpoint_index)
+        env["CW_CLAUDE_BINARY"] = self.binary
+        env["CW_MODEL"] = self.model
+        if self.permission_mode:
+            env["CW_PERMISSION_MODE"] = self.permission_mode
         return env
 
     def _exec_stage(self, command: str, env: tp.Mapping[str, str], timeout: float) -> ExecResult:
