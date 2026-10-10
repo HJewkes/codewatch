@@ -27,12 +27,28 @@ require_base() {
   uv run slop-code docker build-agent configs/agents/claude_code.yaml configs/environments/docker-python3.12-uv-rootless.yaml"
 }
 
+# One staged context instead of named build contexts: `--build-context` needs buildx, and
+# a rootless host may only have the legacy builder. Bytecode caches stay out of the image.
+stage_packages="synthesis review tiert prflow remediation"
+
+stage_context() {
+  local context="$run_dir/build-context"
+  rm -rf "$context"
+  mkdir -p "$context"
+  cp -R "$here/." "$context/"
+  for package in $stage_packages; do
+    cp -R "$here/../$package" "$context/$package"
+  done
+  find "$context" -name __pycache__ -type d -prune -exec rm -rf {} +
+  echo "$context"
+}
+
 build_image() {
+  local context
+  context="$(stage_context)"
   docker build --build-arg "BASE_IMAGE=$base_image" --build-arg "CODEWATCH_VERSION=$codewatch_version" \
-    --build-context "synthesis=$here/../synthesis" --build-context "review=$here/../review" \
-    --build-context "tiert=$here/../tiert" --build-context "prflow=$here/../prflow" \
-    --build-context "remediation=$here/../remediation" \
-    -t "$image" "$here"
+    -t "$image" "$context"
+  rm -rf "$context"
 }
 
 count_tool() {
