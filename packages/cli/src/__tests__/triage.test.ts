@@ -121,6 +121,32 @@ describe("runTriage with a fake reader", () => {
     expect(verdicts.map((v) => v.key)).toEqual(asked);
   });
 
+  it("counts '['-prefixed control keys as answered and leaves the verdicts out of provisional", async () => {
+    const runner = fakeReader((q, prompt) => {
+      const verdict = q.path === HELPER_SLOP.path ? "confirmed" : q.path === "pkg/core.py" ? verdictFor(q.path) : "justified";
+      return [{ ...row(q, prompt, verdict), key: `[${q.key}` }];
+    });
+
+    const { report } = await runTriage({ ...base(), runner });
+
+    expect(report.dropped.byReason["unasked-key"]).toBeUndefined();
+    expect(report.controls.score).toMatchObject({ total: 2, correct: 2 });
+    expect(report.controls.controlRun).toBe("ok");
+    expect(readVerdicts(dir).every((v) => v.controlRun !== "provisional")).toBe(true);
+  });
+
+  it("still rejects a bracket-wrapped key whose id was never asked", async () => {
+    const runner = fakeReader((q, prompt) => {
+      if (q.path !== "pkg/core.py") return [row(q, prompt, q.path === HELPER_SLOP.path ? "confirmed" : "justified")];
+      return [{ ...row(q, prompt, "confirmed"), key: "[code-graph:never-asked#0]" }];
+    });
+
+    const { report, verdicts } = await runTriage({ ...base(), runner });
+
+    expect(report.dropped.byReason).toEqual({ "unasked-key": 1 });
+    expect(verdicts).toEqual([]);
+  });
+
   it("keeps a verdict that cites both the helper and its caller in another file", async () => {
     writeFileSync(join(dir, "pkg", "util.py"), UTIL_SRC);
     writeFileSync(join(dir, "pkg", "core.py"), CALLER_SRC);

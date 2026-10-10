@@ -48,10 +48,11 @@ function rowFailure(item: TriageItem, row: VerdictRow, seen: Set<string>): Omit<
   return citationFailure(item, row);
 }
 
-/** Readers sometimes copy the question header's `] path:lines` after the key; keys never contain `]`. */
+/** Readers copy the question header's brackets: a leading `[` and a trailing `] path:lines`; keys contain neither. */
 export function normaliseKey(key: string): string {
-  const end = key.indexOf("]");
-  return (end === -1 ? key : key.slice(0, end)).trim();
+  const bare = key.trim().replace(/^\[/, "");
+  const end = bare.indexOf("]");
+  return (end === -1 ? bare : bare.slice(0, end)).trim();
 }
 
 /** Keeps a verdict only when it answers an asked question and every citation checks out against the lines shown; a kept verdict carries no spec text. */
