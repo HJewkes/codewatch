@@ -182,4 +182,21 @@ describe("triage verdict carry from committed files", () => {
     expect(again.calls()).toBe(0);
     expect(report.warnings).toEqual([`${fragment("cp-1")}:3 is not a verdict row; skipped`]);
   });
+
+  it("skips a parseable row graph.db would reject and still saves the run beside a changed finding", async () => {
+    await triage(countingReader().runner, withFiles("cp-1"));
+    foldIntoHead("cp-1");
+    const rows = readJsonl(head());
+    const badLine = rows.findIndex((r) => r.path === "pkg/extra.py") + 1;
+    writeFileSync(head(), rows.map((r) => JSON.stringify(r.path === "pkg/extra.py" ? { ...r, verdict: "Confirmed" } : r)).join("\n") + "\n");
+    writeFileSync(join(dir, "pkg", "core.py"), CORE_SRC.replace("v / total", "v * total"));
+
+    await rebuildGraphDb();
+    const again = countingReader();
+    const { report } = await triage(again.runner, withFiles("cp-2"));
+
+    expect(again.asked.map((q) => q.path).sort()).toEqual(["pkg/core.py", "pkg/extra.py"]);
+    expect(report.warnings).toEqual([`${head()}:${badLine} is not a verdict row; skipped`]);
+    expect(readJsonl(fragment("cp-2")).map((r) => r.path).sort()).toEqual(["pkg/core.py", "pkg/extra.py"]);
+  });
 });

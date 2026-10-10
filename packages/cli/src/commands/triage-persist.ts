@@ -14,6 +14,7 @@ import {
 import { openGraphStore } from "../utils/graph-store.js";
 import { keyWithExcerpts } from "./triage-keys.js";
 import type { VerdictRecord } from "./triage-output.js";
+import { VERDICTS } from "./triage-questions.js";
 import type { TriageSelection } from "./triage-select.js";
 import type { BundleSource } from "./triage-source.js";
 
@@ -47,9 +48,11 @@ export interface JudgedSplit {
 const HEAD_FILE = "verdicts.jsonl";
 export const FRAGMENT_DIR = "verdicts.d";
 
+/** Holds a committed row to the rules graph.db enforces, so a bad row is skipped instead of failing the save after the model calls. */
 function isVerdictRecord(value: unknown): value is VerdictRecord {
   const r = value as Partial<VerdictRecord> | null;
-  return typeof r?.key === "string" && typeof r.verdict === "string" && typeof r.excerptHash === "string" && typeof r.path === "string";
+  const shaped = typeof r?.key === "string" && typeof r.path === "string" && typeof r.excerptHash === "string" && r.excerptHash !== "";
+  return shaped && (VERDICTS as readonly unknown[]).includes(r.verdict) && typeof r.rationale === "string" && Array.isArray(r.citations);
 }
 
 function parseVerdict(line: string): VerdictRecord | undefined {
