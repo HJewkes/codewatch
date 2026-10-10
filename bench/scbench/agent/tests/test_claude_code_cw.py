@@ -19,10 +19,14 @@ from slop_code.agent_runner.runner import get_task_for_checkpoint
 from slop_code.common.llms import APIPricing, ModelDefinition
 from slop_code.entrypoints.config.loader import resolve_environment
 from slop_code.execution import DockerConfig, DockerEnvironmentSpec
+from slop_code.execution.models import SnapshotConfig
 from slop_code.execution.runtime import RuntimeEvent, RuntimeResult
+from slop_code.execution.snapshot import Snapshot
 
 from agent.claude_code_cw import ClaudeCodeCwAgent, ClaudeCodeCwConfig, count_mcp_tool_calls
 from agent.stages import STAGE_NAMES
+
+PR_FLOW = ("repo-init", "pr-open", "commit-ratchet")
 
 STOCK_FIELDS = {
     "binary": "claude",
@@ -225,6 +229,21 @@ class StageHookTest(unittest.TestCase):
         self.assertEqual(by_stage["fix"]["status"], "disabled")
         self.assertEqual(dict(runtime.streamed[-1][1])["CW_CHECKPOINT"], "2")
 
+    def test_with_the_pr_flow_on_the_solve_session_gets_no_git_dir(self):
+        shipped = yaml.safe_load((Path(__file__).parents[1] / "claude_code_cw.yaml").read_text())["stages"]
+        flow = {name: {**shipped[name], "enabled": True} for name in PR_FLOW}
+        runtime, capture = FakeRuntime(), SolveCapture()
+        agent = _build(_cw_config(flow), runtime, resolve_environment(PILOT_ENV))
+
+        _solve(agent, capture, checkpoints=2)
+
+        ran = [c.split(" -m prflow ")[1].split()[0] for c, _ in runtime.streamed if " -m prflow " in c]
+        self.assertEqual(ran, ["repo-init", "pr-open", "commit-ratchet", "pr-open", "commit-ratchet"])
+        for _, solve_env in capture.calls:
+            self.assertFalse({"GIT_DIR", "GIT_WORK_TREE"} & set(solve_env))
+        for _, stage_env in runtime.streamed:
+            self.assertNotIn("GIT_DIR", stage_env)
+
     def test_mcp_tool_calls_count_only_this_checkpoints_mcp_tool_uses(self):
         payloads = [{"message": {"role": "assistant", "content": [
             {"type": "tool_use", "name": "mcp__codewatch__get_overview"},
@@ -236,6 +255,23 @@ class StageHookTest(unittest.TestCase):
 
         self.assertEqual(agent.mcp_tool_calls, 1)
         self.assertEqual(count_mcp_tool_calls(payloads * 2), 2)
+
+
+class GradedSnapshotTest(unittest.TestCase):
+    def test_the_pilot_snapshot_skips_codewatch_and_keeps_the_runner_defaults(self):
+        pilot = resolve_environment(PILOT_ENV)
+        files = ["main.py", "tests/test_main.py", "NOTES.md", ".codewatch/repo.git/HEAD",
+                 ".codewatch/cache/graph.db", ".codewatch/taste.md", ".venv/bin/python"]
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            for rel in files:
+                (workspace / rel).parent.mkdir(parents=True, exist_ok=True)
+                (workspace / rel).write_text("x\n")
+            snapshot = Snapshot.from_environment_spec(workspace, pilot)
+            snapshot.cleanup()
+
+        self.assertLessEqual(SnapshotConfig().ignore_globs | {".codewatch/*"}, pilot.get_ignore_globs())
+        self.assertEqual(snapshot.matched_paths, {Path("main.py"), Path("tests/test_main.py"), Path("NOTES.md")})
 
 
 if __name__ == "__main__":

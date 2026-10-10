@@ -8,8 +8,9 @@ build-agent`) with:
 - pyright and jscpd from npm, on the base image's Node 22
 - ruff, vulture, pydoclint, import-linter, coverage.py and pytest in a separate venv; the
   pins are in `requirements.txt`
-- the synthesis stage (`../synthesis`) at `/opt/codewatch-a1/synthesis`, copied in as a
-  named build context
+- the synthesis stage (`../synthesis`) at `/opt/codewatch-a1/synthesis` and the PR-flow
+  stages (`../prflow`) at `/opt/codewatch-a1/prflow`, each copied in as a named build
+  context
 
 The tools sit in `/opt/codewatch-a1/bin`. Only the `codewatch` wrapper puts that directory
 on `PATH`, so the solve session sees the same `PATH` and `python` as arm A1a. Later stages
