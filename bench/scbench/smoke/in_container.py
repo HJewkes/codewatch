@@ -24,6 +24,7 @@ WORKSPACE = Path("/workspace")
 SPEC = Path("/spec/spec.md")
 OUT = Path("/out")
 MODEL = "claude-sonnet-5-5"
+NO_SIDE_CALLS = "DISABLE_NON_ESSENTIAL_MODEL_CALLS"
 FIX_TURNS = 2
 CALL_TIMEOUT_S = 900
 FIX_ITEM = Item(
@@ -35,7 +36,8 @@ FIX_ITEM = Item(
 
 
 def _run(argv: list[str], **kwargs) -> subprocess.CompletedProcess:
-    return subprocess.run(argv, capture_output=True, text=True, check=False, timeout=CALL_TIMEOUT_S, **kwargs)
+    env = {**(kwargs.pop("env", None) or os.environ), NO_SIDE_CALLS: "1"}
+    return subprocess.run(argv, capture_output=True, text=True, check=False, timeout=CALL_TIMEOUT_S, env=env, **kwargs)
 
 
 def _token_sum(node) -> int:
@@ -77,7 +79,7 @@ def _recorded_run(argv, env, cwd, timeout):
 
 def fix() -> dict:
     env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
-    env.update({"CW_MODEL": MODEL, "CW_PERMISSION_MODE": "bypassPermissions", "CW_CLAUDE_BINARY": "claude"})
+    env.update({NO_SIDE_CALLS: "1", "CW_MODEL": MODEL, "CW_PERMISSION_MODE": "bypassPermissions", "CW_CLAUDE_BINARY": "claude"})
     session = FixSession(env=env, cwd=str(WORKSPACE), run=_recorded_run, max_turns=FIX_TURNS)
     result = session.ask(first_prompt(render_item(1, FIX_ITEM)), CALL_TIMEOUT_S)
     completed = result.exit_code is not None and not result.timed_out and result.subtype != "none"
