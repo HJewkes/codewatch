@@ -16,11 +16,9 @@ const TEST_SRC = "from pkg.core import summarise\n\n\ndef test_summarise():\n   
 
 const SPEC_LINES = ["# Scores, part 2", "", "The summarise command prints the largest value's share of the total.", "Shares are rounded to one decimal place from this part on."];
 
-const TEST_KIND_EVIDENCE = "code kind: output boundary\nmissing: snapshot or exact-output test\ntests: tests/test_core.py:4-5";
 
-/** Rows in the findings.jsonl contract the test-kind rules, the test-shape checks and the clone finder write. */
+/** Rows in the findings.jsonl contract the test-shape checks and the clone finder write; the audit writes the test-kind gap itself. */
 const PRODUCER_ROWS = [
-  { id: "codewatch:pkg/core.py:1", tool: "codewatch", signal: "missing-test-kind", path: "pkg/core.py", lineStart: 1, lineEnd: 3, symbol: "summarise", severity: "warning", evidence: TEST_KIND_EVIDENCE },
   { id: "tier-t:tests/test_core.py:4", tool: "tier-t", signal: "symbol_weak_oracle_only", path: "tests/test_core.py", lineStart: 4, lineEnd: 5, symbol: "test_summarise", severity: "warning" },
   { id: "jscpd:pkg/util.py:2", tool: "jscpd", signal: "clone", path: "pkg/util.py", lineStart: 2, lineEnd: 3, severity: "warning", evidence: "duplicates pkg/core.py:2-3" },
 ];
@@ -127,7 +125,7 @@ describe("triage questions for missing test kinds, weak oracles and clones", () 
     await runTriage({ ...base(), runner: specQuotingReader(prompts) });
 
     const asked = prompts.find((p) => questionsIn(p)[0]!.path === "pkg/core.py")!;
-    expect(asked).toContain("`summarise` is a `output boundary`. Its tests have no `snapshot or exact-output test` (evidence: the test assertions attached).");
+    expect(asked).toContain("`summarise` is a `pure logic`. Its tests have no `exact-value test` (evidence: the test assertions attached).");
     expect(asked).toContain("If its output is deliberately unstable, or already pinned by another test, answer justified.");
   });
 

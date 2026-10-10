@@ -44,3 +44,48 @@ export const QUALITATIVE_SIGNALS: ReadonlySet<string> = new Set(["file-lcom4"]);
 export const QUALITATIVE_FLAG_HINTS: Readonly<Record<string, string>> = {
   "file-lcom4": "may mix unrelated responsibilities; worth a look, not a split verdict",
 };
+
+/** A kind of test a code kind should have: met when any of `anyOf`, counts of reaching tests, is above zero. */
+export interface TestKindRequirement {
+  slug: string;
+  missing: string;
+  anyOf: readonly string[];
+}
+
+export interface TestKindPolicy {
+  /** The 0/1 code-kind metric code-graph writes on a source symbol. */
+  codeKind: string;
+  label: string;
+  requires: readonly TestKindRequirement[];
+}
+
+const ERROR_PATH: TestKindRequirement = { slug: "error-path", missing: "error-path test", anyOf: ["symbol_tests_error_path"] };
+
+/**
+ * Which test kinds each code kind should have (SCBench A1 design §2.2). Property tests are
+ * optional, so no requirement names them alone. A parser's round-trip test waits for a
+ * serializer fact code-graph does not record yet.
+ */
+export const TEST_KIND_POLICY: readonly TestKindPolicy[] = [
+  {
+    codeKind: "symbol_kind_output_boundary",
+    label: "output boundary",
+    requires: [
+      { slug: "full-output", missing: "snapshot or exact-output test", anyOf: ["symbol_tests_snapshot", "symbol_tests_exact_output"] },
+      ERROR_PATH,
+    ],
+  },
+  {
+    codeKind: "symbol_kind_parser",
+    label: "parser",
+    requires: [{ slug: "malformed-input", missing: "malformed-input error-path test", anyOf: ["symbol_tests_error_path"] }],
+  },
+  {
+    codeKind: "symbol_kind_pure",
+    label: "pure logic",
+    requires: [
+      { slug: "exact-value", missing: "exact-value test", anyOf: ["symbol_tests_exact_output", "symbol_tests_snapshot", "symbol_tests_roundtrip"] },
+    ],
+  },
+  { codeKind: "symbol_kind_io", label: "I/O", requires: [ERROR_PATH] },
+];
