@@ -1,5 +1,5 @@
 import { parseSymbolId } from "@titan-design/code-graph";
-import type { BundleEdge, ContextBundle } from "../commands/graph-context-bundle.js";
+import type { BundleEdge, ContextBundle } from "@titan-design/code-graph";
 import type { CodingTask } from "./coding-types.js";
 
 /**

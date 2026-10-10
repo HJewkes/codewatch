@@ -1,28 +1,24 @@
 import type { Command } from "commander";
 import {
   COVERAGE_METRIC_NAME,
+  buildContextBundle,
+  buildContextDossier,
   computePageRank,
   computeRelevance,
   detectGitToplevel,
   parseSymbolId,
+  renderBundleText,
+  renderContextMarkdown,
   type CodeGraphStore,
+  type ContextBundle,
+  type ContextDossier,
   type GraphEdge,
   type GraphMetric,
   type GraphNode,
+  type Provenance,
   type SnapshotRow,
 } from "@titan-design/code-graph";
 import { formatError } from "../utils/output.js";
-import {
-  buildContextDossier,
-  type ContextDossier,
-  type Provenance,
-} from "./graph-context-build.js";
-import { renderContextMarkdown } from "./graph-context-format.js";
-import {
-  buildContextBundle,
-  renderBundleText,
-  type ContextBundle,
-} from "./graph-context-bundle.js";
 import { collectNodeMetrics } from "./dashboard-node-metrics.js";
 import { openGraphStore, defaultGraphDbPath } from "../utils/graph-store.js";
 

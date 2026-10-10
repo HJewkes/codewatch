@@ -1,19 +1,17 @@
 import {
+  buildContextDossier,
   computePageRank,
   computeSymbolConsumers,
   parseSymbolId,
   type CodeGraphStore,
+  type ContextBuildInput,
   type GraphEdge,
   type GraphMetric,
   type GraphNode,
+  type Provenance,
   type ReferenceEdgeLite,
   type SnapshotRow,
 } from "@titan-design/code-graph";
-import {
-  buildContextDossier,
-  type ContextBuildInput,
-  type Provenance,
-} from "../commands/graph-context-build.js";
 import { collectNodeMetrics } from "../commands/dashboard-node-metrics.js";
 import {
   classifyReferenceEdge,
