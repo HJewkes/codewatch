@@ -56,11 +56,17 @@ Vendored configs in `bench/scbench/configs/`:
 
 | When | Stages |
 |---|---|
+| Before the solve, checkpoint 1 | `repo-init` |
+| Before the solve, every checkpoint | `pr-open` |
 | Before the solve, checkpoint 2 on | `inject` |
-| After the solve, every checkpoint | `index`, `audit`, `replay`, `triage`, `remediation`, `synthesis` |
+| After the solve, every checkpoint | `commit-ratchet`, `audit`, `triage`, `solve-review`, `fix`, `synthesis` |
+
+Stages run in the order listed. `repo-init` runs whenever the agent's own count is 1,
+which is also the first checkpoint after a `--resume`, so its command must be idempotent.
 
 Each stage has an `enabled` flag and a `command`, which runs in the container with
-`CW_STAGE` and `CW_CHECKPOINT` set. Stages are off by default. Each stage's status is
+`CW_STAGE`, `CW_CHECKPOINT` and `CW_STAGE_DEADLINE` (the launch deadline, in epoch
+seconds) set. Stages are off by default. Each stage's status is
 recorded as one of:
 
 - `disabled`: the stage is off.
@@ -82,9 +88,18 @@ symbols), which the codewatch plugin's SessionStart hook appends to its snapshot
 changed symbols need `graph diff --footprint`, which is newer than `@codewatch/cli` 0.7.0;
 on 0.7.0 that list stays empty.
 
-**Budget.** No stage launches after 25 minutes of stage time in a checkpoint, or once
-fewer than 20 minutes remain under the 2-hour checkpoint cap. A launched stage times out
-at that 20-minute line. All three values are config fields.
+**Budget.** Caps are opt-in, never defaults. With `stage_budget_s` unset, stages stop
+launching only once fewer than `stage_reserve_s` (default 180 s) remain under
+`checkpoint_cap_s` (default 2 hours). A launched stage times out at that line, and a long
+stage reads `CW_STAGE_DEADLINE` to stop starting new items before it. Setting
+`stage_budget_s` adds a cap on total stage time per checkpoint.
+
+The reserve covers the consistency reset only: `git reset --hard` to the last kept commit
+plus `git clean` of the work tree. Measured locally with a separate `GIT_DIR`, that took
+0.04 s on 2,000 tracked files with 300 edited or added, and a 20,000-file ignored
+`.venv`. The 3-minute default is the design's target; it leaves room for killing the timed-out
+stage and the container exec. A separate `GIT_DIR` inside the work tree is not ignored
+the way `.git` is, so it must be listed in `info/exclude`.
 
 **Report line.** A stage command may print a JSON object as its last stdout line. These
 keys are copied into `stages.json`: `tokens`, `usd`, `items_in`, `items_out`, `outcome`,
