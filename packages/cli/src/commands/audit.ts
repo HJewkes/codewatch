@@ -8,10 +8,12 @@ import {
 } from "@titan-design/code-graph";
 import { defaultGraphDbPath, openGraphStore } from "../utils/graph-store.js";
 import { persistFindings } from "./audit-persist.js";
-import { collectSnapshotStats, type SnapshotStats } from "./audit-collect.js";
+import { changedLinesSince, type ChangedLines } from "./audit-changed.js";
+import { collectSnapshotStats, indexMetrics, type SnapshotStats } from "./audit-collect.js";
 import { AUDIT_RULES } from "./audit-rules.js";
 import { PYTHON_TOOLS, runPythonTools, type PythonRunners, type PythonTool } from "./audit-runners.js";
 import { buildScoreTable, type ScoreTable } from "./audit-score.js";
+import { testKindFindings } from "./audit-test-kinds.js";
 import { runGraphIndex } from "./graph-index-run.js";
 
 export interface AuditCommandOptions {
@@ -19,6 +21,8 @@ export interface AuditCommandOptions {
   db?: string;
   out?: string;
   noRuff?: boolean;
+  /** Git ref the PR branches from; symbols changed since it are checked for missing test kinds even when untested. */
+  changedFrom?: string;
   /** Replaces the real tool runs; tests inject them so the Python tools need not be installed. */
   runners?: PythonRunners;
 }
@@ -49,11 +53,15 @@ function selectedTools(options: AuditCommandOptions, warnings: string[]): Python
   return PYTHON_TOOLS.filter((tool) => tool !== "ruff");
 }
 
-function graphFindings(dbPath: string, snapshotId: number): { findings: Finding[]; stats: SnapshotStats } {
+function graphFindings(dbPath: string, snapshotId: number, changed?: ChangedLines): { findings: Finding[]; stats: SnapshotStats } {
   const store = openGraphStore(dbPath);
   try {
     const result = runChecks(store, { snapshotId, rules: AUDIT_RULES });
-    return { findings: toFindings(result), stats: collectSnapshotStats(store, snapshotId) };
+    const nodes = store.listNodes(snapshotId, { includeSymbols: true });
+    const metrics = indexMetrics(store.listMetrics(snapshotId));
+    const edges = store.listEdges(snapshotId, { includeReferences: true });
+    const testKinds = testKindFindings({ nodes, metrics, edges, changed });
+    return { findings: [...toFindings(result), ...testKinds], stats: collectSnapshotStats(nodes, metrics) };
   } finally {
     store.close();
   }
@@ -74,7 +82,8 @@ export async function runAuditCommand(options: AuditCommandOptions): Promise<Aud
   const outDir = path.resolve(options.out ?? path.join(idRoot, ".codewatch", "audit"));
   const warnings: string[] = [];
   const index = await runGraphIndex({ rootDir: root, dbPath, onNotice: (line) => warnings.push(line) });
-  const graph = graphFindings(dbPath, index.snapshotId);
+  const changed = options.changedFrom === undefined ? undefined : changedLinesSince(options.changedFrom, idRoot);
+  const graph = graphFindings(dbPath, index.snapshotId, changed);
   const tools = selectedTools(options, warnings);
   const external = await runPythonTools(tools, graph.stats.pythonFiles, idRoot, options.runners);
   warnings.push(...external.warnings);

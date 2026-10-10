@@ -51,8 +51,8 @@ importers:
         specifier: ^0.4.3
         version: 0.4.3(@anthropic-ai/sdk@0.128.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(zod@4.3.6)
       '@titan-design/code-graph':
-        specifier: ^0.14.0
-        version: 0.14.0
+        specifier: ^0.16.0
+        version: 0.16.0
       '@titan-design/code-parser':
         specifier: ^0.1.0
         version: 0.1.0(web-tree-sitter@0.26.6)
@@ -66,8 +66,8 @@ importers:
         specifier: ^0.7.0
         version: 0.7.0(zod@4.3.6)
       '@titan-design/store-sqlite':
-        specifier: ^0.3.3
-        version: 0.3.3
+        specifier: ^0.4.0
+        version: 0.4.0
       '@titan-design/style-analyzer':
         specifier: ^0.1.0
         version: 0.1.0(web-tree-sitter@0.26.6)(zod@4.3.6)
@@ -143,8 +143,8 @@ importers:
   packages/render:
     dependencies:
       '@titan-design/code-graph':
-        specifier: ^0.14.0
-        version: 0.14.0
+        specifier: ^0.16.0
+        version: 0.16.0
       cose-base:
         specifier: ^1.0.3
         version: 1.0.3
@@ -957,12 +957,18 @@ packages:
     peerDependencies:
       zod: ^4.0.0
 
-  '@titan-design/code-graph@0.14.0':
-    resolution: {integrity: sha512-z5STSzl4K09sr3sVp4pIp4NYOjlRsFW7MFOK6a7ki7/RR7VpiOxr5TNfwC5FlmtC3uRYc8xc5+wduhSdvpazYw==}
+  '@titan-design/code-graph@0.16.0':
+    resolution: {integrity: sha512-SM0yoiBV7JAU+dyfnLufr5h4KOb222nD1qWwFqsiPBg9zBSRdjXIjKOBDi7ZQuxBNPMFbtSHid7qiovb/IkUBw==}
     engines: {node: '>=20'}
 
   '@titan-design/code-parser@0.1.0':
     resolution: {integrity: sha512-fDOwZ04YwfAbDOnx2n8c2IQ305nt6FI0iWRvZpmMj8Kp3clkuB+UOpjAb7pYoA9/8ipcL7cXvcHbrOpNJEkACg==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      web-tree-sitter: ^0.26.6
+
+  '@titan-design/code-parser@0.2.0':
+    resolution: {integrity: sha512-1aeu6ADO4YmbwJcuMgIwwOoQUR/CC5bbVJzW9Qf7wT2tFgmBXBfWDPGU2fXjpTZ4Ib2rv0qrv/JMq2ywIMQrDw==}
     engines: {node: '>=20'}
     peerDependencies:
       web-tree-sitter: ^0.26.6
@@ -986,8 +992,8 @@ packages:
     peerDependencies:
       zod: ^4.0.0
 
-  '@titan-design/retrieval@0.3.0':
-    resolution: {integrity: sha512-jrsOcJu64L9RhgzN288tCBA5+tppTwggFp62fhLYP0mIYH8FQdnA0+yuVW/9ST7te+eRs852vNI2hNmoopZxtQ==}
+  '@titan-design/retrieval@0.3.1':
+    resolution: {integrity: sha512-x5Bfh+7hmNWR3588DCEv5+L9cV4EuPKDl6zCgduLKgdInVD/wU73bmkSITSJrvPQ+TRyvPE0NBVnkqNFi3KRDA==}
     engines: {node: '>=20'}
     peerDependencies:
       '@huggingface/transformers': ^3.0.0
@@ -997,6 +1003,10 @@ packages:
 
   '@titan-design/store-sqlite@0.3.3':
     resolution: {integrity: sha512-k+TgDQPSVxL4j4fl5LLHVygMl7LjmmD9b1qpl5L8BYCisk5x27/e56K3ZqzqJQo9eV0vWHP0mEnCYaoZDs5xAA==}
+    engines: {node: '>=20'}
+
+  '@titan-design/store-sqlite@0.4.0':
+    resolution: {integrity: sha512-+UmxFIjKFRl69RR+c3x5CVSyucA4GKyt/N2YyoH7Zw8hKWHL6B4jNozwWNrFQ7hk+4DXmzRbia1484mxb08cbQ==}
     engines: {node: '>=20'}
 
   '@titan-design/style-analyzer@0.1.0':
@@ -3157,12 +3167,12 @@ snapshots:
     dependencies:
       zod: 4.3.6
 
-  '@titan-design/code-graph@0.14.0':
+  '@titan-design/code-graph@0.16.0':
     dependencies:
-      '@titan-design/code-parser': 0.1.0(web-tree-sitter@0.26.6)
+      '@titan-design/code-parser': 0.2.0(web-tree-sitter@0.26.6)
       '@titan-design/embed': 0.2.0
-      '@titan-design/retrieval': 0.3.0
-      '@titan-design/store-sqlite': 0.3.3
+      '@titan-design/retrieval': 0.3.1
+      '@titan-design/store-sqlite': 0.4.0
       ts-morph: 25.0.1
       web-tree-sitter: 0.26.6
     transitivePeerDependencies:
@@ -3170,6 +3180,14 @@ snapshots:
       - tree-sitter
 
   '@titan-design/code-parser@0.1.0(web-tree-sitter@0.26.6)':
+    dependencies:
+      tree-sitter-python: 0.25.0
+      tree-sitter-typescript: 0.23.2
+      web-tree-sitter: 0.26.6
+    transitivePeerDependencies:
+      - tree-sitter
+
+  '@titan-design/code-parser@0.2.0(web-tree-sitter@0.26.6)':
     dependencies:
       tree-sitter-python: 0.25.0
       tree-sitter-typescript: 0.23.2
@@ -3187,12 +3205,16 @@ snapshots:
       '@titan-design/store-sqlite': 0.3.3
       zod: 4.3.6
 
-  '@titan-design/retrieval@0.3.0':
+  '@titan-design/retrieval@0.3.1':
     dependencies:
       '@titan-design/embed': 0.2.0
-      '@titan-design/store-sqlite': 0.3.3
+      '@titan-design/store-sqlite': 0.4.0
 
   '@titan-design/store-sqlite@0.3.3':
+    dependencies:
+      better-sqlite3: 13.0.3
+
+  '@titan-design/store-sqlite@0.4.0':
     dependencies:
       better-sqlite3: 13.0.3
 
