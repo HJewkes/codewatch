@@ -5,7 +5,7 @@
 import { spawn } from "node:child_process"
 import { existsSync, writeSync } from "node:fs"
 import { join } from "node:path"
-import { formatCarry, readCarry } from "./carry-format.mjs"
+import { carryLimitsFromEnv, formatCarry, readCarry } from "./carry-format.mjs"
 import { findCodewatchBin, git } from "./hook-env.mjs"
 import { formatSnapshot } from "./snapshot-format.mjs"
 
@@ -109,7 +109,7 @@ function resolveRoot(projectDir) {
  */
 function carriedNotes(root) {
   try {
-    return formatCarry(readCarry(root))
+    return formatCarry(readCarry(root), carryLimitsFromEnv(process.env))
   } catch (error) {
     process.stderr.write(`codewatch session-start: ignoring synthesis notes: ${error instanceof Error ? error.message : error}\n`)
     return ""

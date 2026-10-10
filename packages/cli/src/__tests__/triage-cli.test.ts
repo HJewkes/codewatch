@@ -37,6 +37,22 @@ describe("codewatch triage --max-failures", () => {
   });
 });
 
+describe("codewatch triage --budget-usd", () => {
+  beforeEach(() => {
+    runTriage.mockReset();
+    runTriage.mockResolvedValue({ report: REPORT, outDir: "out" });
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+  });
+
+  it("sets no budget when the flag is absent", async () => {
+    expect((await triage()).budgetUsd).toBeUndefined();
+  });
+
+  it("passes the flag's value to the triage run", async () => {
+    expect(await triage("--budget-usd", "2.5")).toMatchObject({ budgetUsd: 2.5 });
+  });
+});
+
 describe("codewatch triage --verdicts-dir and --run-id", () => {
   beforeEach(() => {
     runTriage.mockReset();

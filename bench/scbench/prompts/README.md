@@ -33,6 +33,12 @@ This writes each arm's template path and sha256 under `prompts` in the run manif
 manifest is `~/.cache/codewatch-scbench/manifest.json`, or `$MANIFEST` or
 `$SCBENCH_RUN_DIR/manifest.json` when set, the same defaults as `../image/build.sh`.
 
+It also writes the effective caps under `caps`: `budget_usd` (the triage stage's
+`--budget-usd` in `../agent/claude_code_cw.yaml`), `injection_token_cap` and
+`open_items_cap` (from `CODEWATCH_CARRY_MAX_TOKENS` and `CODEWATCH_CARRY_MAX_OPEN_ITEMS`
+in the environment of the recording run), and the runner's `step_limit`. A cap that is
+not set is `null`.
+
 ## Tests
 
 `test_prompts.py` renders both templates for a synthetic spec and checks that A1a equals

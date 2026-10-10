@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from prompts.record_manifest import A1A_TEMPLATE, PROMPTS_DIR, STOCK_TEMPLATE, record, template_sha256
+from prompts.record_manifest import A1A_TEMPLATE, AGENT_CONFIG, PROMPTS_DIR, STOCK_TEMPLATE, caps_entry, record, template_sha256
 
 try:
     import jinja2
@@ -133,3 +133,33 @@ class RecordManifestTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CapsEntryTests(unittest.TestCase):
+    def test_every_cap_is_null_when_unset_and_the_step_limit_is_kept(self):
+        self.assertEqual(
+            caps_entry(AGENT_CONFIG, {}),
+            {"budget_usd": None, "injection_token_cap": None, "open_items_cap": None, "step_limit": 100},
+        )
+
+    def test_the_set_caps_are_recorded(self):
+        env = {"CODEWATCH_CARRY_MAX_TOKENS": "1500", "CODEWATCH_CARRY_MAX_OPEN_ITEMS": "3"}
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "cw.yaml"
+            config.write_text(
+                "cost_limits:\n  step_limit: 100\nstages:\n  triage:\n    enabled: true\n"
+                "    command: codewatch triage /workspace --budget-usd 2.5\n"
+            )
+            entry = caps_entry(config, env)
+        self.assertEqual(
+            entry, {"budget_usd": 2.5, "injection_token_cap": 1500, "open_items_cap": 3, "step_limit": 100}
+        )
+
+    def test_record_writes_the_caps_beside_the_other_keys(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "manifest.json"
+            manifest.write_text('{"a1Image": {"digest": "sha256:x"}}')
+            record(manifest, caps={"budget_usd": None})
+            data = json.loads(manifest.read_text())
+        self.assertEqual(data["caps"], {"budget_usd": None})
+        self.assertEqual(data["a1Image"], {"digest": "sha256:x"})
