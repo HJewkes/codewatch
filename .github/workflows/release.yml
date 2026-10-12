@@ -26,7 +26,7 @@ jobs:
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version-file: .node-version
           registry-url: https://registry.npmjs.org
       # Trusted publishing needs npm >= 11.5.1 and Node 22 ships an older npm. Stay on 11.x:
       # changesets passes pnpm's --git-checks flag to npm publish, which npm 12 rejects.
