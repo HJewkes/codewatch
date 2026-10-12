@@ -6,6 +6,7 @@ interface AuditCliOptions {
   out?: string;
   json?: boolean;
   ruff: boolean;
+  tsSlop: boolean;
   changedFrom?: string;
 }
 
@@ -17,6 +18,7 @@ export function registerAuditCommand(program: Command): void {
     .option("--out <dir>", "Output directory (default: <path>/.codewatch/audit)")
     .option("--json", "Print the summary as JSON")
     .option("--no-ruff", "Skip the ruff audit rules")
+    .option("--no-ts-slop", "Skip the TS slop rules (ast-grep)")
     .option("--changed-from <ref>", "Also check symbols changed since <ref> for missing test kinds, even when no test reaches them")
     .action(async (target: string, options: AuditCliOptions) => {
       try {
@@ -27,6 +29,7 @@ export function registerAuditCommand(program: Command): void {
           db: options.db,
           out: options.out,
           noRuff: !options.ruff,
+          noTsSlop: !options.tsSlop,
           changedFrom: options.changedFrom,
         });
         for (const warning of result.warnings) console.error(`codewatch audit: ${warning}`);

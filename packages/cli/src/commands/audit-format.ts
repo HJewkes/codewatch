@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import type { AuditCommandResult } from "./audit.js";
+import type { AuditCommandResult, TsVerbosity } from "./audit.js";
 import { QUALITATIVE_FLAG_HINTS, QUALITATIVE_SIGNALS } from "./audit-rules.js";
 import { countSignals, type FileScore, type SignalCounts } from "./audit-score.js";
 
@@ -14,6 +14,7 @@ export interface AuditSummary {
   byTool: SignalCounts;
   topFiles: Array<Pick<FileScore, "path" | "rank" | "loc" | "cognitiveMax" | "total">>;
   warnings: string[];
+  tsVerbosity?: TsVerbosity;
   durationMs: number;
 }
 
@@ -39,6 +40,7 @@ export function summarizeAudit(result: AuditCommandResult): AuditSummary {
       total,
     })),
     warnings: result.warnings,
+    tsVerbosity: result.tsVerbosity,
     durationMs: Math.round(result.durationMs),
   };
 }
@@ -58,6 +60,12 @@ function formatQualitativeFlags(flags: Array<[string, number]>): string[] {
   return [chalk.bold("Qualitative flags (not scored)"), ...rows, ""];
 }
 
+function formatTsVerbosity(v: TsVerbosity | undefined): string[] {
+  if (!v) return [];
+  const pct = (v.verbosity * 100).toFixed(1);
+  return [chalk.bold("TS verbosity (slop rules)"), `${pct.padStart(6)}%  ${v.verbosity_flagged_loc} of ${v.total_loc} TS lines flagged`, ""];
+}
+
 export function formatAuditText(summary: AuditSummary): string {
   const entries = sortedEntries(summary.bySignal);
   const flags = entries.filter(([s]) => QUALITATIVE_SIGNALS.has(s));
@@ -73,6 +81,7 @@ export function formatAuditText(summary: AuditSummary): string {
     ...scored.map(([s, n]) => `${String(n).padStart(6)}  ${s}`),
     "",
     ...formatQualitativeFlags(flags),
+    ...formatTsVerbosity(summary.tsVerbosity),
     chalk.dim(`Wrote findings.jsonl and scores.json to ${summary.outDir} (${summary.durationMs} ms)`),
   ].join("\n");
 }

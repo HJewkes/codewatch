@@ -1,0 +1,133 @@
+# TS approximations of SCBench's defensive slop rules (scb-check slop_rules/defensive.yaml).
+id: typeof-guard-throw
+language: TypeScript
+severity: warning
+message: "Inline `if (typeof x !== T) throw` polices caller types in core logic; type the parameter or validate at the boundary"
+note: approximates scb isinstance-guard-raise
+metadata:
+  category: defensive
+rule:
+  kind: if_statement
+  has:
+    field: condition
+    has:
+      any:
+        - pattern: typeof $X !== $T
+        - pattern: typeof $X != $T
+  all:
+    - not:
+        has:
+          field: alternative
+          kind: else_clause
+    - has:
+        field: consequence
+        any:
+          - kind: throw_statement
+          - kind: statement_block
+            has:
+              kind: throw_statement
+              nthChild: 1
+---
+id: catch-return-sentinel
+language: TypeScript
+severity: warning
+message: "`catch { return null }` turns every error into a sentinel; catch something specific or let it propagate"
+note: approximates scb except-return-static-sentinel
+metadata:
+  category: defensive
+rule:
+  kind: catch_clause
+  has:
+    field: body
+    kind: statement_block
+    all:
+      - has:
+          nthChild: 1
+          any:
+            - pattern: return null;
+            - pattern: return undefined;
+            - pattern: return false;
+            - pattern: return [];
+            - pattern: return {};
+            - pattern: return "";
+            - pattern: return;
+      - not:
+          has:
+            nthChild: 2
+---
+id: typeof-probe-ladder
+language: TypeScript
+severity: warning
+message: "Back-to-back `if (typeof x === T)` branches are a type-probe ladder; use a dispatch table or a discriminated union"
+note: approximates scb type-probe-ladder
+metadata:
+  category: defensive
+utils:
+  typeof-probe:
+    kind: if_statement
+    has:
+      field: condition
+      has:
+        pattern: typeof $X === $_T
+rule:
+  matches: typeof-probe
+  precedes:
+    matches: typeof-probe
+---
+id: return-nullish-guard-ladder
+language: TypeScript
+severity: warning
+message: "Back-to-back `if (x == null) return` guards thread optional values through core logic; normalise nullability at the boundary"
+note: approximates scb return-none-guard-ladder
+metadata:
+  category: defensive
+utils:
+  nullish-test:
+    any:
+      - pattern: $_X === undefined
+      - pattern: $_X === null
+      - pattern: $_X == null
+      - pattern: "!$_X"
+  nullish-return-guard:
+    kind: if_statement
+    all:
+      - not:
+          has:
+            field: alternative
+            kind: else_clause
+      - has:
+          field: condition
+          has:
+            matches: nullish-test
+      - has:
+          field: consequence
+          any:
+            - kind: return_statement
+            - kind: statement_block
+              all:
+                - has:
+                    kind: return_statement
+                    nthChild: 1
+                - not:
+                    has:
+                      nthChild: 2
+rule:
+  matches: nullish-return-guard
+  precedes:
+    matches: nullish-return-guard
+---
+id: nullish-continue-in-loop
+language: TypeScript
+severity: warning
+message: "`if (x == null) continue;` inside a loop skips nulls defensively; filter at the source or fix the contract"
+note: approximates scb none-continue-in-loop
+metadata:
+  category: defensive
+rule:
+  any:
+    - pattern: "if ($X === undefined) continue;"
+    - pattern: "if ($X === undefined) { continue; }"
+    - pattern: "if ($X === null) continue;"
+    - pattern: "if ($X === null) { continue; }"
+    - pattern: "if ($X == null) continue;"
+    - pattern: "if ($X == null) { continue; }"

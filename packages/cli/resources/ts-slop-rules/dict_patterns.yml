@@ -1,0 +1,66 @@
+# TS approximations of SCBench's dict_patterns slop rules (scb-check slop_rules/dict_patterns.yaml), applied to Map and plain objects.
+id: map-has-then-get
+language: TypeScript
+severity: warning
+message: "`if (m.has(k)) { m.get(k) }` - read once with `m.get(k)` and test for `undefined`"
+note: approximates scb verbose-dict-key-access
+metadata:
+  category: dict_patterns
+rule:
+  kind: if_statement
+  all:
+    - has:
+        field: condition
+        has:
+          pattern: $M.has($K)
+    - has:
+        field: consequence
+        stopBy: end
+        has:
+          pattern: $M.get($K)
+          stopBy: end
+---
+id: manual-map-default-set
+language: TypeScript
+severity: warning
+message: "`if (!m.has(k)) m.set(k, v)` - read with `m.get(k) ?? ...` once, or use `obj[k] ??= v` for objects"
+note: approximates scb manual-dict-setdefault
+metadata:
+  category: dict_patterns
+rule:
+  any:
+    - pattern: "if (!$M.has($K)) { $M.set($K, $V); }"
+    - pattern: "if (!$M.has($K)) $M.set($K, $V);"
+    - pattern: "if (!($K in $M)) { $M[$K] = $V; }"
+    - pattern: "if (!($K in $M)) $M[$K] = $V;"
+    - pattern: "if ($M[$K] === undefined) { $M[$K] = $V; }"
+    - pattern: "if ($M[$K] === undefined) $M[$K] = $V;"
+---
+id: object-keys-then-index
+language: TypeScript
+severity: warning
+message: "`for (const k of Object.keys(o)) { o[k] }` - iterate `Object.entries(o)`"
+note: approximates scb verbose-dict-iteration
+metadata:
+  category: dict_patterns
+rule:
+  pattern: for (const $K of Object.keys($O)) $BODY
+  has:
+    field: body
+    has:
+      pattern: $O[$K]
+      stopBy: end
+---
+id: entries-unused-half
+language: TypeScript
+severity: warning
+message: "`for (const [k] of Object.entries(o))` / `for (const [, v] of ...)` - iterate `Object.keys` or `Object.values`"
+note: approximates scb items-unused-key
+metadata:
+  category: dict_patterns
+rule:
+  any:
+    - pattern: for (const [$K] of Object.entries($O)) $BODY
+    - pattern: for (const [, $V] of Object.entries($O)) $BODY
+    - pattern: for (const [$K] of $M.entries()) $BODY
+    - pattern: for (const [, $V] of $M.entries()) $BODY

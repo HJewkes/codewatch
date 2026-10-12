@@ -1,0 +1,111 @@
+# TS approximations of SCBench's conditionals slop rules (scb-check slop_rules/conditionals.yaml).
+id: boolean-return-if-else
+language: TypeScript
+severity: warning
+message: "`if (c) return true; else return false;` - use `return c` (or `return !c`)"
+note: approximates scb boolean-return-if-else
+metadata:
+  category: conditionals
+rule:
+  any:
+    - pattern: "if ($C) { return true; } else { return false; }"
+    - pattern: "if ($C) { return false; } else { return true; }"
+    - pattern: "if ($C) return true; else return false;"
+    - all:
+        - any:
+            - pattern: "if ($C) { return true; }"
+            - pattern: "if ($C) return true;"
+        - precedes:
+            pattern: return false;
+---
+id: ternary-same-value
+language: TypeScript
+severity: warning
+message: "`c ? x : x` - both branches are equal, drop the ternary"
+note: approximates scb ternary-same-value
+metadata:
+  category: conditionals
+rule:
+  pattern: "$C ? $A : $A"
+---
+id: else-after-exit
+language: TypeScript
+severity: warning
+message: "`else` after `return`/`throw` - the branch already exits, drop the `else`"
+note: approximates scb unnecessary-else-raise
+metadata:
+  category: conditionals
+rule:
+  kind: if_statement
+  all:
+    - has:
+        field: alternative
+        kind: else_clause
+    - has:
+        field: consequence
+        kind: statement_block
+        has:
+          any:
+            - kind: return_statement
+            - kind: throw_statement
+          nthChild:
+            position: 1
+            reverse: true
+---
+id: nested-if-no-else
+language: TypeScript
+severity: warning
+message: "Nested `if` is the only statement in an outer `if` and neither has `else` - join the conditions with `&&`"
+note: approximates scb nested-if-no-else
+metadata:
+  category: conditionals
+rule:
+  kind: if_statement
+  not:
+    has:
+      field: alternative
+      kind: else_clause
+  has:
+    field: consequence
+    kind: statement_block
+    all:
+      - has:
+          kind: if_statement
+          nthChild: 1
+          not:
+            has:
+              field: alternative
+              kind: else_clause
+      - not:
+          has:
+            nthChild: 2
+---
+id: redundant-guard-same-return
+language: TypeScript
+severity: warning
+message: "`if (c) return r; return r;` - both paths return the same value, drop the guard"
+note: approximates scb redundant-guard-same-return
+metadata:
+  category: conditionals
+rule:
+  any:
+    - pattern: "if ($C) { return $R; }"
+    - pattern: "if ($C) return $R;"
+  precedes:
+    pattern: return $R;
+---
+id: nullish-assign-default
+language: TypeScript
+severity: warning
+message: "`if (x === undefined) x = d;` - use `x ??= d`"
+note: approximates scb verbose-none-default
+metadata:
+  category: conditionals
+rule:
+  any:
+    - pattern: "if ($X === undefined) { $X = $D; }"
+    - pattern: "if ($X === undefined) $X = $D;"
+    - pattern: "if ($X === null) { $X = $D; }"
+    - pattern: "if ($X === null) $X = $D;"
+    - pattern: "if ($X == null) { $X = $D; }"
+    - pattern: "if ($X == null) $X = $D;"

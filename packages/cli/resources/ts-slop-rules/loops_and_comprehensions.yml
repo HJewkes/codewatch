@@ -1,0 +1,76 @@
+# TS approximations of SCBench's loops_and_comprehensions slop rules (scb-check slop_rules/loops_and_comprehensions.yaml).
+id: push-only-loop
+language: TypeScript
+severity: warning
+message: "Loop whose only statement pushes - use `xs.map(...)`"
+note: approximates scb verbose-list-append-loop
+metadata:
+  category: loops_and_comprehensions
+rule:
+  any:
+    - pattern: "for (const $X of $XS) { $A.push($V); }"
+    - pattern: "for (const $X of $XS) $A.push($V);"
+    - pattern: "$XS.forEach(($X) => { $A.push($V); })"
+    - pattern: "$XS.forEach(($X) => $A.push($V))"
+---
+id: manual-sum-loop
+language: TypeScript
+severity: warning
+message: "`for (const x of xs) total += f(x)` - use `xs.reduce((sum, x) => sum + f(x), 0)`"
+note: approximates scb manual-sum-loop
+metadata:
+  category: loops_and_comprehensions
+rule:
+  any:
+    - pattern: "for (const $X of $XS) { $T += $V; }"
+    - pattern: "for (const $X of $XS) $T += $V;"
+---
+id: copy-before-iterate
+language: TypeScript
+severity: warning
+message: "`for (const x of [...xs])` - `for...of` already iterates any iterable; drop the copy"
+note: approximates scb unnecessary-list-call
+metadata:
+  category: loops_and_comprehensions
+rule:
+  any:
+    - pattern: for (const $X of [...$XS]) $BODY
+    - pattern: for (const $X of Array.from($XS)) $BODY
+---
+id: redundant-continue
+language: TypeScript
+severity: warning
+message: "`continue` at the end of a loop body - delete it, the loop iterates anyway"
+note: approximates scb redundant-continue
+metadata:
+  category: loops_and_comprehensions
+rule:
+  kind: continue_statement
+  not:
+    has:
+      kind: statement_identifier
+  nthChild:
+    position: 1
+    reverse: true
+  inside:
+    kind: statement_block
+    inside:
+      any:
+        - kind: for_statement
+        - kind: for_in_statement
+        - kind: while_statement
+        - kind: do_statement
+---
+id: filter-then-first-or-length
+language: TypeScript
+severity: warning
+message: "`xs.filter(p)[0]` / `xs.filter(p).length > 0` - use `xs.find(p)` / `xs.some(p)`"
+note: approximates scb manual-find-return-none
+metadata:
+  category: loops_and_comprehensions
+rule:
+  any:
+    - pattern: $XS.filter($$$ARGS)[0]
+    - pattern: $XS.filter($$$ARGS).length > 0
+    - pattern: $XS.filter($$$ARGS).length !== 0
+    - pattern: $XS.filter($$$ARGS).length === 0

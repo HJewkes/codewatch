@@ -1,0 +1,115 @@
+# TS approximations of SCBench's misc slop rules (scb-check slop_rules/misc.yaml).
+id: catch-swallow-empty
+language: TypeScript
+severity: warning
+message: "Empty `catch` silently swallows errors; catch something specific or handle it"
+note: approximates scb except-pass-silence
+metadata:
+  category: misc
+rule:
+  kind: catch_clause
+  has:
+    field: body
+    kind: statement_block
+    regex: ^\{\s*\}$
+---
+id: catch-rethrow
+language: TypeScript
+severity: warning
+message: "`catch (e) { throw e; }` only re-throws; drop the try/catch"
+note: approximates scb except-bare-reraise
+metadata:
+  category: misc
+rule:
+  kind: catch_clause
+  all:
+    - has:
+        field: parameter
+        pattern: $E
+    - has:
+        field: body
+        kind: statement_block
+        all:
+          - has:
+              pattern: throw $E;
+              nthChild: 1
+          - not:
+              has:
+                nthChild: 2
+---
+id: immediately-invoked-arrow
+language: TypeScript
+severity: warning
+message: "`(() => expr)()` - inline the expression"
+note: approximates scb pointless-lambda-call
+metadata:
+  category: misc
+rule:
+  pattern: (() => $E)()
+constraints:
+  E:
+    not:
+      kind: statement_block
+---
+id: unnecessary-arrow-wrapper
+language: TypeScript
+severity: warning
+message: "`(x) => f(x)` - pass `f` directly"
+note: approximates scb unnecessary-lambda
+metadata:
+  category: misc
+rule:
+  any:
+    - pattern: ($X) => $F($X)
+    - pattern: $X => $F($X)
+constraints:
+  F:
+    kind: identifier
+---
+id: empty-constructor
+language: TypeScript
+severity: warning
+message: "Empty `constructor() {}` - delete it, the class gets one by default"
+note: approximates scb empty-init
+metadata:
+  category: misc
+rule:
+  kind: method_definition
+  all:
+    - has:
+        field: name
+        regex: ^constructor$
+    - not:
+        has:
+          kind: accessibility_modifier
+    - has:
+        field: parameters
+        not:
+          has:
+            any:
+              - kind: required_parameter
+              - kind: optional_parameter
+    - has:
+        field: body
+        regex: ^\{\s*\}$
+---
+id: redundant-trailing-return
+language: TypeScript
+severity: warning
+message: "Bare `return;` at the end of a function - drop it, the function returns anyway"
+note: approximates scb redundant-return-none
+metadata:
+  category: misc
+rule:
+  pattern: return;
+  nthChild:
+    position: 1
+    reverse: true
+  inside:
+    kind: statement_block
+    inside:
+      any:
+        - kind: function_declaration
+        - kind: function_expression
+        - kind: arrow_function
+        - kind: method_definition

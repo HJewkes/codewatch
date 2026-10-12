@@ -41,6 +41,13 @@ describe("published @codewatch/cli bundle", () => {
     expect(importers.length).toBeGreaterThan(0);
   });
 
+  it("ships the TS slop rules at the path the bundle reads them from", () => {
+    const files = readManifest().files as unknown as string[];
+
+    expect(files).toContain("resources");
+    expect(existsSync(join(distDir, "../resources/ts-slop-rules/misc.yml"))).toBe(true);
+  });
+
   it("declares no runtime dependency on an unpublished @codewatch package", () => {
     const deps = Object.keys(readManifest().dependencies ?? {});
 

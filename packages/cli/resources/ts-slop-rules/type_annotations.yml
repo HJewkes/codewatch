@@ -1,0 +1,58 @@
+# TS approximations of SCBench's type_annotations slop rules (scb-check slop_rules/type_annotations.yaml).
+id: union-with-any
+language: TypeScript
+severity: warning
+message: "`T | any` / `T | unknown` - `any` and `unknown` subsume every other member"
+note: approximates scb union-with-any
+metadata:
+  category: type_annotations
+rule:
+  kind: union_type
+  has:
+    kind: predefined_type
+    regex: ^(any|unknown)$
+---
+id: generic-with-any
+language: TypeScript
+severity: warning
+message: "`Container<any>` / `any[]` - name the element type, or use a type, interface or `unknown`"
+note: approximates scb generic-with-any
+metadata:
+  category: type_annotations
+rule:
+  any:
+    - kind: type_arguments
+    - kind: array_type
+  has:
+    kind: predefined_type
+    regex: ^any$
+---
+id: function-type-any-return
+language: TypeScript
+severity: warning
+message: "`(...) => any` - name the return type"
+note: approximates scb callable-any-return
+metadata:
+  category: type_annotations
+rule:
+  kind: function_type
+  has:
+    field: return_type
+    kind: predefined_type
+    regex: ^any$
+---
+id: object-type-annotation
+language: TypeScript
+severity: warning
+message: "`object` / `Object` annotation - use a concrete type, an interface or `unknown`"
+note: approximates scb object-type-annotation
+metadata:
+  category: type_annotations
+rule:
+  kind: type_annotation
+  has:
+    any:
+      - kind: predefined_type
+        regex: ^object$
+      - kind: type_identifier
+        regex: ^Object$

@@ -1,10 +1,12 @@
 import { parseSymbolId, type GraphMetric, type GraphNode } from "@titan-design/code-graph";
 import type { FileStats, SymbolStats } from "./audit-score.js";
+import { isTsSlopTarget } from "./audit-ts-slop.js";
 
 export interface SnapshotStats {
   files: FileStats[];
   symbols: SymbolStats[];
   pythonFiles: string[];
+  tsFiles: string[];
 }
 
 export type MetricIndex = Map<string, Map<string, number>>;
@@ -59,5 +61,6 @@ export function collectSnapshotStats(nodes: readonly GraphNode[], metrics: Metri
     cognitiveMax: cognitiveMax.get(n.id) ?? 0,
   }));
   const pythonFiles = fileNodes.filter((n) => n.language === "python").map((n) => n.id);
-  return { files, symbols, pythonFiles };
+  const tsFiles = fileNodes.filter((n) => isTsSlopTarget(n.id)).map((n) => n.id);
+  return { files, symbols, pythonFiles, tsFiles };
 }
