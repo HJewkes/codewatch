@@ -14,6 +14,7 @@ import { AUDIT_RULES } from "./audit-rules.js";
 import { PYTHON_TOOLS, runPythonTools, type PythonRunners, type PythonTool } from "./audit-runners.js";
 import { buildScoreTable, type ScoreTable } from "./audit-score.js";
 import { testKindFindings } from "./audit-test-kinds.js";
+import { runTsSlopRules, type TsSlopRunner } from "./audit-ts-slop.js";
 import { runGraphIndex } from "./graph-index-run.js";
 
 export interface AuditCommandOptions {
@@ -25,6 +26,16 @@ export interface AuditCommandOptions {
   changedFrom?: string;
   /** Replaces the real tool runs; tests inject them so the Python tools need not be installed. */
   runners?: PythonRunners;
+  noTsSlop?: boolean;
+  /** Replaces the ast-grep run of the TS slop rules. */
+  tsSlop?: TsSlopRunner;
+}
+
+/** SCBench verbosity over the TS files, from the slop rules alone; scb-check adds clone lines on top. */
+export interface TsVerbosity {
+  verbosity_flagged_loc: number;
+  total_loc: number;
+  verbosity: number;
 }
 
 export interface AuditCommandResult {
@@ -35,6 +46,8 @@ export interface AuditCommandResult {
   findings: Finding[];
   scores: ScoreTable;
   warnings: string[];
+  /** Absent when the TS slop rules were skipped or ast-grep could not run. */
+  tsVerbosity?: TsVerbosity;
   durationMs: number;
 }
 
@@ -67,6 +80,26 @@ function graphFindings(dbPath: string, snapshotId: number, changed?: ChangedLine
   }
 }
 
+interface TsSlopOutcome {
+  findings: Finding[];
+  verbosity?: TsVerbosity;
+}
+
+async function runTsSlop(options: AuditCommandOptions, stats: SnapshotStats, cwd: string, warnings: string[]): Promise<TsSlopOutcome> {
+  if (options.noTsSlop) {
+    warnings.push("ts-slop skipped (--no-ts-slop)");
+    return { findings: [] };
+  }
+  if (stats.tsFiles.length === 0) return { findings: [] };
+  const run = await (options.tsSlop ?? runTsSlopRules)(stats.tsFiles, { cwd });
+  warnings.push(...run.warnings);
+  if (run.flaggedLoc === null) return { findings: run.findings };
+  const tsFiles = new Set(stats.tsFiles);
+  const totalLoc = stats.files.filter((f) => tsFiles.has(f.path)).reduce((sum, f) => sum + f.loc, 0);
+  const verbosity = totalLoc > 0 ? run.flaggedLoc / totalLoc : 0;
+  return { findings: run.findings, verbosity: { verbosity_flagged_loc: run.flaggedLoc, total_loc: totalLoc, verbosity } };
+}
+
 function writeOutputs(outDir: string, findings: readonly Finding[], scores: ScoreTable): void {
   mkdirSync(outDir, { recursive: true });
   const lines = findings.map((f) => JSON.stringify(f)).join("\n");
@@ -87,10 +120,11 @@ export async function runAuditCommand(options: AuditCommandOptions): Promise<Aud
   const tools = selectedTools(options, warnings);
   const external = await runPythonTools(tools, graph.stats.pythonFiles, idRoot, options.runners);
   warnings.push(...external.warnings);
-  const findings = sortFindings([...graph.findings, ...external.findings]);
+  const tsSlop = await runTsSlop(options, graph.stats, idRoot, warnings);
+  const findings = sortFindings([...graph.findings, ...external.findings, ...tsSlop.findings]);
   const scores = buildScoreTable(graph.stats.files, graph.stats.symbols, findings);
   writeOutputs(outDir, findings, scores);
   persistFindings(dbPath, index.snapshotId, idRoot, findings);
   const durationMs = performance.now() - started;
-  return { root, dbPath, outDir, snapshotId: index.snapshotId, findings, scores, warnings, durationMs };
+  return { root, dbPath, outDir, snapshotId: index.snapshotId, findings, scores, warnings, tsVerbosity: tsSlop.verbosity, durationMs };
 }

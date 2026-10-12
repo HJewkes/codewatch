@@ -1,0 +1,69 @@
+# TS approximations of SCBench's type_conversions slop rules (scb-check slop_rules/type_conversions.yaml).
+id: string-plus-conversion
+language: TypeScript
+severity: warning
+message: "`'...' + String(x)` - use a template literal; `+` with a string already converts"
+note: approximates scb verbose-string-literal-plus-str
+metadata:
+  category: type_conversions
+rule:
+  any:
+    - pattern: $S + String($X)
+    - pattern: String($X) + $S
+    - pattern: $S + $X.toString()
+constraints:
+  S:
+    any:
+      - kind: string
+      - kind: template_string
+---
+id: redundant-string-in-template
+language: TypeScript
+severity: warning
+message: "`${String(x)}` - template literals already convert, use `${x}`"
+note: approximates scb redundant-str-in-fstring
+metadata:
+  category: type_conversions
+rule:
+  kind: template_substitution
+  has:
+    any:
+      - pattern: String($X)
+      - pattern: $X.toString()
+---
+id: json-roundtrip-clone
+language: TypeScript
+severity: warning
+message: "`JSON.parse(JSON.stringify(x))` - use `structuredClone(x)`"
+note: approximates scb json-dumps-then-loads
+metadata:
+  category: type_conversions
+rule:
+  pattern: JSON.parse(JSON.stringify($X))
+---
+id: string-concat-in-loop
+language: TypeScript
+severity: warning
+message: "Building a string with `+=` in a loop - collect parts in an array and `join` them"
+note: approximates scb manual-str-join
+metadata:
+  category: type_conversions
+rule:
+  pattern: $S += $V
+  inside:
+    stopBy: end
+    any:
+      - kind: for_statement
+      - kind: for_in_statement
+      - kind: while_statement
+      - kind: do_statement
+constraints:
+  V:
+    any:
+      - kind: string
+      - kind: template_string
+      - kind: binary_expression
+        has:
+          any:
+            - kind: string
+            - kind: template_string

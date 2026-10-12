@@ -1,0 +1,72 @@
+# TS approximations of SCBench's boolean_and_comparison slop rules (scb-check slop_rules/boolean_and_comparison.yaml).
+id: bool-literal-comparison
+language: TypeScript
+severity: warning
+message: "`x == true` / `(a > b) === false` - test the boolean or its negation directly"
+note: approximates scb bool-comparison
+metadata:
+  category: boolean_and_comparison
+# Strict comparisons count only when the left side is boolean by syntax: `opt === true` is the TS idiom for `boolean | undefined`.
+rule:
+  any:
+    - pattern: $L == true
+    - pattern: $L == false
+    - pattern: $L != true
+    - pattern: $L != false
+    - pattern: $B === true
+    - pattern: $B === false
+    - pattern: $B !== true
+    - pattern: $B !== false
+constraints:
+  B:
+    any:
+      - kind: unary_expression
+        regex: ^!
+      - kind: parenthesized_expression
+        has:
+          kind: binary_expression
+          regex: (===|!==|==|!=|<=|>=|<|>|\binstanceof\b)
+---
+id: redundant-bool-ternary
+language: TypeScript
+severity: warning
+message: "`c ? true : false` - use `c` (or `Boolean(c)` when it is not already boolean)"
+note: approximates scb redundant-bool-ternary
+metadata:
+  category: boolean_and_comparison
+rule:
+  any:
+    - pattern: "$C ? true : false"
+    - pattern: "$C ? false : true"
+---
+id: redundant-bool-cast-in-condition
+language: TypeScript
+severity: warning
+message: "`if (!!x)` / `if (Boolean(x))` - `if` already tests truthiness"
+note: approximates scb pointless-bool-cast
+metadata:
+  category: boolean_and_comparison
+rule:
+  any:
+    - pattern: "!!$X"
+    - pattern: Boolean($X)
+  inside:
+    kind: parenthesized_expression
+    inside:
+      any:
+        - kind: if_statement
+        - kind: while_statement
+---
+id: null-and-undefined-check
+language: TypeScript
+severity: warning
+message: "`x !== null && x !== undefined` - use `x != null`"
+note: approximates scb chained-none-check
+metadata:
+  category: boolean_and_comparison
+rule:
+  any:
+    - pattern: $X !== null && $X !== undefined
+    - pattern: $X !== undefined && $X !== null
+    - pattern: $X === null || $X === undefined
+    - pattern: $X === undefined || $X === null

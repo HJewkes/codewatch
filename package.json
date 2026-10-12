@@ -21,6 +21,7 @@
     "release": "pnpm -r run build && changeset publish"
   },
   "devDependencies": {
+    "@ast-grep/cli": "^0.50.0",
     "@changesets/cli": "^2.27.0",
     "@titan-design/code-parser": "^0.1.0",
     "@titan-design/style-analyzer": "^0.1.0",
@@ -39,6 +40,7 @@
   "packageManager": "pnpm@9.15.0",
   "pnpm": {
     "onlyBuiltDependencies": [
+      "@ast-grep/cli",
       "better-sqlite3"
     ]
   }
