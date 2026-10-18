@@ -155,6 +155,21 @@ interface EditTrace {
   readFiles: string[];
 }
 
+function contentBlocks(message: Json): Json[] {
+  return Array.isArray(message["content"]) ? message["content"].map(asJson) : [];
+}
+
+function hasEdit(blocks: readonly Json[]): boolean {
+  return blocks.some((block) => block["type"] === "tool_use" && EDIT_TOOLS.has(String(block["name"])));
+}
+
+function readPaths(blocks: readonly Json[]): string[] {
+  return blocks.flatMap((block) => {
+    const path = asJson(block["input"])["file_path"];
+    return block["type"] === "tool_use" && block["name"] === "Read" && typeof path === "string" ? [path] : [];
+  });
+}
+
 /** Main-agent turns and Reads ahead of the first edit; sidechain events never count. */
 function traceBeforeFirstEdit(events: readonly Json[]): EditTrace {
   const turns = new Set<string>();
@@ -163,15 +178,12 @@ function traceBeforeFirstEdit(events: readonly Json[]): EditTrace {
     if (event["type"] !== "assistant" || event["parent_tool_use_id"] != null) continue;
     const message = asJson(event["message"]);
     const id = typeof message["id"] === "string" ? message["id"] : `anon-${turns.size}`;
-    const blocks = Array.isArray(message["content"]) ? message["content"].map(asJson) : [];
-    if (blocks.some((block) => block["type"] === "tool_use" && EDIT_TOOLS.has(String(block["name"])))) {
+    const blocks = contentBlocks(message);
+    if (hasEdit(blocks)) {
       return { preEditTurns: turns.has(id) ? turns.size - 1 : turns.size, readFiles: [...readFiles] };
     }
     turns.add(id);
-    for (const block of blocks) {
-      const path = asJson(block["input"])["file_path"];
-      if (block["type"] === "tool_use" && block["name"] === "Read" && typeof path === "string") readFiles.add(path);
-    }
+    for (const path of readPaths(blocks)) readFiles.add(path);
   }
   return { preEditTurns: null, readFiles: [...readFiles] };
 }
