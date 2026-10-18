@@ -11,6 +11,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from prflow.ratchet import DB
 from prflow.repo import HiddenRepo
 
 from inject import SERVER_NAME, enable
@@ -91,6 +92,8 @@ class ClaudeConfigTest(ScratchTestCase):
         server = config["mcpServers"][SERVER_NAME]
         self.assertEqual(server["command"], str(PLUGIN / "bin" / "codewatch-launch.sh"))
         self.assertEqual(server["env"]["GIT_DIR"], str(self.workspace / ".codewatch" / "repo.git"))
+        self.assertEqual(server["env"]["CODEWATCH_DB"], str(self.workspace / DB))
+        self.assertIn(f"CODEWATCH_DB={self.workspace / DB} ", settings["hooks"]["SessionStart"][1]["hooks"][0]["command"])
 
     def test_a_plugin_root_without_the_hook_fails_the_stage_and_writes_nothing(self):
         done = run_inject(self.home, self.workspace, plugin_root=self.tmp / "no-plugin")
@@ -104,7 +107,9 @@ class McpLauncherTest(ScratchTestCase):
     def test_the_enabled_server_starts_the_cli_against_the_hidden_repository(self):
         repo = HiddenRepo.at(self.workspace)
         repo.init()
-        (self.workspace / ".codewatch" / "graph.db").write_text("")
+        pipeline_db = self.workspace / DB
+        pipeline_db.parent.mkdir(parents=True)
+        pipeline_db.write_text("")
         fake_cli = self.tmp / "codewatch"
         fake_cli.write_text(f"#!{sys.executable}\nimport json, sys\nprint(json.dumps(sys.argv[1:]))\n")
         fake_cli.chmod(0o755)
@@ -116,8 +121,9 @@ class McpLauncherTest(ScratchTestCase):
                               capture_output=True, text=True, timeout=30, check=False)
 
         self.assertEqual(done.returncode, 0, done.stderr)
-        db = str(self.workspace / ".codewatch" / "graph.db")
-        self.assertEqual(json.loads(done.stdout), ["graph", "mcp", "--db", db, "--repo-root", str(self.workspace)])
+        self.assertEqual(json.loads(done.stdout),
+                         ["graph", "mcp", "--db", str(pipeline_db), "--repo-root", str(self.workspace)])
+        self.assertFalse((self.workspace / ".codewatch" / "graph.db").exists())
 
 
 class ImageTest(unittest.TestCase):

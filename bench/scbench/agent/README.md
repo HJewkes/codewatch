@@ -155,7 +155,9 @@ by `image/build.sh` from a committed sha (`CODEWATCH_PLUGIN_SHA`, default `HEAD`
 manifest records as `codewatchPluginSha`. The image enables nothing. From checkpoint 2, the
 `inject` stage (`bench/scbench/inject`) copies the plugin's SessionStart hook into the
 container's `~/.claude/settings.json` and registers its MCP server as `codewatch` in the
-user scope of `~/.claude.json`, both with `GIT_DIR` set to the hidden repository. The
+user scope of `~/.claude.json`. Both get `GIT_DIR` set to the hidden repository and
+`CODEWATCH_DB` set to the PR flow's `.codewatch/cache/graph.db`. The plugin's Grep augment
+stays off, because it targets TypeScript re-export barrels. The
 solve's argv, env and prompt do not change. Only this arm runs the stage, so A0, A1a and any
 plain `claude_code` arm start their solve with the runner's stock Claude config and no
 codewatch hook or MCP server.
