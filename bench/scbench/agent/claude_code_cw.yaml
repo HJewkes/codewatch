@@ -32,15 +32,23 @@ stages:
     command: >-
       codewatch audit /workspace &&
       python3 /opt/codewatch-a1/tiert /workspace --out /workspace/.codewatch/audit/findings.jsonl --append
-  # --model is explicit: @codewatch/cli 0.7.0 defaults to the `sonnet` alias.
+  # --model is explicit: @codewatch/cli 0.7.0 defaults to the `sonnet` alias. The agent
+  # writes CW_SPEC_FILE outside /workspace for the after-solve stages. Verdicts carry
+  # through the committed .codewatch/verdicts.jsonl and verdicts.d/, and this run's new
+  # ones go to verdicts.d/cp-N.jsonl.
   triage:
     enabled: false
-    command: codewatch triage /workspace --model claude-sonnet-5-5
+    command: >-
+      codewatch triage /workspace --model claude-sonnet-5-5 --spec "$CW_SPEC_FILE"
+      --verdicts-dir /workspace/.codewatch --run-id cp-$CW_CHECKPOINT
   solve-review: {enabled: false}
-  # exec, so a SIGTERM reaches python and the workspace is restored.
+  # exec, so a SIGTERM reaches python and the workspace is restored. The review command
+  # (bench/scbench/review) reads the spec from CW_SPEC_FILE.
   fix:
     enabled: false
-    command: exec env PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m remediation
+    command: >-
+      exec env PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m remediation
+      --review-command "env PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m review --mode fix"
   synthesis:
     enabled: false
     command: PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -m synthesis

@@ -145,7 +145,8 @@ line is `IMAGE_COMMAND` in `review/__init__.py`, and a test runs it that way.
   `reason` can still carry spec content in other words.
 
 **Fix commits** (`--mode fix`, the default) review the whole commit. The fix stage calls
-it as `--review-command "<the command above> --spec <file>"`; its hook appends the sha,
+it as `--review-command "<the command above> --mode fix"`, with the spec file from
+`CW_SPEC_FILE`, which the agent sets for the after-solve stages; its hook appends the sha,
 reads `verdict`, `spec_line` and `reason`, and resumes the fix session once on a
 conflict.
 
@@ -208,7 +209,8 @@ above about 0.001 means the rerun does not reproduce the grade.
 The A1 fix stage (design unit U8, Revision 1): one validated commit per confirmed item.
 The image copies it in, and `agent/claude_code_cw.yaml` runs it as the `fix` stage, from
 the workspace, as
-`exec env PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m remediation`.
+`exec env PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m remediation`,
+with `--review-command` set to the fix-commit review above.
 It works on the PR branch (`cp-N`) of the hidden repository (`GIT_DIR=.codewatch/repo.git`,
 created by the U15 stages); with no repository, or with uncommitted changes, it skips.
 Before that check it adds U15's exclude list (`EXCLUDES` in `prflow/repo.py`) to
