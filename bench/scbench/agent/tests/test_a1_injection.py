@@ -72,7 +72,10 @@ class ArmIsolationTest(unittest.TestCase):
     def test_only_the_a1_arm_gets_the_plugin_hook_and_mcp_server_and_its_solve_stays_stock(self):
         a1_stages = {"inject": {"enabled": True, "command": local_command(SHIPPED["inject"]["command"],
                                                                           self.tmp / "a1" / "workspace")}}
+        # The off arm's inject command would work here too, so only `enabled` keeps it out.
         every_stage_off = {name: {**SHIPPED[name], "enabled": False} for name in STAGE_NAMES}
+        every_stage_off["inject"]["command"] = local_command(SHIPPED["inject"]["command"],
+                                                             self.tmp / "off" / "workspace")
 
         _, stock_home, stock_calls = self.run_arm("stock", ClaudeCodeConfig(type="claude_code", **STOCK_FIELDS))
         _, off_home, off_calls = self.run_arm("off", _cw_config(every_stage_off))
