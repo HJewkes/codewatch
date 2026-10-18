@@ -50,6 +50,13 @@ COPY remediation /opt/codewatch-a1/remediation
 # clones, run as PYTHONPATH=/opt/codewatch-a1 python -P -m findings.audit_stage.
 COPY findings /opt/codewatch-a1/findings
 
+# The codewatch Claude Code plugin, exported by build.sh from a committed sha, and the inject
+# stage (bench/scbench/inject) that turns it on for an A1 solve. Nothing here enables it.
+ARG CODEWATCH_PLUGIN_SHA
+COPY plugin /opt/codewatch-a1/plugin
+COPY inject /opt/codewatch-a1/inject
+RUN test -n "${CODEWATCH_PLUGIN_SHA}" && test -x /opt/codewatch-a1/plugin/bin/codewatch-launch.sh
+
 COPY codewatch-wrapper.sh /usr/local/bin/codewatch
 RUN chmod 755 /usr/local/bin/codewatch \
     && chmod -R a+rX /opt/codewatch-a1 \
@@ -60,6 +67,7 @@ RUN bash /opt/codewatch-a1/assert-clean.sh && rm /opt/codewatch-a1/assert-clean.
 
 LABEL io.codewatch.scbench.arm="A1" \
       io.codewatch.scbench.codewatch-version="${CODEWATCH_VERSION}" \
+      io.codewatch.scbench.codewatch-plugin-sha="${CODEWATCH_PLUGIN_SHA}" \
       io.codewatch.scbench.pyright-version="${PYRIGHT_VERSION}" \
       io.codewatch.scbench.jscpd-version="${JSCPD_VERSION}"
 

@@ -29,7 +29,15 @@ require_base() {
 
 # One staged context instead of named build contexts: `--build-context` needs buildx, and
 # a rootless host may only have the legacy builder. Bytecode caches stay out of the image.
-stage_packages="synthesis review tiert prflow remediation findings"
+stage_packages="synthesis review tiert prflow remediation findings inject"
+
+# The plugin comes from a committed sha, never the working tree, and the sha is a label.
+repo_root="$(git -C "$here" rev-parse --show-toplevel)"
+plugin_sha="$(git -C "$repo_root" rev-parse --verify "${CODEWATCH_PLUGIN_SHA:-HEAD}^{commit}")"
+
+stage_plugin() {
+  git -C "$repo_root" archive --prefix=plugin/ "$plugin_sha:plugins/codewatch" | tar -x -C "$1"
+}
 
 stage_context() {
   local context="$run_dir/build-context"
@@ -39,6 +47,7 @@ stage_context() {
   for package in $stage_packages; do
     cp -R "$here/../$package" "$context/$package"
   done
+  stage_plugin "$context"
   find "$context" -name __pycache__ -type d -prune -exec rm -rf {} +
   echo "$context"
 }
@@ -47,7 +56,7 @@ build_image() {
   local context
   context="$(stage_context)"
   docker build --build-arg "BASE_IMAGE=$base_image" --build-arg "CODEWATCH_VERSION=$codewatch_version" \
-    -t "$image" "$context"
+    --build-arg "CODEWATCH_PLUGIN_SHA=$plugin_sha" -t "$image" "$context"
   rm -rf "$context"
 }
 
@@ -91,6 +100,21 @@ run_findings_smoke() {
   [ "$(count_signal "$findings" clone)" -ge 1 ] || fail "no clone finding in $findings (see $log)"
 }
 
+# The inject stage's own command, then the SessionStart hook it enabled, on a synthetic carry.
+run_inject_smoke() {
+  local fixture="$run_dir/inject-fixture" log="$run_dir/inject-smoke.log"
+  local stage="PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m"
+  local hook='import json, os; print(json.load(open(os.path.expanduser("~/.claude/settings.json")))["hooks"]["SessionStart"][0]["hooks"][0]["command"])'
+  rm -rf "$fixture"
+  mkdir -p "$fixture/.codewatch"
+  echo "- Keep money in integer cents. {owner}" >"$fixture/.codewatch/taste.md"
+  docker run --rm --network none --user 0:0 -e HOME=/tmp/cw-home -e CLAUDE_PROJECT_DIR=/workspace \
+    -v "$fixture:/workspace" "$image" \
+    bash -c "$stage inject --workspace /workspace --plugin-root /opt/codewatch-a1/plugin && sh -c \"\$(/opt/codewatch-a1/py/bin/python -c '$hook')\"" \
+    2>&1 | tee "$log"
+  grep -q "Keep money in integer cents" "$log" || fail "the SessionStart hook did not carry taste.md (see $log)"
+}
+
 record_manifest() {
   mkdir -p "$(dirname "$manifest")"
   [ -f "$manifest" ] || echo '{}' >"$manifest"
@@ -105,7 +129,8 @@ record_manifest() {
     --arg builtAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     '.a1Image = {image: $image, digest: $digest, base: $base, baseDigest: $baseDigest, builtAt: $builtAt,
       codewatch: $labels["io.codewatch.scbench.codewatch-version"], pyright: $labels["io.codewatch.scbench.pyright-version"],
-      jscpd: $labels["io.codewatch.scbench.jscpd-version"], python: $python, smokeFindingsByTool: $findings}' \
+      jscpd: $labels["io.codewatch.scbench.jscpd-version"],
+      codewatchPluginSha: $labels["io.codewatch.scbench.codewatch-plugin-sha"], python: $python, smokeFindingsByTool: $findings}' \
     "$manifest" >"$manifest.tmp"
   mv "$manifest.tmp" "$manifest"
   echo "build.sh: $image $(jq -r .a1Image.digest "$manifest") recorded in $manifest"
@@ -117,4 +142,5 @@ require_base
 build_image
 run_smoke
 run_findings_smoke
+run_inject_smoke
 record_manifest
