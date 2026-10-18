@@ -22,13 +22,12 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from prflow.repo import HiddenRepo, pr_branch
+from prflow.repo import OUTSIDE_CODEWATCH, HiddenRepo, pr_branch
 from remediation.fixer import Clock
 from remediation.session import FixSession, Run, run_process
 
 SESSION_ENV = "CW_SOLVE_SESSION_ID"
 REVIEW_FIELDS = ("verdict", "spec_line", "reason")
-OUTSIDE_CODEWATCH = ("--", ".", ":(exclude).codewatch")
 
 
 @dataclass(frozen=True)

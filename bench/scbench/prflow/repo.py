@@ -27,6 +27,9 @@ EXCLUDES = (
     ".mypy_cache/", ".coverage", ".coverage.*", "htmlcov/", "node_modules/",
     "/.evaluation_tests/", "/.claude/", "/.opencode/",
 )
+# The pathspec for a stage's own edits. Triage's verdict fragment stays visible to git, so
+# synthesis commits it, but a stage after triage must not count, commit or clean it.
+OUTSIDE_CODEWATCH = ("--", ".", ":(exclude).codewatch")
 
 
 class GitError(RuntimeError):
