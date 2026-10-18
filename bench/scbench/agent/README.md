@@ -136,6 +136,13 @@ keys are copied into `stages.json`: `tokens`, `usd`, `items_in`, `items_out`, `o
 the solve's `CW_CLAUDE_BINARY`, `CW_MODEL` and `CW_PERMISSION_MODE`, so a stage's claude
 session runs like the solve's and can stop cleanly before it is cut off.
 
+**Spec file.** When an after-solve stage will run, the agent writes the checkpoint's task
+text to `/tmp/cw-spec/cp-N.md` (mode 600, outside `/workspace`) and sets `CW_SPEC_FILE` for
+those stages only. The solve's env and argv do not change. The file is deleted after the
+last stage, also when a stage raises, so it is gone before the runner snapshots the
+workspace. `triage --spec` and the fix stage's review command read it. A failed write is
+logged, and the stages that need the file report their own error.
+
 **PR flow.** `repo-init`, `pr-open` and `commit-ratchet` run `bench/scbench/prflow` from
 the image: one checkpoint is one PR on a hidden repository at `.codewatch/repo.git`. See
 `../README.md`, "prflow/".
