@@ -133,13 +133,15 @@ def run_coverage(workspace: Path, coverage_bin: str, scratch: Path) -> Path | No
 
     Python subprocesses the tests start are measured too (`patch = subprocess`) and their
     data combined, so a program the tests run as a child process counts as executed.
+    Unlike `python -m pytest`, `coverage run -m pytest` leaves the workspace off `sys.path`,
+    so `PYTHONPATH` is the workspace alone; that also keeps the stage's own packages out.
     Only pytest exits 0 (passed) and 1 (some tests failed) mean the tests ran. A collection
     error, internal error, usage error or empty collection returns no report, as does a
     coverage binary that cannot start.
     """
     rcfile, report = _fresh_scratch(scratch)
     rc = f"--rcfile={rcfile}"
-    env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+    env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONPATH": str(workspace.resolve())}
     steps = [
         ([coverage_bin, "run", rc, "-m", "pytest", "-q", "-p", "no:cacheprovider"], TESTS_RAN),
         ([coverage_bin, "combine", rc], (0,)),
