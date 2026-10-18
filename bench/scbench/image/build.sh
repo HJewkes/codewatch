@@ -29,7 +29,7 @@ require_base() {
 
 # One staged context instead of named build contexts: `--build-context` needs buildx, and
 # a rootless host may only have the legacy builder. Bytecode caches stay out of the image.
-stage_packages="synthesis review tiert prflow remediation"
+stage_packages="synthesis review tiert prflow remediation findings"
 
 stage_context() {
   local context="$run_dir/build-context"
@@ -71,6 +71,26 @@ run_smoke() {
   [ "$tiert_rows" -eq 7 ] || fail "tiert gave $tiert_rows rows on its flagged fixture, expected 7"
 }
 
+count_signal() {
+  jq -s --arg signal "$2" '[.[] | select(.signal == $signal)] | length' "$1"
+}
+
+# The audit stage's own command on a fixture PR: the fixture plus fixture-pr's one test and
+# planted clone. repo-init and pr-open give it a merge-base that predates every file, so the
+# functions the test skips are uncovered. The plain fixture stays test-free for the CLI's tests.
+run_findings_smoke() {
+  local fixture="$run_dir/findings-fixture" log="$run_dir/findings-smoke.log" findings
+  local stage="PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m"
+  rm -rf "$fixture"
+  cp -R "$here/fixture" "$fixture"
+  cp -R "$here/fixture-pr/." "$fixture/"
+  docker run --rm --network none --user 0:0 -e CW_CHECKPOINT=1 -v "$fixture:/workspace" "$image" \
+    bash -c "$stage prflow repo-init && $stage prflow pr-open && $stage findings.audit_stage" 2>&1 | tee "$log"
+  findings="$fixture/.codewatch/audit/findings.jsonl"
+  [ "$(count_signal "$findings" diff-uncovered)" -ge 1 ] || fail "no diff-uncovered finding in $findings (see $log)"
+  [ "$(count_signal "$findings" clone)" -ge 1 ] || fail "no clone finding in $findings (see $log)"
+}
+
 record_manifest() {
   mkdir -p "$(dirname "$manifest")"
   [ -f "$manifest" ] || echo '{}' >"$manifest"
@@ -96,4 +116,5 @@ require_rootless
 require_base
 build_image
 run_smoke
+run_findings_smoke
 record_manifest

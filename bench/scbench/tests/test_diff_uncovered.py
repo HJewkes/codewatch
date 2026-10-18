@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from findings.diff_uncovered import main
+from findings.diff_uncovered import main, run_coverage
 
 HERE = Path(__file__).parent
 PINNED_COVERAGE = os.environ.get("SCBENCH_COVERAGE", "/opt/codewatch-a1/bin/coverage")
@@ -206,6 +206,28 @@ class DiffUncoveredTests(unittest.TestCase):
         summary = self.run_main("--base-rev", "HEAD", "--coverage-json", str(report))
 
         self.assertEqual(summary, {"outcome": "ok", "items_in": 2, "items_out": 1})
+
+    def test_the_tests_import_from_the_workspace_and_not_from_the_stages_packages(self):
+        seen, fake = self.root / "pythonpath", self.root / "fake-coverage"
+        fake.write_text(f'#!/bin/sh\nprintf %s "$PYTHONPATH" > {seen}\nexit 3\n')
+        fake.chmod(0o755)
+
+        with mock.patch.dict(os.environ, {"PYTHONPATH": "/opt/stage-packages"}):
+            run_coverage(self.workspace, str(fake), self.root / "scratch")
+
+        self.assertEqual(seen.read_text(), str(self.workspace.resolve()))
+
+    def test_the_tests_run_without_the_hidden_repositorys_git_env(self):
+        seen, fake = self.root / "git-env", self.root / "fake-coverage"
+        fake.write_text(f'#!/bin/sh\nenv | grep ^GIT_ > {seen}\nexit 3\n')
+        fake.chmod(0o755)
+        hidden = {"GIT_DIR": "/ws/.codewatch/repo.git", "GIT_AUTHOR_NAME": "bench", "GIT_COMMITTER_EMAIL": "b@b",
+                  "GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "safe.directory", "GIT_CONFIG_VALUE_0": "*"}
+
+        with mock.patch.dict(os.environ, hidden):
+            run_coverage(self.workspace, str(fake), self.root / "scratch")
+
+        self.assertFalse(set(hidden) & {line.split("=")[0] for line in seen.read_text().splitlines()})
 
     @unittest.skipUnless(Path(PINNED_COVERAGE).exists(), "needs the pinned coverage.py (A1 image or SCBENCH_COVERAGE)")
     def test_the_pytest_run_under_coverage_finds_the_untested_function(self):

@@ -46,6 +46,10 @@ COPY tiert /opt/codewatch-a1/tiert
 # PYTHONPATH=/opt/codewatch-a1 python -P -m remediation.
 COPY remediation /opt/codewatch-a1/remediation
 
+# The audit stage and its finding sources (bench/scbench/findings): diff coverage and jscpd
+# clones, run as PYTHONPATH=/opt/codewatch-a1 python -P -m findings.audit_stage.
+COPY findings /opt/codewatch-a1/findings
+
 COPY codewatch-wrapper.sh /usr/local/bin/codewatch
 RUN chmod 755 /usr/local/bin/codewatch \
     && chmod -R a+rX /opt/codewatch-a1 \

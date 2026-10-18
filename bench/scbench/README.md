@@ -305,6 +305,11 @@ line for `stages.json`. They call the image's pinned tools by full path under
   `codewatch triage`'s clone question reads. jscpd matches its ignore globs against
   absolute paths, so the config names tool directories (`.venv`, `.git`) rather than
   every hidden directory.
+- `audit_stage`: the audit stage's command. It runs `codewatch audit` (which rewrites
+  `findings.jsonl`), then Tier T, `diff_uncovered` and `clones`, each appending its rows.
+  Diff coverage and `audit --changed-from` get the PR's merge-base commit from the hidden
+  repository; the graph ref `cw-merge-base-cp-N` is a snapshot name, not a git ref. Audit
+  flags the installed codewatch lacks (`--changed-from`, `--no-ts-slop`) are left out.
 
 ```
 cd bench/scbench
