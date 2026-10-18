@@ -31,8 +31,8 @@ def row(tool, signal, path="src/app.py"):
 class FakeAuditTools:
     """Fakes codewatch and tiert; runs the findings modules for real, from fixed reports."""
 
-    def __init__(self, scratch: Path, help_text=FULL_HELP, audit_exit=0):
-        self.scratch, self.help_text, self.audit_exit = scratch, help_text, audit_exit
+    def __init__(self, scratch: Path, help_text=FULL_HELP, audit_exit=0, crashes=()):
+        self.scratch, self.help_text, self.audit_exit, self.crashes = scratch, help_text, audit_exit, crashes
         self.calls = []
 
     def __call__(self, command, env, cwd):
@@ -48,6 +48,8 @@ class FakeAuditTools:
             with findings.open("a") as out:
                 out.write(json.dumps(row("tiert", "symbol_assertion_free", "tests/test_app.py")) + "\n")
             return subprocess.CompletedProcess(command, 0, '{"items_out": 1}', "")
+        if any(f"findings.{name}" in command for name in self.crashes):
+            return subprocess.CompletedProcess(command, 1, "", "Traceback: crashed before writing")
         return run_tool([*command, *self.report_args(command)], {**env, "PYTHONPATH": str(BENCH)}, cwd)
 
     def report_args(self, command):
@@ -104,6 +106,14 @@ class AuditStageTest(StageTestCase):
         self.assertEqual([r["signal"] for r in self.findings()], ["F401", "symbol_assertion_free", "clone"])
         self.assertIn("diff coverage did not run", report["reason"])
         self.assertIsNone(report["merge_base"])
+
+    def test_a_source_that_crashes_before_writing_appends_no_earlier_checkpoints_rows(self):
+        audit_stage(self.root, self.tools)
+
+        report = audit_stage(self.root, FakeAuditTools(self.config.scratch, crashes=("diff_uncovered", "clones")))
+
+        self.assertEqual([r["tool"] for r in self.findings()], ["ruff", "tiert"])
+        self.assertIn("clones exited 1", report["reason"])
 
     def test_a_failed_codewatch_audit_fails_the_stage_and_runs_nothing_after_it(self):
         report = audit_stage(self.root, FakeAuditTools(self.config.scratch, audit_exit=2))

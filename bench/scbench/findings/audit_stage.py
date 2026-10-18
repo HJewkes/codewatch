@@ -85,6 +85,8 @@ def audit_stage(workspace: Path, run: Run) -> dict:
     reasons = [] if base else ["no merge-base in the hidden repository, so diff coverage did not run"]
     sources = {}
     for name, (command, rows) in appended_sources(workspace, base).items():
+        if rows is not None:
+            rows.unlink(missing_ok=True)
         done = run(command, env, workspace)
         if rows is not None and rows.is_file():
             with findings.open("a", encoding="utf-8") as out:
