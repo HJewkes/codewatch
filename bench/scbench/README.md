@@ -159,9 +159,16 @@ prints `ok` with no model call. The `solve-review` stage runs after `commit-ratc
 has committed the solve on `cp-N`, with the argv of the command above plus
 `--mode expected-output --spec <file> <sha of cp-N>`.
 
-On a conflict it resumes the solve session once (`--resume <solve session id>`) with the
-reason and spec line, commits the revision and reviews it again. It writes the report
-line, plus `resumed` and the second verdict, into `stages.json`.
+The stage is `python -m review.solve --workspace /workspace --review-command "<that
+command>"`; it reviews the head of `cp-N`. On a conflict it resumes the solve session once
+(`--resume $CW_SOLVE_SESSION_ID`, which the agent reads from the solve's stream-json events)
+with the reason and spec line, amends the solve commit with the revision and reviews it
+again. The resume gets the reviewer's `reason` and line number only, never spec text. Paths
+under `.codewatch/` stay out of the amend. The solve is never reverted: a resume that times
+out restores the solve commit, and a conflict that stands is recorded. The report line
+carries `verdict`, `spec_line`, `resumed`, `second_verdict`, `second_spec_line`,
+`solve_commit`, `revised_commit`, `session_id` and `outcome` (`ok`, `revised`, `conflict`,
+`error` or `skipped`) into `stages.json`.
 
 ## analysis/
 

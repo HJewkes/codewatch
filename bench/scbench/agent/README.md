@@ -128,13 +128,16 @@ the way `.git` is, so it must be listed in `info/exclude`.
 **Report line.** A stage command may print a JSON object as its last stdout line. These
 keys are copied into `stages.json`: `tokens`, `usd`, `items_in`, `items_out`, `outcome`,
 `reason`, `fixed_replay_diffs`, `added_symbols`, `branch`, `solve_commit`, `merge_base`,
-`baseline`, `session_id`, `turns`, `held_back`, `items`, `stopped_by`, `merge` and
-`merge_commit`.
+`baseline`, `session_id`, `turns`, `held_back`, `items`, `stopped_by`, `merge`,
+`merge_commit`, and `solve-review`'s `verdict`, `spec_line`, `resumed`, `second_verdict`,
+`second_spec_line` and `revised_commit`.
 
 **Stage env.** Besides the solve's env and credential, a stage gets `CW_STAGE`,
 `CW_CHECKPOINT`, `CW_STAGE_DEADLINE` (the epoch second at which the stage is cut off) and
 the solve's `CW_CLAUDE_BINARY`, `CW_MODEL` and `CW_PERMISSION_MODE`, so a stage's claude
-session runs like the solve's and can stop cleanly before it is cut off.
+session runs like the solve's and can stop cleanly before it is cut off. The after-solve
+stages also get `CW_SOLVE_SESSION_ID`, the solve session's id from its stream-json events,
+which `solve-review` resumes once on a conflict.
 
 **Spec file.** When an after-solve stage will run, the agent writes the checkpoint's task
 text to `/tmp/cw-spec/cp-N.md` (mode 600, outside `/workspace`) and sets `CW_SPEC_FILE` for

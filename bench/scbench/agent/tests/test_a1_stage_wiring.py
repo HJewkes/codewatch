@@ -18,6 +18,7 @@ import yaml
 from slop_code.execution.runtime import RuntimeEvent
 
 from agent.claude_code_cw import ClaudeCodeCwAgent
+from prflow.repo import HiddenRepo
 from remediation.__main__ import parse_args as fix_args
 from remediation.fixer import Clock
 from remediation.session import run_process
@@ -197,6 +198,72 @@ class ShippedFixReviewTest(unittest.TestCase):
         fix = next(r for r in json.loads((self.tmp / "stages.json").read_text())["stages"] if r["stage"] == "fix")
         self.assertEqual(fix["items"][0]["status"], "kept")
         self.assertEqual(fix["items"][0]["review"], {"verdict": "ok", "spec_line": 1, "reason": "no output change"})
+
+
+GOLDEN = "tests/golden/receipt.txt"
+SOLVE_ID = "solve-session-1"
+SOLVE_REVIEW_REPLY = {"verdict": "conflict", "spec_line": 1, "spec_quote": TASK.splitlines()[0],
+                      "reason": "The golden total lost its cents."}
+# One fake `claude`: the review's no-tools call reads stdin, the solve resume restores the golden file.
+FAKE_CLAUDE = """\
+import json, sys
+from pathlib import Path
+seen = Path({seen!r})
+if "--resume" in sys.argv:
+    (seen / "resume.json").write_text(json.dumps(sys.argv[1:]))
+    Path({golden!r}).write_text("Total: 2.50\\n")
+    print(json.dumps({{"type": "result", "subtype": "success", "num_turns": 2, "total_cost_usd": 0.05,
+                       "session_id": sys.argv[sys.argv.index("--resume") + 1], "usage": {{"output_tokens": 7}}}}))
+else:
+    (seen / "review.txt").write_text(sys.stdin.read())
+    print(json.dumps({{"result": {reply!r}, "usage": {{}}, "total_cost_usd": 0.01}}))
+"""
+
+
+class ShippedSolveReviewTest(ScratchTestCase):
+    """The shipped solve-review command, run by the agent on a real hidden repository."""
+
+    def setUp(self):
+        super().setUp()
+        repo = HiddenRepo.at(self.workspace)
+        repo.init()
+        repo.ensure_excludes()
+        (self.workspace / GOLDEN).parent.mkdir(parents=True)
+        (self.workspace / GOLDEN).write_text("Total: 2.50\n")
+        repo.commit_all("main")
+        repo.run("switch", "-q", "-c", "cp-1")
+        (self.workspace / GOLDEN).write_text("Total: 2.5\n")
+        self.solve = repo.commit_all("cp-1: solve")
+        self.repo = repo
+        write_script(self.tmp / "bin" / "claude", FAKE_CLAUDE.format(
+            seen=str(self.seen), golden=GOLDEN, reply=json.dumps(SOLVE_REVIEW_REPLY)))
+
+    def shipped_command(self):
+        command = SHIPPED["solve-review"]["command"].replace("/workspace", str(self.workspace))
+        return command.replace(IMAGE_PYTHON, sys.executable).replace(IMAGE_ROOT, str(BENCH))
+
+    def test_a_conflict_resumes_the_solve_session_once_and_stages_json_records_both_verdicts(self):
+        runtime = LocalRuntime(self.workspace, path=f"{self.tmp / 'bin'}:{os.environ['PATH']}")
+        agent = _build(_cw_config({"solve-review": {"enabled": True, "command": self.shipped_command()}}), runtime)
+        capture = SolveCapture([{"type": "system", "subtype": "init", "session_id": SOLVE_ID}])
+
+        _solve(agent, capture)
+        agent.save_artifacts(self.tmp)
+        stages_json = (self.tmp / "stages.json").read_text()
+
+        row = next(r for r in json.loads(stages_json)["stages"] if r["stage"] == "solve-review")
+        self.assertEqual((row["status"], row["verdict"], row["spec_line"], row["resumed"], row["second_verdict"]),
+                         ("ok", "conflict", 1, True, "ok"))
+        self.assertEqual((row["solve_commit"], row["revised_commit"]), (self.solve, self.repo.rev("HEAD")))
+        resume = json.loads((self.seen / "resume.json").read_text())
+        self.assertEqual(resume[resume.index("--resume") + 1], SOLVE_ID)
+        self.assertIn("(specification line 1): The golden total lost its cents.", resume[-1])
+        self.assertNotIn(TASK.splitlines()[1], resume[-1])
+        self.assertIn(TASK.splitlines()[1], (self.seen / "review.txt").read_text())
+        self.assertEqual(self.repo.run("show", f"HEAD:{GOLDEN}"), "Total: 2.50")
+        self.assertEqual(self.files_holding_the_task(), [])
+        self.assertFalse(any(line in stages_json for line in TASK.splitlines()))
+        self.assertFalse(any("CW_SOLVE_SESSION_ID" in env for _, env in capture.calls))
 
 
 if __name__ == "__main__":
