@@ -2,6 +2,7 @@
 
 Run before a pilot run: `python3 bench/scbench/prompts/record_manifest.py`. The manifest
 path defaults match `bench/scbench/image/build.sh`; other keys in the manifest are kept.
+A1's entry also pins its agent config, `agent/claude_code_cw.a1.yaml`, by sha256.
 It also records, under `runnerConfigs`, which configs the launcher loads its model and
 provider catalogs from, with the sha256 of each vendored config file. Under `caps` it records
 the caps the A1 container applies: `budget_usd` (the triage stage's `--budget-usd`, else the
@@ -24,7 +25,10 @@ PROMPTS_DIR = Path(__file__).resolve().parent
 RUNNER_COMMIT = "31ceea3"
 STOCK_TEMPLATE = "just-solve.jinja"
 A1A_TEMPLATE = "a1a.jinja"
-AGENT_CONFIG = PROMPTS_DIR.parent / "agent" / "claude_code_cw.yaml"
+BENCH_DIR = PROMPTS_DIR.parent
+# The A1 arm's agent config, every stage on. A0 and A1a run the runner's stock claude_code.yaml.
+AGENT_CONFIG = BENCH_DIR / "agent" / "claude_code_cw.a1.yaml"
+ARM_CONFIGS = {"A1": AGENT_CONFIG}
 # `codewatch triage` through 0.7.0 defaults --budget-usd to 5; later releases have no default.
 CLI_DEFAULT_BUDGET_USD = 5.0
 LAST_CLI_WITH_BUDGET_DEFAULT = (0, 7, 0)
@@ -40,10 +44,18 @@ def prompts_entry(prompts_dir: Path = PROMPTS_DIR) -> dict:
     return {
         "runnerCommit": RUNNER_COMMIT,
         "arms": {
-            arm: {"template": f"bench/scbench/prompts/{name}", "sha256": template_sha256(name, prompts_dir)}
+            arm: {"template": f"bench/scbench/prompts/{name}", "sha256": template_sha256(name, prompts_dir),
+                  **_config_pin(ARM_CONFIGS.get(arm))}
             for arm, name in ARM_TEMPLATES.items()
         },
     }
+
+
+def _config_pin(config: Path | None) -> dict:
+    if config is None:
+        return {}
+    return {"agentConfig": f"bench/scbench/{config.relative_to(BENCH_DIR).as_posix()}",
+            "agentConfigSha256": hashlib.sha256(config.read_bytes()).hexdigest()}
 
 
 def _triage_command(config_text: str) -> list[str]:
@@ -122,6 +134,8 @@ if __name__ == "__main__":
     entry = record(manifest_path, runner_configs=configs, caps=caps)
     for arm, pin in entry["arms"].items():
         print(f"record_manifest: {arm} {pin['template']} {pin['sha256']}")
+        if "agentConfig" in pin:
+            print(f"record_manifest: {arm} {pin['agentConfig']} {pin['agentConfigSha256']}")
     print(f"record_manifest: catalogs from {configs['providersFile']} and {configs['modelsDirs']}")
     for path, sha in configs["vendoredConfigs"].items():
         print(f"record_manifest: {path} {sha}")

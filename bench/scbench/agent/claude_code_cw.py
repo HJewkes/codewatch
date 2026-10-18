@@ -37,6 +37,8 @@ from .stages import (
 STAGES_FILENAME = "stages.json"
 SOLVE_SESSION_ENV = "CW_SOLVE_SESSION_ID"
 SPEC_WRITE_TIMEOUT_S = 60.0
+# The inject stage registers the plugin's server as `codewatch` (bench/scbench/inject).
+CODEWATCH_MCP_PREFIX = "mcp__codewatch__"
 
 
 class StageConfig(BaseModel):
@@ -180,7 +182,7 @@ def count_mcp_tool_calls(payloads: list[dict[str, tp.Any]]) -> int:
             for item in content
             if isinstance(item, dict)
             and item.get("type") == "tool_use"
-            and str(item.get("name", "")).startswith("mcp__")
+            and str(item.get("name", "")).startswith(CODEWATCH_MCP_PREFIX)
         )
     return calls
 

@@ -1,0 +1,65 @@
+# The A1 arm: claude_code_cw.yaml with every stage enabled. Change a field there and copy
+# it here; test_a1_arm_config.py fails if the two differ in anything but `enabled`.
+type: claude_code_cw
+binary: claude
+permission_mode: bypassPermissions
+version: 2.0.51
+cost_limits:
+  cost_limit: 0
+  step_limit: 100
+  net_cost_limit: 0
+# Caps are opt-in: stage_budget_s is unset, so stages stop launching only when less
+# than stage_reserve_s remains under checkpoint_cap_s.
+checkpoint_cap_s: 7200
+stage_reserve_s: 180
+# A stage runs when enabled. With no command it is recorded as "missing".
+stages:
+  # The PR flow (bench/scbench/prflow): a hidden repo at .codewatch/repo.git, one cp-N per
+  # checkpoint. -P keeps the workspace's own modules off the stage's import path.
+  repo-init:
+    enabled: true
+    command: PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m prflow repo-init --workspace /workspace
+  pr-open:
+    enabled: true
+    command: PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m prflow pr-open --workspace /workspace
+  # From checkpoint 2: turns on the image's codewatch plugin (SessionStart hook and MCP
+  # server) in the container's Claude config for this arm's solve (bench/scbench/inject).
+  inject:
+    enabled: true
+    command: PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m inject --workspace /workspace --plugin-root /opt/codewatch-a1/plugin
+  commit-ratchet:
+    enabled: true
+    command: PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m prflow commit-ratchet --workspace /workspace
+  # codewatch audit (--changed-from the PR's merge-base commit), then Tier T, diff coverage
+  # and jscpd clones, all in the audit's findings.jsonl (bench/scbench/findings/audit_stage.py).
+  audit:
+    enabled: true
+    command: PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m findings.audit_stage --workspace /workspace
+  # --model is explicit: @codewatch/cli 0.7.0 defaults to the `sonnet` alias. The agent
+  # writes CW_SPEC_FILE outside /workspace for the after-solve stages. Verdicts carry
+  # through the committed .codewatch/verdicts.jsonl and verdicts.d/, and this run's new
+  # ones go to verdicts.d/cp-N.jsonl.
+  triage:
+    enabled: true
+    command: >-
+      codewatch triage /workspace --model claude-sonnet-5-5 --spec "$CW_SPEC_FILE"
+      --verdicts-dir /workspace/.codewatch --run-id cp-$CW_CHECKPOINT
+  # The solve commit's expected-output review (bench/scbench/review/solve.py). On a
+  # conflict it resumes the solve session once ($CW_SOLVE_SESSION_ID), amends the solve
+  # commit on cp-N and reviews it again.
+  solve-review:
+    enabled: true
+    command: >-
+      exec env PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m review.solve
+      --workspace /workspace
+      --review-command "env PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m review --mode expected-output --spec $CW_SPEC_FILE"
+  # exec, so a SIGTERM reaches python and the workspace is restored. The review command
+  # (bench/scbench/review) reads the spec from CW_SPEC_FILE.
+  fix:
+    enabled: true
+    command: >-
+      exec env PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m remediation
+      --review-command "env PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m review --mode fix"
+  synthesis:
+    enabled: true
+    command: PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -m synthesis

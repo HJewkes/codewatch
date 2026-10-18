@@ -33,11 +33,15 @@ would be empty, and nothing would guard the run dir. Run from `bench/scbench`:
 DOCKER_HOST=unix:///run/user/1000/docker.sock \
 CLAUDE_CODE_OAUTH_TOKEN="$(cat ~/.config/scbench/claude-oauth-token-server)" \
 uv run --frozen --project agent python -m agent run \
-  --agent <claude_code.yaml or agent/claude_code_cw.yaml> \
+  --agent <claude_code.yaml for A0 and A1a | agent/claude_code_cw.a1.yaml for A1> \
   --environment configs/environments/docker-python3.12-uv-rootless.yaml \
   --prompt <just-solve | a1a> --model claude_code_oauth/sonnet-5.5 --problem <name> \
   save_dir="$HOME/.cache/codewatch-scbench/runs/<arm>/<UTC timestamp>" save_template=run
 ```
+
+`agent/claude_code_cw.a1.yaml` is `agent/claude_code_cw.yaml` with all nine stages
+enabled. The base file keeps every stage off, so a test can compare the solve argv with
+A1a's.
 
 The runner ignores `output_path=`. The launcher refuses a run dir inside any repo
 checkout, and the runner's default `save_dir` (`outputs`) is one. It also refuses a

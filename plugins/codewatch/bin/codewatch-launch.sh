@@ -8,6 +8,7 @@
 # A user-scope install starts this in every repo the owner opens. Read commands
 # in the CLI fail without .codewatch/graph.db, so the shim
 # refuses to call the CLI at all unless <repo root>/.codewatch/graph.db exists.
+# $CODEWATCH_DB, when set, names another database to serve instead (it must exist).
 # An unindexed repo then shows the server as failed in /mcp, which is honest and
 # costs no model tokens.
 #
@@ -48,8 +49,13 @@ resolve_node() {
 }
 
 repo_root="$(resolve_repo_root)"
-db="$repo_root/.codewatch/graph.db"
-[ -f "$db" ] || fail "no .codewatch/graph.db under $repo_root; run \`codewatch graph index .\`"
+if [ -n "${CODEWATCH_DB:-}" ]; then
+  db="$CODEWATCH_DB"
+  [ -f "$db" ] || fail "CODEWATCH_DB points at $db, which does not exist"
+else
+  db="$repo_root/.codewatch/graph.db"
+  [ -f "$db" ] || fail "no .codewatch/graph.db under $repo_root; run \`codewatch graph index .\`"
+fi
 
 if node_bin="$(resolve_node)"; then
   PATH="$(dirname "$node_bin"):$PATH"

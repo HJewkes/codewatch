@@ -6,8 +6,11 @@
 
 ```
 cd bench/scbench
-uv run --project agent python -m agent run --agent agent/claude_code_cw.yaml ...
+uv run --project agent python -m agent run --agent agent/claude_code_cw.a1.yaml ...
 ```
+
+`claude_code_cw.a1.yaml` is the A1 arm: `claude_code_cw.yaml` with every stage enabled.
+`tests/test_a1_arm_config.py` fails if the two differ in anything else.
 
 `python -m agent` is the `slop-code` CLI with `claude_code_cw` registered.
 slop-code-bench is pinned by commit in `pyproject.toml`, because the runner has no
@@ -150,6 +153,18 @@ logged, and the stages that need the file report their own error.
 the image: one checkpoint is one PR on a hidden repository at `.codewatch/repo.git`. See
 `../README.md`, "prflow/".
 
+**Injection.** The image carries the codewatch plugin at `/opt/codewatch-a1/plugin`, exported
+by `image/build.sh` from a committed sha (`CODEWATCH_PLUGIN_SHA`, default `HEAD`) that the
+manifest records as `codewatchPluginSha`. The image enables nothing. From checkpoint 2, the
+`inject` stage (`bench/scbench/inject`) copies the plugin's SessionStart hook into the
+container's `~/.claude/settings.json` and registers its MCP server as `codewatch` in the
+user scope of `~/.claude.json`. Both get `GIT_DIR` set to the hidden repository and
+`CODEWATCH_DB` set to the PR flow's `.codewatch/cache/graph.db`. The plugin's Grep augment
+stays off, because it targets TypeScript re-export barrels. The
+solve's argv, env and prompt do not change. Only this arm runs the stage, so A0, A1a and any
+plain `claude_code` arm start their solve with the runner's stock Claude config and no
+codewatch hook or MCP server.
+
 ## stages.json
 
 The agent writes `stages.json` into the checkpoint's agent artifacts directory
@@ -161,7 +176,7 @@ The agent writes `stages.json` into the checkpoint's agent artifacts directory
              "tokens": 0, "usd": 0.0, "items_in": 0, "items_out": 42}]}
 ```
 
-`mcp_tool_calls` counts `mcp__*` tool uses in this checkpoint's solve session.
+`mcp_tool_calls` counts `mcp__codewatch__*` tool uses in this checkpoint's solve session.
 
 ## Grading happens after the stages
 
