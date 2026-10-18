@@ -29,12 +29,14 @@ when it runs from `bench/scbench`, a bare name resolves from `./prompts/`.
 python3 bench/scbench/prompts/record_manifest.py
 ```
 
-This writes each arm's template path and sha256 under `prompts` in the run manifest. The
+This writes each arm's template path and sha256 under `prompts` in the run manifest. A1's
+entry also pins its agent config, `agentConfig` (`../agent/claude_code_cw.a1.yaml`) and
+`agentConfigSha256`. The
 manifest is `~/.cache/codewatch-scbench/manifest.json`, or `$MANIFEST` or
 `$SCBENCH_RUN_DIR/manifest.json` when set, the same defaults as `../image/build.sh`.
 
 It also writes the caps the A1 container applies under `caps`: `budget_usd` (the triage
-stage's `--budget-usd` in `../agent/claude_code_cw.yaml`, else the default of the CLI the
+stage's `--budget-usd` in `../agent/claude_code_cw.a1.yaml`, else the default of the CLI the
 image pins, which is 5 through 0.7.0, else `null`), `triage_cli_version`,
 `synthesis_open_items_cap` (`../synthesis/inputs.py`; `null` means no cap) and the runner's
 `step_limit`. `null` always means no cap. The carry hook's `CODEWATCH_CARRY_*` caps are not

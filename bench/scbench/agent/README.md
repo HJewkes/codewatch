@@ -6,8 +6,11 @@
 
 ```
 cd bench/scbench
-uv run --project agent python -m agent run --agent agent/claude_code_cw.yaml ...
+uv run --project agent python -m agent run --agent agent/claude_code_cw.a1.yaml ...
 ```
+
+`claude_code_cw.a1.yaml` is the A1 arm: `claude_code_cw.yaml` with every stage enabled.
+`tests/test_a1_arm_config.py` fails if the two differ in anything else.
 
 `python -m agent` is the `slop-code` CLI with `claude_code_cw` registered.
 slop-code-bench is pinned by commit in `pyproject.toml`, because the runner has no
