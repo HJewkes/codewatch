@@ -75,13 +75,15 @@ count_signal() {
   jq -s --arg signal "$2" '[.[] | select(.signal == $signal)] | length' "$1"
 }
 
-# The audit stage's own command on a fixture PR: repo-init and pr-open give it a merge-base
-# that predates every fixture file, so the functions the fixture's one test skips are uncovered.
+# The audit stage's own command on a fixture PR: the fixture plus fixture-pr's one test and
+# planted clone. repo-init and pr-open give it a merge-base that predates every file, so the
+# functions the test skips are uncovered. The plain fixture stays test-free for the CLI's tests.
 run_findings_smoke() {
   local fixture="$run_dir/findings-fixture" log="$run_dir/findings-smoke.log" findings
   local stage="PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m"
   rm -rf "$fixture"
   cp -R "$here/fixture" "$fixture"
+  cp -R "$here/fixture-pr/." "$fixture/"
   docker run --rm --network none --user 0:0 -e CW_CHECKPOINT=1 -v "$fixture:/workspace" "$image" \
     bash -c "$stage prflow repo-init && $stage prflow pr-open && $stage findings.audit_stage" 2>&1 | tee "$log"
   findings="$fixture/.codewatch/audit/findings.jsonl"
