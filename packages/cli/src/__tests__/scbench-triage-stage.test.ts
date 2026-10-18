@@ -7,7 +7,8 @@ import type { LegacyStepRunner } from "@titan-design/workflow";
 import { runAuditCommand } from "../commands/audit.js";
 import { registerTriageCommand } from "../commands/triage-cli.js";
 import type { TriageRunOptions } from "../commands/triage.js";
-import { loadControls, type Control } from "../commands/triage-controls/controls.js";
+import { loadControls } from "../commands/triage-controls/controls.js";
+import type { Control } from "../commands/triage-controls/types.js";
 import type { VerdictRecord } from "../commands/triage-output.js";
 import { fakeReader, row, SILENT_RUNNERS } from "./triage-fake-reader.js";
 
