@@ -26,12 +26,11 @@ stages:
   commit-ratchet:
     enabled: false
     command: PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m prflow commit-ratchet --workspace /workspace
-  # Tier T rows join the audit's findings.jsonl; tiert's counts are the report line.
+  # codewatch audit (--changed-from the PR's merge-base commit), then Tier T, diff coverage
+  # and jscpd clones, all in the audit's findings.jsonl (bench/scbench/findings/audit_stage.py).
   audit:
     enabled: false
-    command: >-
-      codewatch audit /workspace &&
-      python3 /opt/codewatch-a1/tiert /workspace --out /workspace/.codewatch/audit/findings.jsonl --append
+    command: PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m findings.audit_stage --workspace /workspace
   # --model is explicit: @codewatch/cli 0.7.0 defaults to the `sonnet` alias.
   triage:
     enabled: false

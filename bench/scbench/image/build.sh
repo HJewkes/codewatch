@@ -29,7 +29,7 @@ require_base() {
 
 # One staged context instead of named build contexts: `--build-context` needs buildx, and
 # a rootless host may only have the legacy builder. Bytecode caches stay out of the image.
-stage_packages="synthesis review tiert prflow remediation"
+stage_packages="synthesis review tiert prflow remediation findings"
 
 stage_context() {
   local context="$run_dir/build-context"
