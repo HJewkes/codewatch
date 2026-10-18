@@ -83,6 +83,12 @@ it follows symlinks but cannot see through a shell shim. If `codewatch` on `PATH
 `no read API beside ...` to stderr. Set `CODEWATCH_BIN` to the CLI's real entry, for example
 `/path/to/node_modules/@codewatch/cli/dist/index.js`. A `.js` or `.mjs` value runs under node.
 
+## Another database: `CODEWATCH_DB`
+
+The launcher and the SessionStart hook read `<repo root>/.codewatch/graph.db`. Set
+`CODEWATCH_DB` to serve a different database file, such as one a pipeline indexes
+elsewhere. The file must exist, or the server refuses to start and the hook emits no snapshot.
+
 ## Uninstall
 
 ```bash

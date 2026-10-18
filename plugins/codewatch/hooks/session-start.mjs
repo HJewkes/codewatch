@@ -121,8 +121,8 @@ async function main() {
   const { root, inGit } = resolveRoot(process.env.CLAUDE_PROJECT_DIR || process.cwd())
   carried = carriedNotes(root)
   if (!inGit && !carried) return bail(`${root} is not a git repository`)
-  const db = join(root, ".codewatch", "graph.db")
-  if (!existsSync(db)) return bail(`no .codewatch/graph.db under ${root}`)
+  const db = process.env.CODEWATCH_DB || join(root, ".codewatch", "graph.db")
+  if (!existsSync(db)) return bail(process.env.CODEWATCH_DB ? `no graph db at ${db}` : `no .codewatch/graph.db under ${root}`)
   const cli = resolveCli()
   if (!cli) return bail("cannot find the codewatch CLI; set CODEWATCH_BIN")
   const head = inGit ? git(["-C", root, "rev-parse", "HEAD"]) : undefined
