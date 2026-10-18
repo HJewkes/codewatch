@@ -35,6 +35,7 @@ from .stages import (
 )
 
 STAGES_FILENAME = "stages.json"
+SOLVE_SESSION_ENV = "CW_SOLVE_SESSION_ID"
 SPEC_WRITE_TIMEOUT_S = 60.0
 
 
@@ -99,9 +100,10 @@ class ClaudeCodeCwAgent(ClaudeCodeAgent):
         steps_before = len(self.steps)
         runner.run(stages_for(self.checkpoint_index, before_solve=True), env)
         result = super().run_checkpoint(task)
-        self._run_after_solve(runner, env, task)
+        solve_steps = self.steps[steps_before:]
+        self._run_after_solve(runner, {**env, **solve_session_env(solve_steps)}, task)
         self.stage_records = runner.records
-        self.mcp_tool_calls = count_mcp_tool_calls(self.steps[steps_before:])
+        self.mcp_tool_calls = count_mcp_tool_calls(solve_steps)
         return result
 
     def _run_after_solve(self, runner: StageRunner, env: dict[str, str], task: str) -> None:
@@ -158,6 +160,12 @@ class ClaudeCodeCwAgent(ClaudeCodeAgent):
         write_stages_json(
             path / STAGES_FILENAME, self.checkpoint_index, self.stage_records, self.mcp_tool_calls
         )
+
+
+def solve_session_env(payloads: list[dict[str, tp.Any]]) -> dict[str, str]:
+    """`CW_SOLVE_SESSION_ID` from the solve's stream-json events, for `solve-review`'s one resume."""
+    ids = [p["session_id"] for p in payloads if isinstance(p.get("session_id"), str) and p["session_id"]]
+    return {SOLVE_SESSION_ENV: ids[-1]} if ids else {}
 
 
 def count_mcp_tool_calls(payloads: list[dict[str, tp.Any]]) -> int:
