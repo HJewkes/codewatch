@@ -219,4 +219,13 @@ describe("parseArmStream", () => {
 
     expect(parseArmStream(raw, SONNET).readFiles).toEqual(["/repo/a.ts", "/repo/b.ts"]);
   });
+
+  it("skips a Read whose input names no file path", () => {
+    const raw = [
+      assistant("m1", M1, toolUse("t1", "Read", { pattern: "*.ts" })),
+      assistant("m2", M2, toolUse("t2", "Read", { file_path: "/repo/a.ts" })),
+    ].join("\n");
+
+    expect(parseArmStream(raw, SONNET).readFiles).toEqual(["/repo/a.ts"]);
+  });
 });
