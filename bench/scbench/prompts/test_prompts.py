@@ -138,16 +138,19 @@ class CapsEntryTests(unittest.TestCase):
             "cost_limits:\n  step_limit: 100\nstages:\n  triage:\n    enabled: true\n"
             f"    command: {command}\n  fix:\n    command: other --budget-usd 9\n"
         )
-        dockerfile = Path(tmp) / "Dockerfile"
-        dockerfile.write_text(f"ARG CODEWATCH_VERSION={version}\n")
-        return caps_entry(config, dockerfile)
+        return caps_entry(config, {"version": version})
 
-    def test_the_shipped_config_records_the_pinned_cli_default_budget_and_no_synthesis_cap(self):
-        entry = caps_entry()
+    def test_the_shipped_config_on_the_0_7_0_release_records_its_default_budget_and_no_synthesis_cap(self):
+        entry = caps_entry(cli={"version": "0.7.0"})
         self.assertEqual(entry["budget_usd"], 5.0)
         self.assertEqual(entry["triage_cli_version"], "0.7.0")
         self.assertIsNone(entry["synthesis_open_items_cap"])
         self.assertEqual(entry["step_limit"], 100)
+
+    def test_a_source_build_records_its_sha_and_no_default_budget_despite_the_release_version(self):
+        entry = caps_entry(cli={"version": "0.7.0", "source_sha": "a" * 40})
+        self.assertIsNone(entry["budget_usd"])
+        self.assertEqual(entry["triage_cli_source_sha"], "a" * 40)
 
     def test_a_cli_without_a_budget_default_records_no_cap(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -160,11 +163,10 @@ class CapsEntryTests(unittest.TestCase):
                 "stages:\n  triage:\n    enabled: true\n    command: >-\n      codewatch triage /workspace\n"
                 "      --budget-usd 2\n  fix:\n    command: x --budget-usd 9\n"
             )
-            dockerfile = Path(tmp) / "Dockerfile"
-            dockerfile.write_text("ARG CODEWATCH_VERSION=0.8.0\n")
-            self.assertEqual(caps_entry(config, dockerfile)["budget_usd"], 2.0)
+            cli = {"version": "0.8.0"}
+            self.assertEqual(caps_entry(config, cli)["budget_usd"], 2.0)
             config.write_text("stages:\n  triage:\n    enabled: true\n  fix:\n    command: x --budget-usd 9\n")
-            self.assertIsNone(caps_entry(config, dockerfile)["budget_usd"])
+            self.assertIsNone(caps_entry(config, cli)["budget_usd"])
 
     def test_an_explicit_budget_flag_wins_over_the_cli_default(self):
         with tempfile.TemporaryDirectory() as tmp:
