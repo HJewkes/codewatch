@@ -22,7 +22,11 @@ stages:
   pr-open:
     enabled: false
     command: PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m prflow pr-open --workspace /workspace
-  inject: {enabled: false}
+  # From checkpoint 2: turns on the image's codewatch plugin (SessionStart hook and MCP
+  # server) in the container's Claude config for this arm's solve (bench/scbench/inject).
+  inject:
+    enabled: false
+    command: PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m inject --workspace /workspace --plugin-root /opt/codewatch-a1/plugin
   commit-ratchet:
     enabled: false
     command: PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m prflow commit-ratchet --workspace /workspace

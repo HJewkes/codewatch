@@ -8,4 +8,6 @@
 !prflow
 !remediation
 !findings
+!inject
+!plugin
 **/__pycache__
