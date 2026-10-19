@@ -38,6 +38,17 @@ STDERR_FD = 2
 TESTS_RAN = (0, 1)
 # The audit stage reads the hidden repository through these; the agent's tests never see them.
 GIT_ENV_PREFIXES = ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG_", "GIT_AUTHOR_", "GIT_COMMITTER_")
+AGENT_VENVS = (".venv", "venv")
+SITE_HOOK = """\
+import os
+import site
+import sys
+
+for venv in {venvs!r}:
+    packages = os.path.join(venv, "lib", f"python{{sys.version_info[0]}}.{{sys.version_info[1]}}", "site-packages")
+    if os.path.isdir(packages):
+        site.addsitedir(packages)
+"""
 
 BaseReader = Callable[[str], str | None]
 
@@ -136,15 +147,16 @@ def run_coverage(workspace: Path, coverage_bin: str, scratch: Path) -> Path | No
     Python subprocesses the tests start are measured too (`patch = subprocess`) and their
     data combined, so a program the tests run as a child process counts as executed.
     Unlike `python -m pytest`, `coverage run -m pytest` leaves the workspace off `sys.path`,
-    so `PYTHONPATH` is the workspace alone; that also keeps the stage's own packages out.
-    The hidden repository's git env is dropped, so the tests run as they do in the solve.
+    so `PYTHONPATH` is the workspace, then a hook that appends the agent's virtualenv
+    packages; that also keeps the stage's own packages out. The hidden repository's git env
+    is dropped, so the tests run as they do in the solve.
     Only pytest exits 0 (passed) and 1 (some tests failed) mean the tests ran. A collection
     error, internal error, usage error or empty collection returns no report, as does a
     coverage binary that cannot start.
     """
     rcfile, report = _fresh_scratch(scratch)
     rc = f"--rcfile={rcfile}"
-    env = agent_test_env(workspace)
+    env = agent_test_env(workspace, scratch)
     steps = [
         ([coverage_bin, "run", rc, "-m", "pytest", "-q", "-p", "no:cacheprovider"], TESTS_RAN),
         ([coverage_bin, "combine", rc], (0,)),
@@ -160,9 +172,27 @@ def run_coverage(workspace: Path, coverage_bin: str, scratch: Path) -> Path | No
     return report if report.is_file() else None
 
 
-def agent_test_env(workspace: Path) -> dict[str, str]:
+def agent_test_env(workspace: Path, scratch: Path) -> dict[str, str]:
+    root = workspace.resolve()
     kept = {k: v for k, v in os.environ.items() if not k.startswith(GIT_ENV_PREFIXES)}
-    return {**kept, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONPATH": str(workspace.resolve())}
+    path = os.pathsep.join([str(root), str(agent_site_hook(root, scratch))])
+    return {**kept, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONPATH": path}
+
+
+def agent_site_hook(root: Path, scratch: Path) -> Path:
+    """A directory holding a `sitecustomize` that appends the workspace virtualenv's packages.
+
+    The agent installs the task's requirements there, and coverage.py's own venv lacks them.
+    Appended after the interpreter's own site-packages, they never replace the pinned
+    coverage.py or pytest, and only the running interpreter's `pythonX.Y` is read, so a venv
+    built for another Python adds nothing. The test subprocesses inherit `PYTHONPATH`, so
+    they get the same packages.
+    """
+    hook = scratch / "site-hook"
+    hook.mkdir(parents=True, exist_ok=True)
+    venvs = [str(root / venv) for venv in AGENT_VENVS]
+    (hook / "sitecustomize.py").write_text(SITE_HOOK.format(venvs=venvs))
+    return hook
 
 
 def _fresh_scratch(scratch: Path) -> tuple[Path, Path]:
