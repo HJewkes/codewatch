@@ -1,9 +1,12 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
+import type { AddressInfo } from "node:net";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { buildMcpServer } from "./server.js";
 import { createReadApi, type ReadApiOptions } from "../read-api/reader.js";
+import { refusalStatus, type GuardConfig } from "./http-guard.js";
+import { createTokenFile, defaultTokenPath } from "./http-token.js";
 
 /**
  * Long-running codewatch MCP server over Streamable HTTP. Unlike the stdio server
@@ -13,36 +16,61 @@ import { createReadApi, type ReadApiOptions } from "../read-api/reader.js";
  * opened ONCE and shared across every session, so a client connect is just an
  * HTTP handshake to an already-warm process. Sessions are managed per the SDK's
  * canonical Streamable HTTP pattern (a session id issued on `initialize`, routed
- * on subsequent requests). Bind localhost only.
+ * on subsequent requests). Bind localhost only; every request also passes the
+ * Host, Origin and bearer-token guard in `http-guard.ts`.
  */
 export interface HttpMcpOptions extends ReadApiOptions {
   port: number;
   host?: string;
+  /** Where the bearer token is written (default: `defaultTokenPath(port)`). */
+  tokenPath?: string;
+}
+
+export interface RunningHttpMcpServer {
+  port: number;
+  tokenPath: string;
+  close: () => Promise<void>;
 }
 
 export async function startHttpMcpServer(options: HttpMcpOptions): Promise<void> {
+  const server = await createHttpMcpServer(options);
+  const host = options.host ?? "127.0.0.1";
+  process.stderr.write(
+    `codewatch MCP HTTP server listening on http://${host}:${server.port}/mcp (warm; shared graph.db)\n` +
+      `send "Authorization: Bearer <token>"; the token is in ${server.tokenPath}\n`,
+  );
+  const shutdown = (): void => {
+    void server.close().then(() => process.exit(0));
+  };
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
+}
+
+export async function createHttpMcpServer(options: HttpMcpOptions): Promise<RunningHttpMcpServer> {
+  const tokenPath = options.tokenPath ?? defaultTokenPath(options.port);
+  const guard: GuardConfig = { port: options.port, token: createTokenFile(tokenPath) };
   const api = createReadApi(options); // warm: opened once, shared by all sessions
   const transports = new Map<string, StreamableHTTPServerTransport>();
 
   const httpServer = createServer((req, res) => {
+    const refusal = refusalStatus(req.headers, guard);
+    if (refusal !== null) {
+      res.writeHead(refusal).end();
+      return;
+    }
     void handle(req, res, api, transports).catch(() => {
       if (!res.headersSent) res.writeHead(500).end();
     });
   });
 
-  const host = options.host ?? "127.0.0.1";
-  await new Promise<void>((resolve) => httpServer.listen(options.port, host, resolve));
-  process.stderr.write(
-    `codewatch MCP HTTP server listening on http://${host}:${options.port}/mcp (warm; shared graph.db)\n`,
-  );
-
-  const shutdown = (): void => {
-    httpServer.close();
+  await new Promise<void>((resolve) => httpServer.listen(options.port, options.host ?? "127.0.0.1", resolve));
+  guard.port = (httpServer.address() as AddressInfo).port;
+  const close = async (): Promise<void> => {
+    httpServer.closeAllConnections();
+    await new Promise<void>((resolve) => httpServer.close(() => resolve()));
     api.close();
-    process.exit(0);
   };
-  process.on("SIGINT", shutdown);
-  process.on("SIGTERM", shutdown);
+  return { port: guard.port, tokenPath, close };
 }
 
 async function handle(
