@@ -3,15 +3,24 @@ import io
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
-from findings.diff_uncovered import main, run_coverage
+from findings.diff_uncovered import agent_test_env, main, run_coverage
 
 HERE = Path(__file__).parent
 PINNED_COVERAGE = os.environ.get("SCBENCH_COVERAGE", "/opt/codewatch-a1/bin/coverage")
+
+
+def tools_python_version():
+    """The `X.Y` of the interpreter in the pinned coverage script's shebang."""
+    python = Path(PINNED_COVERAGE).resolve().read_text().splitlines()[0].removeprefix("#!").strip()
+    shown = subprocess.run([python, "-c", "import sys; print(*sys.version_info[:2], sep='.')"],
+                           capture_output=True, text=True, check=True)
+    return shown.stdout.strip()
 
 BASE_PRICING = '''\
 def discount(total):
@@ -215,7 +224,26 @@ class DiffUncoveredTests(unittest.TestCase):
         with mock.patch.dict(os.environ, {"PYTHONPATH": "/opt/stage-packages"}):
             run_coverage(self.workspace, str(fake), self.root / "scratch")
 
-        self.assertEqual(seen.read_text(), str(self.workspace.resolve()))
+        paths = seen.read_text().split(os.pathsep)
+        self.assertEqual(paths[0], str(self.workspace.resolve()))
+        self.assertNotIn("/opt/stage-packages", paths)
+
+    def test_the_workspace_venvs_packages_come_last_and_only_for_the_running_python(self):
+        here = self.venv_site(f"python{sys.version_info.major}.{sys.version_info.minor}")
+        other = self.venv_site("python3.1")
+        env = agent_test_env(self.workspace, self.root / "scratch")
+
+        shown = subprocess.run([sys.executable, "-c", "import json, sys; print(json.dumps(sys.path))"],
+                               env=env, capture_output=True, text=True, check=True)
+
+        paths = json.loads(shown.stdout)
+        self.assertEqual(paths[-1], str(here))
+        self.assertNotIn(str(other), paths)
+
+    def venv_site(self, python):
+        site = self.workspace.resolve() / ".venv" / "lib" / python / "site-packages"
+        site.mkdir(parents=True)
+        return site
 
     def test_the_tests_run_without_the_hidden_repositorys_git_env(self):
         seen, fake = self.root / "git-env", self.root / "fake-coverage"
@@ -252,6 +280,19 @@ class DiffUncoveredTests(unittest.TestCase):
         self.assertEqual([r["symbol"] for r in self.rows()], ["surcharge"])
         self.assertEqual(summary["items_in"], 4)
         self.assertEqual(sorted(self.workspace.rglob("*")), before)
+
+    @unittest.skipUnless(Path(PINNED_COVERAGE).exists(), "needs the pinned coverage.py (A1 image or SCBENCH_COVERAGE)")
+    def test_the_workspace_venvs_packages_are_importable_but_never_replace_the_pinned_tools(self):
+        broken = "raise ImportError('the agent venv copy was imported')\n"
+        site = f".venv/lib/python{tools_python_version()}/site-packages"
+        write(self.workspace, {f"{site}/agent_dep.py": "VALUE = 1\n",
+                               f"{site}/coverage/__init__.py": broken, f"{site}/pytest/__init__.py": broken,
+                               "tests/test_dep.py": "import agent_dep\n\n\ndef test_dep():\n    assert agent_dep.VALUE\n"})
+
+        summary = self.run_main("--base-dir", str(self.base), "--coverage", PINNED_COVERAGE)
+
+        self.assertEqual(summary["outcome"], "ok")
+        self.assertEqual([r["symbol"] for r in self.rows()], ["surcharge"])
 
     @unittest.skipUnless(Path(PINNED_COVERAGE).exists(), "needs the pinned coverage.py (A1 image or SCBENCH_COVERAGE)")
     def test_a_test_collection_error_reports_no_coverage_rather_than_untested_functions(self):

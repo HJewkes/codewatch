@@ -4,8 +4,10 @@
 coverage (coverage.py over the agent's tests) and jscpd clones then append their rows.
 Diff coverage and `audit --changed-from` both take the PR's merge-base as a git commit,
 read from the hidden repository: the graph ref `cw-merge-base-cp-N` names a snapshot in
-the graph database, not a git ref. A source that fails is a recorded reason; only a
-failed `codewatch audit` fails the stage.
+the graph database, not a git ref. A failed `codewatch audit` fails the stage and runs
+nothing after it. Any other recorded reason, such as a source that fails or does not
+run, leaves the stage `degraded`: the other sources' rows are kept and the exit is
+non-zero, so a gap in the findings never reads as a clean pass.
 
     PYTHONPATH=/opt/codewatch-a1 python -P -m findings.audit_stage --workspace /workspace
 """
@@ -94,7 +96,8 @@ def audit_stage(workspace: Path, run: Run) -> dict:
         sources[name] = {"exit": done.returncode, **_last_json(done.stdout)}
         if done.returncode != 0:
             reasons.append(_why(name, done))
-    report = {"outcome": "ok", "merge_base": base, "dropped_ignored": drop_ignored(workspace, findings, reasons),
+    dropped = drop_ignored(workspace, findings, reasons)
+    report = {"outcome": "degraded" if reasons else "ok", "merge_base": base, "dropped_ignored": dropped,
               "items_out": _count(findings), "sources": sources}
     return {**report, **({"reason": "; ".join(reasons)} if reasons else {})}
 
@@ -152,7 +155,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--workspace", type=Path, default=Path("/workspace"))
     report = audit_stage(parser.parse_args(argv).workspace.resolve(), run_tool)
     print(json.dumps(report))
-    return 1 if report["outcome"] == "failed" else 0
+    return 0 if report["outcome"] == "ok" else 1
 
 
 if __name__ == "__main__":
