@@ -62,6 +62,9 @@ stage_codewatch() {
   pnpm --dir "$codewatch_src" --filter @codewatch/cli deploy --prod "$context/codewatch"
   # pnpm records the host's absolute store path here; nothing reads it at run time.
   rm -f "$context/codewatch/node_modules/.modules.yaml"
+  # pnpm links the package to its own source checkout, which dangles in the image. Docker's
+  # layer cache ignores symlink targets, so a deploy from another checkout reused a stale COPY.
+  rm -f "$context/codewatch/node_modules/.pnpm/node_modules/@codewatch/cli"
   python3 "$here/artifact.py" entry "$codewatch_src" "$context/codewatch" "$source_sha" >"$codewatch_entry" \
     || fail "refusing to record an artifact: $codewatch_src is dirty or moved off $source_sha"
   codewatch_version="$(jq -r .version "$codewatch_entry")"
