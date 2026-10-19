@@ -54,8 +54,8 @@ importers:
         specifier: ^0.4.3
         version: 0.4.3(@anthropic-ai/sdk@0.128.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(zod@4.3.6)
       '@titan-design/code-graph':
-        specifier: ^0.16.0
-        version: 0.16.0
+        specifier: ^0.18.2
+        version: 0.18.2
       '@titan-design/code-parser':
         specifier: ^0.1.0
         version: 0.1.0(web-tree-sitter@0.26.6)
@@ -146,8 +146,8 @@ importers:
   packages/render:
     dependencies:
       '@titan-design/code-graph':
-        specifier: ^0.16.0
-        version: 0.16.0
+        specifier: ^0.18.2
+        version: 0.18.2
       cose-base:
         specifier: ^1.0.3
         version: 1.0.3
@@ -1007,8 +1007,8 @@ packages:
     peerDependencies:
       zod: ^4.0.0
 
-  '@titan-design/code-graph@0.16.0':
-    resolution: {integrity: sha512-SM0yoiBV7JAU+dyfnLufr5h4KOb222nD1qWwFqsiPBg9zBSRdjXIjKOBDi7ZQuxBNPMFbtSHid7qiovb/IkUBw==}
+  '@titan-design/code-graph@0.18.2':
+    resolution: {integrity: sha512-uZ1kxKM8kR08jPx1h8tQuapOCQ9E5Ab0U+oyMx994R50/yylVpxT/ege5XdbF5QZYH2UJTU24JefRmN7mzz1Fw==}
     engines: {node: '>=20'}
 
   '@titan-design/code-parser@0.1.0':
@@ -1034,6 +1034,10 @@ packages:
 
   '@titan-design/evidence@0.1.0':
     resolution: {integrity: sha512-rRDqEttcTcYkIcCRBQnrTncsqIV3w6c4aqMQrjEVFgmyESnYc4RjMHnPlpYvYA6uptI0wXhjaZL4AsS99jYr+Q==}
+    engines: {node: '>=20'}
+
+  '@titan-design/evidence@0.4.0':
+    resolution: {integrity: sha512-ZtKmMrJ2nL9/iUMvZpsBehkD3s+l0yMnWOxIq7GZnSkmMwe3aFPM/1Zw3JyprXevawCyk4LVOKO8q/ybjwy5oQ==}
     engines: {node: '>=20'}
 
   '@titan-design/hitl@0.7.0':
@@ -3254,10 +3258,11 @@ snapshots:
     dependencies:
       zod: 4.3.6
 
-  '@titan-design/code-graph@0.16.0':
+  '@titan-design/code-graph@0.18.2':
     dependencies:
       '@titan-design/code-parser': 0.2.0(web-tree-sitter@0.26.6)
       '@titan-design/embed': 0.2.0
+      '@titan-design/evidence': 0.4.0
       '@titan-design/retrieval': 0.3.1
       '@titan-design/store-sqlite': 0.4.0
       ts-morph: 25.0.1
@@ -3285,6 +3290,8 @@ snapshots:
   '@titan-design/embed@0.2.0': {}
 
   '@titan-design/evidence@0.1.0': {}
+
+  '@titan-design/evidence@0.4.0': {}
 
   '@titan-design/hitl@0.7.0(zod@4.3.6)':
     dependencies:
