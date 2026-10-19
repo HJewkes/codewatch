@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
-# Builds the arm A1 image on rootless Docker, runs the audit smoke test on the fixture
-# with no network, and records the image digest in the run manifest.
+# Builds the arm A1 image on rootless Docker from a `pnpm deploy` of a clean codewatch sha,
+# runs the smoke tests on the fixture with no network, and records the image digest, the
+# source sha and the artifact hash in the run manifest.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export DOCKER_HOST="${DOCKER_HOST:-unix:///run/user/$(id -u)/docker.sock}"
 base_image="${BASE_IMAGE:-slop-code:claude_code-2.0.51-python3.12}"
-codewatch_version="${CODEWATCH_VERSION:-0.7.0}"
-image="${IMAGE:-codewatch-scbench:a1-cw${codewatch_version}}"
+codewatch_src="${CODEWATCH_SRC:-$(cd "$here/../../.." && pwd)}"
 run_dir="${SCBENCH_RUN_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/codewatch-scbench}"
 manifest="${MANIFEST:-$run_dir/manifest.json}"
+context="$run_dir/build-context"
+codewatch_entry="$run_dir/codewatch-entry.json"
 python_tools="ruff|vulture|pydoclint|pyright|import-linter|suppressions"
 
 fail() {
@@ -40,7 +42,6 @@ stage_plugin() {
 }
 
 stage_context() {
-  local context="$run_dir/build-context"
   rm -rf "$context"
   mkdir -p "$context"
   cp -R "$here/." "$context/"
@@ -49,15 +50,40 @@ stage_context() {
   done
   stage_plugin "$context"
   find "$context" -name __pycache__ -type d -prune -exec rm -rf {} +
-  echo "$context"
+}
+
+# The CLI comes from the source's committed sha, never its working tree: artifact.py refuses a
+# dirty tree before the build and again after it, when it hashes the deploy directory, and
+# refuses a source whose HEAD moved off the checked sha in between.
+stage_codewatch() {
+  source_sha="$(python3 "$here/artifact.py" check-clean "$codewatch_src")" || fail "refusing to build from a dirty $codewatch_src"
+  pnpm --dir "$codewatch_src" install --frozen-lockfile
+  pnpm --dir "$codewatch_src" --filter "@codewatch/cli..." build
+  pnpm --dir "$codewatch_src" --filter @codewatch/cli deploy --prod "$context/codewatch"
+  # pnpm records the host's absolute store path here; nothing reads it at run time.
+  rm -f "$context/codewatch/node_modules/.modules.yaml"
+  python3 "$here/artifact.py" entry "$codewatch_src" "$context/codewatch" "$source_sha" >"$codewatch_entry" \
+    || fail "refusing to record an artifact: $codewatch_src is dirty or moved off $source_sha"
+  codewatch_version="$(jq -r .version "$codewatch_entry")"
+  image="${IMAGE:-codewatch-scbench:$(python3 "$here/artifact.py" tag "$codewatch_version" "$source_sha")}"
 }
 
 build_image() {
-  local context
-  context="$(stage_context)"
   docker build --build-arg "BASE_IMAGE=$base_image" --build-arg "CODEWATCH_VERSION=$codewatch_version" \
+    --build-arg "CODEWATCH_SOURCE_SHA=$source_sha" \
+    --build-arg "CODEWATCH_ARTIFACT_SHA256=$(jq -r .artifact_sha256 "$codewatch_entry")" \
     --build-arg "CODEWATCH_PLUGIN_SHA=$plugin_sha" -t "$image" "$context"
   rm -rf "$context"
+}
+
+# The image's CLI must be the artifact the manifest records, so it is rehashed inside the image.
+verify_artifact() {
+  local expected
+  expected="$(jq -r .artifact_sha256 "$codewatch_entry")"
+  docker run --rm --network none --user 0:0 -v "$here/artifact.py:/artifact.py:ro" "$image" \
+    python3 -I /artifact.py hash /opt/codewatch-a1/node/codewatch "$expected" >/dev/null \
+    || fail "the image's CLI does not hash to the recorded $expected"
+  echo "build.sh: the image's CLI hashes to the recorded $expected"
 }
 
 count_tool() {
@@ -78,6 +104,21 @@ run_smoke() {
   local tiert_rows
   tiert_rows="$(docker run --rm --network none "$image" python3 /opt/codewatch-a1/tiert /opt/codewatch-a1/tiert/fixtures/flagged | wc -l)"
   [ "$tiert_rows" -eq 7 ] || fail "tiert gave $tiert_rows rows on its flagged fixture, expected 7"
+  run_cli_checks
+}
+
+# The CLI features A1 needs (C-184): `graph index --rev` under a GIT_DIR outside the work tree,
+# as the PR-flow stages run it, and a triage with no default budget (record_manifest.py relies
+# on that for a source build). The solve session's PATH must not reach the pinned tools.
+run_cli_checks() {
+  docker run --rm --network none --user 0:0 -v "$here/fixture:/fixture-src:ro" -v "$here/rev-check.sh:/rev-check.sh:ro" \
+    "$image" bash /rev-check.sh /fixture-src >"$run_dir/rev-check.json" || fail "graph index --rev failed under GIT_DIR"
+  [ "$(jq .files "$run_dir/rev-check.json")" -ge 1 ] || fail "graph index --rev indexed no files (see $run_dir/rev-check.json)"
+  local triage_help solve_path
+  triage_help="$(docker run --rm --network none "$image" codewatch triage --help)"
+  grep -q -- '--budget-usd.*(default: no' <<<"$triage_help" || fail "the image's triage has a default budget"
+  solve_path="$(docker run --rm --network none --user 0:0 "$image" bash -lc 'printf %s "$PATH"')"
+  case ":$solve_path:" in *:/opt/codewatch-a1/bin:*) fail "the solve PATH includes /opt/codewatch-a1/bin" ;; esac
 }
 
 count_signal() {
@@ -128,18 +169,24 @@ record_manifest() {
     --argjson findings "$(jq -s 'group_by(.tool) | map({key: .[0].tool, value: length}) | from_entries' "$smoke_findings")" \
     --arg builtAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     '.a1Image = {image: $image, digest: $digest, base: $base, baseDigest: $baseDigest, builtAt: $builtAt,
-      codewatch: $labels["io.codewatch.scbench.codewatch-version"], pyright: $labels["io.codewatch.scbench.pyright-version"],
+      codewatch: $labels["io.codewatch.scbench.codewatch-version"],
+      codewatchSourceSha: $labels["io.codewatch.scbench.codewatch-source-sha"],
+      pyright: $labels["io.codewatch.scbench.pyright-version"],
       jscpd: $labels["io.codewatch.scbench.jscpd-version"],
       codewatchPluginSha: $labels["io.codewatch.scbench.codewatch-plugin-sha"], python: $python, smokeFindingsByTool: $findings}' \
     "$manifest" >"$manifest.tmp"
   mv "$manifest.tmp" "$manifest"
+  MANIFEST="$manifest" python3 "$here/../prompts/record_manifest.py" --codewatch "$codewatch_entry"
   echo "build.sh: $image $(jq -r .a1Image.digest "$manifest") recorded in $manifest"
 }
 
 mkdir -p "$run_dir"
 require_rootless
 require_base
+stage_context
+stage_codewatch
 build_image
+verify_artifact
 run_smoke
 run_findings_smoke
 run_inject_smoke

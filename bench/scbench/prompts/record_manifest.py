@@ -3,10 +3,14 @@
 Run before a pilot run: `python3 bench/scbench/prompts/record_manifest.py`. The manifest
 path defaults match `bench/scbench/image/build.sh`; other keys in the manifest are kept.
 A1's entry also pins its agent config, `agent/claude_code_cw.a1.yaml`, by sha256.
+build.sh runs `record_manifest.py --codewatch <entry.json>`, which records only the image's
+`codewatch` entry (source sha, `dirty: false` and the deploy artifact's sha256; see
+`image/artifact.py`).
 It also records, under `runnerConfigs`, which configs the launcher loads its model and
 provider catalogs from, with the sha256 of each vendored config file. Under `caps` it records
 the caps the A1 container applies: `budget_usd` (the triage stage's `--budget-usd`, else the
-default of the CLI the image pins, else null for no cap) beside `triage_cli_version`,
+default of the CLI the image pins, else null for no cap) beside `triage_cli_version` and
+`triage_cli_source_sha`, read from the manifest's `codewatch` entry,
 `synthesis_open_items_cap` (null unless synthesis sets a limit) and the runner's `step_limit`. The carry hook's env caps are not recorded: nothing
 passes them into the container.
 """
@@ -30,9 +34,10 @@ BENCH_DIR = PROMPTS_DIR.parent
 AGENT_CONFIG = BENCH_DIR / "agent" / "claude_code_cw.a1.yaml"
 ARM_CONFIGS = {"A1": AGENT_CONFIG}
 # `codewatch triage` through 0.7.0 defaults --budget-usd to 5; later releases have no default.
+# A source build keeps the last release's version string, so its sha decides instead: build.sh's
+# smoke test fails an image whose triage still has a budget default.
 CLI_DEFAULT_BUDGET_USD = 5.0
 LAST_CLI_WITH_BUDGET_DEFAULT = (0, 7, 0)
-DOCKERFILE = PROMPTS_DIR.parent / "image" / "Dockerfile"
 ARM_TEMPLATES = {"A0": STOCK_TEMPLATE, "A1a": A1A_TEMPLATE, "A1": A1A_TEMPLATE}
 
 
@@ -69,51 +74,66 @@ def _flag_value(words: list[str], flag: str) -> float | None:
     return float(words[words.index(flag) + 1]) if flag in words else None
 
 
-def _triage_budget(config_text: str, cli_version: str | None) -> float | None:
+def _triage_budget(config_text: str, cli: dict) -> float | None:
     """The budget the pinned CLI applies: the flag, else the CLI's own default, else no cap."""
     flag = _flag_value(_triage_command(config_text), "--budget-usd")
     if flag is not None:
         return flag
-    return CLI_DEFAULT_BUDGET_USD if _version_at_most(cli_version, LAST_CLI_WITH_BUDGET_DEFAULT) else None
+    released_with_default = not cli.get("source_sha") and _version_at_most(cli.get("version"), LAST_CLI_WITH_BUDGET_DEFAULT)
+    return CLI_DEFAULT_BUDGET_USD if released_with_default else None
 
 
 def _version_at_most(version: str | None, limit: tuple[int, ...]) -> bool:
     return version is not None and tuple(int(part) for part in version.split(".")) <= limit
 
 
-def _pinned_cli_version(dockerfile: Path) -> str | None:
-    match = re.search(r"^ARG CODEWATCH_VERSION=(\S+)$", dockerfile.read_text(), re.MULTILINE)
-    return match.group(1) if match else None
-
-
-def caps_entry(config: Path = AGENT_CONFIG, dockerfile: Path = DOCKERFILE) -> dict:
+def caps_entry(config: Path = AGENT_CONFIG, cli: dict | None = None) -> dict:
+    """`cli` is the manifest's `codewatch` entry, which build.sh writes for the image."""
     from synthesis.inputs import MAX_OPEN_ITEMS
 
+    cli = cli or {}
     text = config.read_text()
-    cli_version = _pinned_cli_version(dockerfile)
     step_limit = re.search(r"^ +step_limit: (\d+)$", text, re.MULTILINE)
     return {
-        "budget_usd": _triage_budget(text, cli_version),
-        "triage_cli_version": cli_version,
+        "budget_usd": _triage_budget(text, cli),
+        "triage_cli_version": cli.get("version"),
+        "triage_cli_source_sha": cli.get("source_sha"),
         "synthesis_open_items_cap": MAX_OPEN_ITEMS,
         "step_limit": int(step_limit.group(1)) if step_limit else None,
     }
 
 
+def _read(manifest: Path) -> dict:
+    return json.loads(manifest.read_text()) if manifest.is_file() else {}
+
+
+def _write(manifest: Path, data: dict) -> None:
+    manifest.parent.mkdir(parents=True, exist_ok=True)
+    staging = manifest.with_suffix(".tmp")
+    staging.write_text(json.dumps(data, indent=2) + "\n")
+    staging.replace(manifest)
+
+
 def record(
     manifest: Path, prompts_dir: Path = PROMPTS_DIR, runner_configs: dict | None = None, caps: dict | None = None
 ) -> dict:
-    data = json.loads(manifest.read_text()) if manifest.is_file() else {}
+    data = _read(manifest)
     data["prompts"] = prompts_entry(prompts_dir)
     if runner_configs is not None:
         data["runnerConfigs"] = runner_configs
     if caps is not None:
         data["caps"] = caps
-    manifest.parent.mkdir(parents=True, exist_ok=True)
-    staging = manifest.with_suffix(".tmp")
-    staging.write_text(json.dumps(data, indent=2) + "\n")
-    staging.replace(manifest)
+    _write(manifest, data)
     return data["prompts"]
+
+
+def record_codewatch(manifest: Path, entry: dict) -> None:
+    """Records the image's CLI artifact; a dirty source never pins a build, so it is refused."""
+    if entry.get("dirty") is not False or not entry.get("source_sha") or not entry.get("artifact_sha256"):
+        raise ValueError(f"not a clean, hashed codewatch artifact: {entry}")
+    data = _read(manifest)
+    data["codewatch"] = entry
+    _write(manifest, data)
 
 
 def default_manifest() -> Path:
@@ -124,13 +144,16 @@ def default_manifest() -> Path:
     return run_dir / "manifest.json"
 
 
-if __name__ == "__main__":
+if __name__ == "__main__" and sys.argv[1:2] == ["--codewatch"]:
+    record_codewatch(default_manifest(), json.loads(Path(sys.argv[2]).read_text()))
+    print(f"record_manifest: codewatch artifact recorded in {default_manifest()}")
+elif __name__ == "__main__":
     sys.path.insert(0, str(PROMPTS_DIR.parent))
     from agent.runner_configs import manifest_entry
 
     manifest_path = default_manifest()
     configs = manifest_entry()
-    caps = caps_entry()
+    caps = caps_entry(cli=_read(manifest_path).get("codewatch"))
     entry = record(manifest_path, runner_configs=configs, caps=caps)
     for arm, pin in entry["arms"].items():
         print(f"record_manifest: {arm} {pin['template']} {pin['sha256']}")

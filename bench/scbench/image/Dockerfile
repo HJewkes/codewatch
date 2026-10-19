@@ -3,7 +3,6 @@
 ARG BASE_IMAGE=slop-code:claude_code-2.0.51-python3.12
 FROM ${BASE_IMAGE}
 
-ARG CODEWATCH_VERSION=0.7.0
 ARG PYRIGHT_VERSION=1.1.414
 ARG JSCPD_VERSION=5.4.1
 
@@ -17,8 +16,19 @@ RUN uv venv --no-cache --python 3.12 /opt/codewatch-a1/py \
     && uv pip install --no-cache --python /opt/codewatch-a1/py/bin/python -r /opt/codewatch-a1/requirements.txt
 
 RUN npm install --prefix /opt/codewatch-a1/node --cache /opt/codewatch-a1/npm-cache --no-fund --no-audit \
-        "@codewatch/cli@${CODEWATCH_VERSION}" "pyright@${PYRIGHT_VERSION}" "jscpd@${JSCPD_VERSION}" \
+        "pyright@${PYRIGHT_VERSION}" "jscpd@${JSCPD_VERSION}" \
     && rm -rf /opt/codewatch-a1/npm-cache
+
+# The CLI is the `pnpm deploy` directory build.sh stages from a clean codewatch sha, not an npm
+# release, so the image can carry merged work that has no release yet. build.sh passes its
+# version, source sha and artifact hash (see artifact.py); they are declared here so the tool
+# layers above stay cached across shas.
+ARG CODEWATCH_VERSION
+ARG CODEWATCH_SOURCE_SHA
+ARG CODEWATCH_ARTIFACT_SHA256
+COPY codewatch /opt/codewatch-a1/node/codewatch
+RUN test -n "${CODEWATCH_VERSION}" && test -n "${CODEWATCH_SOURCE_SHA}" && test -n "${CODEWATCH_ARTIFACT_SHA256}" \
+    && ln -s ../../codewatch/dist/index.js /opt/codewatch-a1/node/node_modules/.bin/codewatch
 
 # Only the tool entry points go in bin/, so the tools venv's python never shadows the workspace's.
 RUN mkdir -p /opt/codewatch-a1/bin \
@@ -67,6 +77,8 @@ RUN bash /opt/codewatch-a1/assert-clean.sh && rm /opt/codewatch-a1/assert-clean.
 
 LABEL io.codewatch.scbench.arm="A1" \
       io.codewatch.scbench.codewatch-version="${CODEWATCH_VERSION}" \
+      io.codewatch.scbench.codewatch-source-sha="${CODEWATCH_SOURCE_SHA}" \
+      io.codewatch.scbench.codewatch-artifact-sha256="${CODEWATCH_ARTIFACT_SHA256}" \
       io.codewatch.scbench.codewatch-plugin-sha="${CODEWATCH_PLUGIN_SHA}" \
       io.codewatch.scbench.pyright-version="${PYRIGHT_VERSION}" \
       io.codewatch.scbench.jscpd-version="${JSCPD_VERSION}"
