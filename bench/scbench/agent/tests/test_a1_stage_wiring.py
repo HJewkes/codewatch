@@ -215,7 +215,9 @@ class ShippedFixReviewTest(unittest.TestCase):
         self.assertIn(SPEC_LINE, self.prompt.read_text())
         fix = next(r for r in json.loads((self.tmp / "stages.json").read_text())["stages"] if r["stage"] == "fix")
         self.assertEqual(fix["items"][0]["status"], "kept")
-        self.assertEqual(fix["items"][0]["review"], {"verdict": "ok", "spec_line": 1, "reason": "no output change"})
+        self.assertEqual(fix["items"][0]["review"], {"verdict": "ok", "spec_line": 1, "reason": "no output change",
+                                                     "tokens": 0, "usd": 0.01})
+        self.assertEqual((fix["review_usd"], fix["usd_total"]), (0.01, fix["usd"] + 0.01))
 
 
 GOLDEN = "tests/golden/receipt.txt"

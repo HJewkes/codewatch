@@ -65,6 +65,8 @@ class Fixer:
     current: Snapshot | None
     stale: bool = False
     feedback: str = ""
+    review_tokens: int = 0
+    review_usd: float = 0.0
 
     @property
     def fix_ref(self) -> str:
@@ -109,7 +111,7 @@ class Fixer:
         return self._kept(item, sha, before, after, review, resumed)
 
     def _review(self, n: int, item: Item, sha: str, before: Snapshot | None, after: Snapshot | None):
-        review = self.reviewer(sha, self.clock.remaining())
+        review = self._call_reviewer(sha)
         if review["verdict"] != "conflict":
             return sha, Check("review", True, review["verdict"]), after, review, False
         self._ask(conflict_prompt(review.get("reason") or "", review.get("spec_line")))
@@ -118,10 +120,16 @@ class Fixer:
             check, after = self._validate(item, sha, before)
             if not check.passed:
                 return sha, check, after, review, True
-            review = self.reviewer(sha, self.clock.remaining())
+            review = self._call_reviewer(sha)
         passed = review["verdict"] != "conflict"
         detail = review["verdict"] if passed else f"conflict after one resume: {review.get('reason')}"
         return sha, Check("review", passed, detail), after, review, True
+
+    def _call_reviewer(self, sha: str) -> dict:
+        review = self.reviewer(sha, self.clock.remaining())
+        self.review_tokens += int(review.get("tokens") or 0)
+        self.review_usd += float(review.get("usd") or 0.0)
+        return review
 
     def _ask(self, prompt: str):
         call = self.session.ask(prompt, self.clock.call_timeout())

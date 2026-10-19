@@ -26,6 +26,9 @@ from .items import QUALITY, TEST_GAP, Item
 
 Run = Callable[[Sequence[str], Mapping[str, str], str, float | None], tuple[int | None, str, bool]]
 
+# Output counts come from the result event: a transcript's per-record usage undercounts them.
+MODEL_USAGE_KEYS = ("inputTokens", "outputTokens", "cacheReadInputTokens", "cacheCreationInputTokens", "costUSD")
+
 PROMPT_HEAD = """\
 A review of this workspace confirmed some items to fix. I will send them one at a time.
 Each gives the question the reviewer answered, the answer, the evidence and a one-line
@@ -64,6 +67,19 @@ class FixSession:
     turns: int = 0
     tokens: int = 0
     usd: float = 0.0
+    call_usage: list[dict] = field(default_factory=list)
+
+    @property
+    def model_usage(self) -> dict[str, dict]:
+        """Each model's totals over every call, so a model the CLI calls on its own, such as a
+        haiku warmup, shows up as its own line."""
+        totals: dict[str, dict] = {}
+        for call in self.call_usage:
+            for model, usage in call.items():
+                line = totals.setdefault(model, dict.fromkeys(MODEL_USAGE_KEYS, 0))
+                for key in MODEL_USAGE_KEYS:
+                    line[key] += usage[key]
+        return totals
 
     def ask(self, prompt: str, timeout: float | None) -> CallResult:
         argv = claude_argv(self.env, self.session_id, prompt, resume=self.started, max_turns=self.max_turns)
@@ -77,6 +93,7 @@ class FixSession:
         self.turns += int(result.get("num_turns") or 0)
         self.tokens += _tokens(result.get("usage") or {})
         self.usd += float(result.get("total_cost_usd") or 0.0)
+        self.call_usage.append(per_model(result.get("modelUsage") or {}))
         return CallResult(exit_code, timed_out, str(result.get("subtype", "none")))
 
 
@@ -129,6 +146,14 @@ def parse_result(stdout: str) -> dict:
         if isinstance(event, dict) and event.get("type") == "result":
             found = event
     return found
+
+
+def per_model(model_usage: Mapping) -> dict[str, dict]:
+    """A result event's `modelUsage`, as CC reports it: counts and `costUSD` per model, not re-priced."""
+    return {
+        str(model): {key: (float if key == "costUSD" else int)(usage.get(key) or 0) for key in MODEL_USAGE_KEYS}
+        for model, usage in model_usage.items() if isinstance(usage, Mapping)
+    }
 
 
 def _tokens(usage: Mapping) -> int:

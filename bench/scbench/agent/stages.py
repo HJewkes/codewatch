@@ -34,6 +34,7 @@ PASSTHROUGH_FIELDS = (
     "session_id", "turns", "held_back", "items", "stopped_by",
     "merge", "merge_commit", "dropped_ignored",
     "verdict", "spec_line", "resumed", "second_verdict", "second_spec_line", "revised_commit",
+    "review_tokens", "review_usd", "usd_total", "model_usage", "call_usage",
 )
 
 
@@ -185,14 +186,19 @@ def _iso(epoch: float) -> str:
 
 def checkpoint_cost(records: list[StageRecord], solve_usd: float | None) -> dict:
     """The checkpoint's spend: the runner's own cost metric covers the solve session only,
-    so the stages' spend is summed beside it rather than folded into it."""
-    stage_usd = sum(r.usd for r in records)
+    so the stages' spend is summed beside it rather than folded into it. A stage's review
+    calls (the fix stage's `review_usd`) count toward the stage."""
+    stage_usd = sum(r.usd + _number(r.extra.get("review_usd")) for r in records)
     return {
         "solve_usd": solve_usd,
         "stage_usd": stage_usd,
-        "stage_tokens": sum(r.tokens for r in records),
+        "stage_tokens": sum(r.tokens + int(_number(r.extra.get("review_tokens"))) for r in records),
         "total_usd": None if solve_usd is None else solve_usd + stage_usd,
     }
+
+
+def _number(value: object) -> float:
+    return float(value) if isinstance(value, int | float) else 0.0
 
 
 def write_stages_json(
