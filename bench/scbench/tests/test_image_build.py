@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest import mock
 
 from image import artifact
-from image.artifact import DirtySource, artifact_sha256, codewatch_entry, image_tag
+from image.artifact import DirtySource, SourceMoved, artifact_sha256, codewatch_entry, image_tag
 from prompts.record_manifest import record_codewatch
 
 IMAGE_DIR = Path(artifact.__file__).resolve().parent
@@ -49,19 +49,41 @@ class SourceStateTests(unittest.TestCase):
         self.root = Path(self._tmp.name)
         self.source = make_source(self.root)
         self.deploy = make_deploy(self.root)
+        self.sha = git(self.source, "rev-parse", "HEAD")
 
     def tearDown(self):
         self._tmp.cleanup()
 
+    def commit_again(self):
+        (self.source / "README.md").write_text("moved\n")
+        git(self.source, "commit", "-qam", "moved")
+
+    def test_a_source_that_moved_off_the_checked_sha_is_refused(self):
+        self.commit_again()
+        with self.assertRaises(SourceMoved):
+            codewatch_entry(self.source, self.deploy, self.sha)
+
+    def test_the_entry_command_exits_1_when_the_source_moved_off_the_checked_sha(self):
+        self.commit_again()
+        with mock.patch("sys.stdout"), mock.patch("sys.stderr"):
+            self.assertEqual(artifact.main(["entry", str(self.source), str(self.deploy), self.sha]), 1)
+
+    def test_the_recorded_repo_drops_a_credential_from_the_origin_url(self):
+        git(self.source, "remote", "add", "origin", "https://x-access-token:secret@example.invalid/org/repo.git")
+
+        entry = codewatch_entry(self.source, self.deploy, self.sha)
+
+        self.assertEqual(entry["repo"], "https://example.invalid/org/repo.git")
+
     def test_a_source_with_an_edited_tracked_file_is_refused(self):
         (self.source / "README.md").write_text("edited\n")
         with self.assertRaises(DirtySource):
-            codewatch_entry(self.source, self.deploy)
+            codewatch_entry(self.source, self.deploy, self.sha)
 
     def test_a_source_with_an_untracked_file_is_refused(self):
         (self.source / "stray.txt").write_text("x\n")
         with self.assertRaises(DirtySource):
-            codewatch_entry(self.source, self.deploy)
+            codewatch_entry(self.source, self.deploy, self.sha)
 
     def test_the_check_clean_command_exits_1_on_a_dirty_source(self):
         (self.source / "README.md").write_text("edited\n")
@@ -72,7 +94,7 @@ class SourceStateTests(unittest.TestCase):
         manifest = self.root / "manifest.json"
         manifest.write_text('{"a1Image": {"digest": "sha256:x"}}')
 
-        record_codewatch(manifest, codewatch_entry(self.source, self.deploy))
+        record_codewatch(manifest, codewatch_entry(self.source, self.deploy, self.sha))
 
         data = json.loads(manifest.read_text())
         self.assertEqual(data["codewatch"]["source_sha"], git(self.source, "rev-parse", "HEAD"))
@@ -120,11 +142,40 @@ class ArtifactHashTests(unittest.TestCase):
         (self.deploy / "node_modules" / "dep").symlink_to("../other")
         self.assertNotEqual(artifact_sha256(self.deploy), before)
 
+    def test_the_hash_command_passes_a_deploy_that_matches_the_recorded_hash(self):
+        recorded = artifact_sha256(self.deploy)
+        with mock.patch("sys.stdout"):
+            self.assertEqual(artifact.main(["hash", str(self.deploy), recorded]), 0)
+
+    def test_the_hash_command_exits_1_when_the_deploy_differs_from_the_recorded_hash(self):
+        recorded = artifact_sha256(self.deploy)
+        (self.deploy / "dist" / "chunk.js").write_text("export const swapped = 1;\n")
+        with mock.patch("sys.stdout"), mock.patch("sys.stderr"):
+            self.assertEqual(artifact.main(["hash", str(self.deploy), recorded]), 1)
+
 
 class ImageTagTests(unittest.TestCase):
     def test_the_tag_carries_the_version_and_the_short_sha(self):
         sha = "0123456789abcdef0123456789abcdef01234567"
         self.assertEqual(image_tag("0.7.0", sha), "a1-cw0.7.0-0123456")
+
+
+class BuildScriptTests(unittest.TestCase):
+    def setUp(self):
+        self.build = (IMAGE_DIR / "build.sh").read_text()
+
+    def test_build_sh_records_the_entry_against_the_sha_check_clean_printed(self):
+        self.assertIn('source_sha="$(python3 "$here/artifact.py" check-clean "$codewatch_src")"', self.build)
+        self.assertIn('artifact.py" entry "$codewatch_src" "$context/codewatch" "$source_sha"', self.build)
+
+    def test_build_sh_rehashes_the_cli_inside_the_image_before_the_smoke_tests(self):
+        self.assertIn('python3 -I /artifact.py hash /opt/codewatch-a1/node/codewatch "$expected"', self.build)
+        steps = self.build.split("\nmkdir -p \"$run_dir\"\n")[1].split()
+        self.assertEqual(steps[steps.index("build_image") + 1], "verify_artifact")
+
+    def test_build_sh_drops_the_deploy_store_path_before_hashing(self):
+        drop = self.build.index('rm -f "$context/codewatch/node_modules/.modules.yaml"')
+        self.assertLess(drop, self.build.index('artifact.py" entry'))
 
 
 class SolvePathTests(unittest.TestCase):

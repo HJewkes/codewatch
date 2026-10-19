@@ -53,16 +53,18 @@ stage_context() {
 }
 
 # The CLI comes from the source's committed sha, never its working tree: artifact.py refuses a
-# dirty tree before the build and again after it, when it hashes the deploy directory.
+# dirty tree before the build and again after it, when it hashes the deploy directory, and
+# refuses a source whose HEAD moved off the checked sha in between.
 stage_codewatch() {
-  python3 "$here/artifact.py" check-clean "$codewatch_src" >/dev/null || fail "refusing to build from a dirty $codewatch_src"
+  source_sha="$(python3 "$here/artifact.py" check-clean "$codewatch_src")" || fail "refusing to build from a dirty $codewatch_src"
   pnpm --dir "$codewatch_src" install --frozen-lockfile
   pnpm --dir "$codewatch_src" --filter "@codewatch/cli..." build
   pnpm --dir "$codewatch_src" --filter @codewatch/cli deploy --prod "$context/codewatch"
-  python3 "$here/artifact.py" entry "$codewatch_src" "$context/codewatch" >"$codewatch_entry" \
-    || fail "refusing to record an artifact from a dirty $codewatch_src"
+  # pnpm records the host's absolute store path here; nothing reads it at run time.
+  rm -f "$context/codewatch/node_modules/.modules.yaml"
+  python3 "$here/artifact.py" entry "$codewatch_src" "$context/codewatch" "$source_sha" >"$codewatch_entry" \
+    || fail "refusing to record an artifact: $codewatch_src is dirty or moved off $source_sha"
   codewatch_version="$(jq -r .version "$codewatch_entry")"
-  source_sha="$(jq -r .source_sha "$codewatch_entry")"
   image="${IMAGE:-codewatch-scbench:$(python3 "$here/artifact.py" tag "$codewatch_version" "$source_sha")}"
 }
 
@@ -72,6 +74,16 @@ build_image() {
     --build-arg "CODEWATCH_ARTIFACT_SHA256=$(jq -r .artifact_sha256 "$codewatch_entry")" \
     --build-arg "CODEWATCH_PLUGIN_SHA=$plugin_sha" -t "$image" "$context"
   rm -rf "$context"
+}
+
+# The image's CLI must be the artifact the manifest records, so it is rehashed inside the image.
+verify_artifact() {
+  local expected
+  expected="$(jq -r .artifact_sha256 "$codewatch_entry")"
+  docker run --rm --network none --user 0:0 -v "$here/artifact.py:/artifact.py:ro" "$image" \
+    python3 -I /artifact.py hash /opt/codewatch-a1/node/codewatch "$expected" >/dev/null \
+    || fail "the image's CLI does not hash to the recorded $expected"
+  echo "build.sh: the image's CLI hashes to the recorded $expected"
 }
 
 count_tool() {
@@ -102,9 +114,9 @@ run_cli_checks() {
   docker run --rm --network none --user 0:0 -v "$here/fixture:/fixture-src:ro" -v "$here/rev-check.sh:/rev-check.sh:ro" \
     "$image" bash /rev-check.sh /fixture-src >"$run_dir/rev-check.json" || fail "graph index --rev failed under GIT_DIR"
   [ "$(jq .files "$run_dir/rev-check.json")" -ge 1 ] || fail "graph index --rev indexed no files (see $run_dir/rev-check.json)"
-  docker run --rm --network none "$image" codewatch triage --help | grep -q -- '--budget-usd.*(default: no' \
-    || fail "the image's triage has a default budget"
-  local solve_path
+  local triage_help solve_path
+  triage_help="$(docker run --rm --network none "$image" codewatch triage --help)"
+  grep -q -- '--budget-usd.*(default: no' <<<"$triage_help" || fail "the image's triage has a default budget"
   solve_path="$(docker run --rm --network none --user 0:0 "$image" bash -lc 'printf %s "$PATH"')"
   case ":$solve_path:" in *:/opt/codewatch-a1/bin:*) fail "the solve PATH includes /opt/codewatch-a1/bin" ;; esac
 }
@@ -174,6 +186,7 @@ require_base
 stage_context
 stage_codewatch
 build_image
+verify_artifact
 run_smoke
 run_findings_smoke
 run_inject_smoke
