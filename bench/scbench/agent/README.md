@@ -6,8 +6,11 @@
 
 ```
 cd bench/scbench
-uv run --project agent python -m agent run --agent agent/claude_code_cw.yaml ...
+uv run --project agent python -m agent run --agent agent/claude_code_cw.a1.yaml ...
 ```
+
+`claude_code_cw.a1.yaml` is the A1 arm: `claude_code_cw.yaml` with every stage enabled.
+`tests/test_a1_arm_config.py` fails if the two differ in anything else.
 
 `python -m agent` is the `slop-code` CLI with `claude_code_cw` registered.
 slop-code-bench is pinned by commit in `pyproject.toml`, because the runner has no
@@ -128,17 +131,39 @@ the way `.git` is, so it must be listed in `info/exclude`.
 **Report line.** A stage command may print a JSON object as its last stdout line. These
 keys are copied into `stages.json`: `tokens`, `usd`, `items_in`, `items_out`, `outcome`,
 `reason`, `fixed_replay_diffs`, `added_symbols`, `branch`, `solve_commit`, `merge_base`,
-`baseline`, `session_id`, `turns`, `held_back`, `items`, `stopped_by`, `merge` and
-`merge_commit`.
+`baseline`, `session_id`, `turns`, `held_back`, `items`, `stopped_by`, `merge`,
+`merge_commit`, and `solve-review`'s `verdict`, `spec_line`, `resumed`, `second_verdict`,
+`second_spec_line` and `revised_commit`.
 
 **Stage env.** Besides the solve's env and credential, a stage gets `CW_STAGE`,
 `CW_CHECKPOINT`, `CW_STAGE_DEADLINE` (the epoch second at which the stage is cut off) and
 the solve's `CW_CLAUDE_BINARY`, `CW_MODEL` and `CW_PERMISSION_MODE`, so a stage's claude
-session runs like the solve's and can stop cleanly before it is cut off.
+session runs like the solve's and can stop cleanly before it is cut off. The after-solve
+stages also get `CW_SOLVE_SESSION_ID`, the solve session's id from its stream-json events,
+which `solve-review` resumes once on a conflict.
+
+**Spec file.** When an after-solve stage will run, the agent writes the checkpoint's task
+text to `/tmp/cw-spec/cp-N.md` (mode 600, outside `/workspace`) and sets `CW_SPEC_FILE` for
+those stages only. The solve's env and argv do not change. The file is deleted after the
+last stage, also when a stage raises, so it is gone before the runner snapshots the
+workspace. `triage --spec` and the fix stage's review command read it. A failed write is
+logged, and the stages that need the file report their own error.
 
 **PR flow.** `repo-init`, `pr-open` and `commit-ratchet` run `bench/scbench/prflow` from
 the image: one checkpoint is one PR on a hidden repository at `.codewatch/repo.git`. See
 `../README.md`, "prflow/".
+
+**Injection.** The image carries the codewatch plugin at `/opt/codewatch-a1/plugin`, exported
+by `image/build.sh` from a committed sha (`CODEWATCH_PLUGIN_SHA`, default `HEAD`) that the
+manifest records as `codewatchPluginSha`. The image enables nothing. From checkpoint 2, the
+`inject` stage (`bench/scbench/inject`) copies the plugin's SessionStart hook into the
+container's `~/.claude/settings.json` and registers its MCP server as `codewatch` in the
+user scope of `~/.claude.json`. Both get `GIT_DIR` set to the hidden repository and
+`CODEWATCH_DB` set to the PR flow's `.codewatch/cache/graph.db`. The plugin's Grep augment
+stays off, because it targets TypeScript re-export barrels. The
+solve's argv, env and prompt do not change. Only this arm runs the stage, so A0, A1a and any
+plain `claude_code` arm start their solve with the runner's stock Claude config and no
+codewatch hook or MCP server.
 
 ## stages.json
 
@@ -151,7 +176,7 @@ The agent writes `stages.json` into the checkpoint's agent artifacts directory
              "tokens": 0, "usd": 0.0, "items_in": 0, "items_out": 42}]}
 ```
 
-`mcp_tool_calls` counts `mcp__*` tool uses in this checkpoint's solve session.
+`mcp_tool_calls` counts `mcp__codewatch__*` tool uses in this checkpoint's solve session.
 
 ## Grading happens after the stages
 

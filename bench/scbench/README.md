@@ -33,11 +33,15 @@ would be empty, and nothing would guard the run dir. Run from `bench/scbench`:
 DOCKER_HOST=unix:///run/user/1000/docker.sock \
 CLAUDE_CODE_OAUTH_TOKEN="$(cat ~/.config/scbench/claude-oauth-token-server)" \
 uv run --frozen --project agent python -m agent run \
-  --agent <claude_code.yaml or agent/claude_code_cw.yaml> \
+  --agent <claude_code.yaml for A0 and A1a | agent/claude_code_cw.a1.yaml for A1> \
   --environment configs/environments/docker-python3.12-uv-rootless.yaml \
   --prompt <just-solve | a1a> --model claude_code_oauth/sonnet-5.5 --problem <name> \
   save_dir="$HOME/.cache/codewatch-scbench/runs/<arm>/<UTC timestamp>" save_template=run
 ```
+
+`agent/claude_code_cw.a1.yaml` is `agent/claude_code_cw.yaml` with all nine stages
+enabled. The base file keeps every stage off, so a test can compare the solve argv with
+A1a's.
 
 The runner ignores `output_path=`. The launcher refuses a run dir inside any repo
 checkout, and the runner's default `save_dir` (`outputs`) is one. It also refuses a
@@ -145,7 +149,8 @@ line is `IMAGE_COMMAND` in `review/__init__.py`, and a test runs it that way.
   `reason` can still carry spec content in other words.
 
 **Fix commits** (`--mode fix`, the default) review the whole commit. The fix stage calls
-it as `--review-command "<the command above> --spec <file>"`; its hook appends the sha,
+it as `--review-command "<the command above> --mode fix"`, with the spec file from
+`CW_SPEC_FILE`, which the agent sets for the after-solve stages; its hook appends the sha,
 reads `verdict`, `spec_line` and `reason`, and resumes the fix session once on a
 conflict.
 
@@ -158,9 +163,16 @@ prints `ok` with no model call. The `solve-review` stage runs after `commit-ratc
 has committed the solve on `cp-N`, with the argv of the command above plus
 `--mode expected-output --spec <file> <sha of cp-N>`.
 
-On a conflict it resumes the solve session once (`--resume <solve session id>`) with the
-reason and spec line, commits the revision and reviews it again. It writes the report
-line, plus `resumed` and the second verdict, into `stages.json`.
+The stage is `python -m review.solve --workspace /workspace --review-command "<that
+command>"`; it reviews the head of `cp-N`. On a conflict it resumes the solve session once
+(`--resume $CW_SOLVE_SESSION_ID`, which the agent reads from the solve's stream-json events)
+with the reason and spec line, amends the solve commit with the revision and reviews it
+again. The resume gets the reviewer's `reason` and line number only, never spec text. Paths
+under `.codewatch/` stay out of the amend. The solve is never reverted: a resume that times
+out restores the solve commit, and a conflict that stands is recorded. The report line
+carries `verdict`, `spec_line`, `resumed`, `second_verdict`, `second_spec_line`,
+`solve_commit`, `revised_commit`, `session_id` and `outcome` (`ok`, `revised`, `conflict`,
+`error` or `skipped`) into `stages.json`.
 
 ## analysis/
 
@@ -208,7 +220,8 @@ above about 0.001 means the rerun does not reproduce the grade.
 The A1 fix stage (design unit U8, Revision 1): one validated commit per confirmed item.
 The image copies it in, and `agent/claude_code_cw.yaml` runs it as the `fix` stage, from
 the workspace, as
-`exec env PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m remediation`.
+`exec env PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m remediation`,
+with `--review-command` set to the fix-commit review above.
 It works on the PR branch (`cp-N`) of the hidden repository (`GIT_DIR=.codewatch/repo.git`,
 created by the U15 stages); with no repository, or with uncommitted changes, it skips.
 Before that check it adds U15's exclude list (`EXCLUDES` in `prflow/repo.py`) to
@@ -303,6 +316,11 @@ line for `stages.json`. They call the image's pinned tools by full path under
   `codewatch triage`'s clone question reads. jscpd matches its ignore globs against
   absolute paths, so the config names tool directories (`.venv`, `.git`) rather than
   every hidden directory.
+- `audit_stage`: the audit stage's command. It runs `codewatch audit` (which rewrites
+  `findings.jsonl`), then Tier T, `diff_uncovered` and `clones`, each appending its rows.
+  Diff coverage and `audit --changed-from` get the PR's merge-base commit from the hidden
+  repository; the graph ref `cw-merge-base-cp-N` is a snapshot name, not a git ref. Audit
+  flags the installed codewatch lacks (`--changed-from`, `--no-ts-slop`) are left out.
 
 ```
 cd bench/scbench

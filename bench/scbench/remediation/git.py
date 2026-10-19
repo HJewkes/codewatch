@@ -13,7 +13,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-from prflow.repo import EXCLUDES
+from prflow.repo import EXCLUDES, OUTSIDE_CODEWATCH
 
 BASE_BRANCH = "main"
 AUTHOR = ("codewatch-fix", "codewatch-fix@localhost")
@@ -75,10 +75,10 @@ class Git:
         return set(filter(None, self.run("show", "--name-only", "--format=", commit).splitlines()))
 
     def dirty(self) -> bool:
-        return bool(self.run("status", "--porcelain"))
+        return bool(self.run("status", "--porcelain", *OUTSIDE_CODEWATCH))
 
     def commit_all(self, message: str, amend: bool = False) -> str:
-        self.run("add", "-A")
+        self.run("add", "-A", *OUTSIDE_CODEWATCH)
         self.run("commit", "-q", "--no-verify", *(["--amend"] if amend else []), "-m", message)
         return self.head()
 
@@ -97,4 +97,4 @@ class Git:
         self.run("reset", "-q", "--hard")
         self.run("switch", "-q", "-f", branch)
         self.run("reset", "-q", "--hard", commit)
-        self.run("clean", "-q", "-fd")
+        self.run("clean", "-q", "-fd", *OUTSIDE_CODEWATCH)

@@ -31,7 +31,15 @@ require_base() {
 
 # One staged context instead of named build contexts: `--build-context` needs buildx, and
 # a rootless host may only have the legacy builder. Bytecode caches stay out of the image.
-stage_packages="synthesis review tiert prflow remediation"
+stage_packages="synthesis review tiert prflow remediation findings inject"
+
+# The plugin comes from a committed sha, never the working tree, and the sha is a label.
+repo_root="$(git -C "$here" rev-parse --show-toplevel)"
+plugin_sha="$(git -C "$repo_root" rev-parse --verify "${CODEWATCH_PLUGIN_SHA:-HEAD}^{commit}")"
+
+stage_plugin() {
+  git -C "$repo_root" archive --prefix=plugin/ "$plugin_sha:plugins/codewatch" | tar -x -C "$1"
+}
 
 stage_context() {
   rm -rf "$context"
@@ -40,6 +48,7 @@ stage_context() {
   for package in $stage_packages; do
     cp -R "$here/../$package" "$context/$package"
   done
+  stage_plugin "$context"
   find "$context" -name __pycache__ -type d -prune -exec rm -rf {} +
 }
 
@@ -61,7 +70,7 @@ build_image() {
   docker build --build-arg "BASE_IMAGE=$base_image" --build-arg "CODEWATCH_VERSION=$codewatch_version" \
     --build-arg "CODEWATCH_SOURCE_SHA=$source_sha" \
     --build-arg "CODEWATCH_ARTIFACT_SHA256=$(jq -r .artifact_sha256 "$codewatch_entry")" \
-    -t "$image" "$context"
+    --build-arg "CODEWATCH_PLUGIN_SHA=$plugin_sha" -t "$image" "$context"
   rm -rf "$context"
 }
 
@@ -100,6 +109,41 @@ run_cli_checks() {
   case ":$solve_path:" in *:/opt/codewatch-a1/bin:*) fail "the solve PATH includes /opt/codewatch-a1/bin" ;; esac
 }
 
+count_signal() {
+  jq -s --arg signal "$2" '[.[] | select(.signal == $signal)] | length' "$1"
+}
+
+# The audit stage's own command on a fixture PR: the fixture plus fixture-pr's one test and
+# planted clone. repo-init and pr-open give it a merge-base that predates every file, so the
+# functions the test skips are uncovered. The plain fixture stays test-free for the CLI's tests.
+run_findings_smoke() {
+  local fixture="$run_dir/findings-fixture" log="$run_dir/findings-smoke.log" findings
+  local stage="PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m"
+  rm -rf "$fixture"
+  cp -R "$here/fixture" "$fixture"
+  cp -R "$here/fixture-pr/." "$fixture/"
+  docker run --rm --network none --user 0:0 -e CW_CHECKPOINT=1 -v "$fixture:/workspace" "$image" \
+    bash -c "$stage prflow repo-init && $stage prflow pr-open && $stage findings.audit_stage" 2>&1 | tee "$log"
+  findings="$fixture/.codewatch/audit/findings.jsonl"
+  [ "$(count_signal "$findings" diff-uncovered)" -ge 1 ] || fail "no diff-uncovered finding in $findings (see $log)"
+  [ "$(count_signal "$findings" clone)" -ge 1 ] || fail "no clone finding in $findings (see $log)"
+}
+
+# The inject stage's own command, then the SessionStart hook it enabled, on a synthetic carry.
+run_inject_smoke() {
+  local fixture="$run_dir/inject-fixture" log="$run_dir/inject-smoke.log"
+  local stage="PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m"
+  local hook='import json, os; print(json.load(open(os.path.expanduser("~/.claude/settings.json")))["hooks"]["SessionStart"][0]["hooks"][0]["command"])'
+  rm -rf "$fixture"
+  mkdir -p "$fixture/.codewatch"
+  echo "- Keep money in integer cents. {owner}" >"$fixture/.codewatch/taste.md"
+  docker run --rm --network none --user 0:0 -e HOME=/tmp/cw-home -e CLAUDE_PROJECT_DIR=/workspace \
+    -v "$fixture:/workspace" "$image" \
+    bash -c "$stage inject --workspace /workspace --plugin-root /opt/codewatch-a1/plugin && sh -c \"\$(/opt/codewatch-a1/py/bin/python -c '$hook')\"" \
+    2>&1 | tee "$log"
+  grep -q "Keep money in integer cents" "$log" || fail "the SessionStart hook did not carry taste.md (see $log)"
+}
+
 record_manifest() {
   mkdir -p "$(dirname "$manifest")"
   [ -f "$manifest" ] || echo '{}' >"$manifest"
@@ -116,7 +160,8 @@ record_manifest() {
       codewatch: $labels["io.codewatch.scbench.codewatch-version"],
       codewatchSourceSha: $labels["io.codewatch.scbench.codewatch-source-sha"],
       pyright: $labels["io.codewatch.scbench.pyright-version"],
-      jscpd: $labels["io.codewatch.scbench.jscpd-version"], python: $python, smokeFindingsByTool: $findings}' \
+      jscpd: $labels["io.codewatch.scbench.jscpd-version"],
+      codewatchPluginSha: $labels["io.codewatch.scbench.codewatch-plugin-sha"], python: $python, smokeFindingsByTool: $findings}' \
     "$manifest" >"$manifest.tmp"
   mv "$manifest.tmp" "$manifest"
   MANIFEST="$manifest" python3 "$here/../prompts/record_manifest.py" --codewatch "$codewatch_entry"
@@ -130,4 +175,6 @@ stage_context
 stage_codewatch
 build_image
 run_smoke
+run_findings_smoke
+run_inject_smoke
 record_manifest

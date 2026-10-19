@@ -63,6 +63,26 @@ describe("codewatch launcher without a graph.db", () => {
     expect(existsSync(join(repo, ".codewatch"))).toBe(false)
   })
 
+  it("serves the CODEWATCH_DB file instead when it is set", () => {
+    const other = join(repo, "cache.db")
+    writeFileSync(other, "")
+
+    const result = runLauncher({ CODEWATCH_BIN: fakeBin, CLAUDE_PROJECT_DIR: repo, CODEWATCH_DB: other })
+
+    expect(result.status).toBe(0)
+    expect(readFileSync(callLog, "utf8")).toBe(`graph\nmcp\n--db\n${other}\n--repo-root\n${repo}\n`)
+  })
+
+  it("exits 1 without calling the CLI when CODEWATCH_DB names a missing file", () => {
+    const missing = join(repo, "missing.db")
+
+    const result = runLauncher({ CODEWATCH_BIN: fakeBin, CLAUDE_PROJECT_DIR: repo, CODEWATCH_DB: missing })
+
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain(`CODEWATCH_DB points at ${missing}, which does not exist`)
+    expect(existsSync(callLog)).toBe(false)
+  })
+
   it("explains the refusal on stderr and keeps stdout empty for the MCP transport", () => {
     const result = runLauncher({ CODEWATCH_BIN: fakeBin, CLAUDE_PROJECT_DIR: repo })
 

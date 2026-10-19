@@ -33,6 +33,7 @@ PASSTHROUGH_FIELDS = (
     "branch", "solve_commit", "merge_base", "baseline",
     "session_id", "turns", "held_back", "items", "stopped_by",
     "merge", "merge_commit",
+    "verdict", "spec_line", "resumed", "second_verdict", "second_spec_line", "revised_commit",
 )
 
 

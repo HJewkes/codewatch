@@ -90,6 +90,32 @@ afterEach(() => {
   rmSync(scratch, { recursive: true, force: true })
 })
 
+describe("SessionStart hook with CODEWATCH_DB", () => {
+  it("reads the named database when the repo has no .codewatch/graph.db", () => {
+    const db = join(scratch, "cache", "graph.db")
+    mkdirSync(dirname(db))
+    writeFileSync(db, "")
+    writeFixtureFake()
+
+    const result = runHook({ CODEWATCH_BIN: fakeBin, CODEWATCH_DB: db })
+
+    expect(result.status).toBe(0)
+    expect(contextOf(result.stdout)).toBe(fixtureSnapshot(git("rev-parse", "HEAD")))
+    expect(readFileSync(callLog, "utf8")).toContain(`graph conventions --offline --json --db ${db}`)
+  })
+
+  it("emits nothing when the named database is missing", () => {
+    createDb()
+    writeFixtureFake()
+
+    const result = runHook({ CODEWATCH_BIN: fakeBin, CODEWATCH_DB: join(scratch, "missing.db") })
+
+    expect(result.status).toBe(0)
+    expect(result.stdout).toBe("")
+    expect(result.stderr).toContain("no graph db at")
+  })
+})
+
 describe("SessionStart hook with a graph.db", () => {
   beforeEach(() => {
     createDb()

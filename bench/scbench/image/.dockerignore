@@ -8,4 +8,7 @@
 !prflow
 !remediation
 !codewatch
+!findings
+!inject
+!plugin
 **/__pycache__

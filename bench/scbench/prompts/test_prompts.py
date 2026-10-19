@@ -1,3 +1,4 @@
+import hashlib
 import json
 import tempfile
 import unittest
@@ -120,7 +121,10 @@ class RecordManifestTest(unittest.TestCase):
         self.assertEqual(data["prompts"]["runnerCommit"], "31ceea3")
         self.assertEqual(arms["A0"], {"template": "bench/scbench/prompts/just-solve.jinja", "sha256": STOCK_SHA256})
         self.assertEqual(arms["A1a"]["sha256"], template_sha256(A1A_TEMPLATE))
-        self.assertEqual(arms["A1"], arms["A1a"])
+        a1_config = {"agentConfig": "bench/scbench/agent/claude_code_cw.a1.yaml",
+                     "agentConfigSha256": hashlib.sha256(AGENT_CONFIG.read_bytes()).hexdigest()}
+        self.assertEqual(arms["A1"], {**arms["A1a"], **a1_config})
+        self.assertNotIn("agentConfig", arms["A1a"])
 
     def test_creates_the_manifest_when_absent(self):
         with tempfile.TemporaryDirectory() as tmp:

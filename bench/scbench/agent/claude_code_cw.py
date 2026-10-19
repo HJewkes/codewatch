@@ -20,6 +20,7 @@ from slop_code.agent_runner.agents.claude_code.agent import (
 )
 from slop_code.agent_runner.registry import register_agent
 
+from .spec_file import SPEC_DIR, delete_command, spec_path, write_commands
 from .stages import (
     DEFAULT_CAP_SECONDS,
     DEFAULT_RESERVE_SECONDS,
@@ -34,6 +35,10 @@ from .stages import (
 )
 
 STAGES_FILENAME = "stages.json"
+SOLVE_SESSION_ENV = "CW_SOLVE_SESSION_ID"
+SPEC_WRITE_TIMEOUT_S = 60.0
+# The inject stage registers the plugin's server as `codewatch` (bench/scbench/inject).
+CODEWATCH_MCP_PREFIX = "mcp__codewatch__"
 
 
 class StageConfig(BaseModel):
@@ -61,6 +66,7 @@ class ClaudeCodeCwConfig(ClaudeCodeConfig, agent_type="claude_code_cw"):
 
 class ClaudeCodeCwAgent(ClaudeCodeAgent):
     clock: tp.ClassVar[tp.Callable[[], float]] = staticmethod(time.time)
+    spec_dir: tp.ClassVar[str] = SPEC_DIR
 
     def __init__(self, *args: tp.Any, **kwargs: tp.Any) -> None:
         super().__init__(*args, **kwargs)
@@ -96,10 +102,41 @@ class ClaudeCodeCwAgent(ClaudeCodeAgent):
         steps_before = len(self.steps)
         runner.run(stages_for(self.checkpoint_index, before_solve=True), env)
         result = super().run_checkpoint(task)
-        runner.run(stages_for(self.checkpoint_index, before_solve=False), env)
+        solve_steps = self.steps[steps_before:]
+        self._run_after_solve(runner, {**env, **solve_session_env(solve_steps)}, task)
         self.stage_records = runner.records
-        self.mcp_tool_calls = count_mcp_tool_calls(self.steps[steps_before:])
+        self.mcp_tool_calls = count_mcp_tool_calls(solve_steps)
         return result
+
+    def _run_after_solve(self, runner: StageRunner, env: dict[str, str], task: str) -> None:
+        """Only these stages get `CW_SPEC_FILE`; the solve never sees it, and the file
+        is gone before the runner snapshots the workspace, even if a stage raises."""
+        names = stages_for(self.checkpoint_index, before_solve=False)
+        if not any(self._will_run(name) for name in names):
+            runner.run(names, env)
+            return
+        spec = spec_path(self.spec_dir, self.checkpoint_index)
+        try:
+            self._exec_quietly(write_commands(spec, task), env, "spec_write_failed")
+            runner.run(names, {**env, "CW_SPEC_FILE": spec})
+        finally:
+            self._exec_quietly([delete_command(spec)], env, "spec_delete_failed")
+
+    def _will_run(self, name: str) -> bool:
+        setting = self.stage_settings.get(name)
+        return bool(setting and setting.enabled and setting.command)
+
+    def _exec_quietly(self, commands: list[str], env: dict[str, str], event: str) -> None:
+        """Runs commands in order, stopping and logging at the first failure; never raises."""
+        for command in commands:
+            try:
+                result = self._exec_stage(command, env, SPEC_WRITE_TIMEOUT_S)
+            except Exception as error:  # noqa: BLE001 - the stages report their own spec errors
+                self.log.warning(f"agent.claude_code_cw.{event}", error=f"{type(error).__name__}: {error}")
+                return
+            if result.exit_code != 0 or result.timed_out:
+                self.log.warning(f"agent.claude_code_cw.{event}", exit=result.exit_code, timed_out=result.timed_out)
+                return
 
     def _stage_env(self) -> dict[str, str]:
         env = {key: str(value) for key, value in self.env.items()}
@@ -127,6 +164,12 @@ class ClaudeCodeCwAgent(ClaudeCodeAgent):
         )
 
 
+def solve_session_env(payloads: list[dict[str, tp.Any]]) -> dict[str, str]:
+    """`CW_SOLVE_SESSION_ID` from the solve's stream-json events, for `solve-review`'s one resume."""
+    ids = [p["session_id"] for p in payloads if isinstance(p.get("session_id"), str) and p["session_id"]]
+    return {SOLVE_SESSION_ENV: ids[-1]} if ids else {}
+
+
 def count_mcp_tool_calls(payloads: list[dict[str, tp.Any]]) -> int:
     calls = 0
     for payload in payloads:
@@ -139,7 +182,7 @@ def count_mcp_tool_calls(payloads: list[dict[str, tp.Any]]) -> int:
             for item in content
             if isinstance(item, dict)
             and item.get("type") == "tool_use"
-            and str(item.get("name", "")).startswith("mcp__")
+            and str(item.get("name", "")).startswith(CODEWATCH_MCP_PREFIX)
         )
     return calls
 
