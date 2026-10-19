@@ -32,7 +32,7 @@ PASSTHROUGH_FIELDS = (
     "outcome", "reason", "fixed_replay_diffs", "added_symbols",
     "branch", "solve_commit", "merge_base", "baseline",
     "session_id", "turns", "held_back", "items", "stopped_by",
-    "merge", "merge_commit",
+    "merge", "merge_commit", "dropped_ignored",
     "verdict", "spec_line", "resumed", "second_verdict", "second_spec_line", "revised_commit",
 )
 
@@ -183,15 +183,29 @@ def _iso(epoch: float) -> str:
     return datetime.fromtimestamp(epoch, UTC).isoformat()
 
 
+def checkpoint_cost(records: list[StageRecord], solve_usd: float | None) -> dict:
+    """The checkpoint's spend: the runner's own cost metric covers the solve session only,
+    so the stages' spend is summed beside it rather than folded into it."""
+    stage_usd = sum(r.usd for r in records)
+    return {
+        "solve_usd": solve_usd,
+        "stage_usd": stage_usd,
+        "stage_tokens": sum(r.tokens for r in records),
+        "total_usd": None if solve_usd is None else solve_usd + stage_usd,
+    }
+
+
 def write_stages_json(
     path: Path,
     checkpoint: int,
     records: list[StageRecord],
     mcp_tool_calls: int,
+    solve_usd: float | None = None,
 ) -> None:
     payload = {
         "checkpoint": checkpoint,
         "stages": [r.to_json() for r in records],
         "mcp_tool_calls": mcp_tool_calls,
+        "cost": checkpoint_cost(records, solve_usd),
     }
     path.write_text(json.dumps(payload, indent=2) + "\n")

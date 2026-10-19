@@ -75,6 +75,7 @@ class ClaudeCodeCwAgent(ClaudeCodeAgent):
         self.checkpoint_index = 0
         self.stage_records: list[StageRecord] = []
         self.mcp_tool_calls = 0
+        self.solve_usd: float | None = None
 
     @classmethod
     def _from_config(cls, config: AgentConfigBase, *args: tp.Any, **kwargs: tp.Any):
@@ -106,6 +107,7 @@ class ClaudeCodeCwAgent(ClaudeCodeAgent):
         self._run_after_solve(runner, {**env, **solve_session_env(solve_steps)}, task)
         self.stage_records = runner.records
         self.mcp_tool_calls = count_mcp_tool_calls(solve_steps)
+        self.solve_usd = result.usage.cost
         return result
 
     def _run_after_solve(self, runner: StageRunner, env: dict[str, str], task: str) -> None:
@@ -160,7 +162,8 @@ class ClaudeCodeCwAgent(ClaudeCodeAgent):
     def save_artifacts(self, path: Path) -> None:
         super().save_artifacts(path)
         write_stages_json(
-            path / STAGES_FILENAME, self.checkpoint_index, self.stage_records, self.mcp_tool_calls
+            path / STAGES_FILENAME, self.checkpoint_index, self.stage_records, self.mcp_tool_calls,
+            self.solve_usd,
         )
 
 

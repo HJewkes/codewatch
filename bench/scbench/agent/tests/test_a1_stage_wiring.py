@@ -127,25 +127,43 @@ class SpecFileTest(ScratchTestCase):
         self.assertEqual([c for c, _ in runtime.streamed], ["cw-pr"])
 
 
+TRIAGE_JSON = {"cost": {"spentUsd": 22.86, "estimateUsd": 20.0}, "verdicts": {"asked": 60, "written": 58},
+               "traces": [{"inputTokens": 100, "outputTokens": 20, "cacheReadInputTokens": 5000}]}
+
+
 class ShippedTriageTest(ScratchTestCase):
-    def test_triage_gets_the_spec_file_and_a_verdicts_fragment_named_for_the_checkpoint(self):
+    def run_shipped_triage(self):
         bin_dir = self.tmp / "bin"
         write_script(bin_dir / "codewatch", (
-            "import json, shutil, sys\n"
+            "import json, os, shutil, sys\n"
             "args = sys.argv[1:]\n"
             f"out = {str(self.seen)!r}\n"
             "shutil.copy(args[args.index('--spec') + 1], out + '/spec')\n"
-            "open(out + '/argv', 'w').write(json.dumps(args))\n"))
+            "open(out + '/argv', 'w').write(json.dumps(args))\n"
+            "os.makedirs(args[1] + '/.codewatch/audit', exist_ok=True)\n"
+            f"open(args[1] + '/.codewatch/audit/triage.json', 'w').write({json.dumps(TRIAGE_JSON)!r})\n"
+            "print('codewatch triage: 58 verdicts')\n"))
+        local = (SHIPPED["triage"]["command"].replace(IMAGE_PYTHON, sys.executable)
+                 .replace(IMAGE_ROOT, str(BENCH)).replace("/workspace", str(self.workspace)))
         runtime = LocalRuntime(self.workspace, path=f"{bin_dir}:{os.environ['PATH']}")
-        agent = _build(_cw_config({"triage": {**SHIPPED["triage"], "enabled": True}}), runtime)
-
+        agent = _build(_cw_config({"triage": {"enabled": True, "command": local}}), runtime)
         _solve(agent, SolveCapture())
+        return agent
 
+    def test_triage_gets_the_spec_file_and_a_verdicts_fragment_named_for_the_checkpoint(self):
+        agent = self.run_shipped_triage()
+
+        workspace = str(self.workspace.resolve())
         self.assertEqual(json.loads((self.seen / "argv").read_text()), [
-            "triage", "/workspace", "--model", "claude-sonnet-5-5", "--spec", str(self.spec_dir / "cp-1.md"),
-            "--verdicts-dir", "/workspace/.codewatch", "--run-id", "cp-1"])
+            "triage", workspace, "--model", "claude-sonnet-5-5", "--spec", str(self.spec_dir / "cp-1.md"),
+            "--verdicts-dir", f"{self.workspace}/.codewatch", "--run-id", "cp-1"])
         self.assertEqual((self.seen / "spec").read_bytes(), TASK.encode())
         self.assertEqual(record(agent, "triage").status, "ok")
+
+    def test_the_triage_record_in_stages_json_carries_the_runs_real_spend(self):
+        triage = record(self.run_shipped_triage(), "triage")
+
+        self.assertEqual((triage.usd, triage.tokens, triage.items_in, triage.items_out), (22.86, 5120, 60, 58))
 
 
 class ShippedFixReviewTest(unittest.TestCase):

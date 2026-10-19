@@ -18,11 +18,12 @@ AUTHOR = ("codewatch-bench", "codewatch-bench@localhost")
 # Git ignores a GIT_DIR inside the work tree only when it is named `.git`, so without its
 # own line `git add -A` stages the repository into itself. The index cache, the audit
 # output and the session brief are rebuilt every run and never committed (design section
-# 1, "Carry"). The rest
+# 1, "Carry"). `/files/` is the task's mounted sample tree: input the program reads, not
+# code the solve wrote, so no audit finding or fix item may target it. The rest
 # is what test runs and virtualenvs leave behind, which the grader's snapshot skips too.
 EXCLUDES = (
     "/.codewatch/repo.git/", "/.codewatch/cache/", "/.codewatch/audit/", "/.codewatch/graph.db*",
-    "/.codewatch/session-brief.json",
+    "/.codewatch/session-brief.json", "/files/",
     "__pycache__/", "*.py[cod]", ".venv/", "venv/", ".pytest_cache/", ".ruff_cache/",
     ".mypy_cache/", ".coverage", ".coverage.*", "htmlcov/", "node_modules/",
     "/.evaluation_tests/", "/.claude/", "/.opencode/",
@@ -98,6 +99,14 @@ class HiddenRepo:
         missing = [p for p in EXCLUDES if p not in lines]
         if missing:
             exclude.write_text("".join(f"{line}\n" for line in [*lines, *missing]))
+
+    def ignored(self, paths: list[str]) -> set[str]:
+        """The untracked paths among `paths` that an exclude covers: not the project's files."""
+        done = subprocess.run(["git", "-c", "safe.directory=*", "check-ignore", "--stdin"], cwd=self.workspace,
+                              env=self.env(), input="\n".join(paths), capture_output=True, text=True, check=False)
+        if done.returncode > 1:
+            raise GitError(f"git check-ignore: {done.stderr.strip()}")
+        return set(done.stdout.splitlines())
 
     def branch(self) -> str:
         return self.run("rev-parse", "--abbrev-ref", "HEAD")

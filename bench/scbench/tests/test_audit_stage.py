@@ -31,8 +31,9 @@ def row(tool, signal, path="src/app.py"):
 class FakeAuditTools:
     """Fakes codewatch and tiert; runs the findings modules for real, from fixed reports."""
 
-    def __init__(self, scratch: Path, help_text=FULL_HELP, audit_exit=0, crashes=()):
+    def __init__(self, scratch: Path, help_text=FULL_HELP, audit_exit=0, crashes=(), tiert_paths=("tests/test_app.py",)):
         self.scratch, self.help_text, self.audit_exit, self.crashes = scratch, help_text, audit_exit, crashes
+        self.tiert_paths = tiert_paths
         self.calls = []
 
     def __call__(self, command, env, cwd):
@@ -46,7 +47,7 @@ class FakeAuditTools:
             return subprocess.CompletedProcess(command, self.audit_exit, "", "boom" if self.audit_exit else "")
         if command[0] == "python3":
             with findings.open("a") as out:
-                out.write(json.dumps(row("tiert", "symbol_assertion_free", "tests/test_app.py")) + "\n")
+                out.writelines(json.dumps(row("tiert", "symbol_assertion_free", p)) + "\n" for p in self.tiert_paths)
             return subprocess.CompletedProcess(command, 0, '{"items_out": 1}', "")
         if any(f"findings.{name}" in command for name in self.crashes):
             return subprocess.CompletedProcess(command, 1, "", "Traceback: crashed before writing")
@@ -90,6 +91,18 @@ class AuditStageTest(StageTestCase):
                       self.tools.calls)
         self.assertEqual((report["outcome"], report["merge_base"], report["items_out"]), ("ok", merge_base, 4))
         self.assertNotIn("reason", report)
+
+    def test_rows_on_the_tasks_sample_tree_or_a_virtualenv_are_dropped_from_the_findings(self):
+        for sample in ("files/A/I.py", ".venv/lib/pkg/mod.py"):
+            (self.root / sample).parent.mkdir(parents=True)
+            (self.root / sample).write_text("z = 1\n")
+        tools = FakeAuditTools(self.config.scratch,
+                               tiert_paths=("tests/test_app.py", "files/A/I.py", ".venv/lib/pkg/mod.py"))
+
+        report = audit_stage(self.root, tools)
+
+        self.assertEqual({r["path"] for r in self.findings() if r["tool"] == "tiert"}, {"tests/test_app.py"})
+        self.assertEqual((report["dropped_ignored"], report["items_out"]), (2, 4))
 
     def test_a_codewatch_without_the_flags_runs_a_plain_audit(self):
         tools = FakeAuditTools(self.config.scratch, help_text="  --no-ruff  ...\n")
