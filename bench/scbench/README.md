@@ -304,8 +304,10 @@ line for `stages.json`. They call the image's pinned tools by full path under
   unknown, not a finding: it writes no rows and exits 1. So is a pytest run that did not
   run the tests (exit 2 to 5, such as a collection error) or a report that measured none
   of the workspace's files. The image's coverage and pytest live in their own venv, which
-  lacks the workspace's third-party dependencies; a workspace that needs them gets
-  `no-coverage` unless the caller passes a report made with the workspace's interpreter.
+  lacks the workspace's third-party dependencies, so the tests run with the workspace's
+  virtualenv packages (`.venv` or `venv`, `lib/python3*/site-packages`) on `PYTHONPATH`
+  after the workspace itself. A dependency installed anywhere else, or built for another
+  Python, still fails the tests' imports and gives `no-coverage`.
   Python subprocesses the tests start are measured too (a scratch rcfile with
   `patch = subprocess`, then `coverage combine`), except one started under an interpreter
   without coverage installed, such as the workspace's own venv python: its functions
@@ -321,6 +323,11 @@ line for `stages.json`. They call the image's pinned tools by full path under
   Diff coverage and `audit --changed-from` get the PR's merge-base commit from the hidden
   repository; the graph ref `cw-merge-base-cp-N` is a snapshot name, not a git ref. Audit
   flags the installed codewatch lacks (`--changed-from`, `--no-ts-slop`) are left out.
+  A failed `codewatch audit` gives outcome `failed`. Anything else recorded in `reason` (a
+  source that exits non-zero, diff coverage not running for want of a merge-base, ignored
+  paths that could not be dropped) gives outcome `degraded`, keeping the other rows.
+  Either exits 1, so the stage's status is `failed` and the checkpoint goes on to the
+  next stage.
 
 ```
 cd bench/scbench

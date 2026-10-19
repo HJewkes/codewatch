@@ -3,6 +3,7 @@ import io
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -217,6 +218,17 @@ class DiffUncoveredTests(unittest.TestCase):
 
         self.assertEqual(seen.read_text(), str(self.workspace.resolve()))
 
+    def test_the_tests_also_import_the_workspace_virtualenvs_packages_after_the_workspace(self):
+        seen, fake = self.root / "pythonpath", self.root / "fake-coverage"
+        fake.write_text(f'#!/bin/sh\nprintf %s "$PYTHONPATH" > {seen}\nexit 3\n')
+        fake.chmod(0o755)
+        site = self.workspace / ".venv" / "lib" / "python3.12" / "site-packages"
+        site.mkdir(parents=True)
+
+        run_coverage(self.workspace, str(fake), self.root / "scratch")
+
+        self.assertEqual(seen.read_text().split(os.pathsep), [str(self.workspace.resolve()), str(site.resolve())])
+
     def test_the_tests_run_without_the_hidden_repositorys_git_env(self):
         seen, fake = self.root / "git-env", self.root / "fake-coverage"
         fake.write_text(f'#!/bin/sh\nenv | grep ^GIT_ > {seen}\nexit 3\n')
@@ -252,6 +264,17 @@ class DiffUncoveredTests(unittest.TestCase):
         self.assertEqual([r["symbol"] for r in self.rows()], ["surcharge"])
         self.assertEqual(summary["items_in"], 4)
         self.assertEqual(sorted(self.workspace.rglob("*")), before)
+
+    @unittest.skipUnless(Path(PINNED_COVERAGE).exists(), "needs the pinned coverage.py (A1 image or SCBENCH_COVERAGE)")
+    def test_tests_that_import_a_package_from_the_workspace_virtualenv_still_give_coverage(self):
+        site = f".venv/lib/python{sys.version_info.major}.{sys.version_info.minor}/site-packages"
+        write(self.workspace, {f"{site}/agent_dep.py": "VALUE = 1\n",
+                               "tests/test_dep.py": "import agent_dep\n\n\ndef test_dep():\n    assert agent_dep.VALUE\n"})
+
+        summary = self.run_main("--base-dir", str(self.base), "--coverage", PINNED_COVERAGE)
+
+        self.assertEqual(summary["outcome"], "ok")
+        self.assertEqual([r["symbol"] for r in self.rows()], ["surcharge"])
 
     @unittest.skipUnless(Path(PINNED_COVERAGE).exists(), "needs the pinned coverage.py (A1 image or SCBENCH_COVERAGE)")
     def test_a_test_collection_error_reports_no_coverage_rather_than_untested_functions(self):
