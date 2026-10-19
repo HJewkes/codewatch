@@ -92,6 +92,18 @@ class PhaseThreeTest(StageTestCase):
         self.assertEqual(git(self.root, "branch", "--show-current"), "cp-2")
         self.assertEqual((self.root / "src" / "old.py").read_text(), "y = 2\n")
 
+    def test_no_item_targets_the_tasks_sample_tree_or_a_virtualenv(self):
+        for sample in ("files/A/I.py", ".venv/lib/pkg/mod.py"):
+            (self.root / sample).parent.mkdir(parents=True)
+            (self.root / sample).write_text("z = 1\n")
+        write_verdicts(self.root, [confirmed("ERA001", "files/A/I.py"), confirmed("ERA001", ".venv/lib/pkg/mod.py"),
+                                   confirmed("ERA001", "src/old.py")])
+
+        report = self.run_stage(FakeClaude(writes("src/old.py", "y = 2\n")), FakeTools())
+
+        self.assertEqual([(i["path"], i["status"]) for i in report["items"]], [("src/old.py", "kept")])
+        self.assertEqual(report["items_in"], 1)
+
 
     def test_a_test_gap_elsewhere_that_edits_source_is_reverted(self):
         write_verdicts(self.root, [confirmed("symbol_weak_oracle_only", "tests/test_old.py")])

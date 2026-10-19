@@ -206,6 +206,23 @@ class StagesJsonTest(unittest.TestCase):
             self.assertIn(key, audit)
         self.assertEqual(audit["outcome"], "kept")
 
+    def test_stages_json_totals_stage_spend_beside_the_solves_cost_without_folding_it_in(self):
+        executor = RecordingExecutor({
+            "t": ExecResult(0, '{"tokens": 900, "usd": 22.86}', False),
+            "f": ExecResult(0, '{"tokens": 100, "usd": 20.81}', False),
+        })
+        runner = make_runner({"triage": StageSetting(True, "t"), "fix": StageSetting(True, "f")}, executor)
+        runner.run(("triage", "fix"), {})
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "stages.json"
+            write_stages_json(path, 1, runner.records, mcp_tool_calls=0, solve_usd=0.41)
+            cost = json.loads(path.read_text())["cost"]
+
+        self.assertEqual((cost["solve_usd"], cost["stage_tokens"]), (0.41, 1000))
+        self.assertAlmostEqual(cost["stage_usd"], 43.67)
+        self.assertAlmostEqual(cost["total_usd"], 44.08)
+
 
 if __name__ == "__main__":
     unittest.main()

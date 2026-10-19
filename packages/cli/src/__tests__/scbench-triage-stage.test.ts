@@ -14,6 +14,8 @@ import { fakeReader, row, SILENT_RUNNERS } from "./triage-fake-reader.js";
 
 // The SCBench A1 triage stage (bench/scbench/agent/claude_code_cw.yaml) through the real CLI
 // parser and verdict persistence; only the model reader and the control pool are replaced.
+// The stage wraps the CLI (bench/scbench/findings/triage_stage.py), which runs
+// `codewatch triage <--workspace> <args after -->`.
 const injected = vi.hoisted(() => ({ runner: undefined as LegacyStepRunner | undefined, controls: [] as readonly Control[] }));
 vi.mock("../commands/triage.js", async (importOriginal) => {
   const real = await importOriginal<typeof import("../commands/triage.js")>();
@@ -71,12 +73,13 @@ describe("the SCBench A1 triage stage command", () => {
   });
 
   it("shows the spec to the reader, writes checkpoint 2's new verdicts to verdicts.d/cp-2.jsonl and no spec text under the workspace", async () => {
-    const argv = shippedTriageCommand()
+    const stage = shippedTriageCommand()
       .replace('"$CW_SPEC_FILE"', specFile)
       .replace("$CW_CHECKPOINT", "2")
       .replaceAll("/workspace", workspace)
       .split(" ");
-    expect(argv.slice(0, 2)).toEqual(["codewatch", "triage"]);
+    expect(stage[stage.indexOf("-m") + 1]).toBe("findings.triage_stage");
+    const argv = ["codewatch", "triage", stage[stage.indexOf("--workspace") + 1]!, ...stage.slice(stage.indexOf("--") + 1)];
     const program = new Command().exitOverride();
     registerTriageCommand(program);
 

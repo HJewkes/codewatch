@@ -132,8 +132,10 @@ the way `.git` is, so it must be listed in `info/exclude`.
 keys are copied into `stages.json`: `tokens`, `usd`, `items_in`, `items_out`, `outcome`,
 `reason`, `fixed_replay_diffs`, `added_symbols`, `branch`, `solve_commit`, `merge_base`,
 `baseline`, `session_id`, `turns`, `held_back`, `items`, `stopped_by`, `merge`,
-`merge_commit`, and `solve-review`'s `verdict`, `spec_line`, `resumed`, `second_verdict`,
-`second_spec_line` and `revised_commit`.
+`merge_commit`, the audit's `dropped_ignored`, and `solve-review`'s `verdict`,
+`spec_line`, `resumed`, `second_verdict`, `second_spec_line` and `revised_commit`.
+`codewatch triage` prints no such line, so the triage stage runs it through
+`findings.triage_stage`, which reports `triage.json`'s spend.
 
 **Stage env.** Besides the solve's env and credential, a stage gets `CW_STAGE`,
 `CW_CHECKPOINT`, `CW_STAGE_DEADLINE` (the epoch second at which the stage is cut off) and
@@ -173,10 +175,15 @@ The agent writes `stages.json` into the checkpoint's agent artifacts directory
 ```
 {"checkpoint": 2, "mcp_tool_calls": 3,
  "stages": [{"stage": "audit", "status": "ok", "start": "...", "end": "...", "exit": 0,
-             "tokens": 0, "usd": 0.0, "items_in": 0, "items_out": 42}]}
+             "tokens": 0, "usd": 0.0, "items_in": 0, "items_out": 42}],
+ "cost": {"solve_usd": 0.41, "stage_usd": 43.71, "stage_tokens": 29865762, "total_usd": 44.12}}
 ```
 
 `mcp_tool_calls` counts `mcp__codewatch__*` tool uses in this checkpoint's solve session.
+
+The runner's own cost metric (`usage.cost`) still covers the solve session only. `cost`
+sums the stages beside it: `solve_usd` is that metric, and `total_usd` adds `stage_usd`.
+Compare arms on `total_usd`.
 
 ## Grading happens after the stages
 

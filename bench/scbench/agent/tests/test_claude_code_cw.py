@@ -246,7 +246,7 @@ class StageHookTest(unittest.TestCase):
         for _, stage_env in runtime.streamed:
             self.assertEqual(stage_env["DISABLE_NON_ESSENTIAL_MODEL_CALLS"], "1")
         triage = shlex.split(shipped["triage"]["command"])
-        self.assertEqual(triage[:2], ["codewatch", "triage"])
+        self.assertEqual(triage[triage.index("-m") + 1], "findings.triage_stage")
         self.assertEqual(triage[triage.index("--model") + 1], "claude-sonnet-5-5")
         self.assertIn(shipped["triage"]["command"], [c for c, _ in runtime.streamed])
 

@@ -18,7 +18,7 @@ from pathlib import Path
 from . import workspace as ws
 from .fixer import TIME_LIMIT, Clock, Fixer
 from prflow.ratchet import MERGE_BASE_REF
-from prflow.repo import scoped
+from prflow.repo import HiddenRepo, scoped
 
 from .git import Git
 from .items import Item, controls_failed, evidence_field, read_jsonl, select_items
@@ -47,9 +47,14 @@ class Config:
 
 
 def load_items(config: Config, changed: set[str]) -> tuple[list[Item], int]:
+    """Items on paths the hidden repository ignores, such as the task's `files/` tree or a
+    virtualenv, are not the project's code; a verdict carried from an earlier run may cite one."""
     audit = config.workspace / AUDIT_DIR
-    return select_items(read_jsonl(audit / "verdicts.jsonl"), read_jsonl(audit / "findings.jsonl"),
-                        changed, controls_failed(audit / "triage.json"), config.max_items)
+    items, held_back = select_items(read_jsonl(audit / "verdicts.jsonl"), read_jsonl(audit / "findings.jsonl"),
+                                    changed, controls_failed(audit / "triage.json"))
+    ignored = HiddenRepo(config.workspace, config.git_dir).ignored(sorted({i.path for i in items if i.path}))
+    project = [i for i in items if i.path not in ignored]
+    return (project if config.max_items is None else project[:config.max_items]), held_back
 
 
 def remediate(config: Config, env: Mapping[str, str], run_claude: Run, run_tool: Run, clock: Clock) -> dict:

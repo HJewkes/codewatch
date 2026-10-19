@@ -94,8 +94,39 @@ def audit_stage(workspace: Path, run: Run) -> dict:
         sources[name] = {"exit": done.returncode, **_last_json(done.stdout)}
         if done.returncode != 0:
             reasons.append(_why(name, done))
-    report = {"outcome": "ok", "merge_base": base, "items_out": _count(findings), "sources": sources}
+    report = {"outcome": "ok", "merge_base": base, "dropped_ignored": drop_ignored(workspace, findings, reasons),
+              "items_out": _count(findings), "sources": sources}
     return {**report, **({"reason": "; ".join(reasons)} if reasons else {})}
+
+
+def drop_ignored(workspace: Path, findings: Path, reasons: list[str]) -> int:
+    """Drops rows on paths the hidden repository ignores, such as the task's `files/` tree.
+
+    `codewatch audit` already indexes only the project's files; Tier T and the clone
+    finder walk the workspace themselves, so their rows are scoped here.
+    """
+    repo = HiddenRepo.at(workspace)
+    if not repo.exists() or not findings.is_file():
+        return 0
+    rows = [line for line in findings.read_text().splitlines() if line.strip()]
+    paths = [_path(line) for line in rows]
+    try:
+        ignored = repo.ignored(sorted({p for p in paths if p}))
+    except GitError as error:
+        reasons.append(f"ignored paths kept: {error}")
+        return 0
+    kept = [line for line, path in zip(rows, paths, strict=True) if path not in ignored]
+    findings.write_text("".join(f"{line}\n" for line in kept))
+    return len(rows) - len(kept)
+
+
+def _path(line: str) -> str | None:
+    try:
+        row = json.loads(line)
+    except json.JSONDecodeError:
+        return None
+    path = row.get("path") if isinstance(row, dict) else None
+    return path if isinstance(path, str) and path else None
 
 
 def _why(what: str, done: subprocess.CompletedProcess) -> str:

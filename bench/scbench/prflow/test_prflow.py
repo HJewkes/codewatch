@@ -116,14 +116,16 @@ class RepoInitTest(RepoTestCase):
         repo_init(self.repo, self.codewatch)
         exclude = (self.workspace / GIT_DIR / "info" / "exclude").read_text().splitlines()
         for rel in (".codewatch/cache/graph.db", ".codewatch/audit/findings.jsonl", ".venv/bin/python",
-                    ".codewatch/session-brief.json", ".codewatch/taste.md", "app.py"):
+                    ".codewatch/session-brief.json", ".codewatch/taste.md", "app.py", "files/A/I.py",
+                    "app/files/keep.py"):
             self.write(rel)
 
         self.checkpoint(1, {})
 
-        for pattern in ("/.codewatch/repo.git/", "/.codewatch/cache/", "/.codewatch/audit/"):
+        for pattern in ("/.codewatch/repo.git/", "/.codewatch/cache/", "/.codewatch/audit/", "/files/"):
             self.assertIn(pattern, exclude)
-        self.assertEqual(self.tracked(), {".codewatch/check.json", ".codewatch/taste.md", "app.py"})
+        self.assertEqual(self.tracked(),
+                         {".codewatch/check.json", ".codewatch/taste.md", "app.py", "app/files/keep.py"})
 
     def test_a_second_run_is_a_no_op(self):
         repo_init(self.repo, self.codewatch)
