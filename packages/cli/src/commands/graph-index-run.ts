@@ -9,6 +9,7 @@ import {
   type IndexSource,
 } from "@titan-design/code-graph";
 import { defaultGraphDbPath, moveLegacyGraphDbAside } from "../utils/graph-store.js";
+import { projectWorkingTreeSource } from "./index-scope.js";
 
 export interface GraphIndexOptions extends Omit<IndexOptions, "paths" | "tsConfig" | "source"> {
   /** Index this git rev's tree instead of the working tree; also the default snapshot label. */
@@ -95,7 +96,7 @@ export async function runGraphIndex(options: GraphIndexOptions): Promise<GraphIn
   const started = performance.now();
   const rootDirs = normalizeRootDirs(options);
   const toplevel = options.rev === undefined ? undefined : revToplevel();
-  const source = toplevel === undefined ? undefined : gitTreeSource(toplevel, options.rev!);
+  const source = toplevel === undefined ? projectWorkingTreeSource() : gitTreeSource(toplevel, options.rev!);
   const churn = churnStatus(options, toplevel ?? rootDirs[0]!);
   const indexOptions = { ...toIndexOptions(options, rootDirs, source), computeChurn: churn === "computed" };
   const dbPath = resolveIndexDbPath(options.dbPath, toplevel ?? rootDirs[0]!);
