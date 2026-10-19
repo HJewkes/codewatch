@@ -133,7 +133,8 @@ keys are copied into `stages.json`: `tokens`, `usd`, `items_in`, `items_out`, `o
 `reason`, `fixed_replay_diffs`, `added_symbols`, `branch`, `solve_commit`, `merge_base`,
 `baseline`, `session_id`, `turns`, `held_back`, `items`, `stopped_by`, `merge`,
 `merge_commit`, the audit's `dropped_ignored`, and `solve-review`'s `verdict`,
-`spec_line`, `resumed`, `second_verdict`, `second_spec_line` and `revised_commit`.
+`spec_line`, `resumed`, `second_verdict`, `second_spec_line` and `revised_commit`, and the
+fix stage's `review_tokens`, `review_usd`, `usd_total`, `model_usage` and `call_usage`.
 `codewatch triage` prints no such line, so the triage stage runs it through
 `findings.triage_stage`, which reports `triage.json`'s spend.
 
@@ -183,7 +184,9 @@ The agent writes `stages.json` into the checkpoint's agent artifacts directory
 
 The runner's own cost metric (`usage.cost`) still covers the solve session only. `cost`
 sums the stages beside it: `solve_usd` is that metric, and `total_usd` adds `stage_usd`.
-Compare arms on `total_usd`.
+`stage_usd` and `stage_tokens` include each stage's `review_usd` and `review_tokens`, so
+the fix stage's commit reviews count. Every figure is CC's own `total_cost_usd`, not
+re-priced. Compare arms on `total_usd`.
 
 ## Grading happens after the stages
 

@@ -283,7 +283,11 @@ deadline the agent passes in, and then resets the work tree to the last kept com
 
 The report line sets `outcome` (`kept` if any commit was kept, else `reverted`,
 `unchanged` or `skipped`), `reason`, `items_in`, `items_out` (commits kept), `held_back`,
-`stopped_by`, `session_id`, `turns`, `tokens`, `usd`, `added_symbols` (from kept phase-2
+`stopped_by`, `session_id`, `turns`, `tokens`, `usd` (the fix session alone),
+`review_tokens` and `review_usd` (every review call), `usd_total` (`usd` plus
+`review_usd`), `model_usage` (each model's totals from the result events' `modelUsage`, so
+a haiku warmup is its own line; transcripts undercount output), `call_usage` (the same per
+session call), `added_symbols` (from kept phase-2
 and phase-3 commits, flagged `single-caller-helper` when exactly one call reaches them),
 and `items`. Each entry in `items` gives the phase, kind (`test-gap` or `quality`), signal,
 the missing test kind (for `missing-test-kind`), path, status (`kept`,

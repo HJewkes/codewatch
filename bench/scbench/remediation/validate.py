@@ -7,7 +7,8 @@
 - Added symbols: functions and methods the commit added, flagged `single-caller-helper`
   when exactly one `calls` edge reaches them (the U11 gaming check reads these).
 - Review: an optional command that gets the commit sha and prints
-  `{"verdict": "ok"|"conflict", "spec_line": ..., "reason": ...}` as its last line.
+  `{"verdict": "ok"|"conflict", "spec_line": ..., "reason": ..., "tokens": ..., "usd": ...}`
+  as its last line; the fix stage reports the review spend beside the session's.
 """
 
 from __future__ import annotations
@@ -127,7 +128,8 @@ class Reviewer:
         report = _last_json(stdout)
         if timed_out or code != 0 or report.get("verdict") not in ("ok", "conflict"):
             return {"verdict": "error", "reason": "timed out" if timed_out else f"exit {code}, no verdict"}
-        return {k: report.get(k) for k in ("verdict", "spec_line", "reason")}
+        return {**{k: report.get(k) for k in ("verdict", "spec_line", "reason")},
+                "tokens": int(report.get("tokens") or 0), "usd": float(report.get("usd") or 0.0)}
 
 
 def _json_object(text: str) -> dict:

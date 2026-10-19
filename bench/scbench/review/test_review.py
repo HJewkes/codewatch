@@ -98,6 +98,16 @@ class FixCommitTest(HiddenRepoTestCase):
         self.assertEqual((report["verdict"], report["spec_line"], report["citation"]), ("ok", None, "none"))
         self.assertEqual(report["files"], ["shop/pricing.py", "shop/receipt.py"])
 
+    def test_the_report_carries_the_model_calls_spend_and_a_skipped_call_spends_nothing(self):
+        sha = self.commit("rename", {"shop/pricing.py": PRICING.replace("format_total", "render_total")})
+        tests_only = self.commit("more tests", {"tests/test_more.py": "def test_more():\n    pass\n"})
+
+        reviewed = review(self.request(sha), FakeModel({"verdict": "ok", "spec_line": None, "reason": "rename"}))
+        skipped = review(self.request(tests_only, EXPECTED_OUTPUT), FakeModel())
+
+        self.assertEqual((reviewed["tokens"], reviewed["usd"]), (900, 0.01))
+        self.assertEqual((skipped["tokens"], skipped["usd"]), (0, 0.0))
+
     def test_the_prompt_carries_the_numbered_spec_the_notes_and_the_diff(self):
         sha = self.commit("rename", {"shop/pricing.py": PRICING.replace("format_total", "render_total")})
         model = FakeModel({"verdict": "ok", "spec_line": None, "reason": "rename"})

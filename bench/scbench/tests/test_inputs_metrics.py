@@ -89,6 +89,14 @@ class EvalLayoutTests(ArmFixture):
 
         self.assertAlmostEqual(summary.usd_per_checkpoint, 1.75)
 
+    def test_the_fix_stages_review_spend_adds_to_the_checkpoint_cost(self):
+        stages = stages_json(stage("fix", usd=0.5, review_usd=0.25, usd_total=0.75))
+        self.write("p", 1, evaluation(1), cost=1.0, stages=stages)
+
+        summary = summarise(self.arm(require_stages=True), expected=1)
+
+        self.assertAlmostEqual(summary.usd_per_checkpoint, 1.75)
+
 
 class StageLocationTests(ArmFixture):
     def test_stages_json_is_read_from_the_agent_artifacts_dir(self):

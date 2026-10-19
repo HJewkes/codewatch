@@ -44,7 +44,7 @@ own `checkpoint` field in stages.json, which restarts at 1 after `--resume`.
                                                "flags": ["single-caller-helper"]}]}]}]}
 
 `status` is one of disabled, missing, skipped_budget (the command never ran, exit
-null), ok, failed or timeout.
+null), ok, failed or timeout. A stage's spend is its `usd` plus any `review_usd`.
 """
 
 from __future__ import annotations
@@ -324,7 +324,7 @@ def _parse_stage(raw: dict) -> Stage:
         name=raw["stage"],
         status=raw.get("status"),
         exit=raw.get("exit"),
-        usd=float(raw.get("usd", 0.0)),
+        usd=float(raw.get("usd", 0.0)) + float(raw.get("review_usd") or 0.0),
         items_in=int(raw.get("items_in", 0)),
         items_out=int(raw.get("items_out", 0)),
         outcome=raw.get("outcome"),

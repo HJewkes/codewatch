@@ -78,7 +78,7 @@ def remediate(config: Config, env: Mapping[str, str], run_claude: Run, run_tool:
         _recover(fixer, config.workspace, saved)
         raise
     ws.drop(saved)
-    return {**base, **summarize(records, stopped), **_session_fields(fixer.session)}
+    return {**base, **summarize(records, stopped), **_cost_fields(fixer)}
 
 
 def build_fixer(config: Config, env: Mapping[str, str], git: Git, run_claude: Run, run_tool: Run,
@@ -143,6 +143,10 @@ def _recover(fixer: Fixer, workspace: Path, saved: Path) -> None:
     ws.drop(saved)
 
 
-def _session_fields(session: FixSession) -> dict:
+def _cost_fields(fixer: Fixer) -> dict:
+    """`usd` stays the fix session's own spend; `usd_total` adds the review calls to it."""
+    session = fixer.session
     return {"session_id": session.session_id if session.started else None, "turns": session.turns,
-            "tokens": session.tokens, "usd": session.usd}
+            "tokens": session.tokens, "usd": session.usd, "model_usage": session.model_usage,
+            "call_usage": session.call_usage, "review_tokens": fixer.review_tokens,
+            "review_usd": fixer.review_usd, "usd_total": session.usd + fixer.review_usd}

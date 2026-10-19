@@ -223,6 +223,24 @@ class StagesJsonTest(unittest.TestCase):
         self.assertAlmostEqual(cost["stage_usd"], 43.67)
         self.assertAlmostEqual(cost["total_usd"], 44.08)
 
+    def test_stages_json_counts_the_fix_stages_review_spend_toward_the_stage_total(self):
+        report = {"tokens": 100, "usd": 2.0, "review_tokens": 50, "review_usd": 0.5, "usd_total": 2.5,
+                  "model_usage": {"claude-haiku-5-5": {"costUSD": 0.007}}}
+        runner = make_runner({"fix": StageSetting(True, "f")},
+                             RecordingExecutor({"f": ExecResult(0, json.dumps(report), False)}))
+        runner.run(("fix",), {})
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "stages.json"
+            write_stages_json(path, 1, runner.records, mcp_tool_calls=0, solve_usd=1.0)
+            written = json.loads(path.read_text())
+
+        fix = written["stages"][0]
+        self.assertEqual((fix["usd"], fix["review_usd"], fix["usd_total"]), (2.0, 0.5, 2.5))
+        self.assertEqual(fix["model_usage"], report["model_usage"])
+        self.assertEqual((written["cost"]["stage_usd"], written["cost"]["stage_tokens"]), (2.5, 150))
+        self.assertEqual(written["cost"]["total_usd"], 3.5)
+
 
 if __name__ == "__main__":
     unittest.main()
