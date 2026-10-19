@@ -177,6 +177,10 @@ class BuildScriptTests(unittest.TestCase):
         drop = self.build.index('rm -f "$context/codewatch/node_modules/.modules.yaml"')
         self.assertLess(drop, self.build.index('artifact.py" entry'))
 
+    def test_build_sh_drops_the_link_to_the_source_checkout_before_hashing(self):
+        drop = self.build.index('rm -f "$context/codewatch/node_modules/.pnpm/node_modules/@codewatch/cli"')
+        self.assertLess(drop, self.build.index('artifact.py" entry'))
+
 
 class SolvePathTests(unittest.TestCase):
     def test_only_the_codewatch_wrapper_puts_the_pinned_tools_on_path(self):
