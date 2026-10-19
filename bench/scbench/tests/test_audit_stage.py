@@ -14,6 +14,7 @@ from unittest import mock
 from agent.stages import ExecResult, StageBudget, StageRunner, StageSetting
 from findings.audit_stage import audit_stage, run_tool
 from findings.audit_stage import main as audit_main
+from prflow.repo import GitError, HiddenRepo
 
 from tests.remediation_support import FakeClaude, FakeTools, StageTestCase, git, writes
 
@@ -136,6 +137,13 @@ class AuditStageTest(StageTestCase):
 
         self.assertEqual([r["tool"] for r in self.findings()], ["ruff", "tiert"])
         self.assertIn("clones exited 1", report["reason"])
+
+    def test_ignored_paths_that_cannot_be_dropped_degrade_the_stage(self):
+        with mock.patch.object(HiddenRepo, "ignored", side_effect=GitError("check-ignore failed")):
+            report = audit_stage(self.root, self.tools)
+
+        self.assertEqual(report["outcome"], "degraded")
+        self.assertIn("ignored paths kept: check-ignore failed", report["reason"])
 
     def test_diff_coverage_without_a_coverage_report_degrades_the_stage_and_keeps_the_other_rows(self):
         tools = FakeAuditTools(self.config.scratch, coverage_files={})

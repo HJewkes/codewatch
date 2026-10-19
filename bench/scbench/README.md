@@ -304,10 +304,11 @@ line for `stages.json`. They call the image's pinned tools by full path under
   unknown, not a finding: it writes no rows and exits 1. So is a pytest run that did not
   run the tests (exit 2 to 5, such as a collection error) or a report that measured none
   of the workspace's files. The image's coverage and pytest live in their own venv, which
-  lacks the workspace's third-party dependencies, so the tests run with the workspace's
-  virtualenv packages (`.venv` or `venv`, `lib/python3*/site-packages`) on `PYTHONPATH`
-  after the workspace itself. A dependency installed anywhere else, or built for another
-  Python, still fails the tests' imports and gives `no-coverage`.
+  lacks the workspace's third-party dependencies. A scratch `sitecustomize` on `PYTHONPATH`
+  appends the workspace virtualenv's packages (`.venv` or `venv`, the running interpreter's
+  `lib/pythonX.Y/site-packages` only) after the tools venv's own, so the pinned coverage.py
+  and pytest always win. A dependency installed anywhere else, or only for another Python,
+  still fails the tests' imports and gives `no-coverage`.
   Python subprocesses the tests start are measured too (a scratch rcfile with
   `patch = subprocess`, then `coverage combine`), except one started under an interpreter
   without coverage installed, such as the workspace's own venv python: its functions

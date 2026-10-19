@@ -96,7 +96,8 @@ def audit_stage(workspace: Path, run: Run) -> dict:
         sources[name] = {"exit": done.returncode, **_last_json(done.stdout)}
         if done.returncode != 0:
             reasons.append(_why(name, done))
-    report = {"outcome": "degraded" if reasons else "ok", "merge_base": base, "dropped_ignored": drop_ignored(workspace, findings, reasons),
+    dropped = drop_ignored(workspace, findings, reasons)
+    report = {"outcome": "degraded" if reasons else "ok", "merge_base": base, "dropped_ignored": dropped,
               "items_out": _count(findings), "sources": sources}
     return {**report, **({"reason": "; ".join(reasons)} if reasons else {})}
 
