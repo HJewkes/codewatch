@@ -120,3 +120,113 @@ def report(rows, limit, sep, header, out):
     out.extend(lines)
     return total
 '''
+
+
+ROUTE = '''\
+def route(kind, rows, scale):
+    total = 0
+    if kind == "sum":
+        for r in rows:
+            if r > 0:
+                total += r * scale
+        return total
+    elif kind == "max":
+        best = None
+        for r in rows:
+            if best is None or r > best:
+                best = r
+        return best
+    elif kind in ("min", "low"):
+        best = None
+        for r in rows:
+            if best is None or r < best:
+                best = r
+        return best
+    elif kind == "count":
+        n = 0
+        for r in rows:
+            if r:
+                n += 1
+        return n
+    else:
+        raise ValueError(kind)
+'''
+
+_ARM = '''\
+        for r in rows:
+            if r > 0:
+                out.append(r)
+            elif r < -10:
+                out.append(-r)
+'''
+TWIN_ARMS = ("def big(rows, mode):\n    out = []\n    if mode == 'a':\n" + _ARM + "    elif mode == 'b':\n" + _ARM
+             + "    elif mode == 'c':\n        out.append(1)\n    elif mode == 'd':\n        out.append(2)\n"
+             "    elif mode == 'e':\n        out.append(3)\n    return out\n")
+
+INLINE_OVER = ("def pick(x):\n    return 1 if x else 2\n" + ladder("mid", 9, ("pick",)) + ladder("top", 11, ("mid",)))
+
+DETECT = '''\
+REG = []
+COUNT = 0
+
+
+def run(rows, verbose=False):
+    if verbose:
+        print(1)
+    _step(rows, verbose)
+    REG.append(1)
+
+
+def _step(rows, loud):
+    if not loud:
+        return rows
+
+
+def go(rows):
+    run(rows, True)
+
+
+def quiet(rows, mode):
+    if mode == "x":
+        return rows
+
+
+def use(cfg, other):
+    x = 3
+    return cfg.name
+
+
+def fwd(a, b):
+    return g(a, b)
+
+
+def g(a, b):
+    return a + b
+
+
+def bump():
+    global COUNT
+    COUNT = COUNT + 1
+
+
+def fill(acc, x):
+    acc.append(x)
+
+
+def bag(xs):
+    acc = []
+    fill(acc, xs)
+    print(acc)
+
+
+class K:
+    def __init__(self):
+        self.a = 1
+
+    def m(self):
+        self.tmp = 2
+        return self.a
+
+    def n(self):
+        return 1
+'''

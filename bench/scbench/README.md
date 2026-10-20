@@ -270,6 +270,16 @@ before the task around them. A task carries its owned units, its frozen callees 
 is split when it is over the 8k-token cap. `python3 -m planner cut <tree> <unit> <start> <end>` prints
 the live variables in and out of a cut range. The module docstrings in `planner/` define each rule.
 
+**Recipes, feasibility and rank (C-248 S3b).** Each task also carries candidate edits from four recipes
+(R1 dispatch chain to table, R2 merge duplicated branches, R3 stage extraction, R4 inline a trivial
+helper). Every candidate is applied to a copy of the module and scored on that end state: hard
+constraints first (own-body T1, common coupling, flag origins, pass-through, unused params or locals,
+temporary fields, class LCOM4, import cycles, SDP), then the P5 family tolerances, then the floor on gain
+per new function. Feasible sets rank by own-body gain times graded utilities, and an exhaustive search
+picks among mutually exclusive edits. P4's module rule is reported as a shadow column only. All
+thresholds live in `planner/config.json`. Each task renders the B8.2 plan template
+(`python3 -m planner template <tree> <task id>`).
+
 **Calibration corpus (C-252).** `calibration/` derives the cleanup gate's utility curves from a
 pinned corpus of maintained PyPI projects instead of the SCBench references. `python3 -I
 bench/scbench/calibration upstream|select|curves|score` lists the PyPI names the non-holdout

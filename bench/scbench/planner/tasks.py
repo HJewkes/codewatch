@@ -155,12 +155,16 @@ def _task(head: str, keys: list[str], units: dict[str, Unit], parent: dict[str, 
 
 
 def ownership_conflicts(plan: dict) -> list[str]:
-    """Units owned by two tasks of one wave; an empty list means ownership is disjoint per wave."""
+    """Units two tasks of one wave own or edit, and edits of units a task does not own (S3b's chosen
+    edits). An empty list means each wave's tasks touch disjoint symbols."""
     seen: dict[tuple[int, str], str] = {}
     out = []
     for t in plan["tasks"]:
-        for row in t["owned"]:
-            other = seen.setdefault((t["wave"], row["key"]), t["id"])
+        owned = {row["key"] for row in t["owned"]}
+        touched = set((t.get("chosen") or {}).get("touches", []))
+        out += [f"{t['id']} edits {k}, which it does not own" for k in sorted(touched - owned)]
+        for key in sorted(owned | touched):
+            other = seen.setdefault((t["wave"], key), t["id"])
             if other != t["id"]:
-                out.append(f"wave {t['wave']}: {row['key']} owned by {other} and {t['id']}")
+                out.append(f"wave {t['wave']}: {key} owned by {other} and {t['id']}")
     return out
