@@ -63,17 +63,17 @@ def _count(state: State, keys: set[str], kind: str) -> int:
     return sum(len(state.found[k][kind]) for k in keys if k in state.found)
 
 
-def _imports(tree: ast.Module) -> list[str]:
-    return [ast.dump(n) for n in ast.walk(tree) if isinstance(n, (ast.Import, ast.ImportFrom))]
+def imports(tree: ast.Module | None) -> list[str]:
+    return [ast.dump(n) for n in ast.walk(tree or ast.Module(body=[], type_ignores=[])) if isinstance(n, (ast.Import, ast.ImportFrom))]
 
 
 def _module_breaks(before: State, after: State, rel: str, trees: dict, cfg: dict) -> dict:
-    if _imports(before.tree) == _imports(after.tree):
+    if imports(before.tree) == imports(after.tree):
         return {"cycles": [], "sdp": []}
     return violations(structure(trees), structure({**trees, rel: after.tree}), cfg["constraints"]["sdp_max_delta_i"])
 
 
-def _class_breaks(before: State, after: State, touched: list[Unit], limit: int) -> list[str]:
+def class_breaks(before: State, after: State, touched: list[Unit], limit: int) -> list[str]:
     out = []
     for name in sorted({u.cls for u in touched if u.cls}):
         old, new = before.classes.get(name, {"lcom4": 0, "temporary": []}), after.classes.get(name)
@@ -89,7 +89,13 @@ def violated(before: State, after: State, kb: set[str], ka: set[str], new_fns: i
     if grew > new_fns + cfg["constraints"]["t1_margin"]:
         out.append(f"T1:+{grew}>{new_fns}")
     touched = [before.units[k] for k in kb] + [after.units[k] for k in ka]
-    return out + _class_breaks(before, after, touched, cfg["constraints"]["lcom4_max"])
+    return out + class_breaks(before, after, touched, cfg["constraints"]["lcom4_max"])
+
+
+def class_rows(state: State, touched: list[Unit]) -> dict[str, list[int]]:
+    """Touched classes as [own SLOC of their methods, method count], the class part of the mod family."""
+    names = {u.cls for u in touched if u.cls and u.cls in state.classes}
+    return {c: [sum(u.sloc for u in state.units.values() if u.cls == c), state.classes[c]["methods"]] for c in sorted(names)}
 
 
 def compare(rel: str, before: State, after: State, touches: set[str], trees: dict, cfg: dict) -> dict:
@@ -97,10 +103,12 @@ def compare(rel: str, before: State, after: State, touches: set[str], trees: dic
     kb = (touches | set(new)) & set(before.units)
     ka = (touches | set(new)) & set(after.units)
     bad = violated(before, after, kb, ka, len(new), cfg)
+    touched = [before.units[k] for k in kb] + [after.units[k] for k in ka]
     breaks = _module_breaks(before, after, rel, trees, cfg)
     bad += [f"cycle:{'>'.join(c)}" for c in breaks["cycles"]] + [f"sdp:{s}>{d}" for s, d, _ in breaks["sdp"]]
     change = {"crossings": [_count(before, kb, "control"), _count(after, ka, "control")], "new_fns": len(new),
-              "modules": {"before": {rel: before.sloc}, "after": {rel: after.sloc}}}
+              "modules": {"before": {rel: before.sloc}, "after": {rel: after.sloc},
+                          "classes": {"before": class_rows(before, touched), "after": class_rows(after, touched)}}}
     fam = verdict(profile([row(before.units[k]) for k in sorted(kb)], cfg),
                   profile([row(after.units[k]) for k in sorted(ka)], cfg), change, cfg)
     hot = cfg["hot_cc"]

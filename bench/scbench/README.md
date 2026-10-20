@@ -280,6 +280,18 @@ picks among mutually exclusive edits. P4's module rule is reported as a shadow c
 thresholds live in `planner/config.json`. Each task renders the B8.2 plan template
 (`python3 -m planner template <tree> <task id>`).
 
+**Gates T1/T2/T3 (C-248 S4).** `gate/` judges a cleanup change from a frozen base tree and the session's
+tree. One family check (`gate/family.py`) serves both the implementer's self-check and the final gate,
+and both print it in one format. `python3 -m gate --cluster <task id> --base <tree> [--workspace DIR]`
+is the advisory self-check: families against tolerance, constraint verdicts and T1, with no score,
+floor or rank, and at most 3 calls per task. `gate/gates.py` is the final gate. T1 always blocks (visible
+tests, `diffgate inloop`, test bloat relative to base, own-body ΔCC ≤ new functions). T2 rejects on P5,
+ownership or the value floor, and sends a constraint break to T3 with its evidence. T3
+(`gate/t3.py`) fails closed: a reviewer error or two invalid replies hold the task as
+`review-unavailable`. `python3 -m gate.preflight` checks a session's effective model, output cap
+and MCP tools from its stream-json events (C-232). `python3 -m gate.replay <manifest>` is the
+false-reject replay (owner R3-1). It reports aggregates only.
+
 **Calibration corpus (C-252).** `calibration/` derives the cleanup gate's utility curves from a
 pinned corpus of maintained PyPI projects instead of the SCBench references. `python3 -I
 bench/scbench/calibration upstream|select|curves|score` lists the PyPI names the non-holdout

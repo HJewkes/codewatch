@@ -7,9 +7,15 @@ divided by the touched SLOC before. Control crossings are a count; module growth
 
 P5 (owner R3-2 and R3-3): cx improves and does not worsen; size holds; interface risk may rise by at
 most iface_base + iface_ratio x gain, gain being the mean drop of cx CC and cx cognitive; crossings rise
-by at most one; a module grows by at most 2 lines per new function, or else its risk by module_risk;
-touched SLOC grows at most amount_ratio times. P4 charges module risk per new function instead. Its
-verdict is reported and never gates.
+by at most one; a module grows by at most module_lines_per_new_function lines per new function, or else
+its risk (module SLOC x risk, plus class SLOC x risk of its method count) rises by at most module_risk per
+module SLOC before (`module_risk_basis` "module", as round 3 measured it) or per touched SLOC before
+("touched"); touched SLOC grows at most amount_ratio times. P4 charges module risk per new function
+instead. Its verdict is reported and never gates.
+
+Tolerances are frozen in config.json (version s4-1, C-248 S4): the cognitive knots are re-derived on the
+validated own-body cognitive (calibration/cognitive.py) over 978 distinct reference functions, LOC-weighted
+p70/p80/p90 15/23/34; round 3's 13/18/29 came from an approximate port. The other knots reproduce round 3.
 """
 
 from __future__ import annotations
@@ -43,9 +49,11 @@ def profile(units: list[dict], cfg: dict) -> dict:
     return {**out, "sloc": sum(u["sloc"] for u in units)}
 
 
-def module_risk(lines: dict[str, int], cfg: dict) -> float:
-    knots, cap = cfg["risk"]["knots"]["module_sloc"], cfg["risk"]["cap"]
-    return sum(n * risk(n, knots, cap) for n in lines.values())
+def module_risk(lines: dict[str, int], cfg: dict, classes: dict[str, list[int]] | None = None) -> float:
+    """Module SLOC x risk, plus, per class given as [SLOC, methods], class SLOC x risk of its methods."""
+    knots, cap = cfg["risk"]["knots"], cfg["risk"]["cap"]
+    mods = sum(n * risk(n, knots["module_sloc"], cap) for n in lines.values())
+    return mods + sum(sl * risk(m, knots["class_methods"], cap) for sl, m in (classes or {}).values())
 
 
 def deltas(before: dict, after: dict) -> dict:
@@ -58,9 +66,11 @@ def iface_budget(d: dict, p5: dict) -> float:
     return round(p5["iface_base"] + p5["iface_ratio"] * gain, 3)
 
 
-def _module(change: dict, new_fns: int, cfg: dict, base: float) -> dict:
+def _module(change: dict, new_fns: int, cfg: dict, touched: float) -> dict:
     grown = sum(change["after"].values()) - sum(change["before"].values())
-    risen = (module_risk(change["after"], cfg) - module_risk(change["before"], cfg)) / base
+    base = sum(change["before"].values()) or 1 if cfg["p5"]["module_risk_basis"] == "module" else touched
+    classes = change.get("classes") or {"before": {}, "after": {}}
+    risen = (module_risk(change["after"], cfg, classes["after"]) - module_risk(change["before"], cfg, classes["before"])) / base
     p5, p4 = cfg["p5"], cfg["p4_shadow"]
     allowed = p5["module_lines_per_new_function"] * new_fns
     return {"lines": grown, "allowed": allowed, "risk": round(risen, 3),
@@ -69,7 +79,8 @@ def _module(change: dict, new_fns: int, cfg: dict, base: float) -> dict:
 
 
 def verdict(before: dict, after: dict, change: dict, cfg: dict) -> dict:
-    """Per-family deltas against P5 tolerances. `change` carries crossings, new_fns and module lines."""
+    """Per-family deltas against P5 tolerances. `change` carries crossings, new_fns, module lines and
+    (optionally) touched classes as {before, after: {name: [SLOC, methods]}} under change["modules"]["classes"]."""
     p5, d = cfg["p5"], deltas(before, after)
     budget = iface_budget(d, p5)
     crossings = change["crossings"][1] - change["crossings"][0]
@@ -84,6 +95,7 @@ def verdict(before: dict, after: dict, change: dict, cfg: dict) -> dict:
         "module": module["p5"],
         "amount": amount <= p5["amount_ratio"],
     }
-    return {"deltas": d, "iface_budget": budget, "crossings": crossings, "module": module, "amount": amount,
+    return {"before": {fam: round(before[fam], 1) for fam in MEASURES}, "crossings_before": change["crossings"][0],
+            "deltas": d, "iface_budget": budget, "crossings": crossings, "module": module, "amount": amount,
             "checks": checks, "failed": sorted(k for k, ok in checks.items() if not ok),
             "pass": all(checks.values()), "p4_shadow": module["p4_shadow"]}
