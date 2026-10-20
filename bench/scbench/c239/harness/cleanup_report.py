@@ -1,8 +1,9 @@
 """cleanup_report.py <before tree> <after tree> [--json OUT]: the cleanup stage's complexity report.
 
 Dilution-proof numbers (dilution.py, scb-check 0.1.3 compatible, no scb-check run) before -> after,
-for the whole tree and for the functions the change touched, then erosion as a legacy line, then
-nesting depth and defensive-check density as report lines only. Halstead, MI and single-caller
+for the whole tree and for the planner's task clusters the change touched (planner/report.py), then
+two legacy lines: the body-hash touched set and erosion. Nesting depth and defensive-check density
+are report lines only. Halstead, MI and single-caller
 counts are not reported.
 """
 
@@ -14,7 +15,9 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from dilution import compare
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from dilution import compare, scan
+from planner.report import cluster_numbers
 
 SCOPE = "scb-compatible CC, source files with the tests dir excluded; before -> after"
 
@@ -30,13 +33,27 @@ def complexity_line(label: str, before: dict, after: dict) -> str:
             f"total CC {change(before['total'], after['total'])}")
 
 
+def plural(n: int, noun: str) -> str:
+    return f"{n} {noun}{'s' * (n != 1)}"
+
+
+def numbers_for(before: Path, after: Path) -> dict:
+    numbers = compare(before, after)
+    fb, fa = ([f for m in scan(root) for f in m.functions] for root in (before, after))
+    numbers["clusters"] = cluster_numbers(before, after, fb, fa, set(numbers["touched_functions"]))
+    return numbers
+
+
 def render(numbers: dict) -> str:
     (tb, ta), (cb, ca), (lb, la) = numbers["tree"], numbers["touched"], numbers["lines"]
-    n = len(numbers["touched_functions"])
+    clusters = numbers["clusters"]
+    (kb, ka), untasked = clusters["numbers"], len(clusters["untasked"])
     return "\n".join([
         f"cleanup report ({SCOPE})",
         complexity_line("tree", tb, ta),
-        complexity_line(f"touched, {n} function{'s' * (n != 1)}", cb, ca),
+        complexity_line(f"task clusters, {plural(len(clusters['tasks']), 'task')}, "
+                        f"{plural(untasked, 'touched function')} outside any task", kb, ka),
+        complexity_line(f"legacy touched, {plural(len(numbers['touched_functions']), 'function')}", cb, ca),
         f"[legacy] erosion (reported for comparability): {tb['erosion']:.3f} -> {ta['erosion']:.3f}",
         f"[report] max nesting depth {lb['nesting_max']} -> {la['nesting_max']}; defensive checks per 100 SLOC "
         f"{lb['defensive_per_100']:.2f} -> {la['defensive_per_100']:.2f}. Report lines, not task types.",
@@ -49,7 +66,7 @@ def main(argv: list[str]) -> int:
     p.add_argument("after")
     p.add_argument("--json")
     args = p.parse_args(argv)
-    numbers = compare(Path(args.before), Path(args.after))
+    numbers = numbers_for(Path(args.before), Path(args.after))
     if args.json:
         Path(args.json).write_text(json.dumps(numbers, indent=1) + "\n")
     print(render(numbers))
