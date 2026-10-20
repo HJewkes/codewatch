@@ -34,7 +34,7 @@ PASSTHROUGH_FIELDS = (
     "session_id", "turns", "held_back", "items", "stopped_by",
     "merge", "merge_commit", "dropped_ignored",
     "verdict", "spec_line", "resumed", "second_verdict", "second_spec_line", "revised_commit",
-    "review_tokens", "review_usd", "usd_total", "model_usage", "call_usage",
+    "review_tokens", "review_usd", "usd_total", "model_usage", "call_usage", "oracle",
 )
 
 

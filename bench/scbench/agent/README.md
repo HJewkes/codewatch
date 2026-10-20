@@ -134,7 +134,8 @@ keys are copied into `stages.json`: `tokens`, `usd`, `items_in`, `items_out`, `o
 `baseline`, `session_id`, `turns`, `held_back`, `items`, `stopped_by`, `merge`,
 `merge_commit`, the audit's `dropped_ignored`, and `solve-review`'s `verdict`,
 `spec_line`, `resumed`, `second_verdict`, `second_spec_line` and `revised_commit`, and the
-fix stage's `review_tokens`, `review_usd`, `usd_total`, `model_usage` and `call_usage`.
+fix stage's `review_tokens`, `review_usd`, `usd_total`, `model_usage`, `call_usage` and
+`oracle` (its base check's class, failing test ids and reason).
 `codewatch triage` prints no such line, so the triage stage runs it through
 `findings.triage_stage`, which reports `triage.json`'s spend.
 
