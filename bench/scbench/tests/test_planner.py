@@ -60,6 +60,13 @@ class DispatchTableEdges(TreeCase):
         self.assertEqual(self.owned(task), ["m.py:run", "m.py:_d"])
 
 
+    def test_a_bare_name_in_a_method_does_not_resolve_to_a_sibling_method(self):
+        text = "def peek(x):\n    return x\n\n\nclass P:\n    def peek(self):\n        return 1\n\n" \
+               "    def run(self):\n        return peek(2)\n"
+        _, edges = graph(self.tree({"m.py": text}))
+        self.assertEqual(edges["m.py:P.run"], {"m.py:peek": "calls"})
+
+
 NESTED = {"m.py": ladder("leaf", 1) + ladder("inner", 11, ("leaf",)) + ladder("mid", 2, ("inner",))
           + ladder("outer", 12, ("mid",)) + ladder("other", 11, ("util",)) + ladder("util", 1)
           + ladder("top", 1, ("outer", "other", "util"))}
@@ -178,6 +185,14 @@ class ReportKeyedByTaskClusters(TreeCase):
         self.assertEqual(out["by_task"]["m.py:big"]["after"], ["m.py:_h", "m.py:_new", "m.py:big"])
         self.assertEqual(out["untasked"], ["m.py:loose"])
         self.assertEqual([n["total"] for n in out["numbers"]], [14 + 2, 7 + 7 + 2])
+
+    def test_an_old_shared_callee_left_with_one_caller_does_not_join_that_task(self):
+        before = self.tree({"m.py": ladder("util", 5) + ladder("one", 11, ("util",)) + ladder("two", 11, ("util",))})
+        after = self.tree({"m.py": ladder("util", 5) + ladder("one", 12, ("util",)) + ladder("two", 12)})
+        fb, fa = ([f for m in dilution.scan(r) for f in m.functions] for r in (before, after))
+        out = cluster_numbers(before, after, fb, fa, dilution.touched(fb, fa))
+        self.assertEqual(out["by_task"]["m.py:one"]["after"], ["m.py:one"])
+        self.assertEqual([n["total"] for n in out["numbers"]], [12 + 12, 13 + 13])
 
 
 class ByteStablePlans(TreeCase):

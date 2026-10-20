@@ -15,12 +15,13 @@ from planner.tasks import cluster_parents, plan_tasks
 from planner.units import dilution
 
 
-def _new_function_homes(after_root: Path, owned: dict[str, str]) -> dict[str, str]:
-    """new function key -> head of the before-task it joins, via the after tree's cluster parents."""
+def _new_function_homes(after_root: Path, before_keys: set[str], owned: dict[str, str]) -> dict[str, str]:
+    """new function key -> head of the before-task it joins, via the after tree's cluster parents. Only
+    a key absent from the before tree is new: an old unowned unit never joins a task's after set."""
     units, edges = graph(after_root)
     parent = cluster_parents(units, edges)
     homes = {}
-    for key in sorted(set(units) - set(owned)):
+    for key in sorted(set(units) - before_keys):
         node = parent[key]
         while node is not None and node not in owned:
             node = parent[node]
@@ -33,7 +34,7 @@ def cluster_numbers(before_root: Path, after_root: Path, before: list, after: li
     units, edges = graph(before_root)
     plan = plan_tasks(units, edges)
     owned = {row["key"]: t["id"] for t in plan["tasks"] for row in t["owned"]}
-    homes = _new_function_homes(after_root, owned)
+    homes = _new_function_homes(after_root, set(units), owned)
     after_keys = {f.key for f in after}
     by_task = {}
     for t in plan["tasks"]:

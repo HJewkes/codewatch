@@ -1,7 +1,8 @@
 """The call graph the planner clusters over: static name-based calls plus dispatch-table edges.
 
 A call edge runs from a unit to the unit a call in its own body resolves to. Resolution, first hit wins:
-  name()        a def nested in the caller or an enclosing def, then a module-level def or class
+  name()        a def nested in the caller or an enclosing def (class bodies are not enclosing scopes
+                for a bare name), then a module-level def or class
                 (a class resolves to its __init__), then the only def of that name in the tree
   self.m()      the method m of the caller's class (no inheritance)
   x.m()         the only def named m in the tree, when x is not a local of the caller
@@ -31,7 +32,7 @@ class Resolver:
     def name(self, caller: Unit, name: str) -> Unit | None:
         scope = caller.qual
         while scope:
-            hit = self.by_qual.get((caller.mod, f"{scope}.{name}"))
+            hit = (caller.mod, scope) in self.by_qual and self.by_qual.get((caller.mod, f"{scope}.{name}"))
             if hit:
                 return hit
             scope = scope.rpartition(".")[0]
