@@ -52,6 +52,27 @@ class SingleCallerHelperTests(unittest.TestCase):
         (self.ws / "tool.py").write_text(SOURCE + "\n\ndef other(args):\n    return _flag(args, '-x')\n")
         self.assertIn("tool.py#_flag", gates.single_caller_helpers(self.ws)["one_site"])
 
+    def helpers_of(self, source: str, symbol: str) -> dict:
+        (self.ws / "tool.py").write_text(source)
+        (self.ws / ".codewatch" / "audit" / "findings.jsonl").write_text(json.dumps(finding(symbol)) + "\n")
+        return gates.single_caller_helpers(self.ws)
+
+    def test_same_named_method_call_in_the_one_caller_does_not_make_a_helper_multi_site(self):
+        source = ("def close(path):\n    return path\n\n\nclass Runner:\n    def run(self, f):\n"
+                  "        f.close()\n        return close(f.name)\n")
+        self.assertEqual(self.helpers_of(source, "close"), {"one_site": ["tool.py#close"], "multi_site": []})
+
+    def test_method_helper_called_twice_through_self_in_its_one_caller_is_multi_site(self):
+        source = ("class Runner:\n    def _timeout(self, x):\n        return x\n\n"
+                  "    def run(self, a, b):\n        return self._timeout(a), self._timeout(b)\n")
+        self.assertEqual(self.helpers_of(source, "Runner._timeout")["multi_site"], ["tool.py#Runner._timeout"])
+
+    def test_self_calls_from_another_class_do_not_count_for_a_method(self):
+        source = ("class Runner:\n    def _timeout(self, x):\n        return x\n\n    def run(self, a):\n"
+                  "        return self._timeout(a)\n\n\nclass Other:\n    def go(self, a, b):\n"
+                  "        return self._timeout(a), self._timeout(b)\n")
+        self.assertEqual(self.helpers_of(source, "Runner._timeout")["one_site"], ["tool.py#Runner._timeout"])
+
     def test_test_files_do_not_count_as_call_sites(self):
         (self.ws / "test_tool.py").write_text("def test_it():\n    _once(' a ')\n    _once(' b ')\n")
         self.assertEqual(gates.single_caller_helpers(self.ws)["one_site"], ["tool.py#_once"])

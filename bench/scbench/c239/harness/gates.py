@@ -52,26 +52,43 @@ def total_cyclomatic(db: Path) -> float:
     return sum(v for nid, v in rows if "#" in nid and not is_test(Path(nid.split("#", 1)[0])))
 
 
-def _call_name(node: ast.Call) -> str | None:
+FUNCTIONS = (ast.FunctionDef, ast.AsyncFunctionDef)
+
+
+def symbol_key(symbol: str) -> str:
+    """A finding's call key: `fn:name` for a module function, `method:Class.name` for `Class.name`."""
+    return f"method:{symbol}" if "." in symbol else f"fn:{symbol}"
+
+
+def _call_key(node: ast.Call, owner: str | None) -> str | None:
+    """Only the call forms that can reach the symbol: a bare name for a function, and `self.`/`cls.`
+    from a method of the same class for a method. `f.close()` is never a call to a helper `close`."""
     func = node.func
-    return func.id if isinstance(func, ast.Name) else func.attr if isinstance(func, ast.Attribute) else None
+    if isinstance(func, ast.Name):
+        return f"fn:{func.id}"
+    if owner and isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name) and func.value.id in ("self", "cls"):
+        return f"method:{owner}.{func.attr}"
+    return None
+
+
+def _functions(tree: ast.Module):
+    """Every function with the class it is defined directly in (None for the rest)."""
+    owners = {id(f): c.name for c in ast.walk(tree) if isinstance(c, ast.ClassDef) for f in c.body if isinstance(f, FUNCTIONS)}
+    return ((fn, owners.get(id(fn))) for fn in ast.walk(tree) if isinstance(fn, FUNCTIONS))
 
 
 def call_sites(root: Path) -> dict[str, dict[str, int]]:
-    """Called name -> {calling function -> call count}, over the non-test source.
-
-    Names match by spelling only, so a collision (another `get`) adds callers and can only move a
-    helper back under the gate, never out of it."""
+    """Call key (see symbol_key) -> {calling function -> call count}, over the non-test source."""
     sites: dict[str, dict[str, int]] = {}
     for rel in source_files(root):
         try:
             tree = ast.parse((root / rel).read_text(errors="replace"))
         except SyntaxError:
             continue
-        for fn in (n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))):
+        for fn, owner in _functions(tree):
             for node in ast.walk(fn):
-                if isinstance(node, ast.Call) and (name := _call_name(node)):
-                    callers = sites.setdefault(name, {})
+                if isinstance(node, ast.Call) and (key := _call_key(node, owner)):
+                    callers = sites.setdefault(key, {})
                     callers[f"{rel}:{fn.lineno}"] = callers.get(f"{rel}:{fn.lineno}", 0) + 1
     return sites
 
@@ -88,7 +105,7 @@ def single_caller_helpers(ws: Path) -> dict[str, list[str]]:
     split: dict[str, list[str]] = {"one_site": [], "multi_site": []}
     for row in rows:
         if row.get("signal") == "symbol-single-caller-helper":
-            kind = "multi_site" if is_multi_site(sites.get(row["symbol"], {})) else "one_site"
+            kind = "multi_site" if is_multi_site(sites.get(symbol_key(row["symbol"]), {})) else "one_site"
             split[kind].append(f"{row['path']}#{row['symbol']}")
     return {kind: sorted(names) for kind, names in split.items()}
 
