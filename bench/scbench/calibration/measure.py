@@ -7,8 +7,11 @@ Units are functions where scb-check finds them (dilution.py's walk). Per unit:
   cog_scb  cognitive.py's cognitive complexity, nested functions counted in their parent too, as scb-check
   sloc     own SLOC: dilution.py's code lines in the def, less those of nested defs and classes
   in       parameters, not counting self and cls
-Classes: methods (excluding __init__, static and class methods, as code-graph's LCOM4) and SLOC.
-Modules: SLOC, plus fan-in (Ca), fan-out (Ce) and instability Ce / (Ca + Ce) over in-tree imports.
+  control, control_origin, stamp, common   the planner's interface-coupling counts (interface.py)
+Classes: methods (excluding __init__, static and class methods, as code-graph's LCOM4), SLOC, and the
+planner's lcom4 and temp_fields.
+Modules: SLOC, plus fan-in (Ca), fan-out (Ce) and instability Ce / (Ca + Ce) over in-tree imports, and
+the size of the import cycle the module is in (cycle, 0 for none).
 """
 
 from __future__ import annotations
@@ -20,6 +23,7 @@ from pathlib import Path
 
 from calibration.cognitive import cognitive
 from calibration.imports import coupling
+from calibration.interface import NO_FINDINGS, class_cohesion, module_cycles, unit_coupling
 from calibration.production import production_files
 
 HARNESS = Path(__file__).resolve().parent.parent / "c239" / "harness"
@@ -84,15 +88,16 @@ def class_methods(node: ast.ClassDef) -> int:
     return sum(isinstance(ch, dilution.FUNCTIONS) and ch.name != "__init__" and plain(ch) for ch in node.body)
 
 
-def unit_row(rel: str, name: str, fn: ast.AST, lines: set[int]) -> dict:
-    return {"key": f"{rel}:{name}", "cc": own_cc(fn), "cc_scb": dilution.cyclomatic(fn),
+def unit_row(rel: str, name: str, fn: ast.AST, lines: set[int], found: dict) -> dict:
+    key = f"{rel}:{name}"
+    return {"key": key, "cc": own_cc(fn), "cc_scb": dilution.cyclomatic(fn),
             "cog": cognitive(fn, own_body=True), "cog_scb": cognitive(fn), "sloc": own_sloc(fn, lines),
-            "in": n_params(fn)}
+            "in": n_params(fn), **found.get(key, NO_FINDINGS)}
 
 
 def classes_of(tree: ast.Module, rel: str, lines: set[int]) -> list[dict]:
-    return [{"key": f"{rel}:{node.name}", "methods": class_methods(node), "sloc": len(_span(node) & lines)}
-            for node in ast.walk(tree) if isinstance(node, ast.ClassDef)]
+    return [{"key": f"{rel}:{node.name}", "methods": class_methods(node), "sloc": len(_span(node) & lines),
+             **class_cohesion(node)} for node in ast.walk(tree) if isinstance(node, ast.ClassDef)]
 
 
 def measure_module(rel: str, text: str) -> dict | None:
@@ -101,17 +106,19 @@ def measure_module(rel: str, text: str) -> dict | None:
     except (SyntaxError, ValueError):
         return None
     lines = dilution.sloc_lines(text, tree)
-    units = [unit_row(rel, name, fn, lines) for name, fn in dilution._defs(tree.body, "")]
+    found = unit_coupling(rel, text)
+    units = [unit_row(rel, name, fn, lines, found) for name, fn in dilution._defs(tree.body, "")]
     return {"path": rel, "sloc": len(lines), "units": units, "classes": classes_of(tree, rel, lines), "tree": tree}
 
 
 def measure_project(root: Path) -> dict:
     """Units, classes and modules of the production code under root, with in-tree import coupling."""
     modules = [m for m in (measure_module(rel, text) for rel, text in production_files(root)) if m]
-    fan = coupling({m["path"]: m.pop("tree") for m in modules})
+    trees = {m["path"]: m.pop("tree") for m in modules}
+    fan, cyc = coupling(trees), module_cycles(trees)
     units = [u for m in modules for u in m.pop("units")]
     classes = [c for m in modules for c in m.pop("classes")]
     for m in modules:
-        m.update(fan[m["path"]])
+        m.update(fan[m["path"]], cycle=cyc[m["path"]])
     return {"units": units, "classes": classes, "modules": modules,
             "sloc": sum(m["sloc"] for m in modules), "files": len(modules)}

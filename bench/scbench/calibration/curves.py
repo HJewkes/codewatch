@@ -20,6 +20,11 @@ MEASURES = {
     "module": {"module_sloc": ("modules", "sloc"), "class_methods": ("classes", "methods")},
     "coupling": {"fan_in": ("modules", "fan_in"), "fan_out": ("modules", "fan_out"),
                  "instability": ("modules", "instability")},
+    "control": {"control": ("units", "control"), "control_origin": ("units", "control_origin")},
+    "stamp": {"stamp": ("units", "stamp")},
+    "common": {"common": ("units", "common")},
+    "cohesion": {"lcom4": ("classes", "lcom4"), "temp_fields": ("classes", "temp_fields")},
+    "cycles": {"cycle": ("modules", "cycle")},
 }
 
 

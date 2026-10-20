@@ -92,7 +92,8 @@ class ProjectMeasures(unittest.TestCase):
 
 
 def system(values):
-    units = [{"cc": v, "cc_scb": v, "cog": v, "cog_scb": v, "in": 1, "sloc": s} for v, s in values]
+    units = [{"cc": v, "cc_scb": v, "cog": v, "cog_scb": v, "in": 1, "control": 0, "control_origin": 0, "stamp": 0,
+              "common": 0, "sloc": s} for v, s in values]
     return {"units": units, "classes": [], "modules": []}
 
 
