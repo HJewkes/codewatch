@@ -8,12 +8,15 @@ above it. Per lane, a segment is changed (beyond the blank lines around it), del
 that is in the base). Two lanes conflict when they make different changes to one segment or add one key
 with different text, and when both change, add or delete text-keyed segments in one body (the module, or
 one class body), even identically: the later lane in lane order is the conflict. One lane alone may
-change text-keyed segments freely. Additions at one anchor go in lane order. A non-Python file changed by
-two lanes differently is a conflict too.
+change text-keyed segments freely. Additions at one anchor go in lane order, and the result honours every
+pair a lane puts out of base order (runner.order). A non-Python file changed by two lanes differently is a
+conflict too. A file only one lane touches is that lane's file, byte for byte, with no splice.
 
-Every merged Python file is then checked, on every path: a lane whose own file does not parse is in
-conflict, the result must parse, and every segment a lane changed, added or deleted is, in the result,
-as that lane left it. A lane in conflict is left out and reported, never half-applied.
+Every Python file two or more lanes touch is then checked, on every path: a lane whose own file does not
+parse is in conflict, and the result must parse. The result must preserve each lane's segments in that
+lane's order and with its text, except where another lane changed a segment or moved a pair out of base
+order; what the lane added is there and what it deleted is gone. Otherwise the lane is a conflict. A lane
+in conflict is left out and reported, never half-applied.
 """
 
 from __future__ import annotations
@@ -22,6 +25,8 @@ import ast
 import shutil
 from collections import Counter
 from pathlib import Path
+
+from runner.order import asserted, keeps_order, ordered
 
 SKIP = {".git", ".venv", "venv", ".codewatch", "__pycache__", ".pytest_cache", ".ruff_cache"}
 START = "^start"
@@ -143,14 +148,36 @@ def _claims(lanes: dict[str, dict]) -> dict[str, list[str]]:
 
 def merge_module(base_text: str, heads: dict[str, str]) -> tuple[str, dict[str, list[str]]]:
     """The spliced module text and {lane: [lanes it conflicts with]}; conflicting lanes are left out."""
-    base = segments(base_text)
-    lanes = {lane: lane_changes(base, segments(text)) for lane, text in heads.items()}
+    base, cut = segments(base_text), {lane: segments(text) for lane, text in heads.items()}
+    lanes = {lane: lane_changes(base, cut[lane]) for lane in heads}
     clash = _claims(lanes)
     kept = {lane: ch for lane, ch in lanes.items() if lane not in clash}
-    return _emit(base, kept), clash
+    pieces = dict(_emit(base, kept))
+    asserts = {lane: asserted(_keys(base), _keys(cut[lane])) for lane in kept}
+    keys, losers = ordered(list(pieces), asserts)
+    for lane in losers:
+        clash[lane] = [other for other in kept if other != lane]
+    texts = _layout(pieces, keys, {lane: cut[lane] for lane in kept if lane not in losers}, asserts)
+    return "".join(t if t.endswith("\n") or i == len(texts) - 1 else t + "\n" for i, t in enumerate(texts)), clash
 
 
-def _emit(base: list[tuple[str, str]], lanes: dict[str, dict]) -> str:
+def _layout(pieces: dict[str, str], keys: list[str], cut: dict[str, list], asserts: dict) -> list[str]:
+    """Each segment's text in order; a segment a lane moved takes that lane's blank lines with it."""
+    texts = {}
+    for lane, segs in cut.items():
+        moved = {k for pair in asserts[lane] for k in pair}
+        for key, text in segs:
+            if key in moved and key in pieces and text.strip() == pieces[key].strip():
+                texts.setdefault(key, text)
+    return [texts.get(k, pieces[k]) for k in keys]
+
+
+def _keys(segs: list[tuple[str, str]]) -> list[str]:
+    return [k for k, _ in segs]
+
+
+def _emit(base: list[tuple[str, str]], lanes: dict[str, dict]) -> list[tuple[str, str]]:
+    """(key, text) of the merged module in base order, each addition after its anchor."""
     changed = {k: t for ch in lanes.values() for k, t in ch["changed"].items()}
     deleted = {k for ch in lanes.values() for k in ch["deleted"]}
     out, done = [], set()
@@ -160,13 +187,13 @@ def _emit(base: list[tuple[str, str]], lanes: dict[str, dict]) -> str:
             for at, key, text in ch["added"]:
                 if at == anchor and key not in done:
                     done.add(key)
-                    out.append(text)
+                    out.append((key, text))
     additions(START)
     for key, text in base:
         if key not in deleted:
-            out.append(changed.get(key, text))
+            out.append((key, changed.get(key, text)))
         additions(key)
-    return "".join(out)
+    return out
 
 
 def _parses(text: str | None) -> bool:
@@ -177,13 +204,20 @@ def _parses(text: str | None) -> bool:
     return True
 
 
-def _faithful(base: str, head: str, merged: str) -> bool:
-    """Every segment the lane changed or added has the lane's text in the merged module, and every
-    segment it deleted is gone."""
-    before, after = {k: t.strip() for k, t in segments(base)}, {k: t.strip() for k, t in segments(head)}
-    got = {k: t.strip() for k, t in segments(merged)}
-    kept = all(got.get(k) == t for k, t in after.items() if before.get(k) != t)
-    return kept and not any(k in got for k in before.keys() - after.keys())
+def _faithful(lane: str, base: list, heads: dict[str, list], merged: list) -> bool:
+    """The merged module keeps the lane's segments in the lane's order and with the lane's text, except a
+    segment another lane changed or a pair another lane put out of base order; every segment the lane
+    added is there and every segment it deleted is gone."""
+    before, got = {k: t.strip() for k, t in base}, {k: t.strip() for k, t in merged}
+    others = [heads[o] for o in heads if o != lane]
+    edited = {k for segs in others for k, t in segs if before.get(k) != t.strip()}
+    mine = heads[lane]
+    text = all(got[k] == t.strip() or k in edited for k, t in mine if k in got)
+    added = all(k in got for k, _ in mine if k not in before)
+    deleted = not any(k in got for k in before.keys() - set(_keys(mine)))
+    theirs = {pair for segs in others for pair in asserted(_keys(base), _keys(segs))}
+    own = asserted(_keys(base), _keys(mine))
+    return text and added and deleted and keeps_order(_keys(mine), _keys(merged), own, theirs)
 
 
 def _text(data: bytes | None) -> str | None:
@@ -195,15 +229,20 @@ def _splice_module(base: str, texts: dict[str, str]) -> tuple[bytes, set[str]] |
     if not _parses(base):
         return None
     merged, clash = merge_module(base, texts)
-    checkable = _parses(merged)
-    bad = set(clash) | {lane for lane, t in texts.items()
-                        if lane not in clash and checkable and not _faithful(base, t, merged)}
+    bad = set(clash)
+    if _parses(merged):
+        heads = {lane: segments(t) for lane, t in texts.items() if lane not in clash}
+        before, got = segments(base), segments(merged)
+        bad |= {lane for lane in heads if not _faithful(lane, before, heads, got)}
     return merged.encode("utf-8", errors="surrogateescape"), bad
 
 
 def _merge_file(rel: str, base: bytes | None, heads: dict[str, bytes | None]) -> tuple[bytes | None, set[str]]:
-    """The merged content of one file and the lanes that cannot be spliced into it. A Python result
-    that does not parse, on any path, puts every lane touching the file in conflict."""
+    """The merged content of one file and the lanes that cannot be spliced into it. A file one lane
+    touches is that lane's file. A Python result that does not parse, on any path, puts every lane
+    touching the file in conflict."""
+    if len(heads) == 1:
+        return next(iter(heads.values())), set()
     texts = {lane: _text(h) for lane, h in heads.items()}
     python = rel.endswith(".py")
     if python and (broken := {lane for lane, t in texts.items() if t is not None and not _parses(t)}):

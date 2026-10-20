@@ -158,6 +158,42 @@ class TextKeyedSplice(unittest.TestCase):
         self.assertEqual(out["files"]["m.py"].decode(), self.guarded("main(1)").replace(*bump))
 
 
+class SpliceOrder(unittest.TestCase):
+    """The result keeps each lane's segments in that lane's order, or the lane is a conflict."""
+
+    BASE = "def p():\n    return 1\n\n\ndef q():\n    return 2\n\n\ndef r():\n    return 3\n"
+    SWAPPED = "def q():\n    return 2\n\n\ndef p():\n    return 1\n\n\ndef r():\n    return 3\n"
+
+    def run_lanes(self, base: str, *lanes: str) -> dict:
+        return splice({"m.py": base.encode()}, {f"t{i + 1}": {"m.py": t.encode()} for i, t in enumerate(lanes)})
+
+    def test_one_lane_moving_a_constant_below_the_def_it_calls_is_taken_whole(self):
+        # mutation: a file one lane touches sent through the splice, which re-cuts the lane's blank lines
+        lane = "def f():\n    return 1\n\n\nX = f()\n"
+        out = self.run_lanes("X = 1\n\n\ndef f():\n    return 1\n", lane)
+        self.assertEqual((out["spliced"], out["conflicts"]), (["t1"], {}))
+        self.assertEqual(out["files"]["m.py"].decode(), lane)
+
+    def test_one_lane_swapping_two_calls_keeps_the_swap(self):
+        # mutation: a lane whose segments equal base's as a set treated as touching nothing, keeping base
+        calls = "def a():\n    pass\n\n\ndef b():\n    pass\n\n\nreg({})\nreg({})\n"
+        out = self.run_lanes(calls.format("a", "b"), calls.format("b", "a"))
+        self.assertEqual(out["files"]["m.py"].decode(), calls.format("b", "a"))
+
+    def test_a_reorder_of_segments_another_lane_left_alone_splices_with_it(self):
+        # mutation: the order check without the other-lane exemption, so t1 fails on t2's swap
+        out = self.run_lanes(self.BASE, self.BASE.replace("return 3", "return 30"), self.SWAPPED)
+        self.assertEqual((out["spliced"], out["conflicts"]), (["t1", "t2"], {}))
+        self.assertEqual(out["files"]["m.py"].decode(), self.SWAPPED.replace("return 3", "return 30"))
+
+    def test_a_reorder_that_cannot_coexist_with_an_earlier_lane_drops_the_later_lane(self):
+        # mutation: an order cycle blamed on the earlier lane, so t1's addition is dropped instead
+        between = self.BASE.replace("def q(", "def n():\n    return 0\n\n\ndef q(")
+        out = self.run_lanes(self.BASE, between, self.SWAPPED)
+        self.assertEqual((out["spliced"], out["conflicts"]), (["t1"], {"t2": ["m.py"]}))
+        self.assertEqual(out["files"]["m.py"].decode(), between)
+
+
 class Schedule(unittest.TestCase):
     def plan(self) -> dict:
         tasks_ = [{"id": f"m:t{i}", "wave": 1} for i in range(6)] + [{"id": "m:outer", "wave": 2},
