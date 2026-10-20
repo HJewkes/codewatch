@@ -26,7 +26,7 @@ from planner.cutwidth import MUTATORS
 from planner.units import Unit, own_nodes
 
 RECEIVERS = ("self", "cls")
-FLAG_OPS = (ast.Eq, ast.NotEq, ast.In, ast.NotIn, ast.Is, ast.IsNot)
+FLAG_OPS = (ast.Eq, ast.NotEq, ast.In, ast.NotIn)
 
 
 def params(fn: ast.AST) -> list[str]:
@@ -159,15 +159,17 @@ def _stub(fn: ast.AST) -> bool:
 
 
 def unused(f: Facts, exempt: set[str]) -> list[str]:
-    """`param:p` for trailing unused parameters, `local:x` for locals bound and never read."""
+    """`param:p` for trailing unused parameters, `local:x` for locals bound and never read. A read in a
+    nested def or lambda counts: a closure uses the name."""
     out = []
+    read = {n.id for n in ast.walk(f.unit.node) if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)}
     if f.unit.key not in exempt and not _stub(f.unit.node):
-        used = [p in f.loads for p in f.params]
+        used = [p in read for p in f.params]
         last = max((i for i, u in enumerate(used) if u), default=-1)
         out += [f"param:{p}" for p in f.params[last + 1:] if not p.startswith("_")]
     declared = {n for x in own_nodes(f.unit.node) if isinstance(x, (ast.Global, ast.Nonlocal)) for n in x.names}
     locals_ = f.stores - set(f.params) - declared
-    return out + [f"local:{n}" for n in sorted(locals_) if n not in f.loads and not n.startswith("_")]
+    return out + [f"local:{n}" for n in sorted(locals_) if n not in read and not n.startswith("_")]
 
 
 def _mutated(f: Facts, names, parents: dict) -> set[str]:

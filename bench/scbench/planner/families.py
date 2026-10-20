@@ -95,6 +95,7 @@ def verdict(before: dict, after: dict, change: dict, cfg: dict) -> dict:
         "module": module["p5"],
         "amount": amount <= p5["amount_ratio"],
     }
-    return {"deltas": d, "iface_budget": budget, "crossings": crossings, "module": module, "amount": amount,
+    return {"before": {fam: round(before[fam], 1) for fam in MEASURES}, "crossings_before": change["crossings"][0],
+            "deltas": d, "iface_budget": budget, "crossings": crossings, "module": module, "amount": amount,
             "checks": checks, "failed": sorted(k for k, ok in checks.items() if not ok),
             "pass": all(checks.values()), "p4_shadow": module["p4_shadow"]}
