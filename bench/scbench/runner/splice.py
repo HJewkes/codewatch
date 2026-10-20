@@ -144,7 +144,10 @@ def _emit(base: list[tuple[str, str]], lanes: dict[str, dict]) -> str:
 def _unit_dumps(rel: str, text: str | None) -> dict[str, str]:
     if text is None:
         return {}
-    return {u.key: ast.dump(u.node) for u in module_units(rel, text)[1]}
+    parsed = module_units(rel, text)
+    if parsed is None:
+        raise SyntaxError(f"{rel} does not parse")
+    return {u.key: ast.dump(u.node) for u in parsed[1]}
 
 
 def _faithful(rel: str, base: str, head: str, merged: str) -> bool:

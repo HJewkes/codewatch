@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 from runner.integrate import integrate
-from runner.schedule import LANES, next_wave, shared_wave
+from runner.schedule import LANES, next_wave, runnable, shared_wave
 from runner.splice import segments, splice
 from tests.runner_fixtures import MESSAGE, FakeSteps, ladder, module, set_function, table, write_app
 
@@ -60,6 +60,21 @@ class Splice(unittest.TestCase):
         out = splice(self.base, {"t1": self.lane(["f1"]), "t2": other})
         self.assertEqual((out["spliced"], out["conflicts"]), (["t1"], {"t2": ["app.py"]}))
 
+    def test_lanes_that_together_leave_a_module_unparseable_are_reported_not_raised(self):
+        # mutation: an unparseable merge escaping as an exception (module_units returns None)
+        base = {"m.py": b"class K:\n    x = 1\n\n    def m(self):\n        pass\n"}
+        heads = {"t1": {"m.py": b"class K:\n    def m(self):\n        pass\n"},
+                 "t2": {"m.py": b"class K:\n    x = 1\n"}}
+        out = splice(base, heads)
+        self.assertEqual((out["spliced"], out["conflicts"]), (["t1"], {"t2": ["m.py"]}))
+
+    def test_two_lanes_changing_a_non_python_file_differently_drop_the_later_lane(self):
+        # mutation: a non-Python file taken from the first lane without comparing the others
+        base = {"notes.txt": b"a\n"}
+        out = splice(base, {"t1": {"notes.txt": b"b\n"}, "t2": {"notes.txt": b"c\n"}})
+        self.assertEqual((out["spliced"], out["conflicts"]), (["t1"], {"t2": ["notes.txt"]}))
+        self.assertEqual(out["files"]["notes.txt"], b"b\n")
+
 
 class Schedule(unittest.TestCase):
     def plan(self) -> dict:
@@ -79,6 +94,13 @@ class Schedule(unittest.TestCase):
         second = next_wave(self.plan(), {"m:s"} | {t["id"] for t in first["tasks"]})
         self.assertEqual([t["id"] for t in second["tasks"]], ["m:outer"])
 
+    def test_a_task_without_a_chosen_edit_gets_no_session_and_says_why(self):
+        # mutation: a task the planner chose no edit for sent to a session anyway
+        self.assertIsNone(runnable({"chosen": {"recipe": "table"}}))
+        task = {"candidates": [{"rejected": ["t2"]}, {"rejected": ["t1", "t2"]}]}
+        self.assertEqual(runnable(task), "no feasible edit: t1, t2")
+        self.assertEqual(runnable({}), "no feasible edit: no candidate edit")
+
 
 class IntegrationRevert(unittest.TestCase):
     def test_the_failing_lane_alone_is_reverted(self):
@@ -97,6 +119,20 @@ class IntegrationRevert(unittest.TestCase):
         final = (Path(out["tree"]) / "app.py").read_text()
         self.assertIn(table("calc_a"), final)
         self.assertIn(ladder("calc_b"), final)
+
+    def test_lanes_are_spliced_and_reverted_in_the_callers_order(self):
+        # mutation: lanes sorted by id, so the revert peels the wrong lane first
+        root = tmp()
+        base = write_app(root / "base", module(NAMES))
+        lanes = {}
+        for name in reversed(NAMES):
+            ws = write_app(root / name, module(NAMES))
+            set_function(ws, name, table(name, "error: POISON " if name == "calc_a" else MESSAGE))
+            lanes[f"app.py:{name}"] = ws
+        out = integrate(FakeSteps(poison="POISON"), base, root / "wave", lanes)
+        self.assertEqual(out["splice"]["spliced"], list(lanes))
+        self.assertEqual([c["label"] for c in out["checks"]], ["all", "without-3"])
+        self.assertEqual(list(out["reverted"]), ["app.py:calc_a"])
 
 
 if __name__ == "__main__":
