@@ -94,6 +94,12 @@ snapshot, so the repository and the carry files start fresh after a resume.
 Test-shape checks for pytest functions: assertion-free, weak-oracle-only, duplicate
 assert and self-compare, written as `findings.jsonl` rows. See `tiert/README.md`.
 
+## solvenext/
+
+The frozen-tree next-checkpoint solve harness (C-250). `c239/harness/solve_next.sh` solves
+cp N+1 from a copy of a frozen tree, evaluates it, and records a per-run JSON. `python3 -m
+solvenext parity` checks the result against the recorded rate. See `solvenext/README.md`.
+
 ## smoke/
 
 The U10 credential smoke checks the A1 image's three model paths with the OAuth token:
