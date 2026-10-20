@@ -168,9 +168,9 @@ class SpliceOrder(unittest.TestCase):
         return splice({"m.py": base.encode()}, {f"t{i + 1}": {"m.py": t.encode()} for i, t in enumerate(lanes)})
 
     def test_one_lane_moving_a_constant_below_the_def_it_calls_is_taken_whole(self):
-        # mutation: a file one lane touches sent through the splice, which re-cuts the lane's blank lines
-        lane = "def f():\n    return 1\n\n\nX = f()\n"
-        out = self.run_lanes("X = 1\n\n\ndef f():\n    return 1\n", lane)
+        # mutation: a file one lane touches sent through the splice, which drops blank-line-only edits
+        lane = "def f():\n    return 1\n\n\nX = f()\n\ndef g():\n    return 2\n"
+        out = self.run_lanes("X = 1\n\n\ndef f():\n    return 1\n\n\ndef g():\n    return 2\n", lane)
         self.assertEqual((out["spliced"], out["conflicts"]), (["t1"], {}))
         self.assertEqual(out["files"]["m.py"].decode(), lane)
 
