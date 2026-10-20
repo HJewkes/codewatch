@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # usage: run_c246.sh <seed set> <problem> <key>
 # C-246 phase B, after prep_c246.sh: one NEW-C run on frozen cpN, then audit metrics, the C-242
-# in-loop diff gate (base = frozen cpN, no hidden tests), the C-240 regrade against the seed and the
-# C-241 gates. Results land in ~/.cache/c246/runs/<key>; the workspace copies are pruned once
-# scored, keeping only the JSON, logs and change.diff.
+# in-loop diff gate (base = frozen cpN, no hidden tests), the C-240 regrade against the seed, the
+# C-241 gates and the cleanup report (cleanup_report.py). Results land in ~/.cache/c246/runs/<key>;
+# the workspace copies are pruned once scored, keeping only the JSON, logs and change.diff.
 set -uo pipefail
 set=$1; problem=$2; key=$3
 H=$(cd "$(dirname "$0")" && pwd); BENCH=$(cd "$H/../.." && pwd)
@@ -23,4 +23,5 @@ rm -rf "$run/scratch"
 diff -ruN -x .git -x .venv -x venv -x .codewatch -x __pycache__ -x .pytest_cache -x .ruff_cache \
   "$F/${problem}_cp$n/" "$run/ws" >"$run/change.diff"
 python3 -I "$H/gates.py" "$M/head" "$run/meas" "$run/regrade.json" "$run"
+python3 -I "$H/cleanup_report.py" "$F/${problem}_cp$n" "$run/ws" --json "$run/cleanup.json" >"$run/cleanup.txt"
 rm -rf "$run/ws" "$run/meas/ws"
