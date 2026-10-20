@@ -1,24 +1,25 @@
 """Function-level splice (C-248 S6): merge the lanes of one wave into the wave's base tree.
 
 A module is cut into segments: each module-level statement, and inside a module-level class its header
-and each body statement. A def segment's key is its qualified name; any other statement's key is its
-own text, so two lanes adding the same import agree. A segment carries the comments and blank lines
+and each body statement. A def segment's key is its qualified name, an assignment's the names it binds
+(so two lanes setting one constant differently collide), and any other statement's key is its own text,
+so two lanes adding the same import agree. A segment carries the comments and blank lines
 above it. Per lane, a segment is changed (beyond the blank lines around it), deleted or added (anchored after the nearest earlier segment
 that is in the base). Two lanes conflict only when they make different changes to one segment or add
 one key with different text; additions at one anchor go in lane order. A non-Python file changed by
 two lanes differently is a conflict too.
 
-The splice is then checked: the result parses, and every unit a lane changed has, in the result, the
-AST it has in that lane's tree. A lane in conflict is left out and reported, never half-applied.
+Every merged Python file is then checked, on every path: a lane whose own file does not parse is in
+conflict, the result must parse, and every segment a lane changed, added or deleted is, in the result,
+as that lane left it. A lane in conflict is left out and reported, never half-applied.
 """
 
 from __future__ import annotations
 
 import ast
+import shutil
 from collections import Counter
 from pathlib import Path
-
-from planner.units import module_units
 
 SKIP = {".git", ".venv", "venv", ".codewatch", "__pycache__", ".pytest_cache", ".ruff_cache"}
 START = "^start"
@@ -33,9 +34,19 @@ def changed_files(base: dict[str, bytes], head: dict[str, bytes]) -> list[str]:
     return sorted(k for k in base.keys() | head.keys() if base.get(k) != head.get(k))
 
 
+def _bound(node: ast.stmt) -> list[str]:
+    if not isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+        return []
+    targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+    names = (n for t in targets for n in ast.walk(t))
+    return sorted({n.id for n in names if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store)})
+
+
 def _key(node: ast.stmt, lines: list[str], prefix: str) -> str:
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
         return prefix + node.name
+    if names := _bound(node):
+        return prefix + "=" + ",".join(names)
     return prefix + "|" + "".join(lines[node.lineno - 1:node.end_lineno]).strip()
 
 
@@ -141,42 +152,55 @@ def _emit(base: list[tuple[str, str]], lanes: dict[str, dict]) -> str:
     return "".join(out)
 
 
-def _unit_dumps(rel: str, text: str | None) -> dict[str, str]:
-    if text is None:
-        return {}
-    parsed = module_units(rel, text)
-    if parsed is None:
-        raise SyntaxError(f"{rel} does not parse")
-    return {u.key: ast.dump(u.node) for u in parsed[1]}
-
-
-def _faithful(rel: str, base: str, head: str, merged: str) -> bool:
-    """Every unit the lane changed or added has the lane's AST in the merged module."""
+def _parses(text: str | None) -> bool:
     try:
-        before, after, got = (_unit_dumps(rel, t) for t in (base, head, merged))
-    except SyntaxError:
+        ast.parse(text or "")
+    except (SyntaxError, ValueError):
         return False
-    return all(got.get(k) == d for k, d in after.items() if before.get(k) != d)
+    return True
+
+
+def _faithful(base: str, head: str, merged: str) -> bool:
+    """Every segment the lane changed or added has the lane's text in the merged module, and every
+    segment it deleted is gone."""
+    before, after = {k: t.strip() for k, t in segments(base)}, {k: t.strip() for k, t in segments(head)}
+    got = {k: t.strip() for k, t in segments(merged)}
+    kept = all(got.get(k) == t for k, t in after.items() if before.get(k) != t)
+    return kept and not any(k in got for k in before.keys() - after.keys())
 
 
 def _text(data: bytes | None) -> str | None:
     return None if data is None else data.decode("utf-8", errors="surrogateescape")
 
 
+def _splice_module(base: str, texts: dict[str, str]) -> tuple[bytes, set[str]] | None:
+    """The function-level merge, or None when the base itself does not parse."""
+    if not _parses(base):
+        return None
+    merged, clash = merge_module(base, texts)
+    checkable = _parses(merged)
+    bad = set(clash) | {lane for lane, t in texts.items()
+                        if lane not in clash and checkable and not _faithful(base, t, merged)}
+    return merged.encode("utf-8", errors="surrogateescape"), bad
+
+
 def _merge_file(rel: str, base: bytes | None, heads: dict[str, bytes | None]) -> tuple[bytes | None, set[str]]:
-    """The merged content of one file and the lanes that cannot be spliced into it."""
+    """The merged content of one file and the lanes that cannot be spliced into it. A Python result
+    that does not parse, on any path, puts every lane touching the file in conflict."""
     texts = {lane: _text(h) for lane, h in heads.items()}
-    if rel.endswith(".py") and base is not None and None not in texts.values():
-        try:
-            merged, clash = merge_module(_text(base), texts)
-        except SyntaxError:
-            merged, clash = None, {}
-        if merged is not None:
-            bad = set(clash) | {lane for lane, t in texts.items()
-                                if lane not in clash and not _faithful(rel, _text(base), t, merged)}
-            return merged.encode("utf-8", errors="surrogateescape"), bad
-    first = next(iter(heads))
-    return heads[first], {lane for lane, h in heads.items() if h != heads[first]}
+    python = rel.endswith(".py")
+    if python and (broken := {lane for lane, t in texts.items() if t is not None and not _parses(t)}):
+        return base, broken
+    spliced = None
+    if python and base is not None and None not in texts.values():
+        spliced = _splice_module(_text(base), texts)
+    if spliced is None:
+        first = next(iter(heads))
+        spliced = heads[first], {lane for lane, h in heads.items() if h != heads[first]}
+    merged, bad = spliced
+    if python and merged is not None and not _parses(_text(merged)):
+        bad = set(heads)
+    return merged, bad
 
 
 def splice(base: dict[str, bytes], heads: dict[str, dict[str, bytes]]) -> dict:
@@ -202,6 +226,8 @@ def splice(base: dict[str, bytes], heads: dict[str, dict[str, bytes]]) -> dict:
 
 
 def write_tree(root: Path, files: dict[str, bytes]) -> None:
+    """Write files into root, emptied first so no file of an earlier splice is left behind."""
+    shutil.rmtree(root, ignore_errors=True)
     for rel, data in files.items():
         path = root / rel
         path.parent.mkdir(parents=True, exist_ok=True)

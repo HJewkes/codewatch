@@ -10,14 +10,16 @@ from pathlib import Path
 
 from runner.integrate import integrate
 from runner.schedule import LANES, next_wave, runnable, shared_wave
-from runner.splice import segments, splice
+from runner.splice import segments, splice, write_tree
 from tests.runner_fixtures import MESSAGE, FakeSteps, ladder, module, set_function, table, write_app
 
 NAMES = ["calc_a", "calc_b", "calc_c"]
 
 
-def tmp() -> Path:
-    return Path(tempfile.mkdtemp())
+def tmp(case: unittest.TestCase) -> Path:
+    held = tempfile.TemporaryDirectory()
+    case.addCleanup(held.cleanup)
+    return Path(held.name)
 
 
 class Segments(unittest.TestCase):
@@ -26,7 +28,7 @@ class Segments(unittest.TestCase):
         text = "import re\n\n\n# about a\ndef a():\n    pass\n\n\nclass K:\n    x = 1\n\n    def m(self):\n        pass\n"
         self.assertEqual("".join(t for _, t in segments(text)), text)
         cut = segments(text)
-        self.assertEqual([k for k, _ in cut], ["|import re", "a", "class K", "K.|x = 1", "K.m"])
+        self.assertEqual([k for k, _ in cut], ["|import re", "a", "class K", "K.=x", "K.m"])
         self.assertTrue(dict(cut)["a"].startswith("\n\n# about a\n"))
 
 
@@ -76,6 +78,42 @@ class Splice(unittest.TestCase):
         self.assertEqual(out["files"]["notes.txt"], b"b\n")
 
 
+class SpliceResultCheck(unittest.TestCase):
+    """Every merged Python file parses and keeps each lane's changed segments, on every path."""
+
+    def test_two_lanes_setting_one_constant_differently_drop_the_later_lane(self):
+        # mutation: assignments keyed by their text, so X = 2 and X = 3 both land and the last one wins
+        base = {"m.py": b"X = 1\n\n\ndef f():\n    return X\n"}
+        heads = {"t1": {"m.py": b"X = 2\n\n\ndef f():\n    return X\n"},
+                 "t2": {"m.py": b"X = 3\n\n\ndef f():\n    return X\n"}}
+        out = splice(base, heads)
+        self.assertEqual((out["spliced"], out["conflicts"]), (["t1"], {"t2": ["m.py"]}))
+        self.assertEqual(out["files"]["m.py"], heads["t1"]["m.py"])
+
+    def test_two_lanes_adding_one_new_constant_differently_drop_the_later_lane(self):
+        # mutation: two new module-level tables under one name both spliced in
+        base = {"m.py": b"def f():\n    return 1\n"}
+        heads = {"t1": {"m.py": b"_STEPS = {'a': 1}\n\n\ndef f():\n    return 1\n"},
+                 "t2": {"m.py": b"_STEPS = {'b': 2}\n\n\ndef f():\n    return 1\n"}}
+        out = splice(base, heads)
+        self.assertEqual((out["spliced"], out["conflicts"]), (["t1"], {"t2": ["m.py"]}))
+
+    def test_an_unparseable_first_lane_is_the_one_dropped(self):
+        # mutation: the fallback path keeping the first lane's broken file and blaming the valid lane
+        base = {"m.py": b"def f():\n    return 1\n"}
+        heads = {"t1": {"m.py": b"def (:\n"}, "t2": {"m.py": b"def f():\n    return 2\n"}}
+        out = splice(base, heads)
+        self.assertEqual((out["spliced"], out["conflicts"]), (["t2"], {"t1": ["m.py"]}))
+        self.assertEqual(out["files"]["m.py"], heads["t2"]["m.py"])
+
+    def test_write_tree_leaves_no_file_of_an_earlier_splice(self):
+        # mutation: a rerun into an existing wave dir keeping a file the new splice does not have
+        root = tmp(self) / "tree"
+        write_tree(root, {"a.py": b"a", "old.py": b"o"})
+        write_tree(root, {"a.py": b"b"})
+        self.assertEqual(sorted(p.name for p in root.iterdir()), ["a.py"])
+
+
 class Schedule(unittest.TestCase):
     def plan(self) -> dict:
         tasks_ = [{"id": f"m:t{i}", "wave": 1} for i in range(6)] + [{"id": "m:outer", "wave": 2},
@@ -105,7 +143,7 @@ class Schedule(unittest.TestCase):
 class IntegrationRevert(unittest.TestCase):
     def test_the_failing_lane_alone_is_reverted(self):
         # mutation: peeling from the end, which also reverts the innocent last lane
-        root = tmp()
+        root = tmp(self)
         base = write_app(root / "base", module(NAMES))
         lanes = {}
         for name in NAMES:
@@ -122,7 +160,7 @@ class IntegrationRevert(unittest.TestCase):
 
     def test_lanes_are_spliced_and_reverted_in_the_callers_order(self):
         # mutation: lanes sorted by id, so the revert peels the wrong lane first
-        root = tmp()
+        root = tmp(self)
         base = write_app(root / "base", module(NAMES))
         lanes = {}
         for name in reversed(NAMES):
