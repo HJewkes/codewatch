@@ -254,6 +254,15 @@ gitignored manifest's `holdout` field and refuses (exit 3) a holdout problem unl
 `~/.cache/codewatch-scbench/climb/ledger.jsonl`. That is the climb driver's split-control rule.
 Refusals report counts, never names, and an unreadable manifest refuses everything.
 
+**Behaviour-differential gate (C-242).** `c239/harness/diffgate.sh <problem> <N> <base> <head> <out>
+[regrade.json] [waivers.json]` records every CLI call that base's `tests/` and the hidden tests for
+checkpoints 1..N make. It adds one-edit variants of the JSON those calls read, then replays every
+case on base twice and on head once, all in one A1-image container. The gate fails on any exit code,
+stdout, stderr or written-file difference that is not spec-required. Spec-required means a hidden test
+it came from went from fail to pass, or a waiver quotes the spec verbatim. `diffgate/compare.py`
+documents the normalisation rules: paths become placeholders, a traceback compares by its last line,
+and a case whose two base runs disagree is excluded and counted. Nothing else is normalised.
+
 ## remediation/
 
 The A1 fix stage (design unit U8, Revision 1): one validated commit per confirmed item.

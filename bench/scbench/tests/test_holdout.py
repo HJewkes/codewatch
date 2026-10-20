@@ -89,7 +89,7 @@ class HoldoutGuardTests(unittest.TestCase):
         env = {**os.environ, "HOME": str(self.home)}
         env.pop(holdout.MILESTONE_ENV, None)
         for script in ("run_c241.sh", "newc_arm.sh", "new_arm.sh", "old_arm.sh", "eval.sh", "post.sh",
-                       "freeze_c241.sh"):
+                       "freeze_c241.sh", "diffgate.sh"):
             with self.subTest(script=script):
                 result = subprocess.run(["bash", str(HARNESS / script), HELD, "2", "x", "y", "z"],
                                         capture_output=True, text=True, env=env, cwd=self.home)
