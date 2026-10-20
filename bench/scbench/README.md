@@ -255,6 +255,17 @@ computes these without running scb-check: it ports scb-check 0.1.3's CC, SLOC an
 the source files, with the tests dir left out as in the ex-tests erosion. `run_c246.sh` writes
 `cleanup.json`, and `table_c246.py` shows its mass, count and max beside the legacy erosion.
 
+**Calibration corpus (C-252).** `calibration/` derives the cleanup gate's utility curves from a
+pinned corpus of maintained PyPI projects instead of the SCBench references. `python3 -I
+bench/scbench/calibration upstream|select|curves|score` lists the PyPI names the non-holdout
+references import (they are excluded, with sqlglot and duckdb), selects and pins projects with
+Vavrová 2017's filters (`corpus.py` states the thresholds), measures production code only
+(`production.py` states the rules) and writes SLOC-weighted, per-system-normalised 70/80/90 points
+per measure family (Alves 2010). Unit measures reuse `dilution.py`'s CC, SLOC and walk; cognitive
+complexity is the round 3 port and its curve is marked provisional. The versioned curves are
+`calibration/curves/python-v1.json`, with the corpus manifest beside them. Downloads stay in a cache
+outside the repo, and nothing from a downloaded project is executed.
+
 **Holdout guard (C-243).** Every run, freeze and regrade entry point (`c239/harness/*.sh`,
 `python3 -m regrade`) first runs `regrade/holdout.py`. It reads the holdout list from the
 gitignored manifest's `holdout` field and refuses (exit 3) a holdout problem unless
