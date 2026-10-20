@@ -17,9 +17,12 @@ from runner.splice import splice, tree_files, write_tree
 
 def _check(steps, base: Path, wave_dir: Path, base_files: dict, heads: dict, keep: list[str], label: str) -> dict:
     tree = wave_dir / "integration" / label / "tree"
-    write_tree(tree, splice(base_files, {k: heads[k] for k in keep})["files"])
+    spliced = splice(base_files, {k: heads[k] for k in keep})
+    write_tree(tree, spliced["files"])
     gate = steps.integration(base, tree, tree.parent)
-    return {"label": label, "kept": list(keep), "pass": bool(gate.get("pass")), "tree": tree}
+    clean = not spliced["conflicts"]
+    return {"label": label, "kept": list(spliced["spliced"]), "pass": clean and bool(gate.get("pass")),
+            "tree": tree}
 
 
 def _revert(check, order: list[str]) -> tuple[dict | None, list[dict]]:
@@ -41,7 +44,7 @@ def integrate(steps, base: Path, wave_dir: Path, accepted: dict[str, Path]) -> d
     if not accepted:
         return {"tree": base, "splice": {"spliced": [], "conflicts": {}}, "checks": [], "reverted": {}}
     base_files = tree_files(base)
-    heads = {lane: tree_files(ws) for lane, ws in sorted(accepted.items())}
+    heads = {lane: tree_files(ws) for lane, ws in accepted.items()}
     first = splice(base_files, heads)
     order = first["spliced"]
     reverted = {lane: "splice conflict in " + ", ".join(files) for lane, files in first["conflicts"].items()}
