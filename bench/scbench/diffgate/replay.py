@@ -2,7 +2,8 @@
 
 A run materialises the case's trees in a fresh scratch dir, substitutes the placeholders, and runs it
 with the recorded stdin and env changes. The outcome is the exit code, stdout, stderr, and a digest of
-every file left in the scratch dir (so a cleanup that changes what the program writes is seen too).
+every file left in the scratch dir (so a cleanup that changes what the program writes is seen too);
+a text file is digested after compare.py's N4 timing mask.
 """
 
 from __future__ import annotations
@@ -15,6 +16,8 @@ import shutil
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+
+from .compare import mask_timing
 
 TIMEOUT_S = 10
 
@@ -38,8 +41,16 @@ def _env(case: dict, places: dict[str, str]) -> dict[str, str]:
     return env
 
 
+def _digest(data: bytes) -> str:
+    try:
+        data = mask_timing(data.decode("utf-8")).encode("utf-8")
+    except UnicodeDecodeError:
+        pass
+    return hashlib.sha1(data).hexdigest()
+
+
 def _tree(scratch: Path) -> dict[str, str]:
-    return {p.relative_to(scratch).as_posix(): hashlib.sha1(p.read_bytes()).hexdigest()
+    return {p.relative_to(scratch).as_posix(): _digest(p.read_bytes())
             for p in sorted(scratch.rglob("*")) if p.is_file() and not p.is_symlink()}
 
 

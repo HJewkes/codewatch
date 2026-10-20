@@ -141,6 +141,30 @@ class DiffGateTests(unittest.TestCase):
         self.assertTrue(self.verdict_of(*args, waivers=[real], spec_dir=self.tmp)["pass"])
         self.assertFalse(self.verdict_of(*args, waivers=[invented], spec_dir=self.tmp)["pass"])
 
+    def test_timing_floats_are_not_a_difference_or_nondeterminism(self):
+        line = '{{"event": "DONE", "exit_code": 0, "duration": {}, "elapsed_ms": {}}} took_s={}'
+        result = self.verdict_of(outcome(stdout=line.format(0.001, 1.5, 0.2)),
+                                 outcome(stdout=line.format(0.0009, 2.25, 0.3)),
+                                 outcome(stdout=line.format(0.0012, 1e-3, 0.4)))
+        self.assertTrue(result["pass"])
+        self.assertEqual(result["tiers"]["tests"]["same"], 1)
+
+    def test_integer_and_non_timing_fields_still_differ(self):
+        for base, head in (('{"duration": 1}', '{"duration": 2}'), ('{"ratio": 0.5}', '{"ratio": 0.6}'),
+                           ('{"duration": 0.1, "exit_code": 0}', '{"duration": 0.1, "exit_code": 1}')):
+            with self.subTest(base=base):
+                self.assertFalse(self.verdict_of(outcome(stdout=base), outcome(stdout=base), outcome(stdout=head))["pass"])
+
+    def test_written_file_with_a_timing_float_replays_as_the_same(self):
+        stamp = 'import json, time; t = time.perf_counter(); json.dump({"job": 1, "duration": time.perf_counter() - t + 1e-6}, open("jobs.json", "w")); print(json.dumps({"duration": time.perf_counter() - t + 1e-6}))'
+        (self.base / "prog.py").write_text(stamp)
+        self.record_call([{"id": "r1"}])
+        runs = {side: replay(self.cases, self.base, self.tmp / "scratch" / side, sys.executable)
+                for side in ("base", "base_again", "head")}
+        result = verdict(load_cases(self.cases), runs)
+        self.assertTrue(result["pass"])
+        self.assertEqual(result["tiers"]["tests"]["same"], 1)
+
     def test_changed_written_file_is_a_difference(self):
         result = self.verdict_of(outcome(files={"out": "a"}), outcome(files={"out": "a"}), outcome(files={"out": "b"}))
         self.assertEqual(result["differences"][0]["fields"], ["files"])

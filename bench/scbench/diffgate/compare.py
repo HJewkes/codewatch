@@ -7,6 +7,10 @@ normalisation. Normalisation is limited to these documented rules, nothing else:
               message): frame lines and line numbers move under any refactor and are not behaviour.
   N3 flaky    a case whose two base runs differ from each other is nondeterministic. It is excluded
               and counted, never compared; timestamps, ordering and the like are not rewritten.
+  N4 timing   a float value of a timing field (a key naming duration, elapsed, latency, runtime or
+              a _s/_ms/_seconds unit, as `"key": 1.5` or `key=1.5`) reads as <t>, in stdout, stderr
+              and written text files. Integers and every other field compare as they are; a
+              timing float that happens to match across the two base runs is still noise.
 Two modes keep the hidden tests out of the loop (the A1 rule: hidden tests and reference solutions
 never reach a stage):
   inloop  cases come only from the workspace's own tests/ and generated variants of them; no hidden
@@ -23,9 +27,12 @@ workspace test reaches; the generated tier catches it.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 TRACEBACK = "Traceback (most recent call last):"
+TIMING = re.compile(r"""(?P<key>["']?\w*(?:duration|elapsed|latency|runtime|_s|_ms|_secs?|_seconds)["']?\s*[:=]\s*)"""
+                    r"-?\d+\.\d*(?:[eE][-+]?\d+)?", re.IGNORECASE)
 FIELDS = ("rc", "stdout", "stderr", "files")
 MODES = ("inloop", "eval")
 
@@ -34,12 +41,16 @@ class LeakageError(ValueError):
     pass
 
 
+def mask_timing(text: str) -> str:
+    return TIMING.sub(r"\g<key><t>", text)
+
+
 def normalise(outcome: dict) -> dict:
     stderr = outcome["stderr"]
     if TRACEBACK in stderr:
         lines = [line for line in stderr.splitlines() if line.strip()]
         stderr = "<traceback> " + (lines[-1] if lines else "")
-    return {**outcome, "stderr": stderr}
+    return {**outcome, "stdout": mask_timing(outcome["stdout"]), "stderr": mask_timing(stderr)}
 
 
 def differences(a: dict, b: dict) -> list[str]:
