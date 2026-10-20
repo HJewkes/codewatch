@@ -421,3 +421,35 @@ is also how CI runs them:
 ```
 pnpm test:bench
 ```
+
+## Reference-solution yardstick (C-244)
+
+Run evaluation tooling with the isolated stdlib launcher from the repository root:
+
+```sh
+python3 -I bench/scbench/run.py regrade.yardstick   --out "/tmp/scbench-yardstick.json"   --report "/tmp/scbench-yardstick.md"
+```
+
+The launcher exposes only this checkout's benchmark modules to isolated Python.
+It also supports the existing regrade CLI:
+`python3 -I bench/scbench/run.py regrade --help`.
+Reference and seed trees are read-only inputs, copied with regrade's snapshot
+exclusions before the pinned `uvx scb-check==0.1.3 check --report --include-all`.
+Both whole-tree and tests/-excluded metrics are recorded. CC totals sum the same
+pinned parser's function cyclomatic complexities; SLOC is the official total_loc.
+These are not the weighted complexity mass used to compute erosion.
+
+Seed arms `c209-a1a` and `c209-suite` are reported separately, never pooled.
+The suite inventory is frozen before scoring so newly arriving problems are excluded.
+Match by problem and checkpoint number, and
+report absent snapshots as missing coverage. Use `--seeds` for a different arm
+only when the study explicitly calls for it. Aggregate means weight checkpoints
+equally, with a separate matched population for A1a comparisons. Supplied board
+aggregates are contextual figures, not a controlled replication.
+
+The existing C-243 guard refuses all sealed problems. This task skips them
+entirely, emits counts only, never scores them and never sets a milestone.
+Unreadable split metadata fails closed (exit 3). External scoring errors are
+sanitized and retained as gaps, never silently converted to zero.
+No reference-derived data is used by any agent stage, harness prompt or codewatch
+runtime. JSON and Markdown outputs belong in private study sources, not Git.
