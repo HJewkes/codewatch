@@ -92,7 +92,7 @@ class CleanupReportLines(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         self.before = write(Path(tmp.name) / "before", BEFORE)
         self.after = write(Path(tmp.name) / "after", AFTER)
-        self.numbers = dilution.compare(self.before, self.after)
+        self.numbers = report.numbers_for(self.before, self.after)
         self.lines = report.render(self.numbers).splitlines()
 
     def test_tree_line_shows_mass_count_max_and_total_before_and_after(self):
@@ -105,27 +105,27 @@ class CleanupReportLines(unittest.TestCase):
     def test_touched_line_covers_only_added_edited_and_removed_functions(self):
         self.assertEqual(self.numbers["touched_functions"],
                          ["pkg/core.py:big", "pkg/core.py:guard", "pkg/core.py:rest", "pkg/core.py:walk"])
-        self.assertEqual(self.lines[2], f"[touched, 4 functions] high-CC mass {14 * math.sqrt(28):.1f} -> 0.0 (-100%); "
+        self.assertEqual(self.lines[3], f"[legacy touched, 4 functions] high-CC mass {14 * math.sqrt(28):.1f} -> 0.0 (-100%); "
                                         "CC>10 count 1 -> 0 (-100%); max CC 14 -> 8 (-43%); total CC 19 -> 18 (-5%)")
 
     def test_erosion_is_labelled_legacy_and_is_high_mass_over_all_mass(self):
         steady, big = 12 * math.sqrt(24), 14 * math.sqrt(28)
         everything = steady + big + 1 * math.sqrt(2) + 5 * math.sqrt(8)
         self.assertAlmostEqual(self.numbers["tree"][0]["erosion"], (steady + big) / everything)
-        self.assertTrue(self.lines[3].startswith("[legacy] erosion (reported for comparability): "))
+        self.assertTrue(self.lines[4].startswith("[legacy] erosion (reported for comparability): "))
 
     def test_nesting_and_defensive_density_are_report_lines_only(self):
         (b, a) = self.numbers["lines"]
         self.assertEqual((b["nesting_max"], a["nesting_max"]), (3, 1))
         self.assertEqual((b["defensive_per_100"], a["defensive_per_100"]),
                          (round(100 * 1 / b["sloc"], 2), round(100 * 3 / a["sloc"], 2)))
-        self.assertEqual(self.lines[4], f"[report] max nesting depth 3 -> 1; defensive checks per 100 SLOC "
+        self.assertEqual(self.lines[5], f"[report] max nesting depth 3 -> 1; defensive checks per 100 SLOC "
                                         f"{b['defensive_per_100']:.2f} -> {a['defensive_per_100']:.2f}. "
                                         "Report lines, not task types.")
 
-    def test_report_has_five_lines_and_no_dropped_signals(self):
+    def test_report_has_six_lines_and_no_dropped_signals(self):
         text = "\n".join(self.lines).lower()
-        self.assertEqual(len(self.lines), 5)
+        self.assertEqual(len(self.lines), 6)
         for dropped in ("halstead", "maintainability", " mi ", "single-caller"):
             self.assertNotIn(dropped, text)
 

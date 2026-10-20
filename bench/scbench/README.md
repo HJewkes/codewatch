@@ -255,11 +255,20 @@ must-not-regress, refactor growth, single-caller and test:source, mechanically.
 
 **Cleanup report (C-248 S2).** `c239/harness/cleanup_report.py <before> <after> [--json out]`
 prints high-CC mass (Σ over CC > 10 of CC·√SLOC), the CC > 10 count, max CC and total CC, each
-before → after, for the tree and for the functions the change touched. Then it prints erosion as a
-legacy line, and nesting depth and defensive-check density as report lines only. `dilution.py`
+before → after, for the tree and for the planner's task clusters the change touched (C-248 S3a).
+Then it prints two legacy lines, the body-hash touched set and erosion, and nesting depth and
+defensive-check density as report lines only. `dilution.py`
 computes these without running scb-check: it ports scb-check 0.1.3's CC, SLOC and function walk over
 the source files, with the tests dir left out as in the ex-tests erosion. `run_c246.sh` writes
 `cleanup.json`, and `table_c246.py` shows its mass, count and max beside the legacy erosion.
+
+**Cleanup task planner (C-248 S3a).** `python3 -m planner plan <tree> [--graph-db DB] [--cap N]`,
+run from `bench/scbench`, prints a deterministic task plan as JSON with no model calls. Clusters are
+dominator subtrees of the static call graph (plus dispatch-table edges, and graph.db `calls` edges when
+given), cut at module lines. Each hot function (own-body CC > 10) is a task, inner tasks one wave
+before the task around them. A task carries its owned units, its frozen callees and a wave index, and
+is split when it is over the 8k-token cap. `python3 -m planner cut <tree> <unit> <start> <end>` prints
+the live variables in and out of a cut range. The module docstrings in `planner/` define each rule.
 
 **Calibration corpus (C-252).** `calibration/` derives the cleanup gate's utility curves from a
 pinned corpus of maintained PyPI projects instead of the SCBench references. `python3 -I
