@@ -7,8 +7,9 @@ A candidate is kept when it:
     the pin, a commit on the default branch within ACTIVE_DAYS of the cut-off date, and production
     SLOC within SLOC_RANGE;
   - pins: its latest PyPI release has a matching git tag (the pin is that tag's commit);
-  - is not excluded: sqlglot, duckdb, stub packages, the upstream projects SCBench references
-    import, and a repository already in the corpus.
+  - is not excluded: sqlglot, duckdb, multiprocess (stdlib copies), anthropic (unmarked generated
+    SDK), stub packages, the upstream projects SCBench references import, and a repository already
+    in the corpus.
 """
 
 from __future__ import annotations
@@ -21,7 +22,10 @@ MIN_COMMITS = 300
 MIN_AUTHORS = 10
 ACTIVE_DAYS = 365
 SLOC_RANGE = (2_000, 300_000)
-ALWAYS_EXCLUDED = frozenset({"sqlglot", "duckdb"})
+# sqlglot and duckdb: SCBench references use them. multiprocess: per-Python-version copies of the
+# standard library's multiprocessing package, so its code is counted several times over. anthropic:
+# a generated SDK whose files carry no generated-code marker (openai's do, and are left out).
+ALWAYS_EXCLUDED = frozenset({"sqlglot", "duckdb", "multiprocess", "anthropic"})
 CODE_EXTENSIONS = (".py", ".pyx", ".pxd", ".c", ".h", ".cc", ".cpp", ".cxx", ".hpp", ".rs", ".go", ".js",
                    ".ts", ".java", ".f", ".f90", ".m", ".swift", ".zig")
 GITHUB = re.compile(r"https?://(?:www\.)?github\.com/([\w.-]+)/([\w.-]+)", re.I)

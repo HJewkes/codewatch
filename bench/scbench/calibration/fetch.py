@@ -67,7 +67,7 @@ def history(path: Path, sha: str, today: datetime) -> tuple[int, int, int]:
     """(commits up to sha, distinct author emails up to sha, days since the default branch's last commit)."""
     commits = int(git(path, "rev-list", "--count", sha).strip())
     authors = len(set(git(path, "log", "--format=%aE", sha).split()))
-    last = datetime.fromisoformat(git(path, "log", "-1", "--format=%cI", "HEAD").strip())
+    last = datetime.fromisoformat(git(path, "log", "-1", "--format=%cI", "origin/HEAD").strip())
     return commits, authors, (today - last.astimezone(timezone.utc)).days
 
 
