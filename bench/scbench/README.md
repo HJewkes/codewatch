@@ -255,13 +255,16 @@ gitignored manifest's `holdout` field and refuses (exit 3) a holdout problem unl
 Refusals report counts, never names, and an unreadable manifest refuses everything.
 
 **Behaviour-differential gate (C-242).** `c239/harness/diffgate.sh <problem> <N> <base> <head> <out>
-[regrade.json] [waivers.json]` records every CLI call that base's `tests/` and the hidden tests for
-checkpoints 1..N make. It adds one-edit variants of the JSON those calls read, then replays every
-case on base twice and on head once, all in one A1-image container. The gate fails on any exit code,
-stdout, stderr or written-file difference that is not spec-required. Spec-required means a hidden test
-it came from went from fail to pass, or a waiver quotes the spec verbatim. `diffgate/compare.py`
-documents the normalisation rules: paths become placeholders, a traceback compares by its last line,
-and a case whose two base runs disagree is excluded and counted. Nothing else is normalised.
+<inloop|eval> [waivers.json] [regrade.json]` records every CLI call that base's own `tests/` make. It
+adds one-edit variants of the JSON those calls read, then replays every case on base twice and on head
+once, all in one A1-image container. The gate fails on any exit code, stdout, stderr or written-file
+difference that is not spec-required. `inloop` is the mode a loop stage may run: no hidden test,
+hidden result or `.evaluation_tests` file is copied or read, and a difference is spec-required only
+when a waiver quotes a checkpoint 1..N spec verbatim. `eval` mode is for after-the-fact scoring. It
+also records the hidden tests' calls and, given `regrade.json`, excuses a difference whose hidden test
+went from fail to pass. `diffgate/compare.py` documents the normalisation rules: paths become
+placeholders, a traceback compares by its last line, and a case whose two base runs disagree is
+excluded and counted. Nothing else is normalised.
 
 ## remediation/
 

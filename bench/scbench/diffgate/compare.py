@@ -7,13 +7,18 @@ normalisation. Normalisation is limited to these documented rules, nothing else:
               message): frame lines and line numbers move under any refactor and are not behaviour.
   N3 flaky    a case whose two base runs differ from each other is nondeterministic. It is excluded
               and counted, never compared; timestamps, ordering and the like are not rewritten.
-A difference is spec-required, and does not fail the gate, when either
-  S1 the case came from a hidden test that failed at base and passes at head (the hidden tests
-     encode the specification), or
+Two modes keep the hidden tests out of the loop (the A1 rule: hidden tests and reference solutions
+never reach a stage):
+  inloop  cases come only from the workspace's own tests/ and generated variants of them; no hidden
+          test, hidden result or .evaluation_tests file is read. A hidden case or a regrade is refused.
+  eval    (scoring after the fact) may add cases recorded from the hidden tests, and their results.
+A difference is spec-required, and does not fail the gate, when
   S2 a waiver names the case (or one of its node ids) and quotes a line that appears verbatim in
-     that checkpoint's specification.
-Every other difference fails the gate, in either tier: the tests' own calls, or the generated variants
-(mutate.py). The tiers are counted apart; C-241 cs cp2 r2 reworded only messages no test reaches.
+     that checkpoint's specification (both modes), or
+  S1 eval mode only: the case came from a hidden test that failed at base and passes at head.
+Every other difference fails the gate, in any tier: the workspace tests' calls, the hidden tests'
+calls (eval), or the generated variants (mutate.py). C-241 cs cp2 r2 reworded only messages that no
+workspace test reaches; the generated tier catches it.
 """
 
 from __future__ import annotations
@@ -22,6 +27,11 @@ from pathlib import Path
 
 TRACEBACK = "Traceback (most recent call last):"
 FIELDS = ("rc", "stdout", "stderr", "files")
+MODES = ("inloop", "eval")
+
+
+class LeakageError(ValueError):
+    pass
 
 
 def normalise(outcome: dict) -> dict:
@@ -63,8 +73,19 @@ def _excuse(name: str, case: dict, fixed: set[str], waivers: list[dict]) -> str 
     return None
 
 
+def _origin(case: dict) -> str:
+    return case.get("parent_source", "tests") if case.get("source") == "generated" else case.get("source", "tests")
+
+
 def _tier(case: dict) -> str:
-    return "generated" if case.get("source") == "generated" else "tests"
+    return case["source"] if case.get("source") in ("generated", "hidden") else "tests"
+
+
+def _check_inloop(cases: dict[str, dict], regrade: dict | None) -> None:
+    hidden = sum(1 for c in cases.values() if _origin(c) == "hidden")
+    if hidden or regrade:
+        raise LeakageError(f"inloop mode got {hidden} hidden-derived case(s)"
+                           f"{' and hidden-test results' if regrade else ''}; use eval mode to score with them")
 
 
 def _classify(name: str, case: dict, runs: dict, fixed: set[str], waivers: list[dict]) -> tuple[str, dict]:
@@ -79,10 +100,15 @@ def _classify(name: str, case: dict, runs: dict, fixed: set[str], waivers: list[
 
 
 def verdict(cases: dict[str, dict], runs: dict[str, dict], regrade: dict | None = None,
-            waivers: list[dict] | None = None, spec_dir: Path | None = None) -> dict:
+            waivers: list[dict] | None = None, spec_dir: Path | None = None, mode: str = "inloop") -> dict:
     """`runs` maps base, base_again and head to {case name: outcome}."""
+    if mode not in MODES:
+        raise ValueError(f"mode must be one of {MODES}")
+    if mode == "inloop":
+        _check_inloop(cases, regrade)
     fixed, ok_waivers = fixed_tests(regrade), valid_waivers(waivers or [], spec_dir)
-    tiers = {t: {"cases": 0, "same": 0, "excused": 0, "nondeterministic": 0, "differs": 0} for t in ("tests", "generated")}
+    tiers = {t: {"cases": 0, "same": 0, "excused": 0, "nondeterministic": 0, "differs": 0}
+             for t in ("tests", "hidden", "generated")}
     found = []
     for name in sorted(cases):
         tier = _tier(cases[name])
@@ -93,5 +119,6 @@ def verdict(cases: dict[str, dict], runs: dict[str, dict], regrade: dict | None 
             found.append({"case": name, "tier": tier, "status": status, **detail,
                           "nodeids": cases[name].get("nodeids", []), "parent": cases[name].get("parent"),
                           "edit": cases[name].get("edit_label")})
-    return {"pass": not any(t["differs"] for t in tiers.values()), "pass_tests_tier": tiers["tests"]["differs"] == 0,
+    return {"mode": mode, "pass": not any(t["differs"] for t in tiers.values()),
+            "pass_tests_tier": tiers["tests"]["differs"] == 0,
             "tiers": tiers, "waivers": {"given": len(waivers or []), "valid": len(ok_waivers)}, "differences": found}

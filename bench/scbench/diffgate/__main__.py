@@ -2,8 +2,9 @@
 
   replay  --cases DIR --base ROOT --head ROOT --python PY --scratch DIR --out runs.json [--generate]
           (inside the container) add generated cases, then run every case on base twice and head once
-  verdict --cases DIR --runs runs.json --out gate.json [--regrade regrade.json] [--waivers FILE]
-          [--spec-dir DIR]   pass/fail plus every difference, with base/head excerpts
+  verdict --cases DIR --runs runs.json --out gate.json --mode inloop|eval [--waivers FILE]
+          [--spec-dir DIR] [--regrade regrade.json (eval only)]
+          pass/fail plus every difference, with base/head excerpts
 """
 
 from __future__ import annotations
@@ -14,7 +15,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from .compare import normalise, verdict
+from .compare import MODES, LeakageError, normalise, verdict
 from .mutate import generate
 from .replay import load_cases, replay
 
@@ -51,10 +52,14 @@ def _verdict(args) -> int:
     cases, runs = load_cases(args.cases), json.loads(args.runs.read_text())
     regrade = json.loads(args.regrade.read_text()) if args.regrade else None
     waivers = json.loads(args.waivers.read_text()) if args.waivers else []
-    result = verdict(cases, runs, regrade, waivers, args.spec_dir)
+    try:
+        result = verdict(cases, runs, regrade, waivers, args.spec_dir, args.mode)
+    except LeakageError as leak:
+        print(f"diffgate: {leak}", file=sys.stderr)
+        return 4
     result["distinct_differences"] = _excerpts(result["differences"], runs)
     args.out.write_text(json.dumps(result, indent=1) + "\n")
-    print(json.dumps({k: result[k] for k in ("pass", "pass_tests_tier", "distinct_differences", "tiers")}))
+    print(json.dumps({k: result[k] for k in ("mode", "pass", "pass_tests_tier", "distinct_differences", "tiers")}))
     return 0
 
 
@@ -69,6 +74,7 @@ def _parser() -> argparse.ArgumentParser:
     vp = sub.add_parser("verdict")
     for flag in ("--cases", "--runs", "--out"):
         vp.add_argument(flag, type=Path, required=True)
+    vp.add_argument("--mode", choices=MODES, required=True)
     for flag in ("--regrade", "--waivers", "--spec-dir"):
         vp.add_argument(flag, type=Path)
     return parser

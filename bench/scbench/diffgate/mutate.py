@@ -87,7 +87,8 @@ def _json(data: bytes):
 
 
 def _write_variant(case_dir: Path, out_dir: Path, case: dict, target: str, data: bytes) -> Path | None:
-    variant = {**case, "source": "generated", "nodeids": [], "parent": case_dir.name, "edit": target}
+    variant = {**case, "source": "generated", "parent_source": case.get("source", "tests"), "nodeids": [],
+               "parent": case_dir.name, "edit": target}
     if target == "stdin":
         variant["stdin_b64"] = base64.b64encode(data).decode()
     key = hashlib.sha1(json.dumps(variant, sort_keys=True).encode() + data).hexdigest()[:16]

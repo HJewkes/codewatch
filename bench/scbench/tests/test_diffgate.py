@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from diffgate.compare import verdict
+from diffgate.compare import LeakageError, verdict
 from diffgate.mutate import generate, variants
 from diffgate.replay import load_cases, replay
 
@@ -109,11 +109,29 @@ class DiffGateTests(unittest.TestCase):
         self.assertTrue(result["pass"])
         self.assertEqual(result["tiers"]["tests"]["nondeterministic"], 1)
 
-    def test_difference_from_a_fixed_hidden_test_is_spec_required(self):
+    def test_eval_mode_excuses_a_difference_whose_hidden_test_was_fixed(self):
         regrade = {"before": {"hidden": {"failed": ["t::a"]}}, "after": {"hidden": {"failed": []}}}
-        result = self.verdict_of(outcome(1), outcome(1), outcome(0), regrade=regrade)
+        hidden = {"source": "hidden", "nodeids": ["t::a"]}
+        result = self.verdict_of(outcome(1), outcome(1), outcome(0), hidden, regrade=regrade, mode="eval")
         self.assertTrue(result["pass"])
         self.assertEqual(result["differences"][0]["excuse"], "S1 hidden test fixed")
+
+    def test_inloop_mode_refuses_hidden_test_results(self):
+        regrade = {"before": {"hidden": {"failed": ["t::a"]}}, "after": {"hidden": {"failed": []}}}
+        with self.assertRaises(LeakageError):
+            self.verdict_of(outcome(1), outcome(1), outcome(0), regrade=regrade)
+
+    def test_inloop_mode_refuses_cases_derived_from_hidden_tests(self):
+        for case in ({"source": "hidden", "nodeids": []}, {"source": "generated", "parent_source": "hidden"}):
+            with self.subTest(case=case), self.assertRaises(LeakageError):
+                self.verdict_of(outcome(), outcome(), outcome(), case)
+
+    def test_generated_variant_records_its_parent_source(self):
+        self.record_call([{"id": "r1"}])
+        (name,) = load_cases(self.cases)
+        generate(self.cases / name, self.cases)
+        sources = {c.get("parent_source") for c in load_cases(self.cases).values() if c["source"] == "generated"}
+        self.assertEqual(sources, {"tests"})
 
     def test_waiver_needs_a_verbatim_spec_quote(self):
         (self.tmp / "checkpoint_2.md").write_text("Exit with code 3 on a bad rule.\n")
