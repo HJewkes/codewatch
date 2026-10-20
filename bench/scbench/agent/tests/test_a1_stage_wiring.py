@@ -1,4 +1,4 @@
-"""The spec handoff to the after-solve stages, and the shipped triage and fix commands."""
+"""The spec handoff to the after-solve stages, and the shipped triage, fix and solve-review commands."""
 
 import json
 import os
@@ -8,7 +8,6 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from dataclasses import replace
 from pathlib import Path
 from unittest import mock
 
@@ -19,18 +18,10 @@ from slop_code.execution.runtime import RuntimeEvent
 
 from agent.claude_code_cw import ClaudeCodeCwAgent
 from prflow.repo import HiddenRepo
-from remediation.__main__ import parse_args as fix_args
-from remediation.fixer import Clock
-from remediation.session import run_process
-from remediation.stage import remediate
-from review import IMAGE_COMMAND
-from tests.remediation_support import ENV, FakeClaude, FakeTools, confirmed, make_repo, write_verdicts, writes
 
 BENCH = Path(__file__).resolve().parents[2]
 IMAGE_ROOT, IMAGE_PYTHON = "/opt/codewatch-a1", "/opt/codewatch-a1/py/bin/python"
 SHIPPED = yaml.safe_load((BENCH / "agent" / "claude_code_cw.yaml").read_text())["stages"]
-SPEC_LINE = "The total line prints the amount in dollars with two decimal places."
-REVIEW_REPLY = {"verdict": "ok", "spec_line": 1, "spec_quote": SPEC_LINE, "reason": "no output change"}
 
 
 class LocalRuntime:
@@ -166,59 +157,14 @@ class ShippedTriageTest(ScratchTestCase):
         self.assertEqual((triage.usd, triage.tokens, triage.items_in, triage.items_out), (22.86, 5120, 60, 58))
 
 
-class ShippedFixReviewTest(unittest.TestCase):
-    """The shipped fix command on a real hidden repository; its review command runs for real
-    against a fake `claude` that answers the one no-tools call."""
-
-    def setUp(self):
-        self.tmp = Path(self.enterContext(tempfile.TemporaryDirectory()))
-        self.root, self.prompt = self.tmp / "workspace", self.tmp / "prompt.txt"
-        self.root.mkdir()
-        make_repo(self.root)
-        self.spec = self.tmp / "cw-spec" / "cp-2.md"
-        self.spec.parent.mkdir()
-        self.spec.write_text(f"{SPEC_LINE}\n")
-        write_script(self.tmp / "bin" / "claude", (
-            "import json, sys\n"
-            f"open({str(self.prompt)!r}, 'w').write(sys.stdin.read())\n"
-            f"print(json.dumps({{'result': {json.dumps(REVIEW_REPLY)!r}, 'usage': {{}}, 'total_cost_usd': 0.01}}))\n"))
-
-    def shipped_config(self):
+class ShippedFixStageTest(unittest.TestCase):
+    def test_the_fix_stage_is_the_cleanup_runner_on_the_workspace_with_its_tree_applied(self):
         argv = shlex.split(SHIPPED["fix"]["command"])
-        config = fix_args([*argv[argv.index("remediation") + 1:], "--workspace", str(self.root),
-                           "--scratch", str(self.tmp / "scratch")], {})
-        self.assertEqual(config.review_command, [*shlex.split(IMAGE_COMMAND), "--mode", "fix"])
-        local = [part.replace(IMAGE_PYTHON, sys.executable).replace(IMAGE_ROOT, str(BENCH))
-                 for part in config.review_command]
-        return replace(config, review_command=local)
 
-    def run_fix_stage(self):
-        fake_tools = FakeTools()
-
-        def tools(argv, env, cwd, timeout):
-            return run_process(argv, env, cwd, timeout) if argv[0] == "env" else fake_tools(argv, env, cwd, timeout)
-
-        write_verdicts(self.root, [confirmed()])
-        stage_env = {"PATH": f"{self.tmp / 'bin'}:{os.environ['PATH']}", "CW_SPEC_FILE": str(self.spec)}
-        with mock.patch.dict(os.environ, stage_env):
-            return remediate(self.shipped_config(), {**ENV, **stage_env},
-                             FakeClaude(writes("src/app.py", "x = 3\n")), tools, Clock(None, 60))
-
-    def test_each_fix_commit_is_reviewed_against_the_spec_and_the_verdict_reaches_stages_json(self):
-        report = self.run_fix_stage()
-        runtime = FakeRuntime({SHIPPED["fix"]["command"]: _result(stdout=json.dumps(report))})
-        agent = _build(_cw_config({"fix": {**SHIPPED["fix"], "enabled": True}}), runtime)
-
-        _solve(agent, SolveCapture())
-        agent.save_artifacts(self.tmp)
-
-        self.assertIn(SPEC_LINE, self.prompt.read_text())
-        fix = next(r for r in json.loads((self.tmp / "stages.json").read_text())["stages"] if r["stage"] == "fix")
-        self.assertEqual(fix["items"][0]["status"], "kept")
-        self.assertEqual(fix["items"][0]["review"], {"verdict": "ok", "spec_line": 1, "reason": "no output change",
-                                                     "tokens": 0, "usd": 0.01})
-        self.assertEqual((fix["review_usd"], fix["usd_total"]), (0.01, fix["usd"] + 0.01))
-        self.assertEqual(fix["oracle"], {"class": "pass", "failing": [], "reason": "exit 0"})
+        self.assertEqual(argv[argv.index("-m") + 1:], [
+            "runner", "/workspace", "--problem", "$CW_PROBLEM", "--checkpoint", "$CW_CHECKPOINT",
+            "--out", "/tmp/cw-cleanup/cp-$CW_CHECKPOINT", "--apply"])
+        self.assertNotIn("remediation", SHIPPED["fix"]["command"])
 
 
 GOLDEN = "tests/golden/receipt.txt"
