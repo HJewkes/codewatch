@@ -218,6 +218,7 @@ class ShippedFixReviewTest(unittest.TestCase):
         self.assertEqual(fix["items"][0]["review"], {"verdict": "ok", "spec_line": 1, "reason": "no output change",
                                                      "tokens": 0, "usd": 0.01})
         self.assertEqual((fix["review_usd"], fix["usd_total"]), (0.01, fix["usd"] + 0.01))
+        self.assertEqual(fix["oracle"], {"class": "pass", "failing": [], "reason": "exit 0"})
 
 
 GOLDEN = "tests/golden/receipt.txt"

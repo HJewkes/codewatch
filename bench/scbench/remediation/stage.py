@@ -1,8 +1,11 @@
 """The A1 fix stage (design unit U8, Revision 1): one validated commit per confirmed item.
 
-It works on the PR branch of the hidden repository, in phase order, and stops only when
-the items run out or the stage deadline nears. Then it resets the work tree to the last
-kept commit. A whole-workspace backup is the last resort: it is restored only if that
+Before any item it runs the test check once at the base (`oracle`), records the result,
+and starts nothing when the check is unavailable. It works on the PR branch of the hidden
+repository, in phase order, and stops when the items run out, when the stage deadline
+nears, or when `SAME_CAUSE_STOP` items in a row are reverted for the same reason, which
+points at a broken check rather than at the items. At the deadline it resets the work tree
+to the last kept commit. A whole-workspace backup is the last resort: it is restored only if that
 reset fails after an error, and it is kept, with its path reported, if the restore fails.
 
 It returns the report line the stage agent copies into `stages.json`.
@@ -12,7 +15,7 @@ from __future__ import annotations
 
 import sys
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from . import workspace as ws
@@ -24,9 +27,12 @@ from .git import Git
 from .items import Item, controls_failed, evidence_field, read_jsonl, select_items
 from .session import FixSession, Run
 from .interpreter import DEFAULT_TOOL_PYTEST, Resolver, TestCommand
-from .validate import GraphCheck, Reviewer, TestRunner
+from .oracle import UNAVAILABLE, TestRunner
+from .validate import GraphCheck, Reviewer
 
 AUDIT_DIR = Path(".codewatch") / "audit"
+SAME_CAUSE_STOP = 3
+STAGE_STOPPED = "stage-stopped"
 
 
 @dataclass(frozen=True)
@@ -72,11 +78,10 @@ def remediate(config: Config, env: Mapping[str, str], run_claude: Run, run_tool:
         return {**base, "outcome": "skipped", "reason": "no confirmed items"}
     if ws.inside(config.workspace, config.scratch):
         return {**base, "outcome": "skipped", "reason": f"scratch {config.scratch} is inside the workspace"}
-    tests = resolve_tests(config, env, run_tool, clock)
+    tests, base = prove_tests(config, env, run_tool, clock, base)
     if tests is None:
-        reason = f"no interpreter with pytest for the test check, and no {config.tool_pytest}"
-        print(f"remediation: {reason}; no item started", file=sys.stderr)
-        return {**base, "outcome": "check-unavailable", "reason": reason}
+        print(f"remediation: {base['reason']}; no item started", file=sys.stderr)
+        return base
     fixer = build_fixer(config, env, git, (run_claude, run_tool), tests, clock)
     saved = ws.backup(config.workspace, config.scratch)
     try:
@@ -100,7 +105,25 @@ def resolve_tests(config: Config, env: Mapping[str, str], run_tool: Run, clock: 
     return tests
 
 
-def build_fixer(config: Config, env: Mapping[str, str], git: Git, runs: tuple[Run, Run], tests: TestCommand,
+def prove_tests(config: Config, env: Mapping[str, str], run_tool: Run, clock: Clock,
+                base: dict) -> tuple[TestRunner | None, dict]:
+    """The preflight: the check, with its base failures, or None and the report when it cannot run."""
+    command = resolve_tests(config, env, run_tool, clock)
+    if command is None:
+        reason = f"no interpreter with pytest for the test check, and no {config.tool_pytest}"
+        oracle = {"class": UNAVAILABLE, "failing": [], "reason": reason}
+        return None, {**base, "oracle": oracle, "outcome": "check-unavailable", "reason": reason}
+    if not command.prefix:
+        print("remediation: a custom test command is judged by its exit code", file=sys.stderr)
+    tests = TestRunner(config.workspace, command, config.tests_dir, run_tool)
+    baseline = tests.preflight(env, clock.remaining())
+    base = {**base, "oracle": baseline.report()}
+    if baseline.kind == UNAVAILABLE:
+        return None, {**base, "outcome": "check-unavailable", "reason": baseline.reason}
+    return replace(tests, base=baseline.failing), base
+
+
+def build_fixer(config: Config, env: Mapping[str, str], git: Git, runs: tuple[Run, Run], tests: TestRunner,
                 clock: Clock) -> Fixer:
     run_claude, run_tool = runs
     tool_env, pr_branch = {**env, **git.env()}, git.branch()
@@ -110,7 +133,7 @@ def build_fixer(config: Config, env: Mapping[str, str], git: Git, runs: tuple[Ru
                        baseline, run_tool, tool_env)
     fixer = Fixer(
         git=git, session=FixSession(env, str(config.workspace), run_claude, config.max_turns),
-        tests=TestRunner(config.workspace, tests, config.tests_dir, run_tool),
+        tests=tests,
         graph=graph, reviewer=Reviewer(config.review_command, config.workspace, run_tool, tool_env),
         clock=clock, env=env, tests_dir=config.tests_dir, base_branch=pr_branch,
         kept_head=git.head(), current=None,
@@ -128,9 +151,20 @@ def run_items(fixer: Fixer, items: list[Item]) -> tuple[list[dict], str | None]:
         if outcome["status"] == TIME_LIMIT:
             stopped = TIME_LIMIT
         records.append({**describe(item), **outcome})
-    if stopped:
+        if stopped is None and (cause := repeated_cause(records)):
+            stopped = f"{STAGE_STOPPED}: {cause}"
+    if stopped == TIME_LIMIT:
         fixer.git.reset_to(fixer.base_branch, fixer.kept_head)
     return records, stopped
+
+
+def repeated_cause(records: list[dict]) -> str | None:
+    """The reason the last `SAME_CAUSE_STOP` items were all reverted for, if it is one reason."""
+    last = records[-SAME_CAUSE_STOP:]
+    if len(last) < SAME_CAUSE_STOP or any(r["status"] != "reverted" for r in last):
+        return None
+    causes = {r["cause"] for r in last}
+    return causes.pop() if len(causes) == 1 else None
 
 
 def describe(item: Item) -> dict:
@@ -143,8 +177,12 @@ def summarize(records: list[dict], stopped: str | None) -> dict:
     kept = [r for r in records if r["status"] == "kept"]
     outcome = "kept" if kept else "reverted" if "reverted" in statuses else "unchanged"
     reason = f"{len(kept)} kept, {statuses.count('reverted')} reverted of {len(records)}"
+    if stopped and stopped.startswith(STAGE_STOPPED):
+        outcome, reason = STAGE_STOPPED, f"{reason}; {stopped}"
+    elif stopped:
+        reason += f"; stopped at the {stopped}"
     return {
-        "outcome": outcome, "reason": reason + (f"; stopped at the {stopped}" if stopped else ""),
+        "outcome": outcome, "reason": reason,
         "items_out": len(kept), "stopped_by": stopped, "items": records,
         "added_symbols": [s for r in kept for s in r.get("added_symbols", [])],
     }

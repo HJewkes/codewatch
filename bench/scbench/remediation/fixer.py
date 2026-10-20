@@ -1,7 +1,8 @@
 """One validated commit per item: propose, check, review, then keep or revert that commit alone.
 
-A test-gap commit, in any phase, may touch only the tests directory and must leave the
-suite green. A quality commit must leave the suite green and add no ratchet violation. A
+A test-gap commit, in any phase, may touch only the tests directory and must add no test
+failure the stage base did not have. A quality commit must add no such failure and no ratchet
+violation. A test failure that passes on its rerun is recorded as flaky on the item. A
 commit that passes goes to the review hook (U17); on a conflict the session is resumed
 once, and the commit is reverted if the conflict stands. A phase-3 item works on its own
 branch from the PR branch, merged back only when kept.
@@ -18,7 +19,8 @@ from prflow.repo import scoped
 from .git import Git
 from .items import TEST_GAP, Item
 from .session import FixSession, conflict_prompt, first_prompt, render_item
-from .validate import Check, GraphCheck, Reviewer, Snapshot, TestRunner, ratchet_check
+from .oracle import TestRunner
+from .validate import Check, GraphCheck, Reviewer, Snapshot, ratchet_check
 
 TIME_LIMIT = "time limit"
 FIX_REF = "cw-fix"
@@ -65,6 +67,7 @@ class Fixer:
     current: Snapshot | None
     stale: bool = False
     feedback: str = ""
+    flaky: tuple[str, ...] = ()
     review_tokens: int = 0
     review_usd: float = 0.0
 
@@ -92,7 +95,7 @@ class Fixer:
         return outcome
 
     def _attempt(self, n: int, item: Item) -> dict:
-        before = self.current
+        before, self.flaky = self.current, ()
         text = render_item(n, item, self.feedback)
         call = self._ask(text if self.session.started else first_prompt(text))
         self.feedback = ""
@@ -106,9 +109,13 @@ class Fixer:
         if not check.passed:
             self.git.revert(sha)
             self.feedback = f"Your change for item {n} was reverted ({check.name}: {check.detail})."
-            return {"status": "reverted", "commit": sha, "reason": f"{check.name}: {check.detail}",
-                    "review": review, "resumed": resumed}
-        return self._kept(item, sha, before, after, review, resumed)
+            cause = f"{check.name}: {check.detail}"
+            return {"status": "reverted", "commit": sha, "reason": cause, "cause": cause,
+                    "review": review, "resumed": resumed, **self._flaky_field()}
+        return {**self._kept(item, sha, before, after, review, resumed), **self._flaky_field()}
+
+    def _flaky_field(self) -> dict:
+        return {"flaky": list(self.flaky)} if self.flaky else {}
 
     def _review(self, n: int, item: Item, sha: str, before: Snapshot | None, after: Snapshot | None):
         review = self._call_reviewer(sha)
@@ -144,6 +151,7 @@ class Fixer:
             if outside:
                 return Check("scope", False, f"a test gap changed files outside {self.tests_dir}/: {', '.join(outside)}"), None
         tests = self.tests(self.env, self.clock.remaining())
+        self.flaky = tests.flaky
         if not tests.passed or tests_only:
             return tests, None
         after = self.graph.snapshot(self.fix_ref, self.clock.remaining())
