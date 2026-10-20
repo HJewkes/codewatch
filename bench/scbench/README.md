@@ -215,6 +215,57 @@ tests directory, using a copy in `--scratch`. It reads only the report totals. T
 report's parity gap compares the recorded scores with the whole-snapshot rerun. A gap
 above about 0.001 means the rerun does not reproduce the grade.
 
+## regrade/
+
+The inner-loop regrade (C-240): score a modified tree against its base checkpoint with the
+bench's own graders, without re-running a solve. Both trees are staged as the runner
+snapshots them (its `snapshot.ignore_globs`, plus `.git`). Each staged copy gets:
+
+- the hidden tests, through the calibrated C-239 harness (`c239/harness/eval.sh`);
+- the pinned `scb-check==0.1.3` from `analysis/inputs.py`, once whole (the official
+  erosion and verbosity) and once without the tests directory.
+
+`--base` takes a frozen seed (`checkpoint_N/` with `snapshot/` and `evaluation.json`) or a
+plain tree. With `--recorded <run>/checkpoint_results.jsonl`, `parity` compares the base's
+rerun with the scores the bench recorded for it, and its hidden count with `evaluation.json`.
+A no-op copy must show `scores_ok` and `hidden_ok` true and a zero delta.
+
+```
+cd bench/scbench
+python3 -m regrade --problem code_search --checkpoint 3 --base <seed>/code_search/checkpoint_3 \
+  --head <modified tree> --out result.json [--recorded <checkpoint_results.jsonl>] \
+  [--tests-dir tests] [--skip-eval]
+```
+
+It prints one markdown table row: hidden before → after, then erosion, verbosity, and both
+tests-excluded, each before → after. `c239/harness/regrade_all.sh` runs it over the C-239
+frozen bases and arm outputs.
+
+C-241 adds arm NEW-C, which uses the same rig. `c239/harness/freeze_c241.sh` freezes the extra
+checkpoints, `targets.py` lists the complexity targets, and `run_c241.sh <problem> <N> <key> <name>`
+runs `newc_arm.sh`, the audit metrics, the regrade and `gates.py`. `gates.py` checks hidden
+must-not-regress, refactor growth, single-caller and test:source, mechanically.
+`table_c241.py` prints the table.
+
+**Holdout guard (C-243).** Every run, freeze and regrade entry point (`c239/harness/*.sh`,
+`python3 -m regrade`) first runs `regrade/holdout.py`. It reads the holdout list from the
+gitignored manifest's `holdout` field and refuses (exit 3) a holdout problem unless
+`SCBENCH_MILESTONE` names a milestone with an owner-approved holdout row in
+`~/.cache/codewatch-scbench/climb/ledger.jsonl`. That is the climb driver's split-control rule.
+Refusals report counts, never names, and an unreadable manifest refuses everything.
+
+**Behaviour-differential gate (C-242).** `c239/harness/diffgate.sh <problem> <N> <base> <head> <out>
+<inloop|eval> [waivers.json] [regrade.json]` records every CLI call that base's own `tests/` make. It
+adds one-edit variants of the JSON those calls read, then replays every case on base twice and on head
+once, all in one A1-image container. The gate fails on any exit code, stdout, stderr or written-file
+difference that is not spec-required. `inloop` is the mode a loop stage may run: no hidden test,
+hidden result or `.evaluation_tests` file is copied or read, and a difference is spec-required only
+when a waiver quotes a checkpoint 1..N spec verbatim. `eval` mode is for after-the-fact scoring. It
+also records the hidden tests' calls and, given `regrade.json`, excuses a difference whose hidden test
+went from fail to pass. `diffgate/compare.py` documents the normalisation rules: paths become
+placeholders, a traceback compares by its last line, and a case whose two base runs disagree is
+excluded and counted. Nothing else is normalised.
+
 ## remediation/
 
 The A1 fix stage (design unit U8, Revision 1): one validated commit per confirmed item.
