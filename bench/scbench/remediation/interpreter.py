@@ -27,6 +27,7 @@ PYTHON_NAMES = ("python", "python3")
 PYTEST_MODULE = ["-m", "pytest"]
 PROBE = ["-c", "import pytest"]
 SUMMARY_FLAGS = ("-rfE",)
+STOP_EARLY = ("-x", "--exitfirst", "--maxfail")
 
 
 @dataclass(frozen=True)
@@ -39,6 +40,11 @@ class TestCommand:
 
     def argv(self) -> list[str]:
         return [*self.command, *SUMMARY_FLAGS] if self.prefix else list(self.command)
+
+    def stop_early_option(self) -> str | None:
+        """A pytest option that ends the run at a failure, so the run names only some of them."""
+        options = self.command[self.prefix:] if self.prefix else ()
+        return next((a for a in options if a.split("=")[0] in STOP_EARLY), None)
 
     def rerun_argv(self, test_ids: Sequence[str]) -> list[str]:
         """Only the named tests; the command's own options and paths are left out."""

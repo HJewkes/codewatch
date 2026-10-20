@@ -3,12 +3,17 @@
 import unittest
 from dataclasses import replace
 
+from remediation.oracle import failing_ids
 from tests.remediation_support import FakeClaude, FakeTools, StageTestCase, confirmed, pytest_output, \
     write_verdicts, writes
 
 OLD = "tests/test_app.py::test_old"
 NEW = "tests/test_app.py::test_new"
 CUSTOM = ["make", "check"]
+BROKEN_MODULE = "tests/test_broken.py"
+INTERRUPTED = (2, "\n=========== short test summary info ===========\n"
+                  f"ERROR {BROKEN_MODULE} - ImportError: cannot import name 'gone'\n"
+                  "!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!\n")
 
 
 class CustomTools(FakeTools):
@@ -46,9 +51,31 @@ class BasePreflightTest(StageTestCase):
         report = self.run_stage(claude, tools)
 
         self.assertEqual((report["outcome"], report["oracle"]["class"]), ("check-unavailable", "unavailable"))
-        self.assertIn("names no failing test", report["reason"])
+        self.assertIn("cannot be judged at the base (exit 4)", report["reason"])
         self.assertEqual((claude.calls, len(tools.test_argvs)), ([], 1))
         self.assertNotIn("items", report)
+
+    def test_a_base_run_interrupted_by_a_collection_error_is_unavailable_and_starts_nothing(self):
+        write_verdicts(self.root, [confirmed()])
+        claude = FakeClaude(writes("src/app.py", "x = 3\n"))
+
+        report = self.run_stage(claude, FakeTools(base=INTERRUPTED))
+
+        self.assertEqual(report["oracle"], {"class": "unavailable", "failing": [],
+                                            "reason": report["reason"]})
+        self.assertIn("(exit 2)", report["reason"])
+        self.assertEqual((report["outcome"], claude.calls), ("check-unavailable", []))
+
+    def test_a_pytest_command_that_stops_at_the_first_failure_is_unavailable_and_runs_nothing(self):
+        write_verdicts(self.root, [confirmed()])
+        claude, tools = FakeClaude(writes("src/app.py", "x = 3\n")), FakeTools()
+        config = replace(self.config, test_command=["python", "-m", "pytest", "-x", "-q", "tests"])
+
+        report = self.run_stage(claude, tools, config=config)
+
+        self.assertEqual((report["outcome"], report["oracle"]["class"]), ("check-unavailable", "unavailable"))
+        self.assertIn("-x", report["reason"])
+        self.assertEqual((claude.calls, tools.test_argvs), ([], []))
 
     def test_a_custom_command_that_fails_at_base_is_unavailable(self):
         write_verdicts(self.root, [confirmed()])
@@ -92,6 +119,16 @@ class BaselineJudgingTest(StageTestCase):
         self.assertEqual((item["status"], item["reason"]), ("reverted", f"tests: new failures: {NEW}"))
         self.assertEqual((self.root / "src" / "app.py").read_text(), "x = 2\n")
 
+    def test_an_item_run_interrupted_by_a_collection_error_is_reverted_without_a_rerun(self):
+        write_verdicts(self.root, [confirmed()])
+        tools = FakeTools(base=(1, pytest_output(OLD)), tests=[INTERRUPTED, 0])
+
+        report = self.run_stage(FakeClaude(writes("src/app.py", "x = 3\n")), tools)
+
+        item = report["items"][0]
+        self.assertEqual((item["status"], item["reason"]), ("reverted", "tests: exit 2"))
+        self.assertEqual(len(tools.test_argvs), 2)
+
     def test_a_new_failure_that_passes_on_rerun_is_kept_and_marked_flaky(self):
         write_verdicts(self.root, [confirmed()])
         tools = FakeTools(tests=[(1, pytest_output(NEW)), 0])
@@ -101,6 +138,16 @@ class BaselineJudgingTest(StageTestCase):
         item = report["items"][0]
         self.assertEqual((item["status"], item["flaky"]), ("kept", [NEW]))
         self.assertEqual(tools.test_argvs[-1], ["python", "-m", "pytest", "-q", "-rfE", NEW])
+
+
+class SummaryTest(unittest.TestCase):
+    def test_a_parametrized_id_with_a_dash_is_read_whole(self):
+        stdout = ("=========== short test summary info ===========\n"
+                  "FAILED tests/t.py::test[a - b] - AssertionError: assert [1] == [2]\n"
+                  "FAILED tests/t.py::test[c] - assert [1] == [2]\n"
+                  f"ERROR {BROKEN_MODULE}\n")
+
+        self.assertEqual(failing_ids(stdout), {"tests/t.py::test[a - b]", "tests/t.py::test[c]", BROKEN_MODULE})
 
 
 class SameReasonStopTest(StageTestCase):

@@ -273,11 +273,15 @@ deadline the agent passes in, and then resets the work tree to the last kept com
 
    Then the check runs once at the base, before any item (`remediation/oracle.py`), and
    the report's `oracle` records `pass`, `base-failing` (with the failing test ids) or
-   `unavailable` (with the reason): a base run that times out, fails naming no test, or
-   fails under a custom `--test-command`. An unavailable check starts no item. A pytest
-   check gets `-rfE` and is judged by the ids in its short summary against the base's
-   failing set. Each new failure is rerun once alone, and one that passes on the rerun is
-   kept and listed in the item's `flaky`. A custom command names no tests, so it is judged
+   `unavailable` (with the reason). Each run is `passed` (exit 0 or 5), `failed` (pytest's
+   exit 1, naming its failing tests) or `unjudgeable` (a timeout, an interrupted run such
+   as a collection error, an exit 1 naming no test, or a custom `--test-command`'s
+   failure); only `failed` is compared test by test. At the base, `unjudgeable` is
+   `unavailable`, as is a pytest command with `-x` or `--maxfail`, which names only some
+   failures. An unavailable check starts no item. A pytest check gets `-rfE` and is judged
+   by the ids in its short summary against the base's failing set; an `unjudgeable` item
+   run is reverted. Each new failure is rerun once alone, and one that passes on the
+   rerun is kept and listed in the item's `flaky`. A custom command names no tests, so it is judged
    by exit code. When three items in a row are reverted for the same reason, the stage
    stops (`stage-stopped`): that points at a broken check, not at the items.
 4. **Review hook (U17).** A commit that passes goes to `--review-command <sha>` when one
