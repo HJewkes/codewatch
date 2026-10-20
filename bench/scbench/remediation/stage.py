@@ -23,6 +23,7 @@ from prflow.repo import HiddenRepo, scoped
 from .git import Git
 from .items import Item, controls_failed, evidence_field, read_jsonl, select_items
 from .session import FixSession, Run
+from .interpreter import DEFAULT_TOOL_PYTEST, Resolver, TestCommand
 from .validate import GraphCheck, Reviewer, TestRunner
 
 AUDIT_DIR = Path(".codewatch") / "audit"
@@ -44,6 +45,7 @@ class Config:
     reset_margin: float
     max_items: int | None = None
     max_turns: int | None = None
+    tool_pytest: str = DEFAULT_TOOL_PYTEST
 
 
 def load_items(config: Config, changed: set[str]) -> tuple[list[Item], int]:
@@ -70,7 +72,12 @@ def remediate(config: Config, env: Mapping[str, str], run_claude: Run, run_tool:
         return {**base, "outcome": "skipped", "reason": "no confirmed items"}
     if ws.inside(config.workspace, config.scratch):
         return {**base, "outcome": "skipped", "reason": f"scratch {config.scratch} is inside the workspace"}
-    fixer = build_fixer(config, env, git, run_claude, run_tool, clock)
+    tests = resolve_tests(config, env, run_tool, clock)
+    if tests is None:
+        reason = f"no interpreter with pytest for the test check, and no {config.tool_pytest}"
+        print(f"remediation: {reason}; no item started", file=sys.stderr)
+        return {**base, "outcome": "check-unavailable", "reason": reason}
+    fixer = build_fixer(config, env, git, (run_claude, run_tool), tests, clock)
     saved = ws.backup(config.workspace, config.scratch)
     try:
         records, stopped = run_items(fixer, items)
@@ -81,8 +88,21 @@ def remediate(config: Config, env: Mapping[str, str], run_claude: Run, run_tool:
     return {**base, **summarize(records, stopped), **_cost_fields(fixer)}
 
 
-def build_fixer(config: Config, env: Mapping[str, str], git: Git, run_claude: Run, run_tool: Run,
+def resolve_tests(config: Config, env: Mapping[str, str], run_tool: Run, clock: Clock) -> TestCommand | None:
+    """Found once, before any item: a check that cannot import pytest would revert every fix.
+    Without a tests directory the check passes without running, so any command will do."""
+    if not (config.workspace / config.tests_dir).is_dir():
+        return TestCommand(tuple(config.test_command), "unused")
+    resolve = Resolver(config.workspace, config.tool_pytest, config.scratch, run_tool)
+    tests = resolve(config.test_command, env, clock.remaining())
+    if tests is not None:
+        print(f"remediation: the test check runs with the {tests.source} interpreter", file=sys.stderr)
+    return tests
+
+
+def build_fixer(config: Config, env: Mapping[str, str], git: Git, runs: tuple[Run, Run], tests: TestCommand,
                 clock: Clock) -> Fixer:
+    run_claude, run_tool = runs
     tool_env, pr_branch = {**env, **git.env()}, git.branch()
     # commit-ratchet (U15) indexed the merge-base under this ref; it is not indexed again here.
     baseline = config.baseline or scoped(MERGE_BASE_REF, pr_branch)
@@ -90,7 +110,7 @@ def build_fixer(config: Config, env: Mapping[str, str], git: Git, run_claude: Ru
                        baseline, run_tool, tool_env)
     fixer = Fixer(
         git=git, session=FixSession(env, str(config.workspace), run_claude, config.max_turns),
-        tests=TestRunner(config.workspace, config.test_command, config.tests_dir, run_tool),
+        tests=TestRunner(config.workspace, tests, config.tests_dir, run_tool),
         graph=graph, reviewer=Reviewer(config.review_command, config.workspace, run_tool, tool_env),
         clock=clock, env=env, tests_dir=config.tests_dir, base_branch=pr_branch,
         kept_head=git.head(), current=None,

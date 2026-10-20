@@ -263,6 +263,13 @@ deadline the agent passes in, and then resets the work tree to the last kept com
 
    A failing commit is reverted alone (`git revert`), and the next item still runs; the
    session is told which item was reverted and why.
+
+   The suite runs with an interpreter that imports pytest, found once before the first
+   item (`remediation/interpreter.py`): the solve's `.venv`, then `venv`, then the
+   `python` on PATH, then the image's pinned pytest (`--tool-pytest`) with the workspace
+   and the solve's virtualenv packages on `PYTHONPATH`. A solve that tests with unittest
+   often leaves none of the first three with pytest. If none can run the suite, no item
+   starts and the outcome is `check-unavailable`, not a revert of every fix.
 4. **Review hook (U17).** A commit that passes goes to `--review-command <sha>` when one
    is set. That command prints `{"verdict": "ok"|"conflict", "spec_line", "reason"}`. On a
    conflict the session is resumed once with the finding, and the revised commit is
@@ -282,7 +289,7 @@ deadline the agent passes in, and then resets the work tree to the last kept com
    path is printed on stderr.
 
 The report line sets `outcome` (`kept` if any commit was kept, else `reverted`,
-`unchanged` or `skipped`), `reason`, `items_in`, `items_out` (commits kept), `held_back`,
+`unchanged`, `skipped` or `check-unavailable`), `reason`, `items_in`, `items_out` (commits kept), `held_back`,
 `stopped_by`, `session_id`, `turns`, `tokens`, `usd` (the fix session alone),
 `review_tokens` and `review_usd` (every review call), `usd_total` (`usd` plus
 `review_usd`), `model_usage` (each model's totals from the result events' `modelUsage`, so
