@@ -1,0 +1,182 @@
+{
+  "version": "python-v1.2",
+  "language": "python",
+  "quantiles": [
+    0.7,
+    0.8,
+    0.9
+  ],
+  "method": "Alves, Ypma & Visser 2010: entity weight = SLOC share of its system for that entity kind, systems weighted equally, lower weighted quantile",
+  "corpus": {
+    "projects": 80,
+    "sloc": 1659144,
+    "manifest": "python-v1.manifest.json"
+  },
+  "note": "Corpus manifest unchanged since python-v1 (same 80 pinned projects). Families as python-v1.1, byte-identical, plus control, stamp, common, cohesion and cycles from the cleanup planner's detectors (C-248 S3c).",
+  "families": {
+    "complexity": {
+      "cc": {
+        "entity": "units",
+        "weight": "sloc",
+        "p70": 9,
+        "p80": 13,
+        "p90": 22,
+        "entities": 112866
+      },
+      "cog": {
+        "entity": "units",
+        "weight": "sloc",
+        "p70": 14,
+        "p80": 23,
+        "p90": 44,
+        "entities": 112866
+      },
+      "cc_scb": {
+        "entity": "units",
+        "weight": "sloc",
+        "p70": 9,
+        "p80": 13,
+        "p90": 22,
+        "entities": 112866
+      },
+      "cog_scb": {
+        "entity": "units",
+        "weight": "sloc",
+        "p70": 14,
+        "p80": 24,
+        "p90": 46,
+        "entities": 112866
+      }
+    },
+    "size": {
+      "sloc": {
+        "entity": "units",
+        "weight": "sloc",
+        "p70": 34,
+        "p80": 48,
+        "p90": 76,
+        "entities": 112866
+      }
+    },
+    "interface": {
+      "in": {
+        "entity": "units",
+        "weight": "sloc",
+        "p70": 3,
+        "p80": 4,
+        "p90": 6,
+        "entities": 112866
+      }
+    },
+    "module": {
+      "module_sloc": {
+        "entity": "modules",
+        "weight": "sloc",
+        "p70": 862,
+        "p80": 1203,
+        "p90": 2072,
+        "entities": 9705
+      },
+      "class_methods": {
+        "entity": "classes",
+        "weight": "sloc",
+        "p70": 18,
+        "p80": 27,
+        "p90": 44,
+        "entities": 17296
+      }
+    },
+    "coupling": {
+      "fan_in": {
+        "entity": "modules",
+        "weight": "sloc",
+        "p70": 3,
+        "p80": 6,
+        "p90": 9,
+        "entities": 9705
+      },
+      "fan_out": {
+        "entity": "modules",
+        "weight": "sloc",
+        "p70": 6,
+        "p80": 8,
+        "p90": 12,
+        "entities": 9705
+      },
+      "instability": {
+        "entity": "modules",
+        "weight": "sloc",
+        "p70": 0.75,
+        "p80": 0.8,
+        "p90": 0.923,
+        "entities": 9705
+      }
+    },
+    "control": {
+      "control": {
+        "entity": "units",
+        "weight": "sloc",
+        "p70": 0,
+        "p80": 0,
+        "p90": 1,
+        "entities": 112866
+      },
+      "control_origin": {
+        "entity": "units",
+        "weight": "sloc",
+        "p70": 0,
+        "p80": 0,
+        "p90": 1,
+        "entities": 112866
+      }
+    },
+    "stamp": {
+      "stamp": {
+        "entity": "units",
+        "weight": "sloc",
+        "p70": 0,
+        "p80": 0,
+        "p90": 0,
+        "entities": 112866
+      }
+    },
+    "common": {
+      "common": {
+        "entity": "units",
+        "weight": "sloc",
+        "p70": 0,
+        "p80": 0,
+        "p90": 0,
+        "entities": 112866
+      }
+    },
+    "cohesion": {
+      "lcom4": {
+        "entity": "classes",
+        "weight": "sloc",
+        "p70": 2,
+        "p80": 3,
+        "p90": 6,
+        "entities": 17296
+      },
+      "temp_fields": {
+        "entity": "classes",
+        "weight": "sloc",
+        "p70": 0,
+        "p80": 0,
+        "p90": 2,
+        "entities": 17296
+      }
+    },
+    "cycles": {
+      "cycle": {
+        "entity": "modules",
+        "weight": "sloc",
+        "p70": 10,
+        "p80": 20,
+        "p90": 46,
+        "entities": 9705
+      }
+    }
+  }
+}

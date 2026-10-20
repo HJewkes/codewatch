@@ -2,7 +2,7 @@
 
   upstream <problems dir> <out.json>            PyPI names the non-holdout reference solutions import
   select <top.json> <upstream.json> <cache> <manifest.json> [--top N] [--target N] [--jobs N]
-  curves <cache> <manifest.json> <curves.json> <version>
+  curves <cache> <manifest.json> <curves.json> <version> [--note TEXT]
   score <curves.json> <out.json> <root>...      band shares of trees, pooled by SLOC
 """
 
@@ -30,7 +30,7 @@ def cmd_curves(args) -> int:
     curves = {"version": args.version, "language": "python", "quantiles": list(QUANTILES), "method": METHOD,
               "corpus": {"projects": len(systems), "sloc": sum(s["sloc"] for s in systems),
                          "manifest": Path(args.manifest).name},
-              "families": derive(systems)}
+              **({"note": args.note} if args.note else {}), "families": derive(systems)}
     Path(args.out).write_text(json.dumps(curves, indent=2) + "\n")
     return 0
 
@@ -60,6 +60,7 @@ def parser() -> argparse.ArgumentParser:
     cur = sub.add_parser("curves")
     for name in ("cache", "manifest", "out", "version"):
         cur.add_argument(name)
+    cur.add_argument("--note")
     sc = sub.add_parser("score")
     sc.add_argument("curves")
     sc.add_argument("out")
