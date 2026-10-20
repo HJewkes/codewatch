@@ -10,7 +10,7 @@ from pathlib import Path
 from unittest import mock
 
 from regrade import holdout
-from solvenext import parity, plan, record
+from solvenext import parity, plan, record, trees
 from solvenext.__main__ import main
 
 try:
@@ -163,9 +163,30 @@ class SolveNextRunTests(unittest.TestCase):
         self.assertEqual(run["pins"]["model_id"], "claude-sonnet-5-5")
         self.assertEqual(run["cost"]["usd"], 1.25)
         self.assertEqual(run["cost"]["turns"], 12)
+        self.assertEqual(run["schema"], "codewatch.solvenext.run/2")
+        self.assertIs(run["cost"]["is_error"], False)
+        self.assertEqual(run["pins"]["max_output_tokens"], 64000)
+        self.assertIs(run["tree_changed"], True)
+        self.assertIsNone(run["reference_noop"])
         self.assertEqual(run["pass_rates"]["before"]["rate"], 0.8)
         self.assertEqual(run["pass_rates"]["after"]["rate"], 0.8)
         self.assertEqual(run["pass_rates"]["recorded_next"]["rate"], 0.75)
+
+    def test_a_solve_that_leaves_the_tree_alone_is_flagged_and_a_noop_reference_recorded(self):
+        for cp in (1, 2):
+            snap = self.fx.seed_cp().parent / f"checkpoint_{cp}" / "snapshot"
+            snap.mkdir(exist_ok=True)
+            (snap / "wc.py").write_text("print(0)\n")
+
+        def silent(argv, **kwargs):
+            if argv[0] == "docker":
+                return subprocess.CompletedProcess(argv, 1)
+            return FakeRunner()(argv, **kwargs)
+
+        self.run_main(runner=silent)
+        run = json.loads((self.out / "run.json").read_text())
+        self.assertIs(run["tree_changed"], False)
+        self.assertIs(run["reference_noop"], True)
 
     def test_an_output_dir_inside_the_seeds_is_refused(self):
         self.out = self.fx.seeds / "c209-a1a" / "scratch"
@@ -233,12 +254,14 @@ class ParityMathTests(unittest.TestCase):
         self.assertTrue(parity.parity_row("p", 2, 0.9, [0.88, 0.70]).holds)
 
 
-def run_record(problem="p", arm="original", after=(16, 20), recorded=(15, 20), replicate=1):
-    pins = {k: "x" for k in record.PIN_KEYS} | {"harness_dirty": False, "step_limit": 100}
+def run_record(problem="p", arm="original", after=(16, 20), recorded=(15, 20), replicate=1, is_error=False,
+               tree_changed=True, reference_noop=False):
+    pins = {k: "x" for k in record.PIN_KEYS_V2} | {"harness_dirty": False, "step_limit": 100}
     rates = {"before": record.rate(8, 10), "after": record.rate(*after) if after else None,
              "recorded_next": record.rate(*recorded) if recorded else None}
     return record.build_run(task="C-250", arm=arm, replicate=replicate, problem=problem, n=1, include_prior_tests=True,
-                            pins=pins, cost={"usd": 1.0, "turns": 3}, rates=rates, created_at="2026-10-20T00:00:00+00:00")
+                            pins=pins, cost={"usd": 1.0, "turns": 3, "is_error": is_error}, rates=rates,
+                            created_at="2026-10-20T00:00:00+00:00", tree_changed=tree_changed, reference_noop=reference_noop)
 
 
 class ParityTableTests(unittest.TestCase):
@@ -257,8 +280,8 @@ class ParityTableTests(unittest.TestCase):
     def test_rows_group_replicates_and_leave_out_other_arms_and_missing_evals(self):
         runs = [run_record(after=(14, 20)), run_record(after=(16, 20), replicate=2),
                 run_record(arm="cleaned"), run_record(problem="q", after=None)]
-        rows, skipped = parity.parity_rows(runs)
-        self.assertEqual(skipped, 2)
+        rows, left = parity.parity_rows(runs)
+        self.assertEqual(left.total, 2)
         self.assertEqual([(r.problem, r.rates) for r in rows], [("p", (0.7, 0.8))])
         self.assertAlmostEqual(rows[0].threshold, 0.2)
         self.assertTrue(rows[0].holds)
@@ -271,6 +294,40 @@ class ParityTableTests(unittest.TestCase):
         data = json.loads((self.root / "parity.json").read_text())
         self.assertEqual([(r["problem"], r["holds"]) for r in data["rows"]], [("p", True), ("q", False)])
         self.assertIn("Parity holds on 1 of 2 problem(s)", (self.root / "parity.md").read_text())
+
+    def test_errored_and_unchanged_runs_leave_the_replicate_set_and_are_counted(self):
+        runs = [run_record(after=(14, 20)), run_record(after=(2, 20), replicate=2, is_error=True),
+                run_record(after=(3, 20), replicate=3, tree_changed=False)]
+        rows, left = parity.parity_rows(runs)
+        self.assertEqual([r.rates for r in rows], [(0.7,)])
+        self.assertEqual((left.errored, left.unchanged_tree), (1, 1))
+        self.assertIn("1 errored, 1 with an unchanged tree", parity.table(rows, left))
+
+    def test_a_run_with_unknown_tree_state_is_kept(self):
+        rows, left = parity.parity_rows([run_record(tree_changed=None)])
+        self.assertEqual((len(rows), left.total), (1, 0))
+
+    def test_a_noop_reference_problem_is_refused_and_counted(self):
+        runs = [run_record(reference_noop=True), run_record(reference_noop=True, replicate=2), run_record(problem="q")]
+        rows, left = parity.parity_rows(runs)
+        self.assertEqual([r.problem for r in rows], ["q"])
+        self.assertEqual((left.noop_reference_problems, left.noop_reference_runs), (1, 2))
+        self.assertIn("2 run(s) on 1 problem(s) whose recorded reference is a no-op", parity.table(rows, left))
+
+    def test_schema_v1_runs_still_load_and_derive_the_flags_from_the_seed_set(self):
+        seeds = self.root / "seeds"
+        for cp, text in ((1, "a"), (2, "a")):
+            (seeds / "s" / "p" / f"checkpoint_{cp}" / "snapshot").mkdir(parents=True)
+            (seeds / "s" / "p" / f"checkpoint_{cp}" / "snapshot" / "m.py").write_text(text)
+        run = run_record() | {"schema": record.SCHEMA_V1}
+        del run["tree_changed"], run["reference_noop"]
+        del run["pins"]["max_output_tokens"]
+        run["pins"]["seed_set"] = "s"
+        (self.root / "r0" / "ws").mkdir(parents=True)
+        (self.root / "r0" / "ws" / "m.py").write_text("a")
+        (self.root / "r0" / "run.json").write_text(json.dumps(run))
+        [loaded] = parity.load_runs(self.root, seeds)
+        self.assertEqual((loaded["tree_changed"], loaded["reference_noop"]), (False, True))
 
     def test_parity_cli_refuses_runs_that_name_a_holdout_problem(self):
         self.write_runs(run_record(problem=HELD))
@@ -288,7 +345,60 @@ class ParityTableTests(unittest.TestCase):
             parity.load_runs(self.root)
 
 
+class TreeCompareTests(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory(dir=HERE)
+        self.a, self.b = Path(self._tmp.name) / "a", Path(self._tmp.name) / "b"
+        for root in (self.a, self.b):
+            root.mkdir()
+            (root / "m.py").write_text("x")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_generated_files_and_dirs_are_ignored(self):
+        for name in (".venv/lib/x.py", "__pycache__/m.pyc", ".pytest_cache/v", ".evaluation_tests/t.py", "pytest.ini", ".report.json"):
+            (self.b / name).parent.mkdir(parents=True, exist_ok=True)
+            (self.b / name).write_text("noise")
+        self.assertFalse(trees.trees_differ(self.a, self.b))
+
+    def test_a_changed_or_added_source_file_is_a_difference(self):
+        (self.b / "m.py").write_text("y")
+        self.assertTrue(trees.trees_differ(self.a, self.b))
+        (self.b / "m.py").write_text("x")
+        (self.b / "n.py").write_text("z")
+        self.assertTrue(trees.trees_differ(self.a, self.b))
+
+
+class SolveHardeningTests(unittest.TestCase):
+    def test_the_solve_container_raises_the_output_token_cap(self):
+        p = plan.Plan("p", 1, Path("/t"), Path("/o/x"), "img", "m", 100, True, "wc")
+        argv = plan.solve_command(p)
+        self.assertIn(f"CLAUDE_CODE_MAX_OUTPUT_TOKENS={plan.MAX_OUTPUT_TOKENS}", argv)
+        self.assertEqual(plan.MAX_OUTPUT_TOKENS, 64000)
+
+    def run_tail(self, claude_status, chmod_status):
+        script = (f"claude() {{ return {claude_status}; }}\nchmod() {{ return {chmod_status}; }}\n"
+                  + plan.claude_step("m", 5))
+        return subprocess.run(["bash", "-c", script], capture_output=True, check=False).returncode
+
+    def test_a_failing_cleanup_does_not_change_the_recorded_exit(self):
+        self.assertEqual(self.run_tail(0, 1), 0)
+        self.assertEqual(self.run_tail(7, 1), 7)
+        self.assertEqual(self.run_tail(7, 0), 7)
+
+
 class RunSchemaTests(unittest.TestCase):
+    def test_a_v1_record_is_still_valid_without_the_v2_fields(self):
+        run = run_record() | {"schema": record.SCHEMA_V1}
+        del run["pins"]["max_output_tokens"]
+        self.assertEqual(record.validate_run(run), [])
+
+    def test_a_v2_record_requires_the_output_token_pin(self):
+        run = run_record()
+        run["pins"]["max_output_tokens"] = None
+        self.assertIn("missing pin max_output_tokens", record.validate_run(run))
+
     def test_a_complete_run_is_valid(self):
         self.assertEqual(record.validate_run(run_record()), [])
 

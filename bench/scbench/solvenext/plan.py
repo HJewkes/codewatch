@@ -27,6 +27,10 @@ DOCKER_HOST = "unix:///run/user/1000/docker.sock"
 CANARY = re.compile(r"^<!-- [\s\S]+ -->\n?")
 
 
+# The solve model's 32k default cap ended a solve mid-answer in the parity runs.
+MAX_OUTPUT_TOKENS = 64000
+
+
 class PlanError(Exception):
     pass
 
@@ -110,16 +114,26 @@ def template_sha256() -> str:
     return hashlib.sha256(PROMPT_TEMPLATE.read_bytes()).hexdigest()
 
 
+def claude_step(model: str, step_limit: int) -> str:
+    """Run claude, then clean up; the script exits with claude's status, never the chmod's."""
+    return (
+        f"claude --output-format stream-json --verbose --model {model} --max-turns {step_limit} "
+        '--permission-mode bypassPermissions --print -- "$(cat /tmp/prompt.md)"\n'
+        "claude_exit=$?\n"
+        "chmod -R a+rwX /workspace 2>/dev/null || true\n"
+        "exit $claude_exit"
+    )
+
+
 def solve_command(plan: Plan) -> list[str]:
     inner = (
         'git config --global --add safe.directory "*"\n'
         "python -m venv .venv >/dev/null && .venv/bin/pip install -q -r requirements.txt >/dev/null 2>&1\n"
-        f"claude --output-format stream-json --verbose --model {plan.model} --max-turns {plan.step_limit} "
-        '--permission-mode bypassPermissions --print -- "$(cat /tmp/prompt.md)"; chmod -R a+rwX /workspace 2>/dev/null'
+        + claude_step(plan.model, plan.step_limit)
     )
     return ["docker", "run", "--rm", "--name", f"c250-{plan.out.parent.name}-{plan.out.name}",
             "-v", f"{plan.workspace}:/workspace", "-v", f"{plan.out / 'prompt.md'}:/tmp/prompt.md:ro",
-            "-w", "/workspace", "-e", "CLAUDE_CODE_OAUTH_TOKEN", "-e", "DISABLE_NON_ESSENTIAL_MODEL_CALLS=1",
+            "-w", "/workspace", "-e", "CLAUDE_CODE_OAUTH_TOKEN", "-e", f"CLAUDE_CODE_MAX_OUTPUT_TOKENS={MAX_OUTPUT_TOKENS}", "-e", "DISABLE_NON_ESSENTIAL_MODEL_CALLS=1",
             "--entrypoint", "bash", plan.image, "-c", inner]
 
 
