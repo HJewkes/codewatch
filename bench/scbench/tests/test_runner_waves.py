@@ -114,6 +114,50 @@ class SpliceResultCheck(unittest.TestCase):
         self.assertEqual(sorted(p.name for p in root.iterdir()), ["a.py"])
 
 
+class TextKeyedSplice(unittest.TestCase):
+    """A statement keyed by its text (not a def, class or assignment) is one body-wide claim per lane."""
+
+    DEF = "def main(code):\n    return code\n"
+
+    def two(self, base: str, t1: str, t2: str) -> dict:
+        return splice({"m.py": base.encode()}, {"t1": {"m.py": t1.encode()}, "t2": {"m.py": t2.encode()}})
+
+    def guarded(self, call: str) -> str:
+        return f"{self.DEF}\n\nif __name__ == '__main__':\n    {call}\n"
+
+    def test_two_lanes_editing_the_main_guard_drop_the_later_lane(self):
+        # mutation: text-keyed segments claimed per key, so main(1) and main(2) both land as two guards
+        out = self.two(self.guarded("main(0)"), self.guarded("main(1)"), self.guarded("main(2)"))
+        self.assertEqual((out["spliced"], out["conflicts"]), (["t1"], {"t2": ["m.py"]}))
+        self.assertEqual(out["files"]["m.py"].decode().count("if __name__"), 1)
+
+    def test_one_lane_deleting_the_main_guard_and_another_editing_it_drop_the_later_lane(self):
+        # mutation: the body claim built from additions only, so t1's deletion is silently lost
+        out = self.two(self.guarded("main(0)"), self.DEF, self.guarded("main(2)"))
+        self.assertEqual((out["spliced"], out["conflicts"]), (["t1"], {"t2": ["m.py"]}))
+        self.assertEqual(out["files"]["m.py"].decode(), self.DEF)
+
+    def test_two_lanes_editing_a_guarded_import_drop_the_later_lane(self):
+        # mutation: the body claim skipping deletions, so both try blocks land
+        guard = "try:\n    import {0}\nexcept ImportError:\n    {0} = None\n\n\n" + self.DEF
+        out = self.two(guard.format("json"), guard.format("ujson"), guard.format("simplejson"))
+        self.assertEqual((out["spliced"], out["conflicts"]), (["t1"], {"t2": ["m.py"]}))
+
+    def test_two_lanes_editing_a_class_body_statement_drop_the_later_lane(self):
+        # mutation: the body claim applied to module-level keys only, missing "K.|..." keys
+        klass = "class K:\n    {0}\n\n    def m(self):\n        return 1\n"
+        out = self.two(klass.format("pass"), klass.format("print(1)"), klass.format("print(2)"))
+        self.assertEqual((out["spliced"], out["conflicts"]), (["t1"], {"t2": ["m.py"]}))
+
+    def test_a_text_keyed_edit_and_a_def_edit_in_one_file_both_splice(self):
+        # mutation: the body claim counting def or assignment segments, so the def-only lane is dropped
+        base = self.guarded("main(0)")
+        t2 = base.replace("return code", "return code + 1")
+        out = self.two(base, self.guarded("main(1)"), t2)
+        self.assertEqual((out["spliced"], out["conflicts"]), (["t1", "t2"], {}))
+        self.assertEqual(out["files"]["m.py"].decode(), self.guarded("main(1)").replace("return code", "return code + 1"))
+
+
 class Schedule(unittest.TestCase):
     def plan(self) -> dict:
         tasks_ = [{"id": f"m:t{i}", "wave": 1} for i in range(6)] + [{"id": "m:outer", "wave": 2},

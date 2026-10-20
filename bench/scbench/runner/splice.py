@@ -3,10 +3,12 @@
 A module is cut into segments: each module-level statement, and inside a module-level class its header
 and each body statement. A def segment's key is its qualified name, an assignment's the names it binds
 (so two lanes setting one constant differently collide), and any other statement's key is its own text,
-so two lanes adding the same import agree. A segment carries the comments and blank lines
+so an edit to it reads as a deletion plus an addition. A segment carries the comments and blank lines
 above it. Per lane, a segment is changed (beyond the blank lines around it), deleted or added (anchored after the nearest earlier segment
-that is in the base). Two lanes conflict only when they make different changes to one segment or add
-one key with different text; additions at one anchor go in lane order. A non-Python file changed by
+that is in the base). Two lanes conflict when they make different changes to one segment or add one key
+with different text, and when both change, add or delete text-keyed segments in one body (the module, or
+one class body), even identically: the later lane in lane order is the conflict. One lane alone may
+change text-keyed segments freely. Additions at one anchor go in lane order. A non-Python file changed by
 two lanes differently is a conflict too.
 
 Every merged Python file is then checked, on every path: a lane whose own file does not parse is in
@@ -110,17 +112,32 @@ def lane_changes(base: list[tuple[str, str]], head: list[tuple[str, str]]) -> di
     return {"changed": changed, "deleted": [k for k, _ in base if k not in head_keys], "added": added}
 
 
+def _text_body(key: str) -> str | None:
+    """The body ("" for the module, "K." for class K) of a text-keyed segment; None for any other."""
+    body, bar, _ = key.partition("|")
+    return body if bar else None
+
+
+def _lane_claims(ch: dict) -> list[tuple[str, str, str | None]]:
+    claims = [("seg", k, t) for k, t in ch["changed"].items()] + [("seg", k, None) for k in ch["deleted"]]
+    return claims + [("new", k, t) for _, k, t in ch["added"]]
+
+
 def _claims(lanes: dict[str, dict]) -> dict[str, list[str]]:
-    """lane -> the lanes it conflicts with, in lane order; the first claimant of a segment keeps it."""
+    """lane -> the lanes it conflicts with, in lane order; the first claimant of a segment keeps it, and
+    the first lane to touch a text-keyed segment in a body keeps that body's text-keyed segments."""
     owner: dict[tuple[str, str], tuple[str, str | None]] = {}
     clash: dict[str, list[str]] = {}
     for lane, ch in lanes.items():
-        claims = [("seg", k, t) for k, t in ch["changed"].items()] + [("seg", k, None) for k in ch["deleted"]]
-        claims += [("new", k, t) for _, k, t in ch["added"]]
+        claims = _lane_claims(ch)
         for kind, key, text in claims:
             first = owner.setdefault((kind, key), (lane, text and text.strip()))
             if first[0] != lane and first[1] != (text and text.strip()):
                 clash.setdefault(lane, []).append(first[0])
+        for body in {b for _, key, _ in claims if (b := _text_body(key)) is not None}:
+            first = owner.setdefault(("text", body), (lane, None))[0]
+            if first != lane:
+                clash.setdefault(lane, []).append(first)
     return clash
 
 
