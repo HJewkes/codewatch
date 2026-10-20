@@ -292,6 +292,16 @@ ownership or the value floor, and sends a constraint break to T3 with its eviden
 and MCP tools from its stream-json events (C-232). `python3 -m gate.replay <manifest>` is the
 false-reject replay (owner R3-1). It reports aggregates only.
 
+**Cleanup runner (C-248 S6).** `python3 -m runner <frozen tree> --problem P --checkpoint N --out DIR`
+runs the cleanup on a copy of the frozen tree. Wave 1 is shared work. Later waves run cluster tasks
+inner-first on up to 4 lanes, and the tree is re-planned before each wave. Each lane gets one headless
+`claude -p` session in the A1 image. The session sees the specs, the cluster's code and the plan
+template, and its only codewatch tool is `scbench gate` (`runner/scbench.sh`, over `python3 -m gate
+--cluster`). The S4 final gate then judges the lane. A reject gets one retry with one deterministic
+message; for a diffgate failure it is "restore these messages verbatim: ...". Accepted lanes are
+spliced at function level (`runner/splice.py`). The integration gate reverts lanes in reverse splice
+order (`runner/integrate.py`), and every task gets its S5 ledger row in `<out>/ledger.jsonl`.
+
 **Calibration corpus (C-252).** `calibration/` derives the cleanup gate's utility curves from a
 pinned corpus of maintained PyPI projects instead of the SCBench references. `python3 -I
 bench/scbench/calibration upstream|select|curves|score` lists the PyPI names the non-holdout
