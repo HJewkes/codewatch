@@ -74,8 +74,10 @@ class TestCheckInterpreterTest(StageTestCase):
         report, _ = self._run(tools, config)
 
         self.assertEqual(report["items"][0]["status"], "kept")
-        [(interpreter, argv, pythonpath)] = tools.test_runs
-        self.assertEqual((interpreter, argv), (str(self.tool), [str(self.tool), "-q", "tests"]))
+        base_run, item_run = tools.test_runs
+        self.assertEqual(base_run, item_run)
+        interpreter, argv, pythonpath = item_run
+        self.assertEqual((interpreter, argv), (str(self.tool), [str(self.tool), "-q", "tests", "-rfE"]))
         self.assertEqual(pythonpath.split(os.pathsep)[0], str(self.root.resolve()))
 
     def test_a_venv_off_path_with_pytest_runs_the_check_with_its_python(self):
@@ -86,7 +88,7 @@ class TestCheckInterpreterTest(StageTestCase):
         report, _ = self._run(tools)
 
         self.assertEqual(report["items"][0]["status"], "kept")
-        self.assertEqual([run[0] for run in tools.test_runs], [str(venv_python)])
+        self.assertEqual([run[0] for run in tools.test_runs], [str(venv_python)] * 2)
 
     def test_a_dot_venv_with_pytest_runs_the_configured_command_with_it_on_path(self):
         venv_python = self.root / ".venv" / "bin" / "python"
@@ -95,7 +97,7 @@ class TestCheckInterpreterTest(StageTestCase):
         report, _ = self._run(tools)
 
         self.assertEqual(report["items"][0]["status"], "kept")
-        self.assertEqual(tools.test_runs, [(str(venv_python), ["python", "-m", "pytest", "-q", "tests"], None)])
+        self.assertEqual(tools.test_runs, [(str(venv_python), ["python", "-m", "pytest", "-q", "tests", "-rfE"], None)] * 2)
 
     def test_no_runnable_pytest_reports_the_check_unavailable_before_any_fix(self):
         shutil.rmtree(self.root / ".venv")

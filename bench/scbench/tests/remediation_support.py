@@ -108,21 +108,32 @@ class FakeClaude:
         return [argv[-1] for argv in self.calls]
 
 
-class FakeTools:
-    """Answers the test command, codewatch and the review command by argv."""
+def pytest_output(*failing):
+    """What `pytest -q -rfE` prints when the named tests fail."""
+    summary = "".join(f"FAILED {test_id} - AssertionError: assert 1 == 2\n" for test_id in failing)
+    return f"F.\n=========== short test summary info ===========\n{summary}{len(failing)} failed, 1 passed\n"
 
-    def __init__(self, tests=(), violations=(), diff=None, reviews=()):
+
+class FakeTools:
+    """Answers the test command, codewatch and the review command by argv.
+
+    The first test run is the stage's base run and answers with `base`; each later one takes
+    the next of `tests`. A result is an exit code, or an exit code and the run's stdout."""
+
+    def __init__(self, tests=(), violations=(), diff=None, reviews=(), base=0):
         self.tests, self.violations, self.reviews = list(tests), list(violations), list(reviews)
         self.diff = diff or {}
         self.calls = []
+        self.test_argvs = []
         self.snapshot_id = 0
+        self.base = [base]
 
     def __call__(self, argv, env, cwd, timeout):
         argv = list(argv)
         self.calls.append(argv)
-        if argv == TESTS:
+        if argv[:3] == TESTS[:3]:
             leave_test_run_output(Path(cwd))
-            return (self.tests.pop(0) if self.tests else 0), "", False
+            return self._test_run(argv)
         if argv[:1] == REVIEW:
             return 0, json.dumps(self.reviews.pop(0) if self.reviews else {"verdict": "ok"}), False
         if argv[1:3] == ["graph", "check"]:
@@ -130,6 +141,13 @@ class FakeTools:
         if argv[1:3] == ["graph", "diff"]:
             return 0, json.dumps({"diff": self.diff}), False
         return 0, "", False
+
+    def _test_run(self, argv):
+        self.test_argvs.append(argv)
+        queue = self.base or self.tests
+        result = queue.pop(0) if queue else 0
+        code, stdout = result if isinstance(result, tuple) else (result, "")
+        return code, stdout, False
 
     def _check(self):
         self.snapshot_id += 1

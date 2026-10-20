@@ -6,6 +6,9 @@ that tests with unittest can leave a virtualenv without pytest, or one off PATH,
 resort is the image's pinned pytest, the one the audit's diff coverage runs. It gets the
 workspace and the solve's virtualenv packages on `PYTHONPATH`, as `python -m pytest` in that
 virtualenv would see them. A custom test command runs as given, with `.venv/bin` on PATH.
+
+`prefix` counts the argv entries that invoke pytest, so the check can ask pytest for its
+short summary and rerun single tests; it is 0 for a custom command, judged by exit code.
 """
 
 from __future__ import annotations
@@ -23,6 +26,7 @@ DEFAULT_TOOL_PYTEST = "/opt/codewatch-a1/bin/pytest"
 PYTHON_NAMES = ("python", "python3")
 PYTEST_MODULE = ["-m", "pytest"]
 PROBE = ["-c", "import pytest"]
+SUMMARY_FLAGS = ("-rfE",)
 
 
 @dataclass(frozen=True)
@@ -31,6 +35,14 @@ class TestCommand:
     source: str
     path: tuple[str, ...] = ()
     pythonpath: str | None = None
+    prefix: int = 0
+
+    def argv(self) -> list[str]:
+        return [*self.command, *SUMMARY_FLAGS] if self.prefix else list(self.command)
+
+    def rerun_argv(self, test_ids: Sequence[str]) -> list[str]:
+        """Only the named tests; the command's own options and paths are left out."""
+        return [*self.command[:self.prefix], "-q", *SUMMARY_FLAGS, *test_ids]
 
     def env(self, base: Mapping[str, str]) -> dict[str, str]:
         env = dict(base)
@@ -55,15 +67,15 @@ class Resolver:
             return TestCommand(tuple(command), "custom", (str(dot_venv),) if dot_venv.is_dir() else ())
         for venv in self._venv_bins():
             if self._has_pytest(str(venv / "python"), env, timeout):
-                return TestCommand(tuple(command), venv.parent.name, (str(venv),))
+                return TestCommand(tuple(command), venv.parent.name, (str(venv),), prefix=3)
         if self._has_pytest(command[0], env, timeout):
-            return TestCommand(tuple(command), "PATH")
+            return TestCommand(tuple(command), "PATH", prefix=3)
         if not Path(self.tool_pytest).is_file():
             return None
         root = self.workspace.resolve()
         pythonpath = os.pathsep.join([str(root), str(agent_site_hook(root, self.scratch / "test-env"))])
         bins = tuple(str(b) for b in self._venv_bins())
-        return TestCommand((self.tool_pytest, *command[3:]), "tool pytest", bins, pythonpath)
+        return TestCommand((self.tool_pytest, *command[3:]), "tool pytest", bins, pythonpath, prefix=1)
 
     def _venv_bins(self) -> list[Path]:
         return [self.workspace / v / "bin" for v in AGENT_VENVS if (self.workspace / v / "bin" / "python").exists()]

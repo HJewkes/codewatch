@@ -254,8 +254,8 @@ deadline the agent passes in, and then resets the work tree to the last kept com
    name no grader, grader tool or grader metric.
 3. **One commit per item**, kept only if it passes these checks:
    - a test gap, in any phase: it changes files under the tests directory only, and the
-     suite is green;
-   - a quality item: the suite is green, and `codewatch graph check --baseline
+     suite adds no failure the base did not have;
+   - a quality item: the suite adds no failure the base did not have, and `codewatch graph check --baseline
      <merge-base>` lists no violation the tree before the commit did not already have.
      The baseline is `cw-merge-base-cp-N`, which `commit-ratchet` indexed, unless
      `--baseline` names another. With a codewatch that has no `graph index --rev`, that
@@ -270,6 +270,16 @@ deadline the agent passes in, and then resets the work tree to the last kept com
    and the solve's virtualenv packages on `PYTHONPATH`. A solve that tests with unittest
    often leaves none of the first three with pytest. If none can run the suite, no item
    starts and the outcome is `check-unavailable`, not a revert of every fix.
+
+   Then the check runs once at the base, before any item (`remediation/oracle.py`), and
+   the report's `oracle` records `pass`, `base-failing` (with the failing test ids) or
+   `unavailable` (with the reason): a base run that times out, fails naming no test, or
+   fails under a custom `--test-command`. An unavailable check starts no item. A pytest
+   check gets `-rfE` and is judged by the ids in its short summary against the base's
+   failing set. Each new failure is rerun once alone, and one that passes on the rerun is
+   kept and listed in the item's `flaky`. A custom command names no tests, so it is judged
+   by exit code. When three items in a row are reverted for the same reason, the stage
+   stops (`stage-stopped`): that points at a broken check, not at the items.
 4. **Review hook (U17).** A commit that passes goes to `--review-command <sha>` when one
    is set. That command prints `{"verdict": "ok"|"conflict", "spec_line", "reason"}`. On a
    conflict the session is resumed once with the finding, and the revised commit is
@@ -289,7 +299,7 @@ deadline the agent passes in, and then resets the work tree to the last kept com
    path is printed on stderr.
 
 The report line sets `outcome` (`kept` if any commit was kept, else `reverted`,
-`unchanged`, `skipped` or `check-unavailable`), `reason`, `items_in`, `items_out` (commits kept), `held_back`,
+`unchanged`, `skipped`, `check-unavailable` or `stage-stopped`), `reason`, `oracle`, `items_in`, `items_out` (commits kept), `held_back`,
 `stopped_by`, `session_id`, `turns`, `tokens`, `usd` (the fix session alone),
 `review_tokens` and `review_usd` (every review call), `usd_total` (`usd` plus
 `review_usd`), `model_usage` (each model's totals from the result events' `modelUsage`, so
@@ -299,7 +309,9 @@ and phase-3 commits, flagged `single-caller-helper` when exactly one call reache
 and `items`. Each entry in `items` gives the phase, kind (`test-gap` or `quality`), signal,
 the missing test kind (for `missing-test-kind`), path, status (`kept`,
 `reverted`, `unchanged`, `time limit` or `not-started`), commit sha, reason, review
-verdict and whether the session was resumed.
+verdict and whether the session was resumed. A reverted item also gives `cause`, the
+check reason the stop rule compares, and an item with a failure that passed on its rerun
+gives `flaky`.
 
 ## findings/
 

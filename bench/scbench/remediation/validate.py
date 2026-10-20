@@ -1,6 +1,6 @@
 """Checks on each fix commit, and the hook for the spec-aware commit review (U17).
 
-- Tests: the agent's whole suite is green, run by the interpreter `interpreter` resolved.
+- Tests: the agent's suite adds no failure its base did not have (`oracle`).
 - Ratchet: `codewatch graph check --baseline <merge-base>` lists no violation the tree
   before the commit did not already have. The solve's own new violations are not the
   fix's, so the comparison is against the state before the commit.
@@ -18,11 +18,8 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from .interpreter import TestCommand
-
 Run = Callable[[Sequence[str], Mapping[str, str], str, float | None], tuple[int | None, str, bool]]
 
-PYTEST_NO_TESTS = 5
 SYMBOL_KINDS = frozenset({"function", "method"})
 
 
@@ -31,22 +28,7 @@ class Check:
     name: str
     passed: bool
     detail: str
-
-
-@dataclass(frozen=True)
-class TestRunner:
-    workspace: Path
-    command: TestCommand
-    tests_dir: str
-    run: Run
-
-    def __call__(self, env: Mapping[str, str], timeout: float | None) -> Check:
-        if not (self.workspace / self.tests_dir).is_dir():
-            return Check("tests", True, f"no {self.tests_dir}/ directory")
-        code, _, timed_out = self.run(self.command.command, self.command.env(env), str(self.workspace), timeout)
-        if timed_out:
-            return Check("tests", False, "tests timed out")
-        return Check("tests", code in (0, PYTEST_NO_TESTS), f"exit {code}")
+    flaky: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
