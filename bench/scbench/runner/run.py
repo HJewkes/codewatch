@@ -70,7 +70,7 @@ def _judge(run: Run, steps, task: dict, base: Path, ws: Path, out: Path) -> dict
     reinline = reinlined(read(ledger_path(run.out)), result["report"])
     outcome = "reject" if reinline else result["outcome"]
     verdict = {"outcome": outcome, "tier": result["tier"], "reasons": result["reasons"] + reinline,
-               "visible": visible, "diffgate_pass": dg.get("pass")}
+               "visible": visible, "diffgate_pass": dg.get("pass"), "diffgate_inconclusive": len(dg.get("inconclusive", []))}
     (out / "final.json").write_text(json.dumps(verdict, indent=1, sort_keys=True) + "\n")
     return {"result": result, "reinline": reinline, "diffgate": dg, "outcome": outcome}
 
@@ -145,7 +145,8 @@ def _lane_summary(lane: dict) -> dict:
     return {"task": lane["task"]["id"], "refused": lane["refused"], "attempts": [
         {"n": a["n"], "outcome": a["outcome"], "tier": a["result"]["tier"], "reasons": a["result"]["reasons"] + a["reinline"],
          "usd": a["facts"].get("usd", 0.0), "tree_changed": a["facts"].get("tree_changed"),
-         "diffgate_pass": a["diffgate"].get("pass")} for a in lane["attempts"]]}
+         "diffgate_pass": a["diffgate"].get("pass"), "inconclusive": len(a["diffgate"].get("inconclusive", []))}
+        for a in lane["attempts"]]}
 
 
 def execute(run: Run, steps, frozen: Path) -> dict:

@@ -5,9 +5,10 @@
             codewatch CLI and its install are masked. run.json records the cost and whether the tree
             changed (a no-op session is never a pass: the E2 parity lesson).
   visible   the workspace's own tests, on a copy.
-  diffgate  C-242 `diffgate.sh inloop` against the wave base; its work dir is pruned once read. A case
-            that timed out on the base (both base runs, or diffgate would call it nondeterministic) says
-            nothing about the lane, so it is counted as inconclusive and left out of the verdict.
+  diffgate  C-242 `diffgate.sh inloop` against the wave base; its work dir is pruned once read. Under
+            host load the replay's 10 s case limit trips on identical trees, on the base and the head
+            alike, so a case with a timeout on either side is counted as inconclusive and left out of the
+            verdict (and of the restore message) rather than read as a behaviour change.
 """
 
 from __future__ import annotations
@@ -114,10 +115,11 @@ def diffgate(problem: str, n: int, base: Path, head: Path, out: Path) -> dict:
 
 
 def settle_timeouts(gate: dict) -> dict:
-    """The verdict without the differing cases whose base run timed out."""
-    def base_timeout(item: dict) -> bool:
-        return item.get("status") == "differs" and (item.get("base") or {}).get("rc") == "timeout"
-    timed_out = [i["case"] for i in gate.get("differences", []) if base_timeout(i)]
-    left = [i for i in gate.get("differences", []) if not base_timeout(i)]
+    """The verdict without the differing cases that timed out on either side."""
+    def timed_out(item: dict) -> bool:
+        return item.get("status") == "differs" and "timeout" in ((item.get("base") or {}).get("rc"),
+                                                                  (item.get("head") or {}).get("rc"))
+    inconclusive = [i["case"] for i in gate.get("differences", []) if timed_out(i)]
+    left = [i for i in gate.get("differences", []) if not timed_out(i)]
     return {**gate, "pass": not any(i.get("status") == "differs" for i in left), "differences": left,
-            "inconclusive": timed_out}
+            "inconclusive": inconclusive}

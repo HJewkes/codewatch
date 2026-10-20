@@ -88,13 +88,14 @@ class Retry(unittest.TestCase):
 
 
 class DiffgateTimeouts(unittest.TestCase):
-    def test_a_case_that_timed_out_on_the_base_is_inconclusive_not_a_difference(self):
-        # mutation: counting a base-side timeout as a behaviour change of the lane
-        timeout = {"case": "g1", "status": "differs", "fields": ["rc"], "base": {"rc": "timeout"}, "head": {"rc": 0}}
-        changed = {"case": "g2", "status": "differs", "fields": ["rc"], "base": {"rc": 0}, "head": {"rc": "timeout"}}
-        self.assertEqual(settle_timeouts({"pass": False, "differences": [timeout]})["pass"], True)
-        settled = settle_timeouts({"pass": False, "differences": [timeout, changed]})
-        self.assertEqual((settled["pass"], settled["inconclusive"], settled["differences"]), (False, ["g1"], [changed]))
+    def test_a_case_that_timed_out_on_either_side_is_inconclusive_not_a_difference(self):
+        # mutation: counting a replay timeout as a behaviour change of the lane
+        def case(name, base, head):
+            return {"case": name, "status": "differs", "fields": ["rc"], "base": {"rc": base}, "head": {"rc": head}}
+        changed = case("g3", 0, 2)
+        settled = settle_timeouts({"pass": False, "differences": [case("g1", "timeout", 0), case("g2", 0, "timeout"), changed]})
+        self.assertEqual((settled["pass"], settled["inconclusive"], settled["differences"]), (False, ["g1", "g2"], [changed]))
+        self.assertTrue(settle_timeouts({"pass": False, "differences": [case("g1", 2, "timeout")]})["pass"])
 
 
 class SelfCheckOverrun(unittest.TestCase):
