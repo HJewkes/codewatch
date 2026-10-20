@@ -1,4 +1,7 @@
-"""metrics.py <audited workspace>: size, test, complexity and finding metrics as one JSON object."""
+"""metrics.py <audited workspace>: size, test, complexity and finding metrics as one JSON object.
+
+`audited` says whether the codewatch audit left its graph.db; the cognitive numbers do not need it.
+"""
 import ast
 import collections
 import json
@@ -53,7 +56,8 @@ out = {"src_loc": src_loc, "test_loc": test_loc, "test_fns": sum(map(test_count,
        "test_files": len(tests), "test_src_ratio": round(test_loc / max(src_loc, 1), 2)}
 
 cog = cognitive_values(src)
-out.update(cog_max=max(cog, default=0), cog_mean=round(sum(cog) / max(len(cog), 1), 2), src_symbols=len(cog),
+out.update(audited=(ws / ".codewatch" / "graph.db").is_file(),
+           cog_max=max(cog, default=0), cog_mean=round(sum(cog) / max(len(cog), 1), 2), src_symbols=len(cog),
            cog_over_15=sum(1 for v in cog if v > 15))
 
 findings = ws / ".codewatch" / "audit" / "findings.jsonl"

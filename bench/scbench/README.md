@@ -265,7 +265,8 @@ per measure family (Alves 2010). Unit measures reuse `dilution.py`'s CC, SLOC an
 complexity is `calibration/cognitive.py`, scb-check 0.1.3's rules on the Python AST (it agrees
 exactly on every function of the 44 C-246 trees); `cog` is its own-body form and `cog_scb` counts
 nested functions in their parent, as scb-check does. `c239/harness/metrics.py` and `targets.py`
-use it too. The versioned curves are `calibration/curves/python-v1.1.json` (v1 used the round 3
+use it too (`metrics.py`'s `audited` says whether the audit left a graph.db); `c239/report.py`'s
+attention lines still read graph.db's `symbol_cognitive`. The versioned curves are `calibration/curves/python-v1.1.json` (v1 used the round 3
 approximation), with the corpus manifest, unchanged since v1, beside them. Downloads stay in a cache
 outside the repo, and nothing from a downloaded project is executed.
 
