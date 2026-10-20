@@ -247,6 +247,14 @@ runs `newc_arm.sh`, the audit metrics, the regrade and `gates.py`. `gates.py` ch
 must-not-regress, refactor growth, single-caller and test:source, mechanically.
 `table_c241.py` prints the table.
 
+**Cleanup report (C-248 S2).** `c239/harness/cleanup_report.py <before> <after> [--json out]`
+prints high-CC mass (Σ over CC > 10 of CC·√SLOC), the CC > 10 count, max CC and total CC, each
+before → after, for the tree and for the functions the change touched. Then it prints erosion as a
+legacy line, and nesting depth and defensive-check density as report lines only. `dilution.py`
+computes these without running scb-check: it ports scb-check 0.1.3's CC, SLOC and function walk over
+the source files, with the tests dir left out as in the ex-tests erosion. `run_c246.sh` writes
+`cleanup.json`, and `table_c246.py` shows its mass, count and max beside the legacy erosion.
+
 **Holdout guard (C-243).** Every run, freeze and regrade entry point (`c239/harness/*.sh`,
 `python3 -m regrade`) first runs `regrade/holdout.py`. It reads the holdout list from the
 gitignored manifest's `holdout` field and refuses (exit 3) a holdout problem unless
