@@ -3,7 +3,8 @@
 Units are functions where scb-check finds them (dilution.py's walk). Per unit:
   cc       own-body CC: dilution.py's counting rules over the body without nested defs and lambdas
   cc_scb   dilution.py's CC, nested functions counted in their parent too
-  cog      own-body cognitive complexity (cognitive.py; provisional)
+  cog      own-body cognitive complexity: cognitive.py's scb-check rules without nested defs and classes
+  cog_scb  cognitive.py's cognitive complexity, nested functions counted in their parent too, as scb-check
   sloc     own SLOC: dilution.py's code lines in the def, less those of nested defs and classes
   in       parameters, not counting self and cls
 Classes: methods (excluding __init__, static and class methods, as code-graph's LCOM4) and SLOC.
@@ -84,8 +85,9 @@ def class_methods(node: ast.ClassDef) -> int:
 
 
 def unit_row(rel: str, name: str, fn: ast.AST, lines: set[int]) -> dict:
-    return {"key": f"{rel}:{name}", "cc": own_cc(fn), "cc_scb": dilution.cyclomatic(fn), "cog": cognitive(fn),
-            "sloc": own_sloc(fn, lines), "in": n_params(fn)}
+    return {"key": f"{rel}:{name}", "cc": own_cc(fn), "cc_scb": dilution.cyclomatic(fn),
+            "cog": cognitive(fn, own_body=True), "cog_scb": cognitive(fn), "sloc": own_sloc(fn, lines),
+            "in": n_params(fn)}
 
 
 def classes_of(tree: ast.Module, rel: str, lines: set[int]) -> list[dict]:

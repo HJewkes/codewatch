@@ -1,11 +1,9 @@
-import ast
 import tempfile
 import textwrap
 import unittest
 from pathlib import Path
 
 from calibration import corpus, curves
-from calibration.cognitive import cognitive
 from calibration.measure import measure_module, measure_project
 from calibration.production import excluded_path, is_generated
 
@@ -28,10 +26,6 @@ NESTED = textwrap.dedent('''
                 return inner(y)
             return 0
 ''')
-
-
-def fn(src):
-    return ast.parse(textwrap.dedent(src)).body[0]
 
 
 def write(root, files):
@@ -71,16 +65,10 @@ class UnitMeasures(unittest.TestCase):
         module = measure_module("pkg/box.py", NESTED)
         self.assertEqual(module["classes"][0]["methods"], 1)
 
-    def test_cognitive_charges_nesting_and_one_per_boolean_run(self):
-        loop = fn("""
-            def f(xs):
-                for x in xs:
-                    if x and x > 1 and x < 9:
-                        return x
-                    elif x or x is None:
-                        return 0
-        """)
-        self.assertEqual(cognitive(loop), 1 + 2 + 1 + 1 + 1)
+    def test_unit_cognitive_is_own_body_and_scb_cognitive_keeps_nested_functions(self):
+        module = measure_module("pkg/box.py", NESTED)
+        run = next(u for u in module["units"] if u["key"] == "pkg/box.py:Box.run")
+        self.assertEqual((run["cog"], run["cog_scb"]), (1, 3))
 
     def test_an_unparseable_module_is_skipped(self):
         self.assertIsNone(measure_module("bad.py", "def (:\n"))
@@ -104,7 +92,7 @@ class ProjectMeasures(unittest.TestCase):
 
 
 def system(values):
-    units = [{"cc": v, "cc_scb": v, "cog": v, "in": 1, "sloc": s} for v, s in values]
+    units = [{"cc": v, "cc_scb": v, "cog": v, "cog_scb": v, "in": 1, "sloc": s} for v, s in values]
     return {"units": units, "classes": [], "modules": []}
 
 
@@ -125,10 +113,9 @@ class Curves(unittest.TestCase):
         self.assertEqual(curves.band_shares(rows, "cc", edges),
                          {"low": 0.5, "moderate": 0.25, "high": 0.0, "very_high": 0.25})
 
-    def test_derived_curves_mark_the_cognitive_port_provisional(self):
+    def test_derived_curves_cover_own_body_and_scb_cognitive(self):
         derived = curves.derive([system([(1, 10), (3, 10)])])
-        self.assertTrue(derived["complexity"]["cog"]["provisional"])
-        self.assertNotIn("provisional", derived["complexity"]["cc"])
+        self.assertEqual(sorted(derived["complexity"]), ["cc", "cc_scb", "cog", "cog_scb"])
 
 
 def stats(**overrides):

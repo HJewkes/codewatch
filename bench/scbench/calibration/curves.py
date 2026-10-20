@@ -10,18 +10,17 @@ from __future__ import annotations
 
 QUANTILES = (0.7, 0.8, 0.9)
 BANDS = ("low", "moderate", "high", "very_high")
-COGNITIVE_NOTE = "approximate port: matches scb-check exactly in 11 of 44 trees"
 
 # family -> measure -> (entity kind, field)
 MEASURES = {
-    "complexity": {"cc": ("units", "cc"), "cog": ("units", "cog"), "cc_scb": ("units", "cc_scb")},
+    "complexity": {"cc": ("units", "cc"), "cog": ("units", "cog"), "cc_scb": ("units", "cc_scb"),
+                   "cog_scb": ("units", "cog_scb")},
     "size": {"sloc": ("units", "sloc")},
     "interface": {"in": ("units", "in")},
     "module": {"module_sloc": ("modules", "sloc"), "class_methods": ("classes", "methods")},
     "coupling": {"fan_in": ("modules", "fan_in"), "fan_out": ("modules", "fan_out"),
                  "instability": ("modules", "instability")},
 }
-PROVISIONAL = {"cog": COGNITIVE_NOTE}
 
 
 def system_pairs(rows: list[dict], field: str) -> list[tuple[float, float]]:
@@ -51,11 +50,8 @@ def derive(systems: list[dict]) -> dict:
         for name, (kind, field) in measures.items():
             pairs = [p for s in systems for p in system_pairs(s[kind], field)]
             p70, p80, p90 = weighted_quantiles(pairs)
-            entry = {"entity": kind, "weight": "sloc", "p70": p70, "p80": p80, "p90": p90,
-                     "entities": len(pairs)}
-            if name in PROVISIONAL:
-                entry.update(provisional=True, note=PROVISIONAL[name])
-            families[family][name] = entry
+            families[family][name] = {"entity": kind, "weight": "sloc", "p70": p70, "p80": p80, "p90": p90,
+                                      "entities": len(pairs)}
     return families
 
 
