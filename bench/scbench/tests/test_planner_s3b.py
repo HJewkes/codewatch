@@ -189,3 +189,19 @@ class Templates(TreeCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DetectorAlignment(unittest.TestCase):
+    def found(self, source, qual):
+        tree, units = module_units("m.py", source)
+        return detect(tree, units, set())[f"m.py:{qual}"]
+
+    def test_an_optional_parameter_tested_against_none_is_not_a_flag(self):
+        source = ("def check(kind, value=None):\n    if value is not None and kind != value:\n        return False\n"
+                  "    return True\n\n\ndef use():\n    return check('a', 'b')\n")
+        self.assertEqual(self.found(source, "check")["control"], [])
+
+    def test_a_local_read_only_by_a_closure_is_used(self):
+        source = ("def header(path, zipped):\n    opener = open\n    if zipped:\n        opener = len\n\n"
+                  "    def read():\n        return opener(path)\n    return read()\n")
+        self.assertEqual(self.found(source, "header")["unused"], [])

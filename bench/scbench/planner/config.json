@@ -39,7 +39,7 @@
   "iface_base": 0.05,
   "iface_ratio": 0.5,
   "crossings": 1,
-  "module_lines_per_new_function": 2,
+  "module_lines_per_new_function": 3,
   "module_risk": 0.05,
   "module_risk_basis": "module",
   "amount_ratio": 1.5
