@@ -9,8 +9,10 @@ writes them and `score` bands a tree against them; `../curves.py` lists the fami
 | python-v1 | complexity, size, interface, module, coupling | first corpus curves (C-252) |
 | python-v1.1 | as v1, plus `cog_scb` | cognitive measured by `../cognitive.py` (C-248 S4a) |
 | python-v1.2 | as v1.1, plus control, stamp, common, cohesion, cycles | the cleanup planner's coupling detectors (C-248 S3c) |
+| python-v1.3 | as v1.2 | re-measured after S4 changed the control detectors (flag form drops `is` / `is not`, closure reads count as uses); the bands did not move (C-248 S3c-v13) |
 
-All three versions use the same manifest. In v1.2 the v1.1 families are byte-identical to v1.1.
+All versions use the same manifest. In v1.2 the v1.1 families are byte-identical to v1.1. In v1.3 every family's
+bands are byte-identical to v1.2: the control and control_origin counts changed in 47 of 80 projects, but not their p70/p80/p90.
 
 **Thresholds come from the corpus, not from the SCBench references.** The non-holdout
 references are known-good only for the false-reject check: their band shares show how much
