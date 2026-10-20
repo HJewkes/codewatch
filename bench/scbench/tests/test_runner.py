@@ -12,6 +12,7 @@ from pathlib import Path
 
 from ledger import ledger_path, read, tasks
 from runner import prompt
+from runner.container import settle_timeouts
 from runner.run import Run, execute
 from tests.runner_fixtures import (
     BENCH,
@@ -84,6 +85,16 @@ class Retry(unittest.TestCase):
         self.assertIn(message, steps.prompts["app.py:calc_a"][1])
         [row] = tasks(read(ledger_path(run.out)))
         self.assertEqual((row["outcome"], row["retry_used"]), ("accept", True))
+
+
+class DiffgateTimeouts(unittest.TestCase):
+    def test_a_case_that_timed_out_on_the_base_is_inconclusive_not_a_difference(self):
+        # mutation: counting a base-side timeout as a behaviour change of the lane
+        timeout = {"case": "g1", "status": "differs", "fields": ["rc"], "base": {"rc": "timeout"}, "head": {"rc": 0}}
+        changed = {"case": "g2", "status": "differs", "fields": ["rc"], "base": {"rc": 0}, "head": {"rc": "timeout"}}
+        self.assertEqual(settle_timeouts({"pass": False, "differences": [timeout]})["pass"], True)
+        settled = settle_timeouts({"pass": False, "differences": [timeout, changed]})
+        self.assertEqual((settled["pass"], settled["inconclusive"], settled["differences"]), (False, ["g1"], [changed]))
 
 
 class SelfCheckOverrun(unittest.TestCase):

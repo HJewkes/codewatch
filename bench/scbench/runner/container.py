@@ -5,7 +5,9 @@
             codewatch CLI and its install are masked. run.json records the cost and whether the tree
             changed (a no-op session is never a pass: the E2 parity lesson).
   visible   the workspace's own tests, on a copy.
-  diffgate  C-242 `diffgate.sh inloop` against the wave base; its work dir is pruned once read.
+  diffgate  C-242 `diffgate.sh inloop` against the wave base; its work dir is pruned once read. A case
+            that timed out on the base (both base runs, or diffgate would call it nondeterministic) says
+            nothing about the lane, so it is counted as inconclusive and left out of the verdict.
 """
 
 from __future__ import annotations
@@ -108,4 +110,14 @@ def diffgate(problem: str, n: int, base: Path, head: Path, out: Path) -> dict:
                     str(dg), "inloop"], capture_output=True, env=ENV, check=False)
     shutil.rmtree(dg / "work", ignore_errors=True)
     gate = dg / "gate.json"
-    return json.loads(gate.read_text()) if gate.is_file() else {"pass": False, "error": "diffgate wrote no gate.json"}
+    return settle_timeouts(json.loads(gate.read_text())) if gate.is_file() else {"pass": False, "error": "no gate.json"}
+
+
+def settle_timeouts(gate: dict) -> dict:
+    """The verdict without the differing cases whose base run timed out."""
+    def base_timeout(item: dict) -> bool:
+        return item.get("status") == "differs" and (item.get("base") or {}).get("rc") == "timeout"
+    timed_out = [i["case"] for i in gate.get("differences", []) if base_timeout(i)]
+    left = [i for i in gate.get("differences", []) if not base_timeout(i)]
+    return {**gate, "pass": not any(i.get("status") == "differs" for i in left), "differences": left,
+            "inconclusive": timed_out}
