@@ -138,7 +138,7 @@ class TextKeyedSplice(unittest.TestCase):
         self.assertEqual(out["files"]["m.py"].decode(), self.DEF)
 
     def test_two_lanes_editing_a_guarded_import_drop_the_later_lane(self):
-        # mutation: the body claim skipping deletions, so both try blocks land
+        # mutation: the body claim narrowed to `if` statements, so both try blocks land
         guard = "try:\n    import {0}\nexcept ImportError:\n    {0} = None\n\n\n" + self.DEF
         out = self.two(guard.format("json"), guard.format("ujson"), guard.format("simplejson"))
         self.assertEqual((out["spliced"], out["conflicts"]), (["t1"], {"t2": ["m.py"]}))
@@ -152,10 +152,10 @@ class TextKeyedSplice(unittest.TestCase):
     def test_a_text_keyed_edit_and_a_def_edit_in_one_file_both_splice(self):
         # mutation: the body claim counting def or assignment segments, so the def-only lane is dropped
         base = self.guarded("main(0)")
-        t2 = base.replace("return code", "return code + 1")
-        out = self.two(base, self.guarded("main(1)"), t2)
+        bump = ("return code", "return code + 1")
+        out = self.two(base, self.guarded("main(1)"), base.replace(*bump))
         self.assertEqual((out["spliced"], out["conflicts"]), (["t1", "t2"], {}))
-        self.assertEqual(out["files"]["m.py"].decode(), self.guarded("main(1)").replace("return code", "return code + 1"))
+        self.assertEqual(out["files"]["m.py"].decode(), self.guarded("main(1)").replace(*bump))
 
 
 class Schedule(unittest.TestCase):
