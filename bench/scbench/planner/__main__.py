@@ -1,7 +1,9 @@
-"""python3 -m planner plan <tree> [--graph-db DB] [--cap N]   the task plan as JSON (sorted keys)
+"""python3 -m planner plan <tree> [--graph-db DB] [--cap N] [--label L]   the task plan as JSON (sorted keys),
+                                                             with each task's edits and plan template
+python3 -m planner template <tree> <task id> [--label L]     one task's plan template (C-248 B8.2)
 python3 -m planner cut <tree> <unit key> <start> <end>       the cut width of a line range in one unit
 
-`plan` exits 1 when two tasks of one wave own the same unit.
+`plan` exits 1 when two tasks of one wave own or edit the same unit, or a task edits a unit it does not own.
 """
 
 from __future__ import annotations
@@ -27,6 +29,11 @@ def main(argv: list[str]) -> int:
     plan.add_argument("tree")
     plan.add_argument("--graph-db")
     plan.add_argument("--cap", type=int, default=TOKEN_CAP)
+    plan.add_argument("--label", default="")
+    template = sub.add_parser("template")
+    template.add_argument("tree")
+    template.add_argument("task")
+    template.add_argument("--label", default="")
     cut = sub.add_parser("cut")
     cut.add_argument("tree")
     cut.add_argument("key")
@@ -37,7 +44,11 @@ def main(argv: list[str]) -> int:
         units, _ = graph(Path(args.tree))
         sys.stdout.write(dump(cut_width(units[args.key].node, args.start, args.end)))
         return 0
-    result = plan_tree(Path(args.tree), args.graph_db, args.cap)
+    if args.cmd == "template":
+        tasks = {t["id"]: t for t in plan_tree(Path(args.tree), label=args.label)["tasks"]}
+        sys.stdout.write(tasks[args.task]["template"])
+        return 0
+    result = plan_tree(Path(args.tree), args.graph_db, args.cap, label=args.label)
     sys.stdout.write(dump(result))
     conflicts = ownership_conflicts(result)
     for line in conflicts:
