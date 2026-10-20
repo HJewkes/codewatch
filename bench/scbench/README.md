@@ -303,9 +303,9 @@ complexity is `calibration/cognitive.py`, scb-check 0.1.3's rules on the Python 
 exactly on every function of the 44 C-246 trees); `cog` is its own-body form and `cog_scb` counts
 nested functions in their parent, as scb-check does. `c239/harness/metrics.py` and `targets.py`
 use it too (`metrics.py`'s `audited` says whether the audit left a graph.db); `c239/report.py`'s
-attention lines still read graph.db's `symbol_cognitive`. The versioned curves are `calibration/curves/python-v1.2.json` (v1 used the round 3
+attention lines still read graph.db's `symbol_cognitive`. The versioned curves are `calibration/curves/python-v1.3.json` (v1 used the round 3
 approximation; v1.2 adds the planner's control, stamp, common, cohesion and cycle counts, read
-through `calibration/interface.py`), with the corpus manifest, unchanged since v1, beside them.
+through `calibration/interface.py`; v1.3 re-measures them after the S4 detector changes), with the corpus manifest, unchanged since v1, beside them.
 `calibration/curves/README.md` lists the versions and states that thresholds come from the corpus,
 with the references used only for the false-reject check. Downloads stay in a cache
 outside the repo, and nothing from a downloaded project is executed.
