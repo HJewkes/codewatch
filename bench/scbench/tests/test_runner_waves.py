@@ -25,7 +25,9 @@ class Segments(unittest.TestCase):
         # mutation: a segment that drops the comment or blank lines above a def
         text = "import re\n\n\n# about a\ndef a():\n    pass\n\n\nclass K:\n    x = 1\n\n    def m(self):\n        pass\n"
         self.assertEqual("".join(t for _, t in segments(text)), text)
-        self.assertEqual([k for k, _ in segments(text)], ["|import re", "a", "class K", "K.|x = 1", "K.m"])
+        cut = segments(text)
+        self.assertEqual([k for k, _ in cut], ["|import re", "a", "class K", "K.|x = 1", "K.m"])
+        self.assertTrue(dict(cut)["a"].startswith("\n\n# about a\n"))
 
 
 class Splice(unittest.TestCase):
@@ -48,6 +50,7 @@ class Splice(unittest.TestCase):
         head = module(self.names).replace("def f3(", "def f2_helper():\n    return 1\n\n\ndef f3(")
         out = splice(self.base, {"t1": {"app.py": head.encode()}, "t2": self.lane(["f5"])})
         text = out["files"]["app.py"].decode()
+        self.assertLess(text.index("def f2("), text.index("def f2_helper"))
         self.assertLess(text.index("def f2_helper"), text.index("def f3("))
         self.assertIn(table("f5"), text)
 
