@@ -77,10 +77,11 @@ def lcom4(cls: ast.ClassDef) -> int:
     return len({find(m) for m in names})
 
 
+def class_fact(cls: ast.ClassDef) -> dict:
+    fields = _fields(cls)
+    temporary = set().union(*(_self_names(m, ast.Store) for m in _methods(cls) if m.name not in INITS)) - fields
+    return {"lcom4": lcom4(cls), "temporary": sorted(temporary), "methods": len(_methods(cls))}
+
+
 def class_facts(tree: ast.Module) -> dict[str, dict]:
-    out = {}
-    for name, cls in sorted(classes(tree).items()):
-        fields = _fields(cls)
-        temporary = set().union(*(_self_names(m, ast.Store) for m in _methods(cls) if m.name not in INITS)) - fields
-        out[name] = {"lcom4": lcom4(cls), "temporary": sorted(temporary), "methods": len(_methods(cls))}
-    return out
+    return {name: class_fact(cls) for name, cls in sorted(classes(tree).items())}
