@@ -1,0 +1,12 @@
+codewatch: 9 findings on this change (base = previous checkpoint)
+1. [contract] execute (line 467): signature (steps, raw_steps, dataset) -> (steps, raw_steps, dataset, prefix='pipeline.steps'). Unchanged callers: process. Tests still naming a gone site: none. Verify: decide from the spec whether each gone site must still fail; pin it at the CLI.
+2. [input] _normalize_branch (line 365) reads 6 keys; the 21 test inputs it gets: branches: never null/empty; merge: never null/empty; strategy (has a default): never null/empty; steps: never null. Verify: feed each class through the CLI and pin the spec's answer.
+3. [input] normalize_step (line 291) reads 6 keys; the 46 test inputs it gets: op: never missing/null/empty; columns: never null; mapping: never null/empty; n: never null/empty. Verify: feed each class through the CLI and pin the spec's answer.
+4. [mode] BAD_EXPR is asserted only with --execute (2 tests), never without it. Verify: send an input that should give BAD_EXPR without --execute; check the spec.
+5. [mode] EXECUTION_FAILED is asserted only with --execute (1 tests), never without it. Verify: send an input that should give EXECUTION_FAILED without --execute; check the spec.
+6. [mode] MISSING_COLUMN is asserted only with --execute (2 tests), never without it. Verify: send an input that should give MISSING_COLUMN without --execute; check the spec.
+7. [attention] _normalize_branch cognitive new -> 29 this change (3 rule hits folded). Readability only; split only if a finding above needs it.
+8. [attention] _run_branch cognitive new -> 18 this change (1 rule hits folded). Readability only; split only if a finding above needs it.
+9. [attention] normalize_step cognitive 42 -> 43 this change (3 rule hits folded). Readability only; split only if a finding above needs it.
+[tests] 34 tests, test:source 0.52 (norm <= 1), 3.8 per public symbol, private-only 0%, near-duplicate 0%. Report line, not a fix item.
+Not reported: single-caller helpers, LOC, lint style, per-helper test gaps.

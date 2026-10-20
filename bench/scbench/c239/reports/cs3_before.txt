@@ -1,0 +1,7 @@
+codewatch: 4 findings on this change (base = previous checkpoint)
+1. [input] load_rules (line 25) reads 5 keys; the 27 test inputs it gets: id: never missing/null/empty; kind: never missing/null/empty; pattern: never missing/null/empty; languages (has a default): never null/empty. Verify: feed each class through the CLI and pin the spec's answer.
+2. [attention] pattern_matches cognitive new -> 42 this change (4 rule hits folded). Readability only; split only if a finding above needs it.
+3. [attention] main cognitive 17 -> 56 this change (4 rule hits folded). Readability only; split only if a finding above needs it.
+4. [attention] compile_pattern cognitive new -> 34 this change (3 rule hits folded). Readability only; split only if a finding above needs it.
+[tests] 18 tests, test:source 0.39 (norm <= 1), 1.8 per public symbol, private-only 0%, near-duplicate 0%. Report line, not a fix item.
+Not reported: single-caller helpers, LOC, lint style, per-helper test gaps.

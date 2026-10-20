@@ -215,6 +215,38 @@ tests directory, using a copy in `--scratch`. It reads only the report totals. T
 report's parity gap compares the recorded scores with the whole-snapshot rerun. A gap
 above about 0.001 means the rerun does not reproduce the grade.
 
+## regrade/
+
+The inner-loop regrade (C-240): score a modified tree against its base checkpoint with the
+bench's own graders, without re-running a solve. Both trees are staged as the runner
+snapshots them (its `snapshot.ignore_globs`, plus `.git`). Each staged copy gets:
+
+- the hidden tests, through the calibrated C-239 harness (`c239/harness/eval.sh`);
+- the pinned `scb-check==0.1.3` from `analysis/inputs.py`, once whole (the official
+  erosion and verbosity) and once without the tests directory.
+
+`--base` takes a frozen seed (`checkpoint_N/` with `snapshot/` and `evaluation.json`) or a
+plain tree. With `--recorded <run>/checkpoint_results.jsonl`, `parity` compares the base's
+rerun with the scores the bench recorded for it, and its hidden count with `evaluation.json`.
+A no-op copy must show `scores_ok` and `hidden_ok` true and a zero delta.
+
+```
+cd bench/scbench
+python3 -m regrade --problem code_search --checkpoint 3 --base <seed>/code_search/checkpoint_3 \
+  --head <modified tree> --out result.json [--recorded <checkpoint_results.jsonl>] \
+  [--tests-dir tests] [--skip-eval]
+```
+
+It prints one markdown table row: hidden before → after, then erosion, verbosity, and both
+tests-excluded, each before → after. `c239/harness/regrade_all.sh` runs it over the C-239
+frozen bases and arm outputs.
+
+C-241 adds arm NEW-C, which uses the same rig. `c239/harness/freeze_c241.sh` freezes the extra
+checkpoints, `targets.py` lists the complexity targets, and `run_c241.sh <problem> <N> <key> <name>`
+runs `newc_arm.sh`, the audit metrics, the regrade and `gates.py`. `gates.py` checks hidden
+must-not-regress, refactor growth, single-caller and test:source, mechanically.
+`table_c241.py` prints the table.
+
 ## remediation/
 
 The A1 fix stage (design unit U8, Revision 1): one validated commit per confirmed item.
