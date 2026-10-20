@@ -19,7 +19,7 @@ from pathlib import Path
 
 from regrade import holdout
 
-from solvenext import parity, plan, record
+from solvenext import parity, plan, record, trees
 
 SHARE = Path.home() / ".local" / "share" / "codewatch-scbench"
 EXPERIMENTS = SHARE / "experiments"
@@ -75,7 +75,8 @@ def harness_pins() -> dict:
 def run_pins(p: plan.Plan, seed_set: str) -> dict:
     return {**harness_pins(), "scb_check_version": record.SCB_CHECK_VERSION, "slop_code_commit": record.SLOP_CODE_COMMIT,
             "model_id": p.model, "image": p.image, "prompt_template": plan.PROMPT_TEMPLATE.name,
-            "prompt_sha256": plan.template_sha256(), "step_limit": p.step_limit, "seed_set": seed_set}
+            "prompt_sha256": plan.template_sha256(), "step_limit": p.step_limit, "seed_set": seed_set,
+            "max_output_tokens": plan.MAX_OUTPUT_TOKENS}
 
 
 def prepare(p: plan.Plan, problem_dir: Path) -> None:
@@ -106,6 +107,15 @@ def rates(p: plan.Plan, seed_cp: Path | None) -> dict:
     return {"before": before, "after": record.eval_rate(p.out / "eval" / "summary.json"), "recorded_next": recorded_next}
 
 
+def tree_flags(p: plan.Plan, seed_cp: Path | None) -> dict:
+    """Whether the solve changed the tree, and whether the recorded reference did (None when unknown)."""
+    if seed_cp is None:
+        return {"tree_changed": None, "reference_noop": None}
+    nxt = seed_cp.parent / f"checkpoint_{p.next_cp}"
+    noop = not trees.trees_differ(plan.solve_source(seed_cp), plan.solve_source(nxt)) if (nxt / "snapshot").is_dir() else None
+    return {"tree_changed": trees.trees_differ(p.workspace, plan.solve_source(seed_cp)), "reference_noop": noop}
+
+
 def resolve_seed_cp(args: argparse.Namespace) -> Path | None:
     if args.seed_cp:
         return args.seed_cp.resolve()
@@ -124,20 +134,22 @@ def cmd_run(args: argparse.Namespace, runner=subprocess.run) -> int:
         return 0
     prepare(p, problem_dir)
     cost = solve_and_eval(p, runner)
+    seed_cp = resolve_seed_cp(args)
     run = record.build_run(task=args.task, arm=args.arm, replicate=args.replicate, problem=p.problem, n=p.n,
                            include_prior_tests=p.include_prior_tests, pins=run_pins(p, args.seed_set), cost=cost,
-                           rates=rates(p, resolve_seed_cp(args)), created_at=stamp.isoformat(timespec="seconds"))
+                           rates=rates(p, seed_cp), created_at=stamp.isoformat(timespec="seconds"),
+                           **tree_flags(p, seed_cp))
     (p.out / "run.json").write_text(json.dumps(run, indent=1) + "\n")
-    print(json.dumps({"cost": run["cost"], "pass_rates": run["pass_rates"]}))
+    print(json.dumps({"cost": run["cost"], "pass_rates": run["pass_rates"], "tree_changed": run["tree_changed"]}))
     return 0
 
 
 def cmd_parity(args: argparse.Namespace, holdout_check) -> int:
-    runs = parity.load_runs(args.runs)
+    runs = parity.load_runs(args.runs, seeds_root())
     holdout_check(sorted({run["problem"] for run in runs}))
-    rows, skipped = parity.parity_rows(runs)
-    parity.write_parity(rows, skipped, args.out or args.runs)
-    print(parity.table(rows, skipped), end="")
+    rows, left_out = parity.parity_rows(runs)
+    parity.write_parity(rows, left_out, args.out or args.runs)
+    print(parity.table(rows, left_out), end="")
     return 0
 
 
