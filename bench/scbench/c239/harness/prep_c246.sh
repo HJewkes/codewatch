@@ -37,7 +37,7 @@ set_, problem, key, n, meas, targets, out = sys.argv[1:8]
 reasons = []
 for side in ("base", "head"):
     m = Path(meas, side, "metrics.json")
-    if not m.is_file() or "cog_max" not in json.loads(m.read_text() or "{}"):
+    if not m.is_file() or not json.loads(m.read_text() or "{}").get("audited"):
         reasons.append(f"{side} audit/measure failed")
 try:
     p = json.loads(Path(meas, "parity.json").read_text())
