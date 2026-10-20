@@ -5,7 +5,7 @@
 set -uo pipefail
 problem=$1; n=$2; report=$(realpath "$3"); targets=$(realpath "$4"); out=$(realpath -m "$5")
 python3 -I "$(cd "$(dirname "$0")/../.." && pwd)/regrade/holdout.py" "$problem" || exit 3
-F=/tmp/c241/frozen; P=$HOME/.cache/scbench/problems/$problem
+F=${FROZEN:-/tmp/c241/frozen}; P=$HOME/.cache/scbench/problems/$problem
 export DOCKER_HOST=unix:///run/user/1000/docker.sock
 mkdir -p "$out"; rm -rf "$out/ws"; cp -aL "$F/${problem}_cp$n" "$out/ws"
 {
