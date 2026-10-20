@@ -270,9 +270,13 @@ bench/scbench/calibration upstream|select|curves|score` lists the PyPI names the
 references import (they are excluded, with sqlglot and duckdb), selects and pins projects with
 Vavrová 2017's filters (`corpus.py` states the thresholds), measures production code only
 (`production.py` states the rules) and writes SLOC-weighted, per-system-normalised 70/80/90 points
-per measure family (Alves 2010). Unit measures reuse `dilution.py`'s CC, SLOC and walk; cognitive
-complexity is the round 3 port and its curve is marked provisional. The versioned curves are
-`calibration/curves/python-v1.json`, with the corpus manifest beside them. Downloads stay in a cache
+per measure family (Alves 2010). Unit measures reuse `dilution.py`'s CC, SLOC and walk. Cognitive
+complexity is `calibration/cognitive.py`, scb-check 0.1.3's rules on the Python AST (it agrees
+exactly on every function of the 44 C-246 trees); `cog` is its own-body form and `cog_scb` counts
+nested functions in their parent, as scb-check does. `c239/harness/metrics.py` and `targets.py`
+use it too (`metrics.py`'s `audited` says whether the audit left a graph.db); `c239/report.py`'s
+attention lines still read graph.db's `symbol_cognitive`. The versioned curves are `calibration/curves/python-v1.1.json` (v1 used the round 3
+approximation), with the corpus manifest, unchanged since v1, beside them. Downloads stay in a cache
 outside the repo, and nothing from a downloaded project is executed.
 
 **Holdout guard (C-243).** Every run, freeze and regrade entry point (`c239/harness/*.sh`,
