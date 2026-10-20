@@ -14,6 +14,8 @@ from planner.units import module_units
 from tests.planner_fixtures import DETECT, INLINE_OVER, PARSER, ROUTE, TWIN_ARMS
 
 CFG = load_config()
+# Round 3's knots (approximate cognitive port), on which the plan's worked example (B8.2) was computed.
+ROUND3 = {**CFG, "risk": {**CFG["risk"], "knots": {**CFG["risk"]["knots"], "cognitive": [0, 13, 18, 29]}}}
 
 
 class TreeCase(unittest.TestCase):
@@ -82,19 +84,20 @@ def stages(params: int) -> list[dict]:
                      for cc, sloc in ((4, 12), (6, 14), (3, 12))]
 
 
-def change(new_fns=3, lines=(1000, 1006)):
-    return {"crossings": [0, 0], "new_fns": new_fns, "modules": {"before": {"m": lines[0]}, "after": {"m": lines[1]}}}
+def change(new_fns=3, lines=(1000, 1006), classes=None):
+    modules = {"before": {"m": lines[0]}, "after": {"m": lines[1]}}
+    return {"crossings": [0, 0], "new_fns": new_fns, "modules": {**modules, **({"classes": classes} if classes else {})}}
 
 
 class Tolerances(unittest.TestCase):
     def test_the_select_item_head_carries_the_worked_example_risk(self):
-        got = profile([SELECT_ITEM], CFG)
+        got = profile([SELECT_ITEM], ROUND3)
         self.assertEqual((round(got["cc"]), round(got["cognitive"]), round(got["size"]), got["iface"]), (264, 185, 150, 0))
 
     def test_the_interface_budget_is_proportional_to_the_complexity_removed(self):
-        before = profile([SELECT_ITEM], CFG)
-        narrow = verdict(before, profile(stages(1), CFG), change(), CFG)
-        wide = verdict(before, profile(stages(5), CFG), change(), CFG)
+        before = profile([SELECT_ITEM], ROUND3)
+        narrow = verdict(before, profile(stages(1), ROUND3), change(), ROUND3)
+        wide = verdict(before, profile(stages(5), ROUND3), change(), ROUND3)
         gain = -(narrow["deltas"]["cc"] + narrow["deltas"]["cognitive"]) / 2
         self.assertAlmostEqual(narrow["iface_budget"], 0.05 + 0.5 * gain, places=2)
         self.assertAlmostEqual(narrow["iface_budget"], 1.90, delta=0.1)
@@ -106,7 +109,8 @@ class Tolerances(unittest.TestCase):
         before = profile([{"cc": 14, "cognitive": 20, "sloc": 20, "params": 1}], CFG)
         after = profile([{"cc": 6, "cognitive": 6, "sloc": 12, "params": 1}, {"cc": 6, "cognitive": 6, "sloc": 10,
                                                                               "params": 1}], CFG)
-        got = verdict(before, after, change(new_fns=1, lines=(1000, 1002)), CFG)
+        grown_class = {"before": {"C": [400, 40]}, "after": {"C": [410, 41]}}
+        got = verdict(before, after, change(new_fns=1, lines=(1000, 1002), classes=grown_class), CFG)
         self.assertFalse(got["p4_shadow"])
         self.assertTrue(got["pass"])
         self.assertNotIn("p4_shadow", got["checks"])

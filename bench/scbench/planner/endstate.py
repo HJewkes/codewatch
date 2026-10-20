@@ -92,15 +92,23 @@ def violated(before: State, after: State, kb: set[str], ka: set[str], new_fns: i
     return out + _class_breaks(before, after, touched, cfg["constraints"]["lcom4_max"])
 
 
+def class_rows(state: State, touched: list[Unit]) -> dict[str, list[int]]:
+    """Touched classes as [own SLOC of their methods, method count], the class part of the mod family."""
+    names = {u.cls for u in touched if u.cls and u.cls in state.classes}
+    return {c: [sum(u.sloc for u in state.units.values() if u.cls == c), state.classes[c]["methods"]] for c in sorted(names)}
+
+
 def compare(rel: str, before: State, after: State, touches: set[str], trees: dict, cfg: dict) -> dict:
     new = sorted(set(after.units) - set(before.units))
     kb = (touches | set(new)) & set(before.units)
     ka = (touches | set(new)) & set(after.units)
     bad = violated(before, after, kb, ka, len(new), cfg)
+    touched = [before.units[k] for k in kb] + [after.units[k] for k in ka]
     breaks = _module_breaks(before, after, rel, trees, cfg)
     bad += [f"cycle:{'>'.join(c)}" for c in breaks["cycles"]] + [f"sdp:{s}>{d}" for s, d, _ in breaks["sdp"]]
     change = {"crossings": [_count(before, kb, "control"), _count(after, ka, "control")], "new_fns": len(new),
-              "modules": {"before": {rel: before.sloc}, "after": {rel: after.sloc}}}
+              "modules": {"before": {rel: before.sloc}, "after": {rel: after.sloc},
+                          "classes": {"before": class_rows(before, touched), "after": class_rows(after, touched)}}}
     fam = verdict(profile([row(before.units[k]) for k in sorted(kb)], cfg),
                   profile([row(after.units[k]) for k in sorted(ka)], cfg), change, cfg)
     hot = cfg["hot_cc"]
