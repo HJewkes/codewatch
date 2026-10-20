@@ -16,12 +16,12 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import sqlite3
 import sys
 from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+from harness.targets import cognitive_by_symbol
 from scan import Fn, TestFn, cli_flags, functions, tests
 
 COMPLEXITY = {"symbol-cognitive", "symbol-cyclomatic", "symbol-nesting", "C901",
@@ -112,13 +112,8 @@ def input_classes(head: dict[str, Fn], ts: list[TestFn], flags: set[str]) -> lis
     return [line for _, line in ranked][:MAX_LINES["input"]]
 
 
-def cognitive(db: str | None) -> dict[str, float]:
-    if not db or not Path(db).is_file():
-        return {}
-    c = sqlite3.connect(f"file:{db}?immutable=1", uri=True)
-    rows = c.execute("select node_id, value from metric where name = 'symbol_cognitive' and "
-                     "snapshot_id = (select max(id) from snapshot)").fetchall()
-    return {nid.split("#", 1)[1]: v for nid, v in rows if "#" in nid}
+def cognitive(root: Path) -> dict[str, float]:
+    return dict(cognitive_by_symbol(root))
 
 
 def flagged_symbols(findings: str | None) -> Counter:
@@ -134,7 +129,7 @@ def flagged_symbols(findings: str | None) -> Counter:
 
 
 def attention(base: dict[str, Fn], head: dict[str, Fn], args) -> list[str]:
-    hits, before, after = flagged_symbols(args.findings), cognitive(args.base_db), cognitive(args.head_db)
+    hits, before, after = flagged_symbols(args.findings), cognitive(Path(args.base)), cognitive(Path(args.head))
     rows = []
     for name, n in hits.items():
         full = name if name in head else next((q for q in head if short(q) == name), None)
@@ -196,8 +191,8 @@ def main(argv: list[str]) -> int:
     p.add_argument("base")
     p.add_argument("head")
     p.add_argument("--findings")
-    p.add_argument("--base-db")
-    p.add_argument("--head-db")
+    p.add_argument("--base-db", help="accepted and ignored: cognitive complexity is measured from the trees")
+    p.add_argument("--head-db", help="accepted and ignored")
     p.add_argument("--json")
     args = p.parse_args(argv)
     report = build(args)
