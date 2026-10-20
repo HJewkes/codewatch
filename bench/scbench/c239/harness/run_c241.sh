@@ -5,6 +5,7 @@
 # (hidden tests + official and ex-tests erosion/verbosity), the exact diff and the gates.
 set -uo pipefail
 problem=$1; n=$2; k=$3; name=$4
+python3 -I "$(cd "$(dirname "$0")/../.." && pwd)/regrade/holdout.py" "$problem" || exit 3
 H=$(cd "$(dirname "$0")" && pwd); BENCH=$(cd "$H/../.." && pwd); C=/tmp/c241; run=$C/runs/$name
 SEEDS=$HOME/.local/share/codewatch-scbench/seeds
 seeds=$SEEDS/c209-a1a; [ -d "$seeds/$problem" ] || seeds=$SEEDS/c209-suite

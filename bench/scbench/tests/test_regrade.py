@@ -21,6 +21,10 @@ def fake_hidden_eval(tree, scratch):
     return {"passed": len(list(tree.glob("*.py"))), "total": 3, "failed": []}
 
 
+def allow_all(problem):
+    return None
+
+
 def write_tree(root, files):
     for name, text in files.items():
         (root / name).parent.mkdir(parents=True, exist_ok=True)
@@ -49,7 +53,8 @@ class RegradeTests(unittest.TestCase):
         argv = ["--problem", "p", "--checkpoint", "3", "--base", str(self.seed), "--head", str(head),
                 "--out", str(out), "--recorded", str(self.recorded), "--scratch", str(self.root / "s")]
         with contextlib.redirect_stdout(io.StringIO()) as stdout:
-            main(argv, scb_check=counting_scb_check, hidden_eval=fake_hidden_eval)
+            main(argv, scb_check=counting_scb_check, hidden_eval=fake_hidden_eval,
+                 holdout_check=allow_all)
         return json.loads(out.read_text()), stdout.getvalue()
 
     def test_no_op_copy_reproduces_the_recorded_scores_and_has_zero_delta(self):
@@ -88,7 +93,7 @@ class RegradeTests(unittest.TestCase):
         argv = ["--problem", "p", "--checkpoint", "3", "--base", str(self.seed), "--head", str(head),
                 "--out", str(out), "--scratch", str(self.root / "s")]
         with contextlib.redirect_stdout(io.StringIO()):
-            main(argv, scb_check=counting_scb_check, hidden_eval=writing_eval)
+            main(argv, scb_check=counting_scb_check, hidden_eval=writing_eval, holdout_check=allow_all)
 
         self.assertEqual(json.loads(out.read_text())["before"]["hidden"]["passed"], 1)
 

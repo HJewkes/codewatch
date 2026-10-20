@@ -3,6 +3,7 @@
 # C-240: no-op regrades of the 4 frozen C-239 checkpoints against their seeds (parity with the
 # A1a run's recorded scores), then every C-239 arm output against its cp3 seed.
 set -uo pipefail
+python3 -I "$(cd "$(dirname "$0")/../.." && pwd)/regrade/holdout.py" code_search etl_pipeline || exit 3
 out=$(realpath -m "$1"); mkdir -p "$out"
 BENCH=$(cd "$(dirname "$0")/../.." && pwd)
 SEEDS=$HOME/.local/share/codewatch-scbench/seeds/c209-a1a

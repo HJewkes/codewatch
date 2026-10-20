@@ -247,6 +247,13 @@ runs `newc_arm.sh`, the audit metrics, the regrade and `gates.py`. `gates.py` ch
 must-not-regress, refactor growth, single-caller and test:source, mechanically.
 `table_c241.py` prints the table.
 
+**Holdout guard (C-243).** Every run, freeze and regrade entry point (`c239/harness/*.sh`,
+`python3 -m regrade`) first runs `regrade/holdout.py`. It reads the holdout list from the
+gitignored manifest's `holdout` field and refuses (exit 3) a holdout problem unless
+`SCBENCH_MILESTONE` names a milestone with an owner-approved holdout row in
+`~/.cache/codewatch-scbench/climb/ledger.jsonl`. That is the climb driver's split-control rule.
+Refusals report counts, never names, and an unreadable manifest refuses everything.
+
 ## remediation/
 
 The A1 fix stage (design unit U8, Revision 1): one validated commit per confirmed item.

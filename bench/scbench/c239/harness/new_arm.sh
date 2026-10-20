@@ -5,6 +5,7 @@
 # the session's change is an exact diff against the frozen commit.
 set -uo pipefail
 problem=$1; n=$2; report=$(realpath "$3"); out=$(realpath -m "$4")
+python3 -I "$(cd "$(dirname "$0")/../.." && pwd)/regrade/holdout.py" "$problem" || exit 3
 F=/tmp/c239/frozen; P=$HOME/.cache/scbench/problems/$problem
 export DOCKER_HOST=unix:///run/user/1000/docker.sock
 mkdir -p "$out"; rm -rf "$out/ws"; cp -a "$F/${problem}_cp$n" "$out/ws"

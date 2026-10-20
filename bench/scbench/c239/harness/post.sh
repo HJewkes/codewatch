@@ -3,6 +3,7 @@
 # After an arm: metrics, hidden-test score, the prototype report re-run on the result, exact diff.
 set -uo pipefail
 problem=$1; n=$2; run=$(realpath "$3"); k=${problem%%_*}; [ "$k" = etl ] || k=cs
+python3 -I "$(cd "$(dirname "$0")/../.." && pwd)/regrade/holdout.py" "$problem" || exit 3
 C=/tmp/c239; S=$(cd "$(dirname "$0")" && pwd); R=$S/../report.py
 bash $S/measure.sh "$run/ws" "$run/meas" >/dev/null
 bash $S/eval.sh "$problem" "$n" "$run/ws" "$run/eval" >/dev/null

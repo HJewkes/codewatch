@@ -4,6 +4,7 @@
 # cs and etl cp2/cp3 are links to the C-239 copies; cp1 bases and each unseen problem's cp(N-1)
 # and cp(N) come from the suite seeds.
 set -euo pipefail
+python3 -I "$(cd "$(dirname "$0")/../.." && pwd)/regrade/holdout.py" code_search etl_pipeline $(printf '%s\n' "$@" | awk 'NR % 2') || exit 3
 F=/tmp/c241/frozen; A=$HOME/.local/share/codewatch-scbench/seeds/c209-a1a
 S=$HOME/.local/share/codewatch-scbench/seeds/c209-suite
 mkdir -p "$F"

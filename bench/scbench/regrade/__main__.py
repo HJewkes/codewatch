@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
 from analysis.inputs import run_scb_check
 
+from . import holdout
 from .grade import Graders, bench_hidden_eval, recorded_score, regrade, table_row
 
 DEFAULT_SCRATCH = Path.home() / ".cache" / "scbench-regrade"
@@ -29,8 +31,18 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None, scb_check=run_scb_check, hidden_eval=None) -> int:
+def _check_holdout(problem: str) -> None:
+    holdout.check([problem], os.environ.get(holdout.MILESTONE_ENV))
+
+
+def main(argv: list[str] | None = None, scb_check=run_scb_check, hidden_eval=None,
+         holdout_check=_check_holdout) -> int:
     args = _parser().parse_args(argv)
+    try:
+        holdout_check(args.problem)
+    except holdout.HoldoutRefused as refusal:
+        print(f"regrade: {refusal}", file=sys.stderr)
+        return holdout.REFUSED_EXIT
     if hidden_eval is None and not args.skip_eval:
         hidden_eval = bench_hidden_eval(args.problem, args.checkpoint)
     graders = Graders(scb_check, hidden_eval, tuple(args.tests_dir or ["tests"]))
