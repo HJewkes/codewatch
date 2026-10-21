@@ -29,7 +29,9 @@ class ScoredS7RunTests(unittest.TestCase):
         self.assertEqual(result["gates"], {"hidden": True, "growth": True, "helpers": False, "tests": True})
         self.assertFalse(all(result["gates"].values()))
         self.assertAlmostEqual(result["metrics"]["cc_total_delta_pct"], 100 * 4 / 232, places=3)
-        self.assertEqual((result["metrics"]["single_caller_delta"], result["metrics"]["accepted_tasks"]), (2, 4))
+        self.assertEqual({k: v for k, v in result["metrics"].items() if k != "cc_total_delta_pct"},
+                         {"single_caller_delta": 2, "helpers_one_site_delta": 5, "cog_max_delta": 26,
+                          "accepted_tasks": 4, "src_net": 8})
         self.assertEqual(result["violations"], {"hidden_regressions": 0})
         self.assertEqual((result["usd"], result["wall_s"], result["case"], result["repeat"]), (0.447034, 512.4, "train-1", "r1"))
 

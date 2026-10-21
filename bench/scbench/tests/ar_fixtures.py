@@ -18,7 +18,7 @@ HIDDEN_FAILED = [f"hidden/test_{i:02d}" for i in range(1, 17)]
 SCORED = {
     "gates.json": {"gates": {"hidden": True, "growth": True, "helpers": False, "tests": True}, "pass": False,
                    "src_added": 16, "src_removed": 8, "src_net": 8, "cc_total": [232.0, 236.0], "single_caller": [3, 5],
-                   "helpers_one_site": [3, 5], "helpers_multi_site": {"count": [0, 0], "added": []},
+                   "helpers_one_site": [3, 8], "helpers_multi_site": {"count": [0, 0], "added": []},
                    "cog_max": [34.0, 60], "cog_mean": [10.34, 10.58], "cog_over_15": [4, 7], "test_src": [1.09, 1.08],
                    "test_fns": [58, 58], "src_loc": [617, 625]},
     "regrade.json": {"before": {"hidden": {"passed": 200, "total": 216, "failed": HIDDEN_FAILED}},
