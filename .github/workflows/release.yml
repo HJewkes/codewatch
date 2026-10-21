@@ -15,7 +15,7 @@ on:
 
 jobs:
   release:
-    # Playwright chromium has no ubuntu26.04 build, which ubuntu-latest now resolves to
+    # Same image as ci.yml, which cannot use ubuntu-latest (Playwright chromium has no ubuntu26.04 build)
     runs-on: ubuntu-24.04
     permissions:
       contents: write
