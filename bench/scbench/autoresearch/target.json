@@ -1,0 +1,44 @@
+{
+ "schema": "ar-target/v1",
+ "repo": "HJewkes/codewatch",
+ "ratchetPrefix": "autoresearch/c248-runner",
+ "frozen": [
+  "bench/scbench/c239/harness/**",
+  "bench/scbench/regrade/**",
+  "bench/scbench/gate/measure.py",
+  "bench/scbench/gate/replay.py",
+  "bench/scbench/calibration/**",
+  "bench/scbench/autoresearch/**",
+  "bench/scbench/tests/test_ar_*.py",
+  "bench/scbench/tests/ar_fixtures.py"
+ ],
+ "unitTests": ["python3", "-m", "unittest", "discover", "-q", "-s", "bench/scbench", "-t", "bench/scbench"],
+ "testProof": ["bash", "bench/scbench/autoresearch/ar_testproof.sh", "{base}", "{head}"],
+ "caseSets": {"train-1": "c209-suite", "train-2": "c209-a1a", "train-3": "c209-suite"},
+ "microRung": {"accept-gate": "L1-replay", "config-param": "L1-replay", "planner-ranking": "L1-cluster",
+               "session-prompt": "L1-cluster"},
+ "rungs": {
+  "L1-replay": {"cmd": ["bash", "bench/scbench/autoresearch/ar_micro.sh", "replay", "{runnerRoot}", "{baselineDir}",
+                        "{microSignal}"]},
+  "L1-cluster": {"cmd": ["bash", "bench/scbench/autoresearch/ar_micro.sh", "cluster", "{runnerRoot}", "{caseSet}", "{case}",
+                         "{cluster}", "{baselineDir}", "{microSignal}", "{maxUsd}"], "maxUsd": 0.25},
+  "seed": {"cmd": ["bash", "bench/scbench/autoresearch/ar_eval.sh", "{caseSet}", "{case}", "{key}", "{maxUsd}", "{runnerRoot}",
+                   "--keep-lanes"], "maxUsd": 1.0, "timeoutMin": 45}
+ },
+ "metric": {
+  "primary": {"name": "cc_total_delta_pct", "direction": "min"},
+  "guards": {"single_caller_delta": 1},
+  "zeroTolerance": ["hidden_regressions"],
+  "allGate": true,
+  "noOp": "accepted_tasks",
+  "noise": {"bandSigmas": 2, "lockAfterPairs": 5, "minPairs": 3, "defaultBand": 1.5}
+ },
+ "phases": [
+  {"id": "p1", "train": ["train-1"], "baselineRuns": 6, "ladder": ["L0", "L1", "L2", "L3"], "repeats": 3,
+   "doneWhen": {"allGateRepeats": "all", "ccDeltaPctMax": -3.0, "singleCallerDeltaMax": 0},
+   "stop": {"ideasEvaluated": 16, "roundsWithoutGain": 3, "modelUsdStop": 12, "agentUsdStop": 15}},
+  {"id": "p2", "train": ["train-1", "train-2", "train-3"], "baselineRuns": 6, "ladder": ["L0", "L1", "L2", "L4"], "repeats": 2,
+   "stop": {"ideasEvaluated": 10, "roundsWithoutGain": 3, "modelUsdStop": 20}}
+ ],
+ "validator": {"caseList": "local-queue:c246-nonholdout-minus-train", "runs": 1, "maxLooks": 2}
+}

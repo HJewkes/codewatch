@@ -1,23 +1,29 @@
 #!/usr/bin/env bash
-# usage: run_s7.sh <seed set> <problem> <key> <max usd>
+# usage: run_s7.sh <seed set> <problem> <key> <max usd> [--keep-lanes]
 # C-248 S7: run_c246.sh with the NEW-C session replaced by the A1 fix stage, the cleanup runner
 # (python3 -m runner ... --apply) on a copy of frozen cpN, after prep_c246.sh. Then the same scoring:
 # audit metrics, the C-242 in-loop diff gate, the C-240 regrade, the C-241 gates and the cleanup report.
 # Results land in ~/.cache/c248-s7/runs/<key>; result.json carries the run's total_cost_usd for
-# table_c246.py. The workspace copies are pruned once scored.
+# table_c246.py. The workspace copies are pruned once scored; --keep-lanes keeps the runner's lane trees
+# (wave bases, lane and integration trees, sources only) for autoresearch's L1 replay (C-256).
+# RUNNER_ROOT (default: this checkout's bench) is where the runner runs from, so an idea tree supplies
+# the runner while measure, diffgate, regrade and the gates stay this checkout's. S7_INPUTS (default
+# /tmp/c246) holds prep_c246.sh's frozen, prep and seeds. S7_CASE (default <key>) names the prep key, so
+# repeats of one case can run under their own keys.
 set -uo pipefail
-set=$1; problem=$2; key=$3; max_usd=$4
-H=$(cd "$(dirname "$0")" && pwd); BENCH=$(cd "$H/../.." && pwd)
+set=$1; problem=$2; key=$3; max_usd=$4; keep_lanes=${5:-}
+H=$(cd "$(dirname "$0")" && pwd); BENCH=$(cd "$H/../.." && pwd); RUNNER=${RUNNER_ROOT:-$BENCH}
 python3 -I "$BENCH/regrade/holdout.py" "$problem" || exit 3
-R=/tmp/c246; W=$HOME/.cache/c248-s7; run=$W/runs/$key; M=$HOME/.cache/c246/meas/$key; F=$R/frozen/$set
-n=$(python3 -I -c 'import json, sys; print(json.load(open(sys.argv[1]))["n"])' "$R/prep/$key.json")
+R=${S7_INPUTS:-/tmp/c246}; W=$HOME/.cache/c248-s7; run=$W/runs/$key; case=${S7_CASE:-$key}
+M=$HOME/.cache/c246/meas/$case; F=$R/frozen/$set
+n=$(python3 -I -c 'import json, sys; print(json.load(open(sys.argv[1]))["n"])' "$R/prep/$case.json")
 [ -f "$run/cleanup.json" ] && { echo "run_s7: $key is already scored; move $run aside to rerun it" >&2; exit 5; }
 # A killed run leaves files the containers wrote (uid-mapped, e.g. tests/__pycache__) that the host cannot
 # remove, and the runner fails on a lane directory that already exists; clear them with the image first.
 [ -d "$run" ] && DOCKER_HOST=unix:///run/user/1000/docker.sock docker run --rm -v "$run:/x" --entrypoint bash \
   codewatch-scbench:a1-cw0.7.0-eaf087f -c 'rm -rf /x/* 2>/dev/null; true'
 rm -rf "$run"; mkdir -p "$run"; cp -aL "$F/${problem}_cp$n" "$run/ws"
-(cd "$BENCH" && python3 -m runner "$run/ws" --problem "$problem" --checkpoint "$n" --out "$run/cleanup" \
+(cd "$RUNNER" && python3 -m runner "$run/ws" --problem "$problem" --checkpoint "$n" --out "$run/cleanup" \
   --label "$key" --max-usd "$max_usd" --max-load "${S7_MAX_LOAD:-28}" --apply) >"$run/runner.out" 2>"$run/runner.err"
 python3 -I -c 'import json, sys; u = json.load(open(sys.argv[1]))["usd"]; print(json.dumps({"total_cost_usd": u}))' \
   "$run/cleanup/run.json" >"$run/result.json"
@@ -35,3 +41,11 @@ diff -ruN -x .git -x .venv -x venv -x .codewatch -x __pycache__ -x .pytest_cache
 python3 -I "$H/gates.py" "$M/head" "$run/meas" "$run/regrade.json" "$run"
 python3 -I "$H/cleanup_report.py" "$F/${problem}_cp$n" "$run/ws" --json "$run/cleanup.json" >"$run/cleanup.txt"
 rm -rf "$run/ws" "$run/meas/ws"
+if [ "$keep_lanes" = --keep-lanes ]; then
+  find "$run/cleanup" -depth \( -name .venv -o -name __pycache__ -o -name .pytest_cache -o -name visible-ws \) \
+    -exec rm -rf {} + 2>/dev/null
+else
+  rm -rf "$run/cleanup/base" "$run"/cleanup/wave*/*/ws "$run"/cleanup/wave*/*/*/tree \
+    "$run"/cleanup/wave*/*/*/visible-ws 2>/dev/null
+fi
+true
