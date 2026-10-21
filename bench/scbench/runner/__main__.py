@@ -1,10 +1,11 @@
 """python3 -m runner <frozen tree> --problem P --checkpoint N --out DIR [--label L] [--only ID,...]
-                   [--max-usd X] [--turns T] [--apply]
+                   [--max-usd X] [--turns T] [--max-load L] [--apply]
 One cleanup run on a copy of the frozen checkpoint-N tree (C-248 S6). Writes <out>/run.json (waves,
 sessions, splice, integration checks) and <out>/ledger.jsonl. The specs are read from the problem's
 checkpoint_1..N.md; the holdout guard refuses a sealed problem (exit 3). --only restricts the run to
 the named task ids; --max-usd is the run's dollar backstop (tasks past it are skipped). --apply writes the
-final tree back over the frozen one, as the A1 `fix` stage runs it on /workspace (C-248 S7).
+final tree back over the frozen one, as the A1 `fix` stage runs it on /workspace (C-248 S7). --max-load holds
+each session until the host's 5-minute load average is below L.
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ import argparse
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 from gate.t3 import call_reviewer
@@ -30,14 +32,16 @@ class ContainerSteps:
 
     review = staticmethod(call_reviewer)
 
-    def __init__(self, problem: str, n: int, out: Path, turns: int):
-        self.problem, self.n, self.turns = problem, n, turns
+    def __init__(self, problem: str, n: int, out: Path, turns: int, max_load: float | None = None):
+        self.problem, self.n, self.turns, self.max_load = problem, n, turns, max_load
         self.lib = container.gate_lib(out / "gate-lib")
 
     def workspace(self, src: Path, dst: Path) -> Path:
         return container.copy_tree(src, dst)
 
     def session(self, name: str, ws: Path, text: str, gate: Path, base: Path, out: Path) -> dict:
+        while self.max_load is not None and os.getloadavg()[1] >= self.max_load:
+            time.sleep(60)
         return container.session(name, ws, text, gate, base, self.lib, out, self.turns)
 
     def visible(self, ws: Path, out: Path) -> dict:
@@ -75,6 +79,7 @@ def main(argv: list[str]) -> int:
     p.add_argument("--only")
     p.add_argument("--max-usd", type=float, default=7.0)
     p.add_argument("--turns", type=int, default=40)
+    p.add_argument("--max-load", type=float)
     p.add_argument("--apply", action="store_true")
     a = p.parse_args(argv)
     try:
@@ -85,7 +90,7 @@ def main(argv: list[str]) -> int:
     specs = [(PROBLEMS / a.problem / f"checkpoint_{k}.md").read_text() for k in range(1, a.checkpoint + 1)]
     a.out.mkdir(parents=True, exist_ok=True)
     run = Run(a.label or a.problem, a.out, specs, set(a.only.split(",")) if a.only else None, a.max_usd)
-    summary = execute(run, ContainerSteps(a.problem, a.checkpoint, a.out, a.turns), a.frozen)
+    summary = execute(run, ContainerSteps(a.problem, a.checkpoint, a.out, a.turns, a.max_load), a.frozen)
     applied = apply(a.frozen, Path(summary["final_tree"])) if a.apply else []
     print(json.dumps({"run": summary["run"], "usd": summary["usd"], "waves": len(summary["waves"]), "applied": applied}))
     return 0

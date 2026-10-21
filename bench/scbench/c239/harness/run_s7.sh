@@ -13,7 +13,7 @@ R=/tmp/c246; W=$HOME/.cache/c248-s7; run=$W/runs/$key; M=$HOME/.cache/c246/meas/
 n=$(python3 -I -c 'import json, sys; print(json.load(open(sys.argv[1]))["n"])' "$R/prep/$key.json")
 rm -rf "$run"; mkdir -p "$run"; cp -aL "$F/${problem}_cp$n" "$run/ws"
 (cd "$BENCH" && python3 -m runner "$run/ws" --problem "$problem" --checkpoint "$n" --out "$run/cleanup" \
-  --label "$key" --max-usd "$max_usd" --apply) >"$run/runner.out" 2>"$run/runner.err"
+  --label "$key" --max-usd "$max_usd" --max-load "${S7_MAX_LOAD:-28}" --apply) >"$run/runner.out" 2>"$run/runner.err"
 python3 -I -c 'import json, sys; u = json.load(open(sys.argv[1]))["usd"]; print(json.dumps({"total_cost_usd": u}))' \
   "$run/cleanup/run.json" >"$run/result.json"
 rm -rf "$run/ws/.venv"
