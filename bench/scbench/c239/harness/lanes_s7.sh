@@ -14,7 +14,12 @@ spent() {
   python3 -I - "$W/runs" <<'EOF'
 import json, sys
 from pathlib import Path
-print(f"{sum(json.loads(f.read_text()).get('total_cost_usd') or 0 for f in Path(sys.argv[1]).glob('*/result.json')):.2f}")
+def usd(f):
+    try:
+        return json.loads(f.read_text()).get('total_cost_usd') or 0
+    except ValueError:
+        return 0  # a crashed runner leaves result.json empty; its seed is rerun
+print(f"{sum(usd(f) for f in Path(sys.argv[1]).glob('*/result.json')):.2f}")
 EOF
 }
 
