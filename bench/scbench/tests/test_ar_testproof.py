@@ -49,6 +49,12 @@ class TestProofTests(unittest.TestCase):
         rc, out = self.proof(self.commit({"lib.py": FIXED, "tests/test_double.py": PASSES_ANYWAY}))
         self.assertEqual((rc, out["pass"], out["base_rc"], out["head_rc"]), (1, False, 0, 0))
 
+    def test_test_that_only_fails_to_import_on_base_proves_nothing(self):
+        imports_new = CATCHES_BUG.replace("from lib import double", "from lib import double, triple")
+        rc, out = self.proof(self.commit({"lib.py": FIXED + "\n\ndef triple(x):\n    return 3 * x\n",
+                                          "tests/test_double.py": imports_new}))
+        self.assertEqual((rc, out["pass"], out["base_rc"], out["head_rc"]), (1, False, 3, 0))
+
     def test_idea_without_a_test_is_refused(self):
         rc, out = self.proof(self.commit({"lib.py": FIXED}))
         self.assertEqual((rc, out["pass"]), (2, False))

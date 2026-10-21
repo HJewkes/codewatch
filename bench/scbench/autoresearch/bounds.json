@@ -13,7 +13,9 @@
                               "p5.cx_improve": [0, 0.2], "p5.cx_worsen": [0, 0.2], "p5.size": [0, 0.2],
                               "p5.iface_base": [0, 0.2], "p5.module_risk": [0, 0.2],
                               "p5.module_lines_per_new_function": [0, 10],
-                              "p5.iface_ratio": [0.25, 1.0], "p5.crossings": [0, 3], "p5.amount_ratio": [1.0, 2.5]}}
+                              "p5.iface_ratio": [0.25, 1.0], "p5.crossings": [0, 3], "p5.amount_ratio": [1.0, 2.5]},
+                   "integerParams": ["hot_cc", "recipes.r3_min_cc", "recipes.r1_min_arms", "search.max_candidates",
+                                     "p5.crossings", "p5.module_lines_per_new_function"]}
  },
  "diff": {"oneClassPerIdea": true},
  "test": {"required": true, "mustFailOnBase": true, "exceptClasses": ["config-param"]},

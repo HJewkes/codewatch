@@ -6,7 +6,7 @@ import unittest
 from numbers import Real
 from pathlib import Path
 
-from tests.ar_fixtures import BENCH, FIXTURE_ENV, stub_idea, stub_inputs, stub_pin, write_scored_run
+from tests.ar_fixtures import BENCH, FIXTURE_ENV, KEPT, LANE_TREES, stub_idea, stub_inputs, stub_pin, write_scored_run
 
 TARGET = json.loads((BENCH / "autoresearch" / "target.json").read_text())
 
@@ -44,9 +44,10 @@ class StubPinTestCase(unittest.TestCase):
     def stages(self) -> dict[str, Path]:
         return {stage: Path(path) for stage, path in (line.split(" ", 1) for line in self.trace.read_text().splitlines())}
 
-    def run_s7(self, **env: str) -> None:
-        subprocess.run(["bash", str(self.pin / "c239" / "harness" / "run_s7.sh"), "set-a", "prob", "case-a", "0.5"],
+    def run_s7(self, *flags: str, **env: str) -> Path:
+        subprocess.run(["bash", str(self.pin / "c239" / "harness" / "run_s7.sh"), "set-a", "prob", "case-a", "0.5", *flags],
                        env={**self.env, **env}, check=True, capture_output=True)
+        return Path(self.env["HOME"]) / ".cache" / "c248-s7" / "runs" / "case-a" / "cleanup"
 
 
 class RunnerRootTests(StubPinTestCase):
@@ -60,6 +61,17 @@ class RunnerRootTests(StubPinTestCase):
     def test_runner_falls_back_to_the_pin_without_runner_root(self):
         self.run_s7()
         self.assertTrue(self.stages()["runner"].is_relative_to(self.pin))
+
+
+class LaneTreeTests(StubPinTestCase):
+    def test_lane_trees_are_pruned_by_default_and_the_attempt_records_stay(self):
+        cleanup = self.run_s7()
+        self.assertEqual([t for t in LANE_TREES if (cleanup / t).exists()], [])
+        self.assertTrue(all((cleanup / t).is_dir() for t in KEPT))
+
+    def test_keep_lanes_keeps_the_lane_trees_but_not_the_visible_test_copies(self):
+        cleanup = self.run_s7("--keep-lanes")
+        self.assertEqual([t for t in LANE_TREES if (cleanup / t).exists()], LANE_TREES[:3])
 
 
 class ArEvalTests(StubPinTestCase):

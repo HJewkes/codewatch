@@ -37,6 +37,14 @@ class BoundsTests(unittest.TestCase):
         for name, (low, high) in BOUNDS["classes"]["config-param"]["params"].items():
             self.assertTrue(low <= lookup(CONFIG, name) <= high, name)
 
+    def test_every_integer_valued_param_is_marked_integer_with_integer_bounds(self):
+        config_param = BOUNDS["classes"]["config-param"]
+        integers = {name for name in config_param["params"] if type(lookup(CONFIG, name)) is int}
+        integers.discard("floor_gain_per_new_function")  # compared as a ratio; a real value is valid
+        self.assertEqual(set(config_param["integerParams"]), integers)
+        for name in integers:
+            self.assertTrue(all(type(v) is int for v in config_param["params"][name]), name)
+
     def test_no_diff_size_cap(self):
         self.assertEqual(BOUNDS["diff"], {"oneClassPerIdea": True})
 

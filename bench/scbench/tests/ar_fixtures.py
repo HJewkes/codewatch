@@ -54,12 +54,19 @@ PY_TRACE = ("import json, os, sys\nfrom pathlib import Path\n"
 FIXTURE_ENV = "AR_FIXTURE"
 
 
+# The runner's lane trees run_s7.sh prunes unless --keep-lanes, and what it always keeps (relative to cleanup/).
+LANE_TREES = ["base", "wave2/app.py__f/ws", "wave2/integration/all/tree", "wave2/app.py__f/a1/visible-ws"]
+KEPT = ["wave2/app.py__f/a1/diffgate", "wave2/app.py__f/gate"]
+
+
 def _stub_runner(root: Path) -> None:
     (root / "runner").mkdir(parents=True)
     (root / "runner" / "__init__.py").write_text("")
     (root / "runner" / "__main__.py").write_text(PY_TRACE.format(stage="runner") + (
+        f"LANE_TREES, KEPT = {LANE_TREES!r}, {KEPT!r}\n"
         "out = Path(sys.argv[sys.argv.index('--out') + 1]); out.mkdir(parents=True, exist_ok=True)\n"
         "(out / 'run.json').write_text(json.dumps({'usd': 0.25, 'waves': []}))\n"
+        "for tree in LANE_TREES + KEPT:\n    (out / tree).mkdir(parents=True, exist_ok=True)\n"
         "fixture = Path(os.environ['AR_FIXTURE'])\n"
         "(out / 'ledger.jsonl').write_text((fixture / 'cleanup' / 'ledger.jsonl').read_text())\n"))
 
@@ -125,6 +132,11 @@ def _other(source: str) -> str:
 PLAN = {"tasks": [{"id": "app.py:handle", "owned": [{"key": "app.py:handle"}], "chosen": None},
                   {"id": "other.py:handle_b", "owned": [{"key": "other.py:handle_b"}], "chosen": None}]}
 GREEN_DIFFGATE = {"pass": True, "differences": []}
+# The ledger's `wave` is the planner's: the runner's wave 2 is the planner's wave 1, so both rows say 1.
+LEDGER_BY_RUNNER_WAVE = [
+    {"kind": "task", "cluster": "app.py:handle", "run": "k", "outcome": "accept", "kept": True, "wave": 1,
+     "new": ["app.py:_size_label"]},
+    {"kind": "task", "cluster": "app.py:handle", "run": "k", "outcome": "reject", "kept": False, "wave": 1, "new": []}]
 # run.json records absolute paths from the host that ran it
 RECORDED_TREE = "/elsewhere/runs/k/cleanup/wave1/integration/all/tree"
 
@@ -156,8 +168,7 @@ def replay_run(run: Path, scratch: Path) -> Path:
              _lane(cleanup, 1, "other.py:handle_b", cosmetic, [(green, reject)])]
     wave2 = [_lane(cleanup, 2, "app.py:handle", tree1, [(green, reject)])]
     write_json(cleanup / "run.json", {"waves": [
-        {"wave": 1, "sessions": wave1, "tree": RECORDED_TREE},
-        {"wave": 2, "sessions": wave2, "tree": RECORDED_TREE}], "final_tree": RECORDED_TREE, "usd": 0.3})
-    write_ledger(cleanup / "ledger.jsonl", [{"kind": "task", "cluster": "app.py:handle", "run": "k", "outcome": "accept",
-                                             "kept": True, "wave": 1, "new": ["app.py:_size_label"]}])
+        {"wave": 1, "sessions": wave1, "tree": RECORDED_TREE, "rows": 1},
+        {"wave": 2, "sessions": wave2, "tree": RECORDED_TREE, "rows": 1}], "final_tree": RECORDED_TREE, "usd": 0.3})
+    write_ledger(cleanup / "ledger.jsonl", LEDGER_BY_RUNNER_WAVE)
     return run

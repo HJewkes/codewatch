@@ -41,18 +41,20 @@ def local(cleanup: Path, recorded: str) -> Path:
 
 
 def lanes(run: Path) -> list[dict]:
-    """Each lane's last attempt with its wave base (the previous wave's tree)."""
+    """Each lane's last attempt with its wave base (the previous wave's tree) and how many ledger rows the
+    runner had written before its wave started (the ledger's own `wave` is the planner's, not the runner's)."""
     from runner.run import slug
     cleanup = run / "cleanup"
     waves = json.loads((cleanup / "run.json").read_text())["waves"]
-    out = []
+    out, written = [], 0
     for i, wave in enumerate(waves):
         base = cleanup / "base" if i == 0 else local(cleanup, waves[i - 1]["tree"])
         for session in wave["sessions"]:
             lane = cleanup / f"wave{wave['wave']}" / slug(session["task"])
             last = session["attempts"][-1]
             out.append({"task": session["task"], "wave": wave["wave"], "base": base, "lane": lane,
-                        "attempt": lane / f"a{last['n']}", "recorded": last["outcome"]})
+                        "attempt": lane / f"a{last['n']}", "recorded": last["outcome"], "earlier_rows": written})
+        written += wave.get("rows", 0)
     return out
 
 
@@ -71,8 +73,7 @@ def judge(lane: dict, rows: list[dict]) -> dict:
     dg = settle_timeouts(_json(lane["attempt"] / "diffgate" / "gate.json", {"pass": False, "error": "no gate.json"}))
     final = _json(lane["attempt"] / "final.json", {})
     result = final_gate(lane["base"], lane["lane"] / "ws", task, load_config(), visible, dg, recorded_reviewer(final))
-    earlier = [r for r in rows if r.get("wave", 0) < lane["wave"]]
-    outcome = "reject" if reinlined(earlier, result["report"]) else result["outcome"]
+    outcome = "reject" if reinlined(rows[:lane["earlier_rows"]], result["report"]) else result["outcome"]
     return {"outcome": outcome, "report": result["report"]}
 
 
