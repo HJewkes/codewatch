@@ -301,9 +301,10 @@ template, and its only codewatch tool is `scbench gate` (`runner/scbench.sh`, ov
 message; for a diffgate failure it is "restore these messages verbatim: ...". Accepted lanes are
 spliced at function level (`runner/splice.py`). The integration gate reverts lanes in reverse splice
 order (`runner/integrate.py`), and every task gets its S5 ledger row in `<out>/ledger.jsonl`. With
-`--apply` it writes the final tree back over the frozen one; that is the A1 `fix` stage
-(`agent/claude_code_cw.yaml`, C-248 S7). `c239/harness/run_s7.sh` and `lanes_s7.sh` run it on the C-246
-seed set, and `table_s7.py` compares the result with C-246.
+`--apply` it writes the final tree back over the frozen one, the candidate A1 `fix` stage (C-248 S7).
+The configs still run `remediation/`: the image does not copy `runner/` or `gate/` yet.
+`c239/harness/run_s7.sh` and `lanes_s7.sh` run it on the C-246 seed set, and `table_s7.py` compares the
+result with C-246.
 
 **Calibration corpus (C-252).** `calibration/` derives the cleanup gate's utility curves from a
 pinned corpus of maintained PyPI projects instead of the SCBench references. `python3 -I
@@ -344,9 +345,9 @@ excluded and counted. Nothing else is normalised.
 
 ## remediation/
 
-The former A1 fix stage (design unit U8, Revision 1): one validated commit per confirmed
-item. Since C-248 S7 no config runs it; the `fix` stage is the cleanup runner. It stays here
-until E4 (decision 497 Q5). The image copies it in, and it ran from the workspace as
+The A1 fix stage (design unit U8, Revision 1): one validated commit per confirmed item.
+The image copies it in, and `agent/claude_code_cw.yaml` runs it as the `fix` stage, from
+the workspace, as
 `exec env PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m remediation`,
 with `--review-command` set to the fix-commit review above.
 It works on the PR branch (`cp-N`) of the hidden repository (`GIT_DIR=.codewatch/repo.git`,

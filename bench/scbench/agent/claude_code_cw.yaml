@@ -55,14 +55,13 @@ stages:
       exec env PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m review.solve
       --workspace /workspace
       --review-command "env PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m review --mode expected-output --spec $CW_SPEC_FILE"
-  # The cleanup runner (bench/scbench/runner, C-248 S7) on a copy of the checkpoint; --apply
-  # writes its final tree back over /workspace. remediation/ stays in the bench, unused by
-  # any config, until E4 (decision 497 Q5).
+  # exec, so a SIGTERM reaches python and the workspace is restored. The review command
+  # (bench/scbench/review) reads the spec from CW_SPEC_FILE.
   fix:
     enabled: false
     command: >-
-      exec env PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m runner /workspace
-      --problem "$CW_PROBLEM" --checkpoint "$CW_CHECKPOINT" --out "/tmp/cw-cleanup/cp-$CW_CHECKPOINT" --apply
+      exec env PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m remediation
+      --review-command "env PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -P -m review --mode fix"
   synthesis:
     enabled: false
     command: PYTHONPATH=/opt/codewatch-a1 /opt/codewatch-a1/py/bin/python -m synthesis

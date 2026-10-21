@@ -5,12 +5,14 @@ tuned to pass (that is E4).
 
 ## What ran
 
-- Wiring: the A1 `fix` stage (`agent/claude_code_cw.yaml`, `claude_code_cw.a1.yaml`) is
-  `python -m runner /workspace ... --apply`, the C-248 S6 cleanup runner, whose final tree `--apply`
-  writes back over the workspace. `remediation/` stays in the bench, unused by any config, until E4
-  (decision 497 Q5).
-- Validation: `c239/harness/run_s7.sh` is `run_c246.sh` with the NEW-C session replaced by that
-  command on a copy of frozen cpN, then C-246's scoring unchanged: the C-240 regrade (hidden tests, eval
+- Wiring: not switched. The A1 `fix` stage (`agent/claude_code_cw.yaml`, `claude_code_cw.a1.yaml`)
+  stays on `remediation/`. The candidate is `python -m runner /workspace ... --apply`, the C-248 S6
+  cleanup runner, whose final tree `--apply` writes back over the workspace. It cannot run in the A1
+  image yet: the image does not copy `runner/` or `gate/`, the agent does not set `CW_PROBLEM`, and
+  the runner's sessions and diffgate need host Docker. With the done-when unmet, the switch is a human
+  call.
+- Validation: `c239/harness/run_s7.sh` is `run_c246.sh` with the NEW-C session replaced by
+  `python -m runner ... --apply` on a copy of frozen cpN, then C-246's scoring unchanged: the C-240 regrade (hidden tests, eval
   mode), the C-241 gates, the C-242 in-loop diff gate and `cleanup_report.py` (the dilution-proof
   numbers). `lanes_s7.sh` drove it on the 22 non-holdout final checkpoints C-246 scored, with up to 4
   seeds at once, a load5 < 28 hold before each seed and each session (`--max-load`), and $1.5 per seed.

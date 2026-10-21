@@ -4,7 +4,7 @@ One cleanup run on a copy of the frozen checkpoint-N tree (C-248 S6). Writes <ou
 sessions, splice, integration checks) and <out>/ledger.jsonl. The specs are read from the problem's
 checkpoint_1..N.md; the holdout guard refuses a sealed problem (exit 3). --only restricts the run to
 the named task ids; --max-usd is the run's dollar backstop (tasks past it are skipped). --apply writes the
-final tree back over the frozen one, as the A1 `fix` stage runs it on /workspace (C-248 S7). --max-load holds
+final tree back over the frozen one, as a candidate A1 `fix` stage would on /workspace (C-248 S7). --max-load holds
 each session until the host's 5-minute load average is below L.
 """
 
