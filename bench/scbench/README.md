@@ -300,7 +300,11 @@ template, and its only codewatch tool is `scbench gate` (`runner/scbench.sh`, ov
 --cluster`). The S4 final gate then judges the lane. A reject gets one retry with one deterministic
 message; for a diffgate failure it is "restore these messages verbatim: ...". Accepted lanes are
 spliced at function level (`runner/splice.py`). The integration gate reverts lanes in reverse splice
-order (`runner/integrate.py`), and every task gets its S5 ledger row in `<out>/ledger.jsonl`.
+order (`runner/integrate.py`), and every task gets its S5 ledger row in `<out>/ledger.jsonl`. With
+`--apply` it writes the final tree back over the frozen one, the candidate A1 `fix` stage (C-248 S7).
+The configs still run `remediation/`: the image does not copy `runner/` or `gate/` yet.
+`c239/harness/run_s7.sh` and `lanes_s7.sh` run it on the C-246 seed set, and `table_s7.py` compares the
+result with C-246.
 
 **Calibration corpus (C-252).** `calibration/` derives the cleanup gate's utility curves from a
 pinned corpus of maintained PyPI projects instead of the SCBench references. `python3 -I
