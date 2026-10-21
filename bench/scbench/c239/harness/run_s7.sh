@@ -11,6 +11,11 @@ H=$(cd "$(dirname "$0")" && pwd); BENCH=$(cd "$H/../.." && pwd)
 python3 -I "$BENCH/regrade/holdout.py" "$problem" || exit 3
 R=/tmp/c246; W=$HOME/.cache/c248-s7; run=$W/runs/$key; M=$HOME/.cache/c246/meas/$key; F=$R/frozen/$set
 n=$(python3 -I -c 'import json, sys; print(json.load(open(sys.argv[1]))["n"])' "$R/prep/$key.json")
+[ -f "$run/cleanup.json" ] && { echo "run_s7: $key is already scored; move $run aside to rerun it" >&2; exit 5; }
+# A killed run leaves files the containers wrote (uid-mapped, e.g. tests/__pycache__) that the host cannot
+# remove, and the runner fails on a lane directory that already exists; clear them with the image first.
+[ -d "$run" ] && DOCKER_HOST=unix:///run/user/1000/docker.sock docker run --rm -v "$run:/x" --entrypoint bash \
+  codewatch-scbench:a1-cw0.7.0-eaf087f -c 'rm -rf /x/* 2>/dev/null; true'
 rm -rf "$run"; mkdir -p "$run"; cp -aL "$F/${problem}_cp$n" "$run/ws"
 (cd "$BENCH" && python3 -m runner "$run/ws" --problem "$problem" --checkpoint "$n" --out "$run/cleanup" \
   --label "$key" --max-usd "$max_usd" --max-load "${S7_MAX_LOAD:-28}" --apply) >"$run/runner.out" 2>"$run/runner.err"
