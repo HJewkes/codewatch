@@ -1,9 +1,9 @@
 """table_s7.py <S7 runs dir> <C-246 runs dir> <C-246 cleanup dir>: the C-248 S7 NEW vs C-246 table (markdown).
 
 Per seed and pooled: hidden regressions (the regrade, eval mode), all five gates as table_c246.py counts
-them, Δ total CC, the dilution-proof numbers (dilution.py via cleanup_report.py: high-CC mass, CC>10
+them (an unknown gate, `?`, is not a failure), Δ total CC, the dilution-proof numbers (dilution.py via cleanup_report.py: high-CC mass, CC>10
 count, max CC, tree), single-caller Δ, $, and from every session's run.json: sessions, no-op sessions
-(tree unchanged), retries, retries whose session left the tree unchanged, diffgate cases left
+(tree unchanged), no-op sessions the gate accepted (a defect: the E2 parity lesson), retries, retries whose session left the tree unchanged, diffgate cases left
 inconclusive by a timeout (counted per attempt, C-255) and rejects whose only differences were stderr.
 The C-246 dilution numbers come from frozen cpN against frozen cpN + its change.diff.
 """
@@ -31,12 +31,14 @@ def _stderr_only(attempt_dir: Path) -> bool:
 
 def sessions(cleanup: Path) -> dict:
     """Counts over every session attempt in the run, read from its run.json and final.json."""
-    out = {"sessions": 0, "noop": 0, "retries": 0, "noop_retries": 0, "inconclusive": 0, "stderr_rejects": 0}
+    out = {"sessions": 0, "noop": 0, "noop_accepts": 0, "retries": 0, "noop_retries": 0, "inconclusive": 0,
+           "stderr_rejects": 0}
     for facts_file in sorted(cleanup.glob("wave*/*/a*/run.json")):
         facts, final = _json(facts_file), _json(facts_file.parent / "final.json")
         retry = facts_file.parent.name != "a1"
         out["sessions"] += 1
         out["noop"] += not facts.get("changed_files")
+        out["noop_accepts"] += final.get("outcome") == "accept" and not facts.get("changed_files")
         out["retries"] += retry
         out["noop_retries"] += retry and not facts.get("changed_files")
         out["inconclusive"] += final.get("diffgate_inconclusive", 0)
@@ -71,11 +73,11 @@ def cell(x: dict | None, key: str, fmt: str) -> str:
 
 
 def row(key: str, new: dict | None, old: dict | None, s: dict) -> str:
-    gates = "–" if new is None else "".join(g[0] if v is not False else "✗" for g, v in new["gates"].items())
+    gates = "–" if new is None else "".join({True: g[0], False: "✗"}.get(v, "?") for g, v in new["gates"].items())
     dil = "–" if new is None else "{0[mass]:.0f}·{0[count]}·{0[max]} → {1[mass]:.0f}·{1[count]}·{1[max]}".format(*new["tree"])
     return (f"| {key} | {gates} | {cell(new, 'all', '')} / {cell(old, 'all', '')} | {cell(new, 'dcc', '+.1f')} / "
             f"{cell(old, 'dcc', '+.1f')} | {cell(new, 'dmass', '+.1f')} / {cell(old, 'dmass', '+.1f')} | {dil} | "
-            f"{cell(new, 'dsingle', '+d')} / {cell(old, 'dsingle', '+d')} | {s['sessions']} | {s['noop']} | "
+            f"{cell(new, 'dsingle', '+d')} / {cell(old, 'dsingle', '+d')} | {s['sessions']} | {s['noop']} ({s['noop_accepts']}) | "
             f"{s['retries']} ({s['noop_retries']}) | {s['inconclusive']} | {s['stderr_rejects']} | "
             f"{cell(new, 'usd', '.2f')} / {cell(old, 'usd', '.2f')} |")
 
@@ -99,7 +101,7 @@ def main(new_dir: str, old_dir: str, old_cleanup: str) -> int:
     keys = sorted(p.name for p in Path(old_dir).iterdir() if p.is_dir())
     news, olds, totals = [], [], {}
     print("| seed | NEW gates h/g/h/t/d | all-gate NEW / C-246 | Δ total CC % | Δ high-CC mass % | NEW mass·CC>10·max |"
-          " single-caller Δ | sessions | no-op | retries (no-op) | inconclusive | stderr-only rejects | $ NEW / C-246 |")
+          " single-caller Δ | sessions | no-op (accepted) | retries (no-op) | inconclusive | stderr-only rejects | $ NEW / C-246 |")
     print("|---|---|---|---|---|---|---|---|---|---|---|---|---|")
     for key in keys:
         run = Path(new_dir) / key
