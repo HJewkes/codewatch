@@ -173,6 +173,10 @@ codewatch hook or MCP server.
 
 The agent writes `stages.json` into the checkpoint's agent artifacts directory
 (`checkpoint_<n>/agent/`, or inside the tarball when artifacts are compressed).
+Beside it go copies of the checkpoint's `.codewatch/audit/findings.jsonl`,
+`verdicts.jsonl` and `items.jsonl` (the fix stage's items in the order it worked them),
+whichever exist. The grader's snapshot skips `.codewatch/` and the next checkpoint
+rewrites them, so these copies are what per-signal and per-path analysis reads.
 
 ```
 {"checkpoint": 2, "mcp_tool_calls": 3,
