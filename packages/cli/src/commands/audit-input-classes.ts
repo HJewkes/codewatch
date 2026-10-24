@@ -94,10 +94,14 @@ function argvNames(entryId: string, root: string): string[] {
   return [module, file.split("/").at(-1)!, ...scripts];
 }
 
-function runsEntry(graph: Graph, testId: string, entryId: string, names: readonly string[]): boolean {
+const DEFINITIONS = new Set(["function_definition", "class_definition", "decorated_definition"]);
+
+/** A test that spawns a process whose argv, in its bodies or its file's module-level constants, names the entry. */
+function runsEntry(graph: Graph, testId: string, names: readonly string[]): boolean {
   const bodies = [testId, ...graph.helpers(testId)].map((id) => graph.definition(id)).filter((n): n is Node => n !== undefined);
   const spawns = bodies.some((b) => b.descendantsOfType("call").some((c) => SUBPROCESS_CALLS.has(c.childForFieldName("function")?.text.split(".").at(-1) ?? "")));
-  const text = bodies.map((b) => b.text).join("\n");
+  const constants = (graph.input.trees.get(fileOf(testId))?.namedChildren ?? []).filter((n) => !DEFINITIONS.has(n.type));
+  const text = [...bodies, ...constants].map((b) => b.text).join("\n");
   return spawns && names.some((n) => text.includes(`"${n}"`) || text.includes(`'${n}'`) || text.includes(`/${n}"`));
 }
 
@@ -109,7 +113,7 @@ function feedingTests(graph: Graph, entryId: string, entry: EntryPoint): Map<str
     const helpers = graph.helpers(node.id);
     const direct = (graph.callees.get(node.id) ?? []).includes(entryId);
     const viaHelper = helpers.some((h) => (graph.callees.get(h) ?? []).includes(entryId));
-    if (direct || viaHelper || (names.length > 0 && runsEntry(graph, node.id, entryId, names))) out.set(node.id, helpers);
+    if (direct || viaHelper || (names.length > 0 && runsEntry(graph, node.id, names))) out.set(node.id, helpers);
   }
   return out;
 }

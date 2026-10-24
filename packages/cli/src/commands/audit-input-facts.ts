@@ -36,6 +36,11 @@ export interface FeedFacts {
   documents: Doc[];
   empty: boolean;
   literals: Set<string>;
+  /**
+   * Literals that can set a flag: the test's own, plus a helper's when it takes no parameter of the
+   * flag's name (a helper with one, `run(..., execute=True)`, sets it through `kwargs` instead).
+   */
+  flagSources: { params: Set<string>; literals: Set<string> }[];
   /** Helper keyword defaults overlaid with the keywords the test passes, as source text. */
   kwargs: Map<string, string>;
   asserted: Set<string>;
@@ -113,9 +118,22 @@ function flagOf(call: Node): FlagFact | undefined {
   return flag.boolean || flag.choices.length > 0 ? flag : undefined;
 }
 
-/** `add_argument("--flag", ...)` calls in a file that give a boolean mode or a set of choices. */
+const FLAG_LITERAL = /^--([a-z][a-z0-9-]*)$/;
+
+/** Hand-rolled argv checks, `a == "--flag"` or `"--flag" in argv`: a boolean mode each. */
+function comparedFlags(root: Node): string[] {
+  const compared = root.descendantsOfType("comparison_operator").filter((c) =>
+    c.childrenForFieldName("operators").some((o) => o.type === "==" || o.type === "in"),
+  );
+  return compared.flatMap((c) => c.namedChildren.map((n) => FLAG_LITERAL.exec(stringValue(n) ?? "")?.[1]).filter((f): f is string => f !== undefined));
+}
+
+/** A file's flags that give a mode: `add_argument` booleans and choices, then hand-rolled boolean checks. */
 export function fileFlags(root: Node): FlagFact[] {
-  return root.descendantsOfType("call").filter((c) => calleeName(c) === "add_argument").map(flagOf).filter((f): f is FlagFact => f !== undefined);
+  const declared = root.descendantsOfType("call").filter((c) => calleeName(c) === "add_argument").map(flagOf).filter((f): f is FlagFact => f !== undefined);
+  const names = new Set(declared.map((f) => f.name));
+  const compared = [...new Set(comparedFlags(root))].filter((name) => !names.has(name)).map((name) => ({ name, boolean: true, choices: [] }));
+  return [...declared, ...compared];
 }
 
 /** Names a module-level `if __name__ == "__main__":` block calls. */
@@ -182,6 +200,12 @@ export function paramFacts(fn: Node): ParamFacts {
   }
   return facts;
 }
+
+const paramNames = (fn: Node): Set<string> =>
+  new Set((fn.childForFieldName("parameters")?.namedChildren ?? []).map((p) => paramParts(p).name).filter((n): n is string => n !== undefined));
+
+const literalsOf = (body: Node): Set<string> =>
+  new Set(body.descendantsOfType("string").map(stringValue).filter((s): s is string => s !== undefined));
 
 /** Keyword defaults of a definition, as source text. */
 export function keywordDefaults(fn: Node): Map<string, string> {
@@ -368,10 +392,11 @@ export function testFeeds(test: Node, helpers: readonly Node[], feedNames: Reado
     return walk.documents;
   });
   const calls = bodies.flatMap((b) => b.descendantsOfType("call"));
-  const literals = new Set(bodies.flatMap((b) => b.descendantsOfType("string").map(stringValue)).filter((s): s is string => s !== undefined));
+  const literals = new Set(bodies.flatMap((b) => [...literalsOf(b)]));
+  const flagSources = [{ params: new Set<string>(), literals: literalsOf(test) }, ...helpers.map((h) => ({ params: paramNames(h), literals: literalsOf(h) }))];
   const kwargs = new Map([...helpers.flatMap((h) => [...keywordDefaults(h)]), ...explicitKwargs(test.descendantsOfType("call"), feedNames)]);
   const byCallee = new Map<string, CallArgs[]>();
   for (const call of calls) byCallee.set(calleeName(call) ?? "", [...(byCallee.get(calleeName(call) ?? "") ?? []), callArgs(call)]);
   const empty = feedsEmpty(calls, feedNames, literals) || documents.some((d) => [...d.values()].includes("empty"));
-  return { documents, empty, literals, kwargs, asserted: new Set(bodies.flatMap((b) => [...assertedCodes(b)])), calls: byCallee };
+  return { documents, empty, literals, flagSources, kwargs, asserted: new Set(bodies.flatMap((b) => [...assertedCodes(b)])), calls: byCallee };
 }

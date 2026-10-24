@@ -98,6 +98,42 @@ const LIBRARY_FILES: Readonly<Record<string, string>> = {
   "tests/test_core.py": "from pkg.core import summarise\n\n\ndef test_summarise():\n    assert summarise([1, 3]) is not None\n",
 };
 
+/** A CLI that parses its one flag by hand and is spawned by its tests through a module-level script path. */
+const HAND_ROLLED_FILES: Readonly<Record<string, string>> = {
+  "tool.py": `import json
+import sys
+
+
+def main(argv=None):
+    args = sys.argv[1:] if argv is None else argv
+    doc = json.loads(sys.stdin.read())
+    if "--strict" in args and doc.get("name") is None:
+        print(json.dumps({"code": "NAME_REQUIRED"}))
+        return 1
+    print(json.dumps({"name": doc.get("name"), "size": doc.get("size", 0)}))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+`,
+  "tests/test_tool.py": `import json
+import subprocess
+import sys
+
+SCRIPT = "tool.py"
+
+
+def run(doc, strict=True):
+    args = [sys.executable, SCRIPT] + (["--strict"] if strict else [])
+    return subprocess.run(args, input=json.dumps(doc), capture_output=True, text=True)
+
+
+def test_strict_needs_a_name():
+    assert "NAME_REQUIRED" in run({"size": 1, "kind": "a"}).stdout
+`,
+};
+
 interface Census {
   entries: { id: string; kind: string; classes: { class: string; subject: string; fed: Record<string, number>; never: string[] }[] }[];
 }
@@ -199,5 +235,18 @@ describe("entry-input-class findings on a library with no CLI", () => {
 
     expect(rows.some((f) => f.signal === "missing-test-kind" && f.symbol === "summarise")).toBe(true);
     expect(inputClassRows(rows).map((f) => f.id)).toContain("codewatch:entry-input-class:pkg/core.py#summarise:empty:values");
+  });
+});
+
+describe("entry-input-class findings on a hand-rolled CLI its tests spawn", () => {
+  it("reads a flag compared against argv and a script named by a module-level constant", async () => {
+    const root = join(scratch, "hand-rolled");
+    writeFiles(root, HAND_ROLLED_FILES);
+
+    const rows = await audit(root);
+    const census = JSON.parse(readCensus(root)) as Census;
+
+    expect(inputClassRows(rows).map((f) => f.id)).toContain("codewatch:entry-input-class:tool.py#main:mode-error:NAME_REQUIRED@strict");
+    expect(classOf(census, "tool.py#main", "mode", "strict")?.fed).toEqual({ on: 1, off: 0 });
   });
 });

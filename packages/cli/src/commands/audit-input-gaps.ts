@@ -102,7 +102,9 @@ function nullClasses(facts: EntryFacts): InputClass[] {
 const flagKwarg = (flag: FlagFact, feed: FeedFacts): string | undefined => feed.kwargs.get(flag.name.replaceAll("-", "_"));
 
 function passesFlag(flag: FlagFact, feed: FeedFacts): boolean {
-  return flagKwarg(flag, feed) !== undefined || [...feed.literals].some((l) => l === `--${flag.name}` || l.startsWith(`--${flag.name}=`));
+  const param = flag.name.replaceAll("-", "_");
+  const named = (l: string): boolean => l === `--${flag.name}` || l.startsWith(`--${flag.name}=`);
+  return flagKwarg(flag, feed) !== undefined || feed.flagSources.some((s) => !s.params.has(param) && [...s.literals].some(named));
 }
 
 function flagOn(flag: FlagFact, feed: FeedFacts): boolean {

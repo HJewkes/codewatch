@@ -19,7 +19,7 @@ export function registerAuditCommand(program: Command): void {
     .option("--json", "Print the summary as JSON")
     .option("--no-ruff", "Skip the ruff audit rules")
     .option("--no-ts-slop", "Skip the TS slop rules (ast-grep)")
-    .option("--changed-from <ref>", "Also check symbols changed since <ref> for missing test kinds, even when no test reaches them")
+    .option("--changed-from <ref>", "Also check entry points changed since <ref> for missing test kinds, even when no test reaches them")
     .action(async (target: string, options: AuditCliOptions) => {
       try {
         const { runAuditCommand } = await import("./audit.js");
