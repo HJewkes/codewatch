@@ -1,7 +1,8 @@
 """python -m diffgate replay|verdict: the C-242 behaviour-differential gate (see compare.py for the rules).
 
   replay  --cases DIR --base ROOT --head ROOT --python PY --scratch DIR --out runs.json [--generate]
-          (inside the container) add generated cases, then run every case on base twice and head once
+          (inside the container) add generated cases, then run every case on base twice and head once,
+          and replay a case that timed out or differs only in stderr once more, serially (replay.py)
   verdict --cases DIR --runs runs.json --out gate.json --mode inloop|eval [--waivers FILE]
           [--spec-dir DIR] [--regrade regrade.json (eval only)]
           pass/fail plus every difference, with base/head excerpts
@@ -17,7 +18,7 @@ from pathlib import Path
 
 from .compare import MODES, LeakageError, normalise, verdict
 from .mutate import generate
-from .replay import load_cases, replay
+from .replay import load_cases, replay, replay_suspects
 
 EXCERPT = 400
 
@@ -30,6 +31,8 @@ def _replay(args) -> int:
     for side, root in (("base", args.base), ("base_again", args.base), ("head", args.head)):
         shutil.rmtree(args.scratch / side, ignore_errors=True)
         runs[side] = replay(args.cases, root, args.scratch / side, args.python)
+    roots = {"base": args.base, "base_again": args.base, "head": args.head}
+    runs = replay_suspects(args.cases, roots, runs, args.scratch / "again", args.python)
     shutil.rmtree(args.scratch, ignore_errors=True)
     args.out.write_text(json.dumps(runs) + "\n")
     print(json.dumps({side: len(r) for side, r in runs.items()}))
@@ -58,6 +61,7 @@ def _verdict(args) -> int:
         print(f"diffgate: {leak}", file=sys.stderr)
         return 4
     result["distinct_differences"] = _excerpts(result["differences"], runs)
+    result["replayed"] = runs.get("replayed", [])
     args.out.write_text(json.dumps(result, indent=1) + "\n")
     print(json.dumps({k: result[k] for k in ("mode", "pass", "pass_tests_tier", "distinct_differences", "tiers")}))
     return 0
