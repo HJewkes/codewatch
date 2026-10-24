@@ -18,7 +18,16 @@ from prflow.ratchet import AUDIT, CHECK_CONFIG, CHECK_OUT, DB, DIFF_OUT, Tool, r
 from prflow.repo import GitError, HiddenRepo, pr_branch
 
 from .fold_job import head_anchors, run_fold
-from .inputs import Cli, changed_symbols, new_violations, ratchet_items, read_json, read_verdicts, recorded_taste
+from .inputs import (
+    Cli,
+    changed_symbols,
+    input_class_items,
+    new_violations,
+    ratchet_items,
+    read_json,
+    read_verdicts,
+    recorded_taste,
+)
 from .report import pr_report, render_markdown
 from .taste import Model, build_prompt, cap_lines, listed_verdicts, tagged_lines
 
@@ -111,7 +120,8 @@ def run_stage(workspace: Path, checkpoint: int, cli: Cli, model: Model, tool: To
     violations = new_violations(check)
     symbols = _guarded(lambda: changed_symbols(cli, workspace / DB, check), "changed symbols")
     codewatch.mkdir(exist_ok=True)
-    brief = {"openItems": ratchet_items(violations), "changedSymbols": symbols}
+    findings = _guarded(lambda: read_verdicts(workspace / AUDIT / "findings.jsonl"), "audit findings")
+    brief = {"openItems": ratchet_items(violations) + input_class_items(findings), "changedSymbols": symbols}
     (codewatch / BRIEF).write_text(json.dumps(brief, indent=2) + "\n")
     markdown = write_pr_report(workspace, check)
     report = write_taste(codewatch, checkpoint, verdicts, violations, symbols, model)
