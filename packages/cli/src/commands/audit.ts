@@ -3,12 +3,12 @@ import path from "node:path";
 import {
   detectGitToplevel,
   runChecks,
-  toFindings,
   type Finding,
 } from "@titan-design/code-graph";
 import { defaultGraphDbPath, openGraphStore } from "../utils/graph-store.js";
 import { persistFindings } from "./audit-persist.js";
 import { changedLinesSince, type ChangedLines } from "./audit-changed.js";
+import { auditFindings } from "./audit-cycles.js";
 import { collectSnapshotStats, indexMetrics, type SnapshotStats } from "./audit-collect.js";
 import { AUDIT_RULES } from "./audit-rules.js";
 import { PYTHON_TOOLS, runPythonTools, type PythonRunners, type PythonTool } from "./audit-runners.js";
@@ -74,7 +74,7 @@ function graphFindings(dbPath: string, snapshotId: number, changed?: ChangedLine
     const metrics = indexMetrics(store.listMetrics(snapshotId));
     const edges = store.listEdges(snapshotId, { includeReferences: true });
     const testKinds = testKindFindings({ nodes, metrics, edges, changed });
-    return { findings: [...toFindings(result), ...testKinds], stats: collectSnapshotStats(nodes, metrics) };
+    return { findings: [...auditFindings(result), ...testKinds], stats: collectSnapshotStats(nodes, metrics) };
   } finally {
     store.close();
   }
