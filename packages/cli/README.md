@@ -37,6 +37,26 @@ Complexity estimates comprehension friction and is shown beside LOC, because onc
 controlled for it adds little. LCOM4 is a qualitative flag that a file may mix concerns, not a
 verdict to split it.
 
+## Audit: entry points and input classes (Python)
+
+`codewatch audit` checks test gaps at public entry points only. An entry is a console script, a
+function a `__main__` guard or `__main__.py` calls, or an HTTP `do_GET`-style handler method. A
+repo with none of those uses the public functions its tests call directly instead.
+`missing-test-kind` fires only on entries, so private and internal helpers get no per-symbol
+test-gap rows.
+
+For each entry, `input-classes.json` (next to `findings.jsonl`) lists the input classes its tests
+feed. These are empty input; present, null, missing or empty for each optional key a reader in
+its call closure reads; each CLI flag on and off; error codes asserted under only one flag
+setting; and error codes no test asserts. Each class no test feeds becomes one
+`entry-input-class` finding, at most five per entry and ranked. These findings are questions for
+the next change, not fix items, and triage does not ask about them.
+
+The detection is static. It follows `dict(BASE, k=v)`, `{**BASE}`, and `del`/`pop`/assignment
+edits to a bound copy inside a test. It does not see inputs built at runtime (loops, fixtures,
+computed parametrize ids), reader keys held in variables (`record.get(field)`), or input classes
+in a pattern language inside strings.
+
 ## Requirements
 
 - Node.js >= 20
