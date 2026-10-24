@@ -145,6 +145,9 @@ class ClaudeCodeCwAgent(ClaudeCodeAgent):
         env.update(self._build_runtime_auth_env())
         # The solve sets this too; without it Claude Code makes haiku side calls in a stage.
         env["DISABLE_NON_ESSENTIAL_MODEL_CALLS"] = "1"
+        # CC 2.0.51 skips its startup Explore/Plan warmup calls only when this is exactly
+        # "true". It also makes OAuth win over an API key; stages set only the OAuth token.
+        env["CLAUDE_CODE_REMOTE"] = "true"
         env["CW_CHECKPOINT"] = str(self.checkpoint_index)
         env["CW_CLAUDE_BINARY"] = self.binary
         env["CW_MODEL"] = self.model
