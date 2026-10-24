@@ -1,7 +1,8 @@
 import { parseSymbolId, type Finding, type GraphNode } from "@titan-design/code-graph";
 import { lineAttr } from "./audit-collect.js";
 import type { EntryPoint } from "./audit-entries.js";
-import type { CallArgs, FeedFacts, FlagFact, KeyRead, ParamFacts, ReaderFacts, ValueClass } from "./audit-input-facts.js";
+import type { FlagFact, KeyRead, ParamFacts, ReaderFacts, ValueClass } from "./audit-input-facts.js";
+import type { CallArgs, FeedFacts } from "./audit-input-feeds.js";
 import { testsLine } from "./audit-test-kinds.js";
 
 export type ClassName = "empty" | "key" | "mode" | "mode-error" | "unasserted" | "null";
