@@ -1,4 +1,5 @@
 import unittest
+from dataclasses import replace
 
 from analysis.gaming import fire_rate, gaming_check, mechanism_signals
 from analysis.inputs import AddedSymbol, CheckpointResult, FixItem, Rerun, Stage, StageLog
@@ -82,6 +83,18 @@ class GamingTests(unittest.TestCase):
 
         self.assertEqual((check.split_symbols, check.split_share), (0, 0.0))
         self.assertTrue(check.clean)
+
+    def test_the_split_share_is_of_the_tests_excluded_drop(self):
+        def scored(index, full, ex, stages=None):
+            return replace(result(index=index, stages=stages), erosion=full, rerun=Rerun(full, None, ex, None))
+
+        a1 = {("p", 1): scored(1, 0.5, 0.3, log(remediation())), ("p", 2): scored(2, 0.1, 0.5)}
+        a1a = {("p", 1): scored(1, 0.5, 0.5), ("p", 2): scored(2, 0.5, 0.5)}
+
+        check = gaming_check(paired_rows(arms_with(a1, a1a)), arm(), arm())
+
+        self.assertAlmostEqual(check.erosion_drop, 0.2)
+        self.assertAlmostEqual(check.split_share, 1.0)
 
     def test_zero_scores_in_both_arms_read_as_no_change_not_unknown(self):
         check = gaming_check([], arm(verbosity=0.3, ex=(0.5, 0.0)), arm(erosion=0.4, verbosity=0.3, ex=(0.4, 0.0)))
