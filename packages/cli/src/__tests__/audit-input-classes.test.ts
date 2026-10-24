@@ -250,3 +250,25 @@ describe("entry-input-class findings on a hand-rolled CLI its tests spawn", () =
     expect(classOf(census, "tool.py#main", "mode", "strict")?.fed).toEqual({ on: 1, off: 0 });
   });
 });
+
+describe("entry-input-class flag counts from helper keywords", () => {
+  it("counts a flag passed as 0 or 0.0 through a helper keyword as off", async () => {
+    const root = join(scratch, "zero-off");
+    const tests = HAND_ROLLED_FILES["tests/test_tool.py"]! +
+      `
+
+def test_zero_turns_strict_off():
+    assert run({"name": "a", "size": 1}, strict=0).returncode == 0
+
+
+def test_zero_float_turns_strict_off():
+    assert run({"name": "a", "size": 1}, strict=0.0).returncode == 0
+`;
+    writeFiles(root, { ...HAND_ROLLED_FILES, "tests/test_tool.py": tests });
+
+    await audit(root);
+    const census = JSON.parse(readCensus(root)) as Census;
+
+    expect(classOf(census, "tool.py#main", "mode", "strict")?.fed).toEqual({ on: 1, off: 2 });
+  });
+});
