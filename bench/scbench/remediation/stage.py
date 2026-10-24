@@ -13,6 +13,7 @@ It returns the report line the stage agent copies into `stages.json`.
 
 from __future__ import annotations
 
+import json
 import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
@@ -31,6 +32,7 @@ from .oracle import UNAVAILABLE, TestRunner
 from .validate import GraphCheck, Reviewer
 
 AUDIT_DIR = Path(".codewatch") / "audit"
+ITEMS_FILE = "items.jsonl"
 SAME_CAUSE_STOP = 3
 STAGE_STOPPED = "stage-stopped"
 
@@ -65,7 +67,14 @@ def load_items(config: Config, changed: set[str]) -> tuple[list[Item], int]:
     return (project if config.max_items is None else project[:config.max_items]), held_back
 
 
+def write_item_list(workspace: Path, items: list[Item]) -> None:
+    (workspace / AUDIT_DIR).mkdir(parents=True, exist_ok=True)
+    (workspace / AUDIT_DIR / ITEMS_FILE).write_text("".join(json.dumps(describe(i)) + "\n" for i in items))
+
+
 def remediate(config: Config, env: Mapping[str, str], run_claude: Run, run_tool: Run, clock: Clock) -> dict:
+    # A list left by an earlier checkpoint must not be kept as this one's.
+    (config.workspace / AUDIT_DIR / ITEMS_FILE).unlink(missing_ok=True)
     git = Git(config.workspace, config.git_dir)
     if not git.exists():
         return {"outcome": "skipped", "reason": f"no hidden repository at {config.git_dir}"}
@@ -73,7 +82,8 @@ def remediate(config: Config, env: Mapping[str, str], run_claude: Run, run_tool:
     if git.dirty():
         return {"outcome": "skipped", "reason": "the work tree has uncommitted changes"}
     items, held_back = load_items(config, git.changed_files(git.merge_base()))
-    base = {"items_in": len(items), "held_back": held_back}
+    write_item_list(config.workspace, items)
+    base ={"items_in": len(items), "held_back": held_back}
     if not items:
         return {**base, "outcome": "skipped", "reason": "no confirmed items"}
     if ws.inside(config.workspace, config.scratch):

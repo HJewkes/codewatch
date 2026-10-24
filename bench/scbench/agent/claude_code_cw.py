@@ -20,6 +20,7 @@ from slop_code.agent_runner.agents.claude_code.agent import (
 )
 from slop_code.agent_runner.registry import register_agent
 
+from .keep import keep_audit_files
 from .spec_file import SPEC_DIR, delete_command, spec_path, write_commands
 from .stages import (
     DEFAULT_CAP_SECONDS,
@@ -165,6 +166,7 @@ class ClaudeCodeCwAgent(ClaudeCodeAgent):
             path / STAGES_FILENAME, self.checkpoint_index, self.stage_records, self.mcp_tool_calls,
             self.solve_usd,
         )
+        keep_audit_files(self.workspace, path)
 
 
 def solve_session_env(payloads: list[dict[str, tp.Any]]) -> dict[str, str]:
