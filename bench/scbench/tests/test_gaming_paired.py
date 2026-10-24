@@ -1,16 +1,18 @@
 import unittest
 
 from analysis.gaming import fire_rate, gaming_check, mechanism_signals
-from analysis.inputs import AddedSymbol, CheckpointResult, FixItem, Stage, StageLog
+from analysis.inputs import AddedSymbol, CheckpointResult, FixItem, Rerun, Stage, StageLog
 from analysis.paired import consistency, final_rows, paired_rows
 
 from .test_verdict import arm
 
 
 def result(problem="p", index=1, strict=False, erosion=None, stages=None) -> CheckpointResult:
+    """`erosion` is both the recorded score and the tests-excluded rerun (a tree without tests)."""
+    rerun = Rerun(erosion, None, erosion, None) if erosion is not None else None
     return CheckpointResult(
         problem=problem, index=index, strict=strict, iso=strict, core=strict, cost_usd=1.0,
-        erosion=erosion, verbosity=None, rerun=None, stage_log=stages,
+        erosion=erosion, verbosity=None, rerun=rerun, stage_log=stages,
     )
 
 
