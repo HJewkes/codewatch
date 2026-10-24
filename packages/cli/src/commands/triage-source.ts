@@ -23,7 +23,7 @@ function lineAttr(node: GraphNode, key: string): number | undefined {
   return typeof value === "number" ? value : undefined;
 }
 
-function symbolSpansByFile(nodes: readonly GraphNode[]): Map<string, SymbolSpan[]> {
+export function symbolSpansByFile(nodes: readonly GraphNode[]): Map<string, SymbolSpan[]> {
   const byFile = new Map<string, SymbolSpan[]>();
   for (const node of nodes) {
     const parsed = node.kind === "symbol" ? parseSymbolId(node.id) : null;
