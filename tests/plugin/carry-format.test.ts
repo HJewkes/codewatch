@@ -112,12 +112,13 @@ describe("formatCarry with test-gap verdicts", () => {
   const conventions = (output: string) => output.split("\n\n")[0].split("\n").slice(1)
 
   it("drops a taste line tagged with a test-gap verdict's key and keeps the rest", () => {
-    const taste = ["- An untagged convention.", tagged("gap"), tagged("dup"), tagged("orphan"), "- {owner docs/style.md}"]
+    const untagged = ["- An untagged convention.", "- Says fp:gap in passing, untagged.", "- {owner docs/style.md}"]
+    const taste = [...untagged, tagged("gap"), tagged("dup"), tagged("orphan")]
     const verdicts = [verdict("gap", "missing-test-kind", "justified"), verdict("dup", "clone")]
 
     const output: string = formatCarry({ taste, verdicts, brief: null })
 
-    expect(conventions(output)).toEqual(["- An untagged convention.", tagged("dup"), tagged("orphan"), "- {owner docs/style.md}"])
+    expect(conventions(output)).toEqual([...untagged, tagged("dup"), tagged("orphan")])
   })
 
   it("sorts a confirmed entry-input-class verdict with the test gaps", () => {
