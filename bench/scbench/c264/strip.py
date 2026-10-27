@@ -3,12 +3,14 @@
 A unit is a top-level `def` or `class` (`name`) or a method of a top-level class
 (`Class::name`), keyed by pytest's node-id tail. A unit is removed only while its source
 still equals the text recorded when the replay dropped it, so a test a later solve edited
-survives and is counted. A test class left with no test method goes too.
+survives and is counted. A test class left with no test method goes too. A helper or fixture
+stays while any remaining test code names it, so a cut never stops the suite from loading.
 """
 
 from __future__ import annotations
 
 import ast
+import re
 from dataclasses import dataclass, field
 
 from remediation.admission import test_names
@@ -21,6 +23,7 @@ class Outcome:
     text: str
     removed: list[str] = field(default_factory=list)
     edited: list[str] = field(default_factory=list)
+    in_use: list[str] = field(default_factory=list)
 
 
 def _span(node: ast.stmt) -> Span:
@@ -66,31 +69,52 @@ def _cut(source: str, cut: list[Span]) -> str:
     return "\n".join(line for n, line in enumerate(lines) if n not in drop)
 
 
-def _has_tests(names: set[str], cls: str) -> bool:
-    return any(n.startswith(f"{cls}::") for n in names)
+def _emptied_classes(source: str, tails: list[str]) -> set[str]:
+    """Test classes every one of whose test methods is among `tails`."""
+    names = test_names(source)
+    classes = {t.split("::")[0] for t in tails if "::" in t}
+    owned = {c: {n for n in names if n.startswith(f"{c}::")} for c in classes}
+    return {c for c, tests in owned.items() if tests and tests <= set(tails)}
 
 
-def _emptied_test_classes(before: str, after: str, touched: set[str]) -> list[Span]:
-    had, has, found = test_names(before), test_names(after), spans(after)
-    return [found[c] for c in sorted(touched) if c in found and _has_tests(had, c) and not _has_tests(has, c)]
+def _remove(source: str, tails: list[str]) -> str:
+    """Cut the units; a test class that would be left with no test method goes whole."""
+    found = spans(source)
+    tails = [t for t in tails if t in found]
+    whole = {t for t in tails if "::" not in t} | _emptied_classes(source, tails)
+    cut = [found[t] for t in sorted(whole)] + [found[t] for t in tails if "::" in t and t.split("::")[0] not in whole]
+    return _cut(source, cut) if cut else source
 
 
-def strip(source: str, recorded: dict[str, str]) -> Outcome:
-    """Remove each recorded unit whose text is unchanged; methods are cut before their class."""
+def is_test_unit(tail: str) -> bool:
+    return tail.rsplit("::", 1)[-1].startswith(("test", "Test"))
+
+
+def _unused(text: str, helpers: list[str], elsewhere: str) -> list[str]:
+    found, unused = spans(text), []
+    for tail in helpers:
+        rest = _cut(text, [found[tail]]) if tail in found else text
+        if not re.search(rf"\b{re.escape(tail.rsplit('::', 1)[-1])}\b", rest + elsewhere):
+            unused.append(tail)
+    return unused
+
+
+def strip(source: str, recorded: dict[str, str], elsewhere: str = "") -> Outcome:
+    """Cut each recorded unit whose text is unchanged: tests first, then the helpers and
+    fixtures nothing left in this file or in `elsewhere` still names, so the suite still loads."""
     found, outcome = spans(source), Outcome(source)
-    for tail in sorted(recorded, key=lambda t: -t.count("::")):
-        if tail not in found:
-            continue
-        if unit_text(source, found[tail]) == recorded[tail]:
-            outcome.removed.append(tail)
-        else:
-            outcome.edited.append(tail)
-    whole = {t for t in outcome.removed if "::" not in t}
-    cut = [found[t] for t in outcome.removed if t.split("::")[0] not in whole or "::" not in t]
-    text = _cut(source, cut) if cut else source
-    touched = {t.split("::")[0] for t in outcome.removed if "::" in t} - whole
-    empty = _emptied_test_classes(source, text, touched)
-    outcome.text = _cut(text, empty) if empty else text
+    for tail in sorted(t for t in recorded if t in found):
+        same = unit_text(source, found[tail]) == recorded[tail]
+        (outcome.removed if same else outcome.edited).append(tail)
+    tests = [t for t in outcome.removed if is_test_unit(t)]
+    helpers = [t for t in outcome.removed if not is_test_unit(t)]
+    text = _remove(source, tests)
+    while unused := _unused(text, helpers, elsewhere):
+        text = _remove(text, unused)
+        helpers = [t for t in helpers if t not in unused]
+    outcome.removed = [t for t in outcome.removed if t not in helpers]
+    outcome.in_use = helpers
+    outcome.text = text
     return outcome
 
 

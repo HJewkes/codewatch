@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -75,15 +76,21 @@ def sync(a1: Path, workspace: Path) -> None:
     shutil.copytree(a1, workspace, dirs_exist_ok=True)
 
 
+def elsewhere(workspace: Path, path: str) -> str:
+    """The other Python files under tests/, which may name a helper or import a module."""
+    files = sorted((workspace / TESTS_DIR).rglob("*.py"))
+    return "\n".join(f.read_text(encoding="utf-8", errors="replace") for f in files if f != workspace / path)
+
+
 def cut_file(arm: Arm, path: str) -> None:
     file = arm.workspace / path
     if not file.is_file():
         return
-    text = file.read_text(encoding="utf-8")
-    if arm.whole.get(path) == text:
+    text, others = file.read_text(encoding="utf-8"), elsewhere(arm.workspace, path)
+    if arm.whole.get(path) == text and file.name.startswith("test") and not re.search(rf"\b{file.stem}\b", others):
         file.unlink()
         return
-    outcome = strip(text, arm.cut.get(path, {}))
+    outcome = strip(text, arm.cut.get(path, {}), others)
     arm.edited |= {f"{path}::{tail}" for tail in outcome.edited}
     if outcome.removed and not test_names(outcome.text) and file.name.startswith("test"):
         file.unlink()
