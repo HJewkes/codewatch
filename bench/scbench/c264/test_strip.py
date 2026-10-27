@@ -56,6 +56,23 @@ class StripTest(unittest.TestCase):
         self.assertNotIn("class TestBox", outcome.text)
         self.assertIn("def test_dup(", outcome.text)
 
+    def test_an_autouse_fixture_and_a_hook_stay_though_nothing_names_them(self):
+        source = ("import pytest\n\n\n@pytest.fixture(autouse=True)\ndef env():\n    yield\n\n\n"
+                  "def pytest_configure(config):\n    pass\n\n\ndef test_x():\n    assert True\n")
+
+        outcome = strip(source, recorded(source, ["env", "pytest_configure", "test_x"]))
+
+        self.assertIn("def env(", outcome.text)
+        self.assertIn("def pytest_configure(", outcome.text)
+
+    def test_a_recorded_import_goes_only_once_nothing_names_it(self):
+        source = "from __future__ import annotations\nimport os\nimport re\n\n\ndef test_x():\n    assert re\n"
+        imports = frozenset({"import os", "import re", "from __future__ import annotations"})
+
+        outcome = strip(source, {}, imports=imports)
+
+        self.assertEqual(outcome.text, "from __future__ import annotations\nimport re\n\n\ndef test_x():\n    assert re\n")
+
 
 if __name__ == "__main__":
     unittest.main()

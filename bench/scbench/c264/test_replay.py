@@ -9,7 +9,7 @@ from pathlib import Path
 
 from remediation.admission import Admission
 
-from c264.replay import replay
+from c264.replay import recorded_gates, replay
 
 APP = "def a():\n    return 1\n\n\ndef b(x):\n    return 2 if x else 3\n"
 OLD_TEST = "from app import a\n\n\ndef test_a():\n    assert a() == 1\n"
@@ -17,6 +17,9 @@ DUP_BODY = "def test_dup():\n    assert a() == 1\n"
 NEW_BODY = "def test_new():\n    assert b(1) == 2\n"
 MORE = f"from app import a, b\n\n\n{DUP_BODY}\n\n{NEW_BODY}"
 DUP, NEW = "tests/test_more.py::test_dup", "tests/test_more.py::test_new"
+HELPED = ("import os\nfrom app import a, b\n\n\ndef only_dup():\n    return os.sep\n\n\ndef shared():\n    return 1\n\n\n"
+          "def test_dup():\n    assert a() == shared() and only_dup()\n\n\n"
+          "def test_new():\n    assert b(shared()) == 2\n")
 REACH = {"base": {"app.py:1", "app.py:2"}, DUP: {"app.py:1", "app.py:2"}, NEW: {"app.py:5", "app.py:6"}}
 
 
@@ -44,21 +47,21 @@ def write_tree(root: Path, files: dict[str, str]) -> None:
         (root / path).write_text(text)
 
 
-def write_run(root: Path, cp2_more: str = MORE) -> Path:
+def write_run(root: Path, cp2_more: str = MORE, more: str = MORE) -> Path:
     """cp1's commit adds test_more.py; A1's cp2 pre-fix tree carries it forward."""
     rebuild = root / "rebuild"
     write_tree(rebuild / "base" / "demo" / "cp1", {"app.py": APP, "tests/test_app.py": OLD_TEST})
     write_tree(rebuild / "base" / "demo" / "cp2",
                {"app.py": APP, "tests/test_app.py": OLD_TEST, "tests/test_more.py": cp2_more})
-    write_tree(rebuild, {"diffs/demo/cp1/01.diff": new_file_diff("tests/test_more.py", MORE)})
+    write_tree(rebuild, {"diffs/demo/cp1/01.diff": new_file_diff("tests/test_more.py", more)})
     items = [{"problem": "demo", "cp": 1, "order": 1, "kind": "test-gap", "signal": "missing-test-kind",
               "symbol": "b", "diff": "diffs/demo/cp1/01.diff"}]
     (rebuild / "items.json").write_text(json.dumps(items))
     return rebuild
 
 
-def run_arm(root: Path, arm: str, rebuild: Path) -> tuple[dict, Path]:
-    gates = (lambda name, git: None if name == "R-none" else Admission(git, FakeCoverage(REACH)))
+def run_arm(root: Path, arm: str, rebuild: Path, gates=None) -> tuple[dict, Path]:
+    gates = gates or (lambda name, git: None if name == "R-none" else Admission(git, FakeCoverage(REACH)))
     replay(arm, "demo", rebuild, root / "out", None, gates, prepare=None)
     run_dir = root / "out" / arm / "demo"
     return json.loads((run_dir / "replay.json").read_text()), run_dir / "trees"
@@ -99,6 +102,40 @@ class ReplayArmsTest(unittest.TestCase):
 
         self.assertIn("def test_dup", (trees / "cp2" / "tests" / "test_more.py").read_text())
         self.assertEqual(log["edited_kept"], [DUP])
+
+
+class HelperCutArmTest(unittest.TestCase):
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        self.rebuild = write_run(self.root, cp2_more=HELPED, more=HELPED)
+
+    def test_a_helper_and_import_only_the_rejected_test_used_go_and_a_shared_helper_stays(self):
+        test_log, test_trees = run_arm(self.root, "R-test", self.rebuild)
+        log, trees = run_arm(self.root, "R-test+helpers", self.rebuild)
+
+        self.assertEqual(log["items"][0]["status"], "trimmed")
+        for cp in ("cp1", "cp2"):
+            kept = (trees / cp / "tests" / "test_more.py").read_text()
+            self.assertNotIn("def only_dup", kept)
+            self.assertNotIn("import os", kept)
+            self.assertIn("def shared", kept)
+            self.assertIn("def test_new", kept)
+            self.assertNotIn("def test_dup", kept)
+            compile(kept, "test_more.py", "exec")
+        self.assertIn("def only_dup", (test_trees / "cp2" / "tests" / "test_more.py").read_text())
+
+    def test_replaying_r_test_verdicts_reproduces_the_gated_run(self):
+        test_log, _ = run_arm(self.root, "R-test", self.rebuild)
+        gated, gated_trees = run_arm(self.root, "R-test+helpers", self.rebuild)
+        verdicts = self.root / "verdicts.json"
+        verdicts.write_text(json.dumps(test_log))
+
+        replayed, trees = run_arm(self.root, "R-test+helpers", self.rebuild, recorded_gates(verdicts))
+
+        expected = [{k: v for k, v in i.items() if k != "gate_seconds"} for i in gated["items"]]
+        self.assertEqual([{k: v for k, v in i.items() if k != "gate_seconds"} for i in replayed["items"]], expected)
+        self.assertEqual((trees / "cp2" / "tests" / "test_more.py").read_text(),
+                         (gated_trees / "cp2" / "tests" / "test_more.py").read_text())
 
 
 if __name__ == "__main__":

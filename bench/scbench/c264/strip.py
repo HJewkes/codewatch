@@ -4,7 +4,9 @@ A unit is a top-level `def` or `class` (`name`) or a method of a top-level class
 (`Class::name`), keyed by pytest's node-id tail. A unit is removed only while its source
 still equals the text recorded when the replay dropped it, so a test a later solve edited
 survives and is counted. A test class left with no test method goes too. A helper or fixture
-stays while any remaining test code names it, so a cut never stops the suite from loading.
+stays while any remaining test code names it, so a cut never stops the suite from loading;
+pytest reaches some without naming them (autouse, `name=`, `pytest_*` hooks), so those stay.
+A recorded import statement goes once nothing left in its file names what it binds.
 """
 
 from __future__ import annotations
@@ -90,18 +92,58 @@ def is_test_unit(tail: str) -> bool:
     return tail.rsplit("::", 1)[-1].startswith(("test", "Test"))
 
 
+def _pinned(text: str, tail: str, span: Span) -> bool:
+    """A helper pytest finds without its name appearing: an autouse or renamed fixture, or a hook."""
+    decorators = unit_text(text, span).split("def ", 1)[0]
+    return tail.startswith("pytest_") or re.search(r"\b(autouse|name)\s*=", decorators) is not None
+
+
 def _unused(text: str, helpers: list[str], elsewhere: str) -> list[str]:
     found, unused = spans(text), []
     for tail in helpers:
+        if tail in found and _pinned(text, tail, found[tail]):
+            continue
         rest = _cut(text, [found[tail]]) if tail in found else text
         if not re.search(rf"\b{re.escape(tail.rsplit('::', 1)[-1])}\b", rest + elsewhere):
             unused.append(tail)
     return unused
 
 
-def strip(source: str, recorded: dict[str, str], elsewhere: str = "") -> Outcome:
+def import_statements(source: str) -> dict[str, Span]:
+    """The module's top-level import statements by their text, `__future__` and `*` left out."""
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return {}
+    found = {}
+    for node in tree.body:
+        if isinstance(node, ast.Import | ast.ImportFrom) and getattr(node, "module", "") != "__future__" \
+                and all(a.name != "*" for a in node.names):
+            span = (node.lineno, node.end_lineno or node.lineno)
+            found[unit_text(source, span)] = span
+    return found
+
+
+def _bound(statement: str) -> list[str]:
+    node = ast.parse(statement.strip()).body[0]
+    return [(a.asname or a.name).split(".")[0] for a in node.names]
+
+
+def _drop_imports(text: str, recorded: frozenset[str]) -> str:
+    found = import_statements(text)
+    cut = []
+    for statement in sorted(recorded & set(found)):
+        rest = _cut(text, [found[statement]])
+        if not any(re.search(rf"\b{re.escape(name)}\b", rest) for name in _bound(statement)):
+            cut.append(found[statement])
+    return _cut(text, cut) if cut else text
+
+
+def strip(source: str, recorded: dict[str, str], elsewhere: str = "",
+          imports: frozenset[str] = frozenset()) -> Outcome:
     """Cut each recorded unit whose text is unchanged: tests first, then the helpers and
-    fixtures nothing left in this file or in `elsewhere` still names, so the suite still loads."""
+    fixtures nothing left in this file or in `elsewhere` still names, so the suite still loads,
+    then the recorded imports nothing left in this file uses."""
     found, outcome = spans(source), Outcome(source)
     for tail in sorted(t for t in recorded if t in found):
         same = unit_text(source, found[tail]) == recorded[tail]
@@ -114,7 +156,7 @@ def strip(source: str, recorded: dict[str, str], elsewhere: str = "") -> Outcome
         helpers = [t for t in helpers if t not in unused]
     outcome.removed = [t for t in outcome.removed if t not in helpers]
     outcome.in_use = helpers
-    outcome.text = text
+    outcome.text = _drop_imports(text, imports) if imports else text
     return outcome
 
 

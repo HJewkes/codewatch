@@ -9,11 +9,16 @@ carries every earlier test forward, and the cut removes the earlier rejects agai
 - R-commit is the gate with a failed retry: a rejected test or a coverage error drops the
   commit, and every def and class it added is cut from then on.
 - R-test is the gate with a retry that removes exactly the rejected tests.
+- R-test+helpers is R-test whose retry also removes the helpers, fixtures and imports the
+  item added that nothing left uses. It can replay R-test's recorded verdicts (`--verdicts`),
+  since cutting code no test runs changes no test's reach.
 
 `Admission` and `Coverage` come from `remediation.admission` unchanged. Run it inside the A1
 image, as root, with this directory, S1's output and the output directory mounted:
 
     python3 -m c264.replay --rebuild REBUILD --out OUT --arm R-test code_search [--cps 1]
+    python3 -m c264.replay --rebuild REBUILD --out OUT --arm R-test+helpers \
+        --verdicts OUT/R-test/code_search/replay.json code_search
 """
 
 from __future__ import annotations
@@ -34,9 +39,9 @@ from remediation.git import Git
 from remediation.session import run_process
 
 from .rebuild import TEST_GAP, TESTS_DIR, git_apply
-from .strip import added_units, strip, units
+from .strip import added_units, import_statements, is_test_unit, strip, units
 
-ARMS = ("R-none", "R-commit", "R-test")
+ARMS = ("R-none", "R-commit", "R-test", "R-test+helpers")
 COVERAGE = "/opt/codewatch-a1/bin/coverage"
 KEEP = {".codewatch", ".venv"}
 TIMEOUT = 1800.0
@@ -52,6 +57,7 @@ class Arm:
     prepare: Callable[[Path, Path], None] | None = None
     cut: dict[str, dict[str, str]] = field(default_factory=dict)
     whole: dict[str, str] = field(default_factory=dict)
+    imports: dict[str, set[str]] = field(default_factory=dict)
     edited: set[str] = field(default_factory=set)
     log: list[dict] = field(default_factory=list)
 
@@ -90,17 +96,17 @@ def cut_file(arm: Arm, path: str) -> None:
     if arm.whole.get(path) == text and file.name.startswith("test") and not re.search(rf"\b{file.stem}\b", others):
         file.unlink()
         return
-    outcome = strip(text, arm.cut.get(path, {}), others)
+    outcome = strip(text, arm.cut.get(path, {}), others, frozenset(arm.imports.get(path, ())))
     arm.edited |= {f"{path}::{tail}" for tail in outcome.edited}
     if outcome.removed and not test_names(outcome.text) and file.name.startswith("test"):
         file.unlink()
-    elif outcome.removed:
+    elif outcome.text != text:
         file.write_text(outcome.text, encoding="utf-8")
 
 
 def materialize(arm: Arm, a1: Path) -> None:
     sync(a1, arm.workspace)
-    for path in sorted(set(arm.cut) | set(arm.whole)):
+    for path in sorted(set(arm.cut) | set(arm.whole) | set(arm.imports)):
         cut_file(arm, path)
 
 
@@ -136,12 +142,27 @@ def drop_commit(arm: Arm, sha: str) -> None:
     arm.git.run("reset", "-q", "--hard", "HEAD~1")
 
 
+def record_helpers(arm: Arm, sha: str) -> list[str]:
+    """Record the top-level helpers, fixtures and imports `sha` added under tests/."""
+    paths = [p for p in sorted(arm.git.files_in(sha)) if p.startswith(f"{TESTS_DIR}/") and (arm.workspace / p).is_file()]
+    for path in paths:
+        before, after = parent_text(arm.git, sha, path), (arm.workspace / path).read_text(encoding="utf-8")
+        helpers = [t for t in added_units(before, after) if "::" not in t and not is_test_unit(t)]
+        arm.cut.setdefault(path, {}).update(units(after, helpers))
+        arm.imports.setdefault(path, set()).update(set(import_statements(after)) - set(import_statements(before or "")))
+    return paths
+
+
 def drop_tests(arm: Arm, rejected: tuple[str, ...]) -> str:
-    """Cut the rejected tests and amend; a commit left empty goes."""
+    """Cut the rejected tests (and for R-test+helpers what only they used) and amend; a commit
+    left empty goes."""
+    helper_paths = record_helpers(arm, arm.git.head()) if arm.name == "R-test+helpers" else []
     for node in rejected:
         path, tail = node.split("::", 1)
         text = (arm.workspace / path).read_text(encoding="utf-8")
         arm.cut.setdefault(path, {}).update(units(text, [tail]))
+        cut_file(arm, path)
+    for path in helper_paths:
         cut_file(arm, path)
     arm.git.run("add", "-A", "--", ".", ":(exclude).codewatch")
     if not arm.git.run("diff", "--cached", "--name-only", "HEAD~1"):
@@ -227,6 +248,19 @@ def admission_gates(coverage: str) -> GateFactory:
     return make
 
 
+def recorded_gates(verdicts: Path) -> GateFactory:
+    """Replay another arm's logged verdicts, found by the item's checkpoint and order."""
+    logged = {(i["cp"], i["order"]): Verdict(tuple(i["admitted"]), tuple(i["rejected"]), i["error"])
+              for i in json.loads(verdicts.read_text())["items"] if "admitted" in i}
+
+    def make(name: str, git: Git) -> Gate | None:
+        def gate(sha: str, timeout: float | None) -> Verdict:
+            _, cp, order, _ = git.run("log", "-1", "--format=%s", sha).split(" ", 3)
+            return logged[(int(cp.removeprefix("cp")), int(order))]
+        return None if name == "R-none" else gate
+    return make
+
+
 def replay(arm_name: str, problem: str, rebuild: Path, out: Path, cps: set[int] | None,
            gates: GateFactory, prepare: Callable[[Path, Path], None] | None = ensure_venv) -> Arm:
     rows = [r for r in json.loads((rebuild / "items.json").read_text()) if r["problem"] == problem]
@@ -251,11 +285,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--arm", choices=ARMS, required=True)
     parser.add_argument("--cps", type=int, nargs="*", help="only these checkpoints (the timing probe)")
     parser.add_argument("--coverage", default=COVERAGE)
+    parser.add_argument("--verdicts", type=Path, help="replay this arm's replay.json verdicts, without coverage")
     parser.add_argument("problem")
     args = parser.parse_args(argv)
     started = time.monotonic()
     cps = set(args.cps) if args.cps else None
-    arm = replay(args.arm, args.problem, args.rebuild, args.out, cps, admission_gates(args.coverage))
+    gates = recorded_gates(args.verdicts) if args.verdicts else admission_gates(args.coverage)
+    prepare = None if args.verdicts else ensure_venv
+    arm = replay(args.arm, args.problem, args.rebuild, args.out, cps, gates, prepare)
     statuses = [i["status"] for i in arm.log]
     print(json.dumps({"arm": args.arm, "problem": args.problem, "seconds": round(time.monotonic() - started),
                       **{s: statuses.count(s) for s in sorted(set(statuses))}}))
