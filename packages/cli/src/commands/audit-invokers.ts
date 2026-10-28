@@ -25,6 +25,7 @@ const CONFIG_FILE = /(?:^|\/)(?:package\.json|Makefile)$|\.(?:ya?ml|sh)$/;
 const CODE_FILE = /\.(?:py|ts|mts|mjs|cjs|js)$/;
 const STRING_LITERAL = /(["'`])((?:\\.|(?!\1)[^\\])*)\1/g;
 const JSON_KEY = /^\s*"((?:\\.|[^"\\])*)"\s*:/;
+const COMMENT_LINE = /^\s*(?:#|\/\/|\/\*|\*)/;
 
 const escape = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const isScanned = (file: string): boolean => CONFIG_FILE.test(file) || CODE_FILE.test(file);
@@ -88,12 +89,12 @@ function hopInvokers(direct: readonly Invoker[], texts: ReadonlyMap<string, stri
   return out;
 }
 
-/** Package scripts, CI and build files, shell scripts and source lines that run `script`; docs never count. */
+/** Package scripts, CI and build files, shell scripts and source lines that run `script`; docs and comment lines never count. */
 export function findInvokers(query: InvokerQuery): Invoker[] {
   const texts = new Map<string, string[]>();
   for (const file of query.files) {
     const text = file !== query.script && isScanned(file) ? query.readFile(file) : undefined;
-    if (text !== undefined) texts.set(file, text.split("\n"));
+    if (text !== undefined) texts.set(file, text.split("\n").map((line) => (COMMENT_LINE.test(line) ? "" : line)));
   }
   const direct = directInvokers(query, texts);
   return [...direct, ...hopInvokers(direct, texts)];

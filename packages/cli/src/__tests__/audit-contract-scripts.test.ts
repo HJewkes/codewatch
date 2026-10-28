@@ -54,6 +54,7 @@ const BASE_FILES: Readonly<Record<string, string>> = {
   "scripts/new-thing.mjs": `import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 execFileSync(process.execPath, [join("scripts", "gen.mjs")]);
+// Like "scripts/gen.mjs", pnpm gen:check runs it in CI.
 `,
   ".github/workflows/ci.yml": `jobs:
   check:
@@ -140,8 +141,9 @@ describe("script contract-change findings against --changed-from", () => {
     expect(rows.filter((f) => f.id.includes("--debug"))).toEqual([]);
   });
 
-  it("ignores documentation", () => {
+  it("ignores documentation and comment lines", () => {
     expect(rows.filter((f) => f.evidence?.includes("README.md"))).toEqual([]);
+    expect(rows.filter((f) => f.evidence?.includes("new-thing.mjs:4"))).toEqual([]);
   });
 
   it("reaches a Python script through a Makefile", () => {
