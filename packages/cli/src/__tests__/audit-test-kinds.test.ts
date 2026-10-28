@@ -117,7 +117,7 @@ afterAll(() => {
 });
 
 describe("missing-test-kind findings on a CLI tested only by substring checks", () => {
-  it("flags the boundary, the parser and the loosely tested pure helper, naming the tests that reach each", () => {
+  it("flags the entry point only, naming the tests that reach it", () => {
     expect(cliRows.map((f) => [f.id, f.evidence]).sort()).toEqual([
       [
         "codewatch:missing-test-kind:inventory/cli.py#main:error-path",
@@ -127,15 +127,11 @@ describe("missing-test-kind findings on a CLI tested only by substring checks", 
         "codewatch:missing-test-kind:inventory/cli.py#main:full-output",
         `code kind: output boundary\nmissing: snapshot or exact-output test\n${LOOSE_CLI_TESTS}\nnote: its tests assert only loose output`,
       ],
-      [
-        "codewatch:missing-test-kind:inventory/parse.py#parse_rows:malformed-input",
-        `code kind: parser\nmissing: malformed-input error-path test\n${LOOSE_CLI_TESTS}`,
-      ],
-      [
-        "codewatch:missing-test-kind:inventory/report.py#render_report:exact-value",
-        `code kind: pure logic\nmissing: exact-value test\n${LOOSE_CLI_TESTS}`,
-      ],
     ]);
+  });
+
+  it("leaves the parser and the loosely tested pure helper alone, since neither is an entry point", () => {
+    expect(cliRows.filter((f) => f.symbol === "parse_rows" || f.symbol === "render_report")).toEqual([]);
   });
 
   it("flags a loose-only output boundary even though tests reach it, at the symbol's own span", () => {
@@ -153,7 +149,7 @@ describe("missing-test-kind findings on a CLI tested only by substring checks", 
     expect(cliRows.filter((f) => f.symbol === "total_value" || f.symbol === "describe_row")).toEqual([]);
   });
 
-  it("flags an untested symbol once the change touches it", async () => {
+  it("leaves a changed symbol alone when it is not an entry point", async () => {
     const root = join(scratch, "cli-changed");
     writeFiles(root, CLI_FILES);
     stageAsChange(root);
@@ -162,10 +158,21 @@ describe("missing-test-kind findings on a CLI tested only by substring checks", 
 
     const rows = await testKindRows(root, "HEAD");
 
-    expect(rows.filter((f) => f.symbol === "describe_row").map((f) => [f.id, f.evidence])).toEqual([
-      ["codewatch:missing-test-kind:inventory/report.py#describe_row:exact-value", "code kind: pure logic\nmissing: exact-value test\ntests: none"],
-    ]);
-    expect(ids(rows)).toEqual(ids([...cliRows, ...rows.filter((f) => f.symbol === "describe_row")]));
+    expect(ids(rows)).toEqual(ids(cliRows));
+  });
+});
+
+describe("missing-test-kind findings on an untested CLI entry point", () => {
+  it("flags the entry once the change touches it, though no test reaches it", async () => {
+    const root = join(scratch, "cli-untested");
+    const source = Object.fromEntries(Object.entries(CLI_FILES).filter(([rel]) => !rel.startsWith("tests/")));
+    writeFiles(root, { ...source, "inventory/cli.py": `${CLI_FILES["inventory/cli.py"]}\n\nif __name__ == "__main__":\n    main()\n` });
+    stageAsChange(root);
+
+    const rows = await testKindRows(root, "HEAD");
+
+    expect(rows.map((f) => [f.symbol, f.evidence?.split("\n").at(-1)])).toContainEqual(["main", "tests: none"]);
+    expect(rows.filter((f) => f.symbol !== "main")).toEqual([]);
   });
 });
 
@@ -182,16 +189,8 @@ describe("missing-test-kind findings on the A1 image fixture, which has no tests
     expect(await testKindRows(root)).toEqual([]);
   });
 
-  it("flags every pure function for an exact-value test when the whole tree is the change", async () => {
-    const rows = await testKindRows(root, "HEAD");
-
-    expect(ids(rows)).toEqual([
-      "codewatch:missing-test-kind:shop/cart.py#cart_total:exact-value",
-      "codewatch:missing-test-kind:shop/cart.py#total:exact-value",
-      "codewatch:missing-test-kind:shop/pricing.py#line_total:exact-value",
-      "codewatch:missing-test-kind:shop/pricing.py#unit_price:exact-value",
-    ]);
-    for (const f of rows) expect(f.evidence).toBe("code kind: pure logic\nmissing: exact-value test\ntests: none");
+  it("flags nothing even when the whole tree is the change: no entry point", async () => {
+    expect(await testKindRows(root, "HEAD")).toEqual([]);
   });
 });
 
