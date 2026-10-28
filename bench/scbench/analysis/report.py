@@ -1,6 +1,7 @@
 """Renders an Analysis as the section 6 table (report.md) and as report.json.
 
 Neither output carries per-rule scb-check counts: the readers never load them (section 3).
+Erosion and verbosity headline without the agent's tests; full-tree scores are secondary (C-235).
 """
 
 from __future__ import annotations
@@ -13,6 +14,8 @@ from .analyse import Analysis
 from .paired import ARMS, CheckpointRow
 
 SOLVE = ("strict", "iso", "core")
+HEADLINE = ("erosion_ex_tests", "verbosity_ex_tests")
+QUALITY = (*HEADLINE, "erosion", "verbosity")
 
 
 def write_reports(analysis: Analysis, out_dir: Path) -> None:
@@ -44,12 +47,12 @@ def _row_json(row: CheckpointRow) -> dict:
         "checkpoint": row.index,
         "arms": {
             arm: {m: row.solved(arm, m) for m in SOLVE}
-            | {m: row.value(arm, m) for m in ("erosion", "verbosity", "usd")}
+            | {m: row.value(arm, m) for m in (*QUALITY, "usd")}
             for arm in ARMS
             if row.cells[arm] is not None
         },
         "a1_minus_a1a": {
-            m: row.delta("A1", "A1a", m) for m in (*SOLVE, "erosion", "verbosity", "usd")
+            m: row.delta("A1", "A1a", m) for m in (*SOLVE, *QUALITY, "usd")
         },
     }
 
@@ -73,8 +76,10 @@ def _decision_section(a: Analysis) -> str:
         f"## Verdict: {d.verdict}",
         "",
         f"- T = {d.threshold:.0%}; ΔS = {d.delta_strict:+d}; ΔISO = {d.delta_iso:+d}",
-        f"- ΔE = {_pct(d.delta_erosion)} ({_consistency(a.erosion_consistency)})",
-        f"- ΔV = {_pct(d.delta_verbosity)} ({_consistency(a.verbosity_consistency)})",
+        f"- ΔE (tests excluded) = {_pct(d.delta_erosion)} ({_consistency(a.erosion_consistency)})",
+        f"- ΔV (tests excluded) = {_pct(d.delta_verbosity)} ({_consistency(a.verbosity_consistency)})",
+        f"- ΔE full tree (secondary) = {_pct(d.delta_erosion_full)}",
+        f"- ΔV full tree (secondary) = {_pct(d.delta_verbosity_full)}",
         f"- A1 $/checkpoint over A0: {_num(d.cost_ratio, '.2f', 'x')}",
         f"- Stage fire rate: {a.fire_rate:.0%}",
         "",
@@ -90,20 +95,21 @@ def _consistency(c) -> str:
 
 def _summary_section(a: Analysis) -> str:
     header = (
-        "| Arm | Strict | ISO | Core | Erosion | Verbosity | Erosion, tests excl. "
-        "| Verbosity, tests excl. | $/ckpt | Parity gap |"
+        "| Arm | Strict | ISO | Core | Erosion, tests excl. | Verbosity, tests excl. "
+        "| Erosion, full tree | Verbosity, full tree | $/ckpt | Parity gap |"
     )
     rows = [
         f"| {name} | {s.strict}/{s.expected} | {s.iso}/{s.expected} | {s.core}/{s.expected} "
-        f"| {_num(s.erosion)} | {_num(s.verbosity)} | {_num(s.erosion_ex_tests)} "
-        f"| {_num(s.verbosity_ex_tests)} | {_num(s.usd_per_checkpoint, '.2f')} "
+        f"| {_num(s.erosion_ex_tests)} | {_num(s.verbosity_ex_tests)} | {_num(s.erosion)} "
+        f"| {_num(s.verbosity)} | {_num(s.usd_per_checkpoint, '.2f')} "
         f"| {_num(s.parity_gap)} |"
         for name, s in a.summaries.items()
     ]
     excluded = ", ".join(a.tests_dirs) or "(sensitivity run skipped)"
     note = (
-        f"Tests-excluded columns re-run the pinned scb-check on each snapshot without "
-        f"{excluded}. The parity gap compares the recorded scores with a rerun on the full "
+        f"Tests-excluded columns are the headline: the pinned scb-check re-run on each snapshot "
+        f"without {excluded}, so test bloat cannot dilute them. Full-tree columns are the "
+        "recorded scores, kept as secondary. The parity gap compares the recorded scores with a rerun on the full "
         "snapshot; anything above about 0.001 means the rerun does not reproduce the grade."
     )
     return "\n".join(["## Arms", "", header, "|---" * 10 + "|", *rows, "", note])
@@ -117,7 +123,7 @@ def _gaming_section(a: Analysis) -> str:
         f"across {g.split_checkpoints} checkpoints"
     )
     drop = (
-        f"- Summed paired erosion drop, A1a to A1: {g.erosion_drop:.3f}; at split checkpoints: "
+        f"- Summed paired tests-excluded erosion drop, A1a to A1: {g.erosion_drop:.3f}; at split checkpoints: "
         f"{g.split_drop:.3f}; share {_pct(g.split_share)} (limit 50%)"
     )
     return "\n".join([
@@ -125,7 +131,7 @@ def _gaming_section(a: Analysis) -> str:
         "",
         splits,
         drop,
-        f"- Tests-excluded run points the same way: {_yes_no(g.sensitivity_agrees)}",
+        f"- Full-tree scores point the same way: {_yes_no(g.sensitivity_agrees)}",
     ])
 
 
@@ -152,7 +158,7 @@ def _paired_section(a: Analysis) -> str:
 def _table(rows: list[CheckpointRow]) -> list[str]:
     header = (
         "| Problem | Ckpt | Strict A0/A1a/A1 | ISO A0/A1a/A1 | Core A0/A1a/A1 "
-        "| Erosion A1a → A1 | ΔE | Verbosity A1a → A1 | ΔV | $ A1a → A1 |"
+        "| Erosion excl. tests A1a → A1 | ΔE | Verbosity excl. tests A1a → A1 | ΔV | $ A1a → A1 |"
     )
     return [header, "|---" * 10 + "|", *(_table_row(row) for row in rows)]
 
@@ -164,7 +170,7 @@ def _table_row(row: CheckpointRow) -> str:
     pairs = [
         f"{_num(row.value('A1a', m))} → {_num(row.value('A1', m))} "
         f"| {_num(row.delta('A1', 'A1a', m), '+.3f')}"
-        for m in ("erosion", "verbosity")
+        for m in HEADLINE
     ]
     usd = f"{_num(row.value('A1a', 'usd'), '.2f')} → {_num(row.value('A1', 'usd'), '.2f')}"
     return f"| {row.problem} | {row.index} | {' | '.join(solved)} | {' | '.join(pairs)} | {usd} |"
