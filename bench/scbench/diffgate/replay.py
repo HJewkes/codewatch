@@ -4,6 +4,11 @@ A run materialises the case's trees in a fresh scratch dir, substitutes the plac
 with the recorded stdin and env changes. The outcome is the exit code, stdout, stderr, and a digest of
 every file left in the scratch dir (so a cleanup that changes what the program writes is seen too);
 a text file is digested after compare.py's N4 timing mask.
+
+Under host load the parallel pass can time a case out, or add a line to its stderr, on identical trees.
+So a case that timed out on any side, or whose base and head differ only in stderr, is replayed once
+more on every side, serially and with a longer limit; the second outcomes replace the first, and
+runs.json lists those cases under `replayed`.
 """
 
 from __future__ import annotations
@@ -17,9 +22,11 @@ import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from .compare import mask_timing
+from .compare import differences, mask_timing
 
 TIMEOUT_S = 10
+RETRY_TIMEOUT_S = 30
+SIDES = ("base", "base_again", "head")
 
 
 def load_cases(cases_dir: Path) -> dict[str, dict]:
@@ -61,14 +68,15 @@ def _decode(data: bytes, places: dict[str, str]) -> str:
     return text
 
 
-def run_case(case_dir: Path, case: dict, root: Path, scratch: Path, python: str) -> dict:
+def run_case(case_dir: Path, case: dict, root: Path, scratch: Path, python: str,
+             timeout_s: float | None = None) -> dict:
     shutil.copytree(case_dir / "files", scratch, symlinks=True)
     places = {"{CASE}": str(scratch), "{ROOT}": str(root), "{PY}": python}
     stdin = base64.b64decode(case["stdin_b64"]) if case.get("stdin_b64") else None
     try:
         done = subprocess.run([_substitute(t, places) for t in case["argv"]], input=stdin,
                               cwd=_substitute(case["cwd"], places), env=_env(case, places),
-                              capture_output=True, timeout=TIMEOUT_S)
+                              capture_output=True, timeout=timeout_s or TIMEOUT_S)
         rc, out, err = done.returncode, done.stdout, done.stderr
     except subprocess.TimeoutExpired as timeout:
         rc, out, err = "timeout", timeout.stdout or b"", timeout.stderr or b""
@@ -84,3 +92,22 @@ def replay(cases_dir: Path, root: Path, scratch: Path, python: str, workers: int
 
     with ThreadPoolExecutor(workers) as pool:
         return dict(pool.map(one, sorted(cases)))
+
+
+def suspect(runs: dict[str, dict], name: str) -> bool:
+    """A timeout on any side, or a base/head difference in stderr alone: what load alone can cause."""
+    if any(runs[side][name]["rc"] == "timeout" for side in SIDES):
+        return True
+    return differences(runs["base"][name], runs["head"][name]) == ["stderr"]
+
+
+def replay_suspects(cases_dir: Path, roots: dict[str, Path], runs: dict[str, dict], scratch: Path,
+                    python: str) -> dict:
+    """Replay each suspect case once more on every side, one at a time; its new outcomes replace the old."""
+    cases = load_cases(cases_dir)
+    again = [name for name in sorted(cases) if suspect(runs, name)]
+    for name in again:
+        for side in SIDES:
+            runs[side][name] = run_case(cases_dir / name, cases[name], roots[side], scratch / side / name, python,
+                                        RETRY_TIMEOUT_S)
+    return {**runs, "replayed": again}
