@@ -82,6 +82,14 @@ class Git:
         self.run("commit", "-q", "--no-verify", *(["--amend"] if amend else []), "-m", message)
         return self.head()
 
+    def amend_would_empty(self) -> bool:
+        """Whether amending HEAD with the work tree's edits would leave it no change from its parent."""
+        self.run("add", "-A", *OUTSIDE_CODEWATCH)
+        return not self.run("diff", "--cached", "--name-only", "HEAD^")
+
+    def discard_edits(self) -> None:
+        self.run("reset", "-q", "--hard")
+
     def revert(self, commit: str) -> None:
         self.run("revert", "--no-edit", commit)
 

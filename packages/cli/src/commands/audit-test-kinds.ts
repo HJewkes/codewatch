@@ -1,13 +1,16 @@
 import { parseSymbolId, type Finding, type GraphEdge, type GraphNode } from "@titan-design/code-graph";
-import { touches, type ChangedLines, type LineRange } from "./audit-changed.js";
-import { lineAttr, type MetricIndex } from "./audit-collect.js";
+import { touches, type ChangedLines } from "./audit-changed.js";
+import type { MetricIndex } from "./audit-collect.js";
+import { callersByCallee, citation, reachingTests, spanOf } from "./audit-graph-walk.js";
 import { TEST_KIND_POLICY, type TestKindRequirement } from "./audit-rules.js";
 
 export interface TestKindInput {
   nodes: readonly GraphNode[];
   metrics: MetricIndex;
   edges: readonly GraphEdge[];
-  /** Lines the PR changes; a symbol they touch is checked even when no test reaches it. */
+  /** Public entry points (audit-entries.ts); only these are checked. */
+  entries: ReadonlySet<string>;
+  /** Lines the PR changes; an entry point they touch is checked even when no test reaches it. */
   changed?: ChangedLines;
 }
 
@@ -22,45 +25,7 @@ interface Gap {
   labels: string[];
 }
 
-function callersByCallee(edges: readonly GraphEdge[]): Map<string, string[]> {
-  const out = new Map<string, string[]>();
-  for (const e of edges) {
-    if (e.kind !== "calls" || e.srcId === e.dstId) continue;
-    const list = out.get(e.dstId);
-    if (list) list.push(e.srcId);
-    else out.set(e.dstId, [e.srcId]);
-  }
-  return out;
-}
-
-/** Test functions that reach `id` through `calls` edges, walking callers upward. */
-function reachingTests(id: string, callers: ReadonlyMap<string, readonly string[]>, isTest: (id: string) => boolean): string[] {
-  const seen = new Set([id]);
-  const queue = [id];
-  while (queue.length > 0) {
-    for (const caller of callers.get(queue.pop()!) ?? []) {
-      if (seen.has(caller)) continue;
-      seen.add(caller);
-      queue.push(caller);
-    }
-  }
-  return [...seen].filter(isTest);
-}
-
-function spanOf(node: GraphNode): LineRange | undefined {
-  const start = lineAttr(node, "startLine");
-  const end = lineAttr(node, "endLine");
-  return start === undefined || end === undefined ? undefined : { start, end };
-}
-
-function citation(id: string, nodes: ReadonlyMap<string, GraphNode>): string {
-  const fileId = parseSymbolId(id)?.fileId ?? id;
-  const node = nodes.get(id);
-  const span = node && spanOf(node);
-  return span ? `${fileId}:${span.start}-${span.end}` : fileId;
-}
-
-function testsLine(tests: readonly string[], nodes: ReadonlyMap<string, GraphNode>): string {
+export function testsLine(tests: readonly string[], nodes: ReadonlyMap<string, GraphNode>): string {
   if (tests.length === 0) return "tests: none";
   const cited = tests.map((t) => citation(t, nodes)).sort((a, b) => a.localeCompare(b, "en", { numeric: true }));
   const more = cited.length > LISTED_TESTS ? ` (+${cited.length - LISTED_TESTS} more)` : "";
@@ -121,8 +86,9 @@ function findingsFor(node: GraphNode, metrics: MetricIndex, ctx: SymbolContext):
 }
 
 /**
- * `missing-test-kind` findings under {@link TEST_KIND_POLICY}: a source symbol is checked when a
- * test reaches it or the PR changes it, so untested code outside the change stays quiet.
+ * `missing-test-kind` findings under {@link TEST_KIND_POLICY}, on entry points only: an entry is
+ * checked when a test reaches it or the PR changes it, so untested code outside the change stays
+ * quiet and private or internal helpers get no per-symbol test-gap rows.
  */
 export function testKindFindings(input: TestKindInput): Finding[] {
   const testFunctions = input.metrics.get(TEST_FUNCTION_METRIC) ?? new Map<string, number>();
@@ -132,6 +98,6 @@ export function testKindFindings(input: TestKindInput): Finding[] {
     isTest: (id) => testFunctions.has(id),
   };
   return input.nodes
-    .filter((n) => n.kind === "symbol" && inScope(n, input.metrics, input.changed))
+    .filter((n) => n.kind === "symbol" && input.entries.has(n.id) && inScope(n, input.metrics, input.changed))
     .flatMap((n) => findingsFor(n, input.metrics, ctx));
 }

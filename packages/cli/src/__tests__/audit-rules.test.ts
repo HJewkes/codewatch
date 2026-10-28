@@ -71,6 +71,18 @@ describe("call-graph audit rules", () => {
   });
 });
 
+describe("component prop audit rules", () => {
+  it("flags a component with 16 props and not one with 15", () => {
+    seed("symbol", "symbol_prop_count", [15, 16]);
+    expect(flaggedValues("symbol-prop-count", "symbol_prop_count")).toEqual([16]);
+  });
+
+  it("flags a component with one unread prop and not a fully read one", () => {
+    seed("symbol", "symbol_unread_props", [0, 1]);
+    expect(flaggedValues("symbol-unread-props", "symbol_unread_props")).toEqual([1]);
+  });
+});
+
 describe("outlier audit rules over sparse metrics", () => {
   it("flags a comment-heavy function above the floor, not a top-decile one below it", () => {
     seed("symbol", "symbol_comment_ratio", [...zeros(100), ...repeat(20, 0.1), 0.4, 0.9]);

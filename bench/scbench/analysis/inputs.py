@@ -150,6 +150,14 @@ class CheckpointResult:
     rerun: Rerun | None
     stage_log: StageLog | None
 
+    @property
+    def erosion_ex_tests(self) -> float | None:
+        return self.rerun.erosion_ex_tests if self.rerun else None
+
+    @property
+    def verbosity_ex_tests(self) -> float | None:
+        return self.rerun.verbosity_ex_tests if self.rerun else None
+
 
 class StagesNotFoundError(FileNotFoundError):
     pass

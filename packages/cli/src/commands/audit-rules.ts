@@ -23,6 +23,8 @@ export const AUDIT_RULES: readonly CheckRule[] = [
   outlierRule("symbol-comment-ratio", "symbol_comment_ratio", 0.5, "symbol"),
   maxRule("symbol-single-caller-helper", "symbol_single_caller_helper", 0, "symbol"),
   maxRule("symbol-constant-params", "symbol_constant_params", 0, "symbol"),
+  maxRule("symbol-prop-count", "symbol_prop_count", 15, "symbol"),
+  maxRule("symbol-unread-props", "symbol_unread_props", 0, "symbol"),
   maxRule("file-loc", "loc", 500, "file"),
   maxRule("file-nesting", "max_nesting_depth", 4, "file"),
   maxRule("file-lcom4", "lcom4_max", 2, "file"),
@@ -32,6 +34,7 @@ export const AUDIT_RULES: readonly CheckRule[] = [
   maxRule("file-unreachable", "unreachable_statements", 0, "file"),
   maxRule("file-swallowed-except", "swallowed_except", 0, "file"),
   outlierRule("file-except-density", "except_density", 3, "file"),
+  { type: "no-import-cycles", id: "file-import-cycles", severity: "warning" },
 ];
 
 /**
