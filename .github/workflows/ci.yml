@@ -11,7 +11,8 @@ concurrency:
 
 jobs:
   ci:
-    runs-on: ubuntu-latest
+    # Playwright chromium has no ubuntu26.04 build, which ubuntu-latest now resolves to
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
         with:
