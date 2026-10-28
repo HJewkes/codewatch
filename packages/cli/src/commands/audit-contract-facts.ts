@@ -63,9 +63,24 @@ function staticText(node: Node): string | undefined {
   return parts.join("");
 }
 
+const upTo = (text: string | undefined, stop: string): string | undefined => (text === undefined ? undefined : text.split(stop)[0]);
+
+/** Static text of a message built by `%`, `+` or `.format`, up to the first placeholder. */
+function formattedText(node: Node): string | undefined {
+  if (node.type === "binary_operator" || node.type === "binary_expression") {
+    const left = node.childForFieldName("left");
+    const operator = node.childForFieldName("operator")?.text;
+    if (!left || (operator !== "%" && operator !== "+")) return undefined;
+    return operator === "%" ? upTo(staticText(left), "%") : (staticText(left) ?? formattedText(left));
+  }
+  const callee = node.type === "call" ? node.childForFieldName("function") : null;
+  const target = callee?.type === "attribute" && lastName(callee) === "format" ? callee.childForFieldName("object") : null;
+  return target ? upTo(staticText(target), "{") : undefined;
+}
+
 function messageOf(args: readonly Node[]): string {
   for (const arg of args) {
-    const text = staticText(arg);
+    const text = staticText(arg) ?? formattedText(arg);
     if (text !== undefined) return collapse(text);
   }
   const code = args.map((a) => lastName(a) ?? a.text).find((t) => ERROR_CODE.test(t));

@@ -38,6 +38,12 @@ def use():
     expect(errorSites(file).map(errorKey)).toEqual(["Error:bad width"]);
   });
 
+  it("keys a %-, +- or format-built message by its text before the first placeholder", async () => {
+    const pyFile = await py('def f(g):\n    raise E("duplicate field: %s" % g)\n    raise E("bad {}".format(g))\n');
+    const tsFile = await ts('function f(g: string): void {\n  throw new E("unknown alias " + g);\n}\n');
+    expect([...errorSites(pyFile), ...errorSites(tsFile)].map(errorKey)).toEqual(["E:duplicate field:", "E:bad", "E:unknown alias"]);
+  });
+
   it("keys exits by their non-zero code and falls back to an error-code constant", async () => {
     const file = await ts(`function main(): void {
   process.exit(0);
