@@ -1,7 +1,9 @@
 """Choose and order the fix items (design Revision 1, D148 and D150; U8 in section 2.1).
 
 - Phase 1: test gaps on code this PR changed: `diff-uncovered` findings (measured, not
-  triaged) and confirmed weak-oracle and `missing-test-kind` verdicts.
+  triaged) and confirmed weak-oracle and `missing-test-kind` verdicts. `missing-test-kind`
+  now fires on entry points only (C-237); `entry-input-class` findings are never items: no
+  question, and their oracle is the spec (C-233).
 - Phase 2: confirmed quality findings on code this PR changed.
 - Phase 3: confirmed findings anywhere else, test gaps first. Each goes on its own branch.
 
