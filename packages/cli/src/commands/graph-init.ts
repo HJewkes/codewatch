@@ -11,6 +11,7 @@ import { runGraphIndexCommand } from "./graph-index.js";
  * project-specific package roots the scaffolder cannot infer. The `$comment`
  * points users at the schema reference to add architecture rules themselves.
  * `scary-hotspots` is churn-based, so it is meant to run with `--baseline`.
+ * `no-import-cycles` needs no package roots, so it ships by default.
  */
 const DEFAULT_CHECK_CONFIG = {
   $comment:
@@ -52,6 +53,14 @@ const DEFAULT_CHECK_CONFIG = {
       metrics: ["churn_30d", "cognitive_max", "recency_30d"],
       kind: "file",
       max: 3000,
+      excludeRoles: ["test", "fixture"],
+    },
+    {
+      $comment:
+        "A file import cycle blocks independent change of its members. Type-only imports are " +
+        "erased at runtime, so a cycle they alone close is not reported.",
+      id: "no-import-cycles",
+      type: "no-import-cycles",
       excludeRoles: ["test", "fixture"],
     },
   ],
