@@ -1,4 +1,9 @@
-"""Per-arm measures from design section 6, and the tests-excluded sensitivity rerun."""
+"""Per-arm measures from design section 6, and the tests-excluded rerun.
+
+Erosion and verbosity headline without the agent's tests (C-235): a test-heavy arm
+otherwise dilutes both, so test bloat would read as a quality gain. The full-tree scores
+are kept as secondary numbers.
+"""
 
 from __future__ import annotations
 
@@ -34,7 +39,6 @@ def checkpoint_cost(result: CheckpointResult) -> float | None:
 
 def summarise(arm: Arm, expected: int) -> ArmSummary:
     results = list(arm.values())
-    reruns = [r.rerun for r in results if r.rerun is not None]
     return ArmSummary(
         expected=expected,
         ran=len(results),
@@ -43,8 +47,8 @@ def summarise(arm: Arm, expected: int) -> ArmSummary:
         core=sum(r.core for r in results),
         erosion=_mean(r.erosion for r in results),
         verbosity=_mean(r.verbosity for r in results),
-        erosion_ex_tests=_mean(r.erosion_ex_tests for r in reruns),
-        verbosity_ex_tests=_mean(r.verbosity_ex_tests for r in reruns),
+        erosion_ex_tests=_mean(r.erosion_ex_tests for r in results),
+        verbosity_ex_tests=_mean(r.verbosity_ex_tests for r in results),
         usd_per_checkpoint=_mean(checkpoint_cost(r) for r in results),
         parity_gap=_parity_gap(results),
     )

@@ -29,19 +29,19 @@ class Analysis:
 def analyse(
     arm_dirs: dict[str, Path], rerun: RerunSettings | None, replicate_dir: Path | None = None
 ) -> Analysis:
-    """`rerun` None skips the tests-excluded scb-check run; the gaming check then fails."""
+    """`rerun` None skips the tests-excluded scb-check run: no headline quality, and the gaming check fails."""
     arms = {name: load_arm(arm_dirs[name], name == "A1", rerun) for name in ARMS}
     rows = paired_rows(arms)
     summaries = {name: summarise(arms[name], len(rows)) for name in ARMS}
     if replicate_dir is not None:
-        summaries["A0'"] = summarise(load_arm(replicate_dir), len(rows))
+        summaries["A0'"] = summarise(load_arm(replicate_dir, rerun=rerun), len(rows))
     finals = final_rows(rows)
     inputs = DecisionInputs(
         a0=summaries["A0"],
         a1a=summaries["A1a"],
         a1=summaries["A1"],
-        erosion_consistency=consistency(finals, "erosion"),
-        verbosity_consistency=consistency(finals, "verbosity"),
+        erosion_consistency=consistency(finals, "erosion_ex_tests"),
+        verbosity_consistency=consistency(finals, "verbosity_ex_tests"),
         gaming=gaming_check(rows, summaries["A1a"], summaries["A1"]),
         fire_rate=fire_rate(rows),
         a0_replicate=summaries.get("A0'"),
