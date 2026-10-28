@@ -64,6 +64,12 @@
         "packages/core",
         "packages/render"
       ]
+    },
+    {
+      "$comment": "C-129: a file import cycle (one strongly connected component, every member named) blocks independent change and testing of its members. Type-only imports are erased at runtime, so a cycle they alone close is not reported. Run with --baseline main so an existing cycle is carryover.",
+      "id": "no-import-cycles",
+      "type": "no-import-cycles",
+      "excludeRoles": ["test", "fixture"]
     }
   ]
 }
