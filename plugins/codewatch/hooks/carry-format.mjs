@@ -25,6 +25,7 @@ const MAX_ITEM_TEXT = 200
 // Findings that say changed code lacks a test, or has only a weak one; they come first.
 const TEST_GAP_SIGNALS = new Set([
   "diff-uncovered",
+  "entry-input-class",
   "missing-test-kind",
   "symbol_assertion_free",
   "symbol_weak_oracle_only",
@@ -132,6 +133,35 @@ export function carryLimitsFromEnv(env) {
   }
 }
 
+const TASTE_TAG = /\{inferred cp\d+ fp:(\S+)\}\s*$/
+
+/**
+ * The finding key in a taste line's `{inferred cpN fp:<key>}` provenance tag, or null for an untagged line.
+ * @param {string} line
+ * @returns {string | null}
+ */
+export function taggedKey(line) {
+  return TASTE_TAG.exec(line)?.[1] ?? null
+}
+
+/**
+ * Taste lines minus those resting on a test-gap verdict: a missing test is a fix item, not a convention.
+ * @param {unknown} taste
+ * @param {unknown} verdicts
+ */
+function conventionLines(taste, verdicts) {
+  const testGapKeys = new Set(
+    listOf(verdicts)
+      .filter((row) => isVerdictRow(row) && TEST_GAP_SIGNALS.has(row.signal))
+      .map((row) => row.key),
+  )
+  return listOf(taste).filter((line) => {
+    if (typeof line !== "string" || line.trim() === "") return false
+    const key = taggedKey(line)
+    return key === null || !testGapKeys.has(key)
+  })
+}
+
 /** @param {string} text */
 function oneLine(text) {
   const flat = text.replace(/\s+/g, " ").trim()
@@ -204,7 +234,7 @@ function assemble(taste, items, symbols) {
  */
 export function formatCarry({ taste, verdicts, brief }, limits = {}) {
   const { maxChars, maxOpenItems } = limits
-  const tasteLines = listOf(taste).filter((line) => typeof line === "string" && line.trim() !== "")
+  const tasteLines = conventionLines(taste, verdicts)
   const items = openItems(verdicts, brief).slice(0, maxOpenItems).map(itemLine)
   const symbols = listOf(brief?.changedSymbols)
     .filter(isChangedSymbol)

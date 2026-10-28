@@ -3,7 +3,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 // @ts-expect-error plain ESM hook script without a declaration file
-import { carryLimitsFromEnv, formatCarry, readCarry } from "../../plugins/codewatch/hooks/carry-format.mjs"
+import { carryLimitsFromEnv, formatCarry, readCarry, taggedKey } from "../../plugins/codewatch/hooks/carry-format.mjs"
 import { fixture, writeCarryFiles } from "./carry-fixtures"
 
 const rows = (name: string) => fixture(name).trim().split("\n").map((line) => JSON.parse(line))
@@ -96,6 +96,45 @@ describe("formatCarry", () => {
     const line = output.split("\n")[1]
     expect(line.endsWith("...")).toBe(true)
     expect(output.split("\n")).toHaveLength(2)
+  })
+})
+
+describe("formatCarry with test-gap verdicts", () => {
+  const verdict = (key: string, signal: string, verdict = "confirmed") => ({
+    key,
+    verdict,
+    signal,
+    path: "a.py",
+    rationale: `why ${key}`,
+    citations: [{ lineStart: 1 }],
+  })
+  const tagged = (key: string) => `- A convention resting on ${key}. {inferred cp3 fp:${key}}`
+  const conventions = (output: string) => output.split("\n\n")[0].split("\n").slice(1)
+
+  it("drops a taste line tagged with a test-gap verdict's key and keeps the rest", () => {
+    const untagged = ["- An untagged convention.", "- Says fp:gap in passing, untagged.", "- {owner docs/style.md}"]
+    const taste = [...untagged, tagged("gap"), tagged("dup"), tagged("orphan")]
+    const verdicts = [verdict("gap", "missing-test-kind", "justified"), verdict("dup", "clone")]
+
+    const output: string = formatCarry({ taste, verdicts, brief: null })
+
+    expect(conventions(output)).toEqual([...untagged, tagged("dup"), tagged("orphan")])
+  })
+
+  it("sorts a confirmed entry-input-class verdict with the test gaps", () => {
+    const verdicts = [verdict("dup", "clone"), verdict("entry", "entry-input-class")]
+
+    const output: string = formatCarry({ taste: [], verdicts, brief: null })
+
+    expect(output).toBe("Open review items:\n- [test-gap] a.py:1: why entry\n- [quality] a.py:1: why dup")
+  })
+})
+
+describe("taggedKey", () => {
+  it("reads the finding key from a provenance tag and nothing from an untagged line", () => {
+    expect(taggedKey("- Keep it. {inferred cp12 fp:code-graph:clone:a.py:00#0}")).toBe("code-graph:clone:a.py:00#0")
+    expect(taggedKey("- Keep it. {owner docs/style.md}")).toBeNull()
+    expect(taggedKey("- fp:code-graph:clone:a.py:00#0 is mentioned in passing.")).toBeNull()
   })
 })
 
