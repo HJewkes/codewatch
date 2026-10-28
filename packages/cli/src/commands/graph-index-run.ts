@@ -14,6 +14,8 @@ import { projectWorkingTreeSource } from "./index-scope.js";
 export interface GraphIndexOptions extends Omit<IndexOptions, "paths" | "tsConfig" | "source"> {
   /** Index this git rev's tree instead of the working tree; also the default snapshot label. */
   rev?: string;
+  /** Git toplevel `rev` is read from; defaults to the one around the cwd. */
+  toplevel?: string;
   /** Single root to index; equivalent to `rootDirs: [rootDir]`. */
   rootDir?: string;
   rootDirs?: string[];
@@ -95,7 +97,7 @@ function churnStatus(options: GraphIndexOptions, root: string): GraphIndexResult
 export async function runGraphIndex(options: GraphIndexOptions): Promise<GraphIndexResult> {
   const started = performance.now();
   const rootDirs = normalizeRootDirs(options);
-  const toplevel = options.rev === undefined ? undefined : revToplevel();
+  const toplevel = options.rev === undefined ? undefined : (options.toplevel ?? revToplevel());
   const source = toplevel === undefined ? projectWorkingTreeSource() : gitTreeSource(toplevel, options.rev!);
   const churn = churnStatus(options, toplevel ?? rootDirs[0]!);
   const indexOptions = { ...toIndexOptions(options, rootDirs, source), computeChurn: churn === "computed" };

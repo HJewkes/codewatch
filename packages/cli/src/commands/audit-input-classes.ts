@@ -7,7 +7,7 @@ import { lineAttr } from "./audit-collect.js";
 import { findEntryPoints, isSourceFile, readConsoleScripts, testFileIds, type EntryPoint } from "./audit-entries.js";
 import { fileFlags, findDefinition, paramFacts, readerFacts } from "./audit-input-facts.js";
 import { moduleDicts, testFeeds, type FeedFacts } from "./audit-input-feeds.js";
-import { citation } from "./audit-test-kinds.js";
+import { citation } from "./audit-graph-walk.js";
 import { classifyGaps, inputClassFindings, type EntryCensus, type EntryFacts, type InputClass, type InputClassCensus } from "./audit-input-gaps.js";
 
 export type { InputClassCensus };

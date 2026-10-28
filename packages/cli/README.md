@@ -57,6 +57,31 @@ edits to a bound copy inside a test. It does not see inputs built at runtime (lo
 computed parametrize ids), reader keys held in variables (`record.get(field)`), or input classes
 in a pattern language inside strings.
 
+## Audit: contract changes (Python and TypeScript)
+
+With `--changed-from <ref>`, `codewatch audit` also indexes the ref's tree and compares the base
+and head versions of each symbol the diff touches. It writes one `contract-change` finding per
+change, of these kinds:
+
+- `error-removed`: an error key (`<exception>:<message>`) counts fewer times across all changed
+  files at head than at base. Error sites are `raise`/`throw`, non-zero `sys.exit`,
+  `raise SystemExit`, `process.exit` and `process.exitCode`, and calls to a same-file function
+  that always raises (its last statement raises and it never returns). Because the count is
+  diff-wide, a check moved into a new helper or another changed file stays silent.
+- `param-added` (a required param), `param-removed`, `param-reordered` and `default-changed`.
+  Adding an optional param, and annotation, return-type or body-only edits, stay silent.
+
+A finding fires when an affected caller or a test reaching the symbol through one sits outside
+the diff, or, for `error-removed`, when no test asserts the error. For a param change, only the
+call sites the change can break count, for example the ones that omit a changed default. The
+evidence lists callers in and outside the diff, the tests outside it, and for `error-removed` the
+test lines that assert the error's message (or, with no message, `raises`/`toThrow` of its
+exception). "In the diff" is decided per caller span, not per file.
+
+It does not reach renamed or deleted symbols, raiser chains deeper than one call, raisers in
+another file, error codes returned as values, added error sites, or callers code-graph does not
+resolve (for example a method called on a freshly constructed instance).
+
 ## Requirements
 
 - Node.js >= 20
