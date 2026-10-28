@@ -91,6 +91,14 @@ class CaseCutsTest(unittest.TestCase):
 
         self.assertEqual(cuts, {})
 
+    def test_a_table_another_file_imports_is_left_whole_but_a_namesake_elsewhere_is_not(self):
+        args = (SHARED, PATH, [f"{NEW}[1-2]"], [DUP, f"{NEW}[0-3]"], {NEW: [f"{NEW}[1-2]", f"{NEW}[0-3]"]})
+
+        imported = case_cuts(*args, elsewhere="from test_more import CASES\n")
+        namesake = case_cuts(*args, elsewhere="CASES = [1]\n")
+
+        self.assertEqual((imported, namesake), ({}, {"CASES": {1}}))
+
     def test_a_table_whose_rows_the_gate_did_not_collect_one_for_one_is_left_whole(self):
         cuts = case_cuts(INLINE, PATH, [f"{NEW}[1]"], [], {NEW: [f"{NEW}[1]", f"{NEW}[0]", f"{NEW}[x]"]})
 

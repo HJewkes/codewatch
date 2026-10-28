@@ -6,7 +6,7 @@ decorator maps that name one row to one case with a plain comprehension. Case k 
 row k of its table, by pytest's collection order, so a table is cut only when the gate
 collected exactly as many cases as the table has rows. A row stays while any admitted case
 of any test using the table needs it. A table goes untouched when a test the gate did not
-judge uses it, or when another file names it. A test with stacked `parametrize` decorators, a
+judge uses it, or when another file names both it and its module. A test with stacked `parametrize` decorators, a
 class-level one, or a computed table is left whole.
 """
 
@@ -15,6 +15,7 @@ from __future__ import annotations
 import ast
 import re
 from collections.abc import Mapping, Sequence
+from pathlib import Path
 
 from remediation.admission import test_names
 
@@ -163,12 +164,13 @@ def _users(source: str, key: str) -> set[str]:
     return named & test_names(source)
 
 
-def _cuttable(key: str, users: set[str], judged: set[str], whole_rejected: set[str], elsewhere: str) -> bool:
+def _cuttable(key: str, users: set[str], judged: set[str], whole_rejected: set[str], stem: str, elsewhere: str) -> bool:
     """Every user was judged now; an inline table of a test cut whole goes with it; another
-    file naming the table may use it."""
+    file naming both the table and its module may use it."""
     if key.startswith(INLINE):
         return key[1:] not in whole_rejected
-    return users <= judged and not re.search(rf"\b{re.escape(key)}\b", elsewhere)
+    imported = re.search(rf"\b{re.escape(stem)}\b", elsewhere) and re.search(rf"\b{re.escape(key)}\b", elsewhere)
+    return users <= judged and not imported
 
 
 def _needed(user: str, n: int, admitted: set[str], whole_rejected: set[str], cases: Mapping[str, list[str]]) -> set[int]:
@@ -195,7 +197,7 @@ def case_cuts(source: str, path: str, admitted: Sequence[str], rejected: Sequenc
     cuts = {}
     for key in sorted({k for t in judged if (k := table_key(source, t))}):
         spans, users = rows(source, key), _users(source, key)
-        if spans is None or not _cuttable(key, users, judged, whole_rejected, elsewhere):
+        if spans is None or not _cuttable(key, users, judged, whole_rejected, Path(path).stem, elsewhere):
             continue
         needed = set().union(*(_needed(u, len(spans), admitted_here, whole_rejected, local_cases) for u in users))
         if drop := set(range(len(spans))) - needed:
