@@ -35,6 +35,7 @@ PASSTHROUGH_FIELDS = (
     "merge", "merge_commit", "dropped_ignored",
     "verdict", "spec_line", "resumed", "second_verdict", "second_spec_line", "revised_commit",
     "review_tokens", "review_usd", "usd_total", "model_usage", "call_usage", "oracle",
+    "tests_admitted", "tests_rejected",
 )
 
 
