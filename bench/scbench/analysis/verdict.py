@@ -1,4 +1,7 @@
-"""The design section 6 decision rule: adopt, iterate or drop, comparing A1 with A1a."""
+"""The design section 6 decision rule: adopt, iterate or drop, comparing A1 with A1a.
+
+Quality deltas are the tests-excluded ones (C-235); the full-tree deltas are reported only.
+"""
 
 from __future__ import annotations
 
@@ -36,6 +39,8 @@ class Decision:
     delta_verbosity: float | None
     cost_ratio: float | None
     reasons: list[str] = field(default_factory=list)
+    delta_erosion_full: float | None = None
+    delta_verbosity_full: float | None = None
 
 
 def quality_threshold(a0: ArmSummary, replicate: ArmSummary | None) -> float:
@@ -45,8 +50,8 @@ def quality_threshold(a0: ArmSummary, replicate: ArmSummary | None) -> float:
     spreads = [
         abs(change)
         for change in (
-            relative_change(replicate.erosion, a0.erosion),
-            relative_change(replicate.verbosity, a0.verbosity),
+            relative_change(replicate.erosion_ex_tests, a0.erosion_ex_tests),
+            relative_change(replicate.verbosity_ex_tests, a0.verbosity_ex_tests),
         )
         if change is not None
     ]
@@ -55,17 +60,18 @@ def quality_threshold(a0: ArmSummary, replicate: ArmSummary | None) -> float:
 
 def decide(inputs: DecisionInputs) -> Decision:
     threshold = quality_threshold(inputs.a0, inputs.a0_replicate)
-    d_e = relative_change(inputs.a1.erosion, inputs.a1a.erosion)
-    d_v = relative_change(inputs.a1.verbosity, inputs.a1a.verbosity)
+    a1, a1a = inputs.a1, inputs.a1a
     a0_cost, a1_cost = inputs.a0.usd_per_checkpoint, inputs.a1.usd_per_checkpoint
     decision = Decision(
         verdict="",
         threshold=threshold,
-        delta_strict=inputs.a1.strict - inputs.a1a.strict,
-        delta_iso=inputs.a1.iso - inputs.a1a.iso,
-        delta_erosion=d_e,
-        delta_verbosity=d_v,
+        delta_strict=a1.strict - a1a.strict,
+        delta_iso=a1.iso - a1a.iso,
+        delta_erosion=relative_change(a1.erosion_ex_tests, a1a.erosion_ex_tests),
+        delta_verbosity=relative_change(a1.verbosity_ex_tests, a1a.verbosity_ex_tests),
         cost_ratio=a1_cost / a0_cost if a1_cost is not None and a0_cost else None,
+        delta_erosion_full=relative_change(a1.erosion, a1a.erosion),
+        delta_verbosity_full=relative_change(a1.verbosity, a1a.verbosity),
     )
     verdict, reasons = _apply_rule(inputs, decision)
     return replace(decision, verdict=verdict, reasons=reasons)

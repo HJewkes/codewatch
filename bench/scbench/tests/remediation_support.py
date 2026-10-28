@@ -18,6 +18,7 @@ from remediation.stage import Config, remediate
 
 TESTS = ["python", "-m", "pytest", "-q", "tests"]
 REVIEW = ["review"]
+COVERAGE = "coverage"
 ENV = {"CW_MODEL": "sonnet-5.5", "PATH": os.environ.get("PATH", "")}
 
 
@@ -114,23 +115,63 @@ def pytest_output(*failing):
     return f"F.\n=========== short test summary info ===========\n{summary}{len(failing)} failed, 1 passed\n"
 
 
+class FakeCoverage:
+    """Answers the admission gate's coverage.py steps with a canned reach per selection.
+
+    `reach` maps "base" (the suite without the new tests) or a test id to `path:line` and
+    `path:a->b` entries. By default the base reaches nothing and each new test reaches a line,
+    so every new test is admitted. A selection mapped to None makes its run fail."""
+
+    def __init__(self, reach=None):
+        self.reach = reach or {}
+        self.selections = []
+        self.selected = None
+
+    def __call__(self, argv, root):
+        step = argv[1]
+        if step == "run":
+            selection = argv[argv.index("no:cacheprovider") + 1:]
+            self.selections.append(selection)
+            self.selected = "base" if "--deselect" in selection or selection == ["tests"] else selection[0]
+            return (2 if self.reach.get(self.selected, []) is None else 0), "", False
+        if step == "json":
+            out = Path(argv[argv.index("-o") + 1])
+            out.write_text(json.dumps({"files": self._files(root)}))
+        return 0, "", False
+
+    def _files(self, root):
+        default = [] if self.selected == "base" else ["src/app.py:1"]
+        files = {}
+        for entry in self.reach.get(self.selected, default):
+            path, at = entry.split(":")
+            data = files.setdefault(str(root / path), {"executed_lines": [], "executed_branches": []})
+            if "->" in at:
+                data["executed_branches"].append([int(n) for n in at.split("->")])
+            else:
+                data["executed_lines"].append(int(at))
+        return files
+
+
 class FakeTools:
     """Answers the test command, codewatch and the review command by argv.
 
     The first test run is the stage's base run and answers with `base`; each later one takes
     the next of `tests`. A result is an exit code, or an exit code and the run's stdout."""
 
-    def __init__(self, tests=(), violations=(), diff=None, reviews=(), base=0):
+    def __init__(self, tests=(), violations=(), diff=None, reviews=(), base=0, reach=None):
         self.tests, self.violations, self.reviews = list(tests), list(violations), list(reviews)
         self.diff = diff or {}
         self.calls = []
         self.test_argvs = []
         self.snapshot_id = 0
         self.base = [base]
+        self.coverage = FakeCoverage(reach)
 
     def __call__(self, argv, env, cwd, timeout):
         argv = list(argv)
         self.calls.append(argv)
+        if Path(argv[0]).name == COVERAGE:
+            return self.coverage(argv, Path(cwd))
         if argv[:3] == TESTS[:3]:
             leave_test_run_output(Path(cwd))
             return self._test_run(argv)
@@ -164,11 +205,14 @@ class StageTestCase(unittest.TestCase):
         self.root = Path(tmp.name) / "workspace"
         self.root.mkdir()
         make_repo(self.root)
+        coverage = Path(tmp.name) / "bin" / COVERAGE
+        coverage.parent.mkdir()
+        coverage.touch()
         self.config = Config(
             workspace=self.root, scratch=Path(tmp.name) / "scratch", git_dir=self.root / ".codewatch" / "repo.git",
             codewatch="codewatch", db=".codewatch/cache/graph.db", check_config=".codewatch/check.json",
             baseline=None, tests_dir="tests", test_command=TESTS, review_command=REVIEW, deadline=None,
-            reset_margin=60)
+            reset_margin=60, coverage=str(coverage))
 
     def run_stage(self, claude, tools, config=None, clock=None):
         return remediate(config or self.config, ENV, claude, tools, clock or Clock(None, 60))

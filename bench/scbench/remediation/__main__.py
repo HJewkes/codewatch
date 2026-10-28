@@ -15,6 +15,7 @@ import signal
 import sys
 from pathlib import Path
 
+from findings.diff_uncovered import DEFAULT_COVERAGE
 from prflow.ratchet import CHECK_CONFIG, DB
 from prflow.repo import GIT_DIR as DEFAULT_GIT_DIR
 
@@ -39,6 +40,7 @@ def parse_args(argv: list[str], env: dict[str, str]) -> Config:
     p.add_argument("--tests-dir", default="tests")
     p.add_argument("--test-command", default=None, help="default: python -m pytest -q <tests dir>")
     p.add_argument("--tool-pytest", default=DEFAULT_TOOL_PYTEST, help="pytest for a solve with none of its own")
+    p.add_argument("--coverage", default=DEFAULT_COVERAGE, help="coverage.py for the test-gap admission gate")
     p.add_argument("--review-command", default=None, help="U17 hook: gets the commit sha, prints a verdict")
     p.add_argument("--deadline", type=float, default=float(env["CW_STAGE_DEADLINE"]) if env.get("CW_STAGE_DEADLINE") else None)
     p.add_argument("--reset-margin", type=float, default=180.0)
@@ -52,7 +54,7 @@ def parse_args(argv: list[str], env: dict[str, str]) -> Config:
         tests_dir=a.tests_dir, test_command=shlex.split(a.test_command or f"python -m pytest -q {a.tests_dir}"),
         review_command=shlex.split(a.review_command) if a.review_command else None,
         deadline=a.deadline, reset_margin=a.reset_margin, max_items=a.max_items, max_turns=a.max_turns,
-        tool_pytest=a.tool_pytest,
+        tool_pytest=a.tool_pytest, coverage=a.coverage,
     )
 
 
