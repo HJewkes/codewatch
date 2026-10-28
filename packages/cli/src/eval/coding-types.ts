@@ -89,7 +89,12 @@ export interface CodingTask {
   editFiles: string[];
   /** Discoverability of `editFiles` from the testPatch's imports (reuse C-82). */
   stratum: Stratum;
+  /** Per dark file, which oracle notices it reverted (`coding-ablate.ts`); absent until ablated. */
+  adjudication?: Record<string, Adjudication>;
 }
+
+/** Which oracle notices a dark file restored to its parent content. */
+export type Adjudication = "test" | "type" | "none";
 
 /**
  * The admission funnel — every stage's survivor count, so the drop rate is

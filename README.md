@@ -27,6 +27,13 @@ codewatch --help
 
 Requires Node.js >= 20.
 
+`graph index`, `analyze`, `audit` and `triage` read only the project's own files. In a git work
+tree those are tracked files plus untracked ones that no ignore rule covers. Tool environments
+(`.venv`, any directory holding `pyvenv.cfg`, `node_modules`, `__pycache__`, `.tox`) are
+skipped unless their files are tracked. Files inside a git submodule are skipped too, because
+the parent repo tracks a submodule as a single commit pointer. To include one, run the command
+on the submodule's own directory.
+
 ## Reading the metrics
 
 The metrics direct attention; they do not predict defects.
