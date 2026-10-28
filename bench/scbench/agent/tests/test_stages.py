@@ -113,6 +113,16 @@ class StageRunnerTest(unittest.TestCase):
                          {"solve_commit": "a1", "merge_base": "b2", "baseline": None, "reason": "no --rev"})
         self.assertNotIn("head_ref", row)
 
+    def test_the_fix_report_keeps_its_admitted_and_rejected_test_counts(self):
+        report = {"outcome": "kept", "tests_admitted": 2, "tests_rejected": 3}
+        executor = RecordingExecutor({"cw-fix": ExecResult(0, json.dumps(report), False)})
+        runner = make_runner({"fix": StageSetting(True, "cw-fix")}, executor)
+
+        runner.run(("fix",), {})
+
+        row = runner.records[0].to_json()
+        self.assertEqual((row["tests_admitted"], row["tests_rejected"]), (2, 3))
+
     def test_a_failing_stage_is_logged_and_later_stages_still_run(self):
         executor = RecordingExecutor({"boom": RuntimeError("docker gone"), "bad": ExecResult(2, "", False)})
         settings = {"commit-ratchet": StageSetting(True, "boom"), "audit": StageSetting(True, "bad"),
