@@ -65,3 +65,40 @@ describe("codewatch audit symbol-loc and symbol-nesting rules", () => {
     expect(flatSignals).not.toContain("symbol-nesting");
   });
 });
+
+const propNames = (n: number): string[] => Array.from({ length: n }, (_, i) => `p${i}`);
+
+function componentSrc(name: string, props: readonly string[], read: readonly string[]): string {
+  const members = props.map((p) => `  ${p}: string;`).join("\n");
+  const body = read.map((p) => `{${p}}`).join("");
+  return `type ${name}Props = {\n${members}\n};\n\nexport function ${name}({ ${props.join(", ")} }: ${name}Props) {\n  return <div>${body}</div>;\n}\n`;
+}
+
+describe("codewatch audit component prop rules", () => {
+  let tsxDir: string;
+
+  beforeAll(() => {
+    tsxDir = mkdtempSync(join(tmpdir(), "c131-audit-"));
+    mkdirSync(join(tsxDir, "src"));
+    const components: Array<[string, string[], string[]]> = [
+      ["Wide", propNames(16), propNames(16)],
+      ["Narrow", propNames(15), propNames(15)],
+      ["Unread", propNames(2), propNames(1)],
+    ];
+    for (const [name, props, read] of components) writeFileSync(join(tsxDir, "src", `${name}.tsx`), componentSrc(name, props, read));
+  });
+
+  afterAll(() => {
+    rmSync(tsxDir, { recursive: true, force: true });
+  });
+
+  it("flags the 16-prop component and the one with an unread prop, and neither rule on the 15-prop fully read one", async () => {
+    const result = await runAuditCommand({ path: tsxDir, noRuff: true });
+
+    const propFindings = result.findings
+      .filter((f) => f.signal === "symbol-prop-count" || f.signal === "symbol-unread-props")
+      .map((f) => `${f.signal} ${f.path}#${f.symbol}`)
+      .sort();
+    expect(propFindings).toEqual(["symbol-prop-count src/Wide.tsx#Wide", "symbol-unread-props src/Unread.tsx#Unread"]);
+  });
+});
