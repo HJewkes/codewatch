@@ -457,6 +457,11 @@ check reason the stop rule compares, an item with a failure that passed on its r
 gives `flaky`, and a gated test-gap item gives `admission` (its `admitted` and `rejected`
 test ids).
 
+The stage also writes the selected items, in the order it works them, to
+`.codewatch/audit/items.jsonl` (one `items` entry's phase, kind, signal, path, symbol and
+missing kind per line). It deletes a list left by an earlier checkpoint first, so a
+skipped stage leaves none. The agent copies it into `checkpoint_<n>/agent/`.
+
 ## findings/
 
 Finding producers for A1's audit stage. Each writes `findings.jsonl` rows in the contract
