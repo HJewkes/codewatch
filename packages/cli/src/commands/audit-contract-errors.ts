@@ -73,13 +73,17 @@ export function lostErrors(base: ReadonlyMap<string, ParsedFile>, head: Readonly
 
 const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+/** Shorter messages ("bad", "error") are substrings of unrelated test lines, so they cannot identify a test. */
+export const MIN_ASSERTED_MESSAGE_LENGTH = 8;
+
 /** A test line that asserts the error: its message, or with no message, a raises/toThrow of its exception. */
 function asserts(site: ErrorSite): (line: string) => boolean {
   if (site.exception === "exit" && /^-?\d+$/.test(site.message)) {
     const code = new RegExp(`\\b${escapeRegExp(site.message)}\\b`);
     return (line) => /SystemExit|exit_?code|exitCode|returncode/.test(line) && code.test(line);
   }
-  if (site.message !== "") return (line) => line.includes(site.message);
+  if (site.message.length >= MIN_ASSERTED_MESSAGE_LENGTH) return (line) => line.includes(site.message);
+  if (site.message !== "") return () => false;
   const raises = new RegExp(`(?:raises|assertRaises|toThrow)\\(\\s*${escapeRegExp(site.exception)}\\b`);
   return (line) => raises.test(line);
 }

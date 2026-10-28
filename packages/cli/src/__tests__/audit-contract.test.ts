@@ -106,8 +106,16 @@ const BASE_FILES: Readonly<Record<string, string>> = {
   "qparse/__init__.py": "",
   "qparse/parser.py": PARSER_BASE,
   "qparse/report.py": "def fmt(value):\n    return str(value)\n",
+  "qparse/scale.py": `import functools
+
+
+@functools.cache
+def scale(value, factor=2):
+    return value * factor
+`,
   "qparse/cli.py": `from qparse.parser import parse
 from qparse.report import fmt
+from qparse.scale import scale
 
 
 def main(argv):
@@ -120,6 +128,10 @@ def head(tokens):
 
 def show(value):
     return fmt(value)
+
+
+def rescale(value):
+    return scale(value)
 `,
   "tests/test_parser.py": `import pytest
 
@@ -144,6 +156,23 @@ export function cell(s: string): string {
   return pad(s);
 }
 `,
+  "src/guard.ts": `export function guard(n: number): number {
+  if (n < 0) throw new Error("bad");
+  return n;
+}
+`,
+  "src/gate.ts": `import { guard } from "./guard.js";
+export function gate(n: number): number {
+  return guard(n);
+}
+`,
+  "src/guard.test.ts": `import { expect, it } from "vitest";
+import { guard } from "./guard.js";
+it("rejects negatives", () => {
+  expect(() => guard(-1)).toThrow("bad");
+  expect("bad input").toContain("bad");
+});
+`,
   "src/format.test.ts": `import { expect, it } from "vitest";
 import { pad } from "./format.js";
 it("rejects a negative width", () => {
@@ -153,6 +182,17 @@ it("rejects a negative width", () => {
 };
 
 const HEAD_FILES: Readonly<Record<string, string>> = {
+  "qparse/scale.py": `import functools
+
+
+@functools.cache
+def scale(value, factor=3):
+    return value * factor
+`,
+  "src/guard.ts": `export function guard(n: number): number {
+  return Math.max(n, 0);
+}
+`,
   "qparse/parser.py": PARSER_HEAD,
   "qparse/report.py": 'def fmt(value, unit):\n    return f"{value}{unit}"\n',
   "src/format.ts": `export function pad(s: string, width = 4): string {
@@ -212,8 +252,10 @@ describe("contract-change findings against --changed-from", () => {
       "codewatch:contract-change:qparse/parser.py#Parser.atom:error-removed:QueryError-expected-literal",
       "codewatch:contract-change:qparse/parser.py#parse:default-changed:strict",
       "codewatch:contract-change:qparse/report.py#fmt:param-added:unit",
+      "codewatch:contract-change:qparse/scale.py#scale:default-changed:factor",
       "codewatch:contract-change:src/format.ts#pad:default-changed:width",
       "codewatch:contract-change:src/format.ts#pad:error-removed:RangeError-width-must-be-positive",
+      "codewatch:contract-change:src/guard.ts#guard:error-removed:Error-bad",
     ]);
     expect(rows[0]).toMatchObject({ path: "qparse/parser.py", lineStart: 36, lineEnd: 41, symbol: "Parser.atom", severity: "warning", tool: "codewatch" });
     expect(rows[0]!.evidence).toBe(
@@ -236,7 +278,7 @@ describe("contract-change findings against --changed-from", () => {
   it("lists only the callers a changed default affects", () => {
     const evidence = evidenceOf(rows, "#parse:default-changed:strict");
     expect(evidence).toContain("change: default of strict: True -> False");
-    expect(evidence).toContain("callers not in diff: qparse/cli.py:5-6 main");
+    expect(evidence).toContain("callers not in diff: qparse/cli.py:6-7 main");
     expect(evidence).not.toContain("head");
     expect(evidence).toContain("tests/test_parser.py:6-7");
   });
@@ -248,8 +290,18 @@ describe("contract-change findings against --changed-from", () => {
     expect(evidence).toContain("tests not in diff: src/format.test.ts");
   });
 
+  it("reads the default of a decorated def and lists the caller that omits it", () => {
+    const evidence = evidenceOf(rows, "#scale:default-changed:factor");
+    expect(evidence).toContain("change: default of factor: 2 -> 3");
+    expect(evidence).toContain("callers not in diff: qparse/cli.py:18-19 rescale");
+  });
+
+  it("does not count a short message as asserted by an unrelated test line", () => {
+    expect(evidenceOf(rows, "#guard:error-removed:Error-bad")).toContain("tests asserting it: none");
+  });
+
   it("names the callers that omit an added required param", () => {
-    expect(evidenceOf(rows, "#fmt:param-added:unit")).toContain("callers not in diff: qparse/cli.py:13-14 show");
+    expect(evidenceOf(rows, "#fmt:param-added:unit")).toContain("callers not in diff: qparse/cli.py:14-15 show");
   });
 
   it("keeps the head snapshot the latest", () => {

@@ -81,6 +81,20 @@ describe("params", () => {
     ]);
   });
 
+  it("reads a decorated Python def from its decorator line or its def line", async () => {
+    const file = await py("import x\n\n@dec\n@dec2(1)\ndef f(a, b=1):\n    pass\n");
+    const expected = [
+      { name: "a", positional: true, required: true },
+      { name: "b", positional: true, required: false, default: "1" },
+    ];
+    expect([3, 4, 5].map((line) => paramsAt(file, line))).toEqual([expected, expected, expected]);
+  });
+
+  it("reads a decorated TS method from its decorator line", async () => {
+    const file = await ts("class A {\n  @Dec()\n  m(a = 1) {}\n}\n");
+    expect(paramsAt(file, 2)).toEqual([{ name: "a", positional: true, required: false, default: "1" }]);
+  });
+
   it("finds no callable on a line without one", async () => {
     expect(paramsAt(await ts("const x = 1;\n"), 1)).toBeUndefined();
   });
