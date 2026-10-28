@@ -7,8 +7,10 @@
   visible   the workspace's own tests, on a copy.
   diffgate  C-242 `diffgate.sh inloop` against the wave base; its work dir is pruned once read. Under
             host load the replay's 10 s case limit trips on identical trees, on the base and the head
-            alike, so a case with a timeout on either side is counted as inconclusive and left out of the
-            verdict (and of the restore message) rather than read as a behaviour change.
+            alike, so the replay runs such a case once more, serially at 30 s (C-255). A case that still
+            timed out on the base is counted as inconclusive and left out of the verdict (and of the
+            restore message) rather than read as a behaviour change; one whose head alone timed out twice
+            is a hang the change brought, and stays a difference.
 """
 
 from __future__ import annotations
@@ -115,11 +117,14 @@ def diffgate(problem: str, n: int, base: Path, head: Path, out: Path) -> dict:
 
 
 def settle_timeouts(gate: dict) -> dict:
-    """The verdict without the differing cases that timed out on either side."""
-    def timed_out(item: dict) -> bool:
-        return item.get("status") == "differs" and "timeout" in ((item.get("base") or {}).get("rc"),
-                                                                  (item.get("head") or {}).get("rc"))
-    inconclusive = [i["case"] for i in gate.get("differences", []) if timed_out(i)]
-    left = [i for i in gate.get("differences", []) if not timed_out(i)]
+    """The verdict without the differing cases that timed out on the base, or on a single replay."""
+    replayed = set(gate.get("replayed", []))
+
+    def inconclusive(item: dict) -> bool:
+        base, head = ((item.get(side) or {}).get("rc") for side in ("base", "head"))
+        if item.get("status") != "differs" or "timeout" not in (base, head):
+            return False
+        return base == "timeout" or item["case"] not in replayed
+    left = [i for i in gate.get("differences", []) if not inconclusive(i)]
     return {**gate, "pass": not any(i.get("status") == "differs" for i in left), "differences": left,
-            "inconclusive": inconclusive}
+            "inconclusive": [i["case"] for i in gate.get("differences", []) if inconclusive(i)]}
