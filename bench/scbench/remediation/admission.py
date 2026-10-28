@@ -157,7 +157,15 @@ class Coverage:
         return read_reach(report, self.workspace, self.tests_dir)
 
     def cases(self, test: str, timeout: float | None) -> tuple[str, ...] | None:
-        """The pytest ids of the test's cases, in collection order."""
+        """The pytest ids of the test's cases, in collection order. Ids that change between
+        two collections (one holding an object's address) cannot be selected, so a test with
+        such ids has none."""
+        first, second = self._collect(test, timeout), self._collect(test, timeout)
+        if first is None or second is None:
+            return None
+        return first if first == second else ()
+
+    def _collect(self, test: str, timeout: float | None) -> tuple[str, ...] | None:
         rc, _ = self._fresh()
         code, out = self._output(["run", rc, *PYTEST, test, "--collect-only"], timeout)
         if code not in TESTS_RAN:

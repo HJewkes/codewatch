@@ -121,7 +121,8 @@ class FakeCoverage:
     `reach` maps "base" (the suite without the new tests) or a test id to `path:line` and
     `path:a->b` entries. By default the base reaches nothing and each new test reaches a line,
     so every new test is admitted. A selection mapped to None makes its run fail. `cases` maps
-    a parametrized test id to the case ids its collection prints."""
+    a parametrized test id to the case ids its collection prints, or to a list of such lists,
+    one per collection."""
 
     def __init__(self, reach=None, cases=None):
         self.reach = reach or {}
@@ -133,7 +134,9 @@ class FakeCoverage:
         step = argv[1]
         if step == "run" and "--collect-only" in argv:
             test = argv[argv.index("--collect-only") - 1]
-            return 0, "".join(f"{case}\n" for case in self.cases.get(test, [test])) + "\n2 tests collected\n", False
+            cases = self.cases.get(test, [test])
+            cases = cases.pop(0) if cases and isinstance(cases[0], list) else cases
+            return 0, "".join(f"{case}\n" for case in cases) + "\n2 tests collected\n", False
         if step == "run":
             selection = argv[argv.index("no:cacheprovider") + 1:]
             self.selections.append(selection)

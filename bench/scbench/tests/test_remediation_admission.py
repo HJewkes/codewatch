@@ -83,6 +83,15 @@ class AdmissionStageTest(StageTestCase):
         self.assertEqual(report["items"][0]["status"], "kept")
         self.assertEqual(report["items"][0]["admission"], {"admitted": [NEW], "rejected": []})
 
+    def test_a_test_whose_case_ids_change_between_collections_is_judged_whole(self):
+        tools = FakeTools(reach={"base": ["src/app.py:1"], NEW: ["src/app.py:2"]},
+                          cases={NEW: [[f"{NEW}[<W at 0x1>]", NEW_TWO], [f"{NEW}[<W at 0x2>]", NEW_TWO]]})
+
+        report = self.run_stage(FakeClaude(writes("tests/test_more.py", TABLE)), tools)
+
+        self.assertEqual(report["items"][0]["admission"], {"admitted": [NEW], "rejected": []})
+        self.assertNotIn([NEW_TWO], tools.coverage.selections)
+
     def test_a_test_that_takes_a_branch_the_base_never_took_is_admitted_without_a_retry(self):
         tools = FakeTools(reach={"base": ["src/app.py:1", "src/app.py:1->2"],
                                  NEW: ["src/app.py:1", "src/app.py:1->3"]})
