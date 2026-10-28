@@ -39,13 +39,13 @@ const named = (node: Node | null | undefined): Node[] => node?.namedChildren.fil
 const collapse = (text: string): string => text.replace(/\s+/g, " ").trim();
 const lineOf = (node: Node): number => node.startPosition.row + 1;
 
-function* walk(node: Node): Generator<Node> {
+export function* walk(node: Node): Generator<Node> {
   yield node;
   for (const child of node.namedChildren) yield* walk(child);
 }
 
 /** The callee's last name segment: `f`, `self.f` and `this.f` all give `f`. */
-function lastName(node: Node | null | undefined): string | undefined {
+export function lastName(node: Node | null | undefined): string | undefined {
   if (node?.type === "identifier" || node?.type === "property_identifier") return node.text;
   if (node?.type === "attribute") return node.childForFieldName("attribute")?.text;
   if (node?.type === "member_expression") return node.childForFieldName("property")?.text;
@@ -53,7 +53,7 @@ function lastName(node: Node | null | undefined): string | undefined {
 }
 
 /** A string's static text up to its first interpolation, or undefined for any other node. */
-function staticText(node: Node): string | undefined {
+export function staticText(node: Node): string | undefined {
   if (node.type !== "string" && node.type !== "template_string") return undefined;
   const parts: string[] = [];
   for (const child of node.namedChildren) {

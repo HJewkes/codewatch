@@ -82,6 +82,21 @@ It does not reach renamed or deleted symbols, raiser chains deeper than one call
 another file, error codes returned as values, added error sites, or callers code-graph does not
 resolve (for example a method called on a freshly constructed instance).
 
+The same signal covers scripts at the process boundary. A changed `.py`, `.ts`, `.mts`, `.mjs`,
+`.cjs` or `.js` file is a script when it has an entry guard (`if __name__ == "__main__":`,
+`process.argv[1]` compared with `fileURLToPath(import.meta.url)`, `import.meta.main`,
+`require.main === module`, or a `#!` line). Its kinds are `exit-code-added:<N>`,
+`exit-code-removed:<N>` and `flag-removed:<--flag>`. Exit codes are `0`, literal exit codes
+(each branch of a conditional), the integer returns of a same-file function an exit passes on
+(one hop), and `1` when a throw or raise sits outside every try. Flags come from
+`argv.includes(...)`, `add_argument(...)` and `parseArgs({ options })`; added flags stay silent.
+
+Invokers are lines of tracked `package.json`, YAML, `Makefile`, shell and source files (never
+docs) that hold the script's path, its basename inside a string or config value, or
+`-m <module>` for Python. A line that runs a `package.json` script which invokes it also counts,
+cited `via <name>` (one hop). A removed flag affects only invokers that pass it. The finding
+fires when an affected invoker sits outside the diff, decided per line.
+
 ## Requirements
 
 - Node.js >= 20

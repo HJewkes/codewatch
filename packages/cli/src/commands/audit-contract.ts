@@ -27,7 +27,7 @@ const TS_TEST_PATH = /(?:^|\/)__tests__\/|\.(?:test|spec)\.[cm]?[jt]sx?$/;
 const LISTED = 5;
 
 const fileOf = (id: string): string => parseSymbolId(id)?.fileId ?? id;
-const isTestPath = (file: string): boolean => PYTHON_TEST_PATH.test(file) || TS_TEST_PATH.test(file);
+export const isTestPath = (file: string): boolean => PYTHON_TEST_PATH.test(file) || TS_TEST_PATH.test(file);
 const slug = (text: string): string => text.replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60);
 
 interface Context {

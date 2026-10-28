@@ -6,6 +6,8 @@ import { openGraphStore } from "../utils/graph-store.js";
 import type { ChangedLines } from "./audit-changed.js";
 import { indexMetrics } from "./audit-collect.js";
 import { contractFindings, type ContractSnapshot } from "./audit-contract.js";
+import { scriptContractFindings } from "./audit-contract-scripts.js";
+import { trackedFiles } from "./audit-invokers.js";
 import { runGraphIndex, type GraphIndexResult } from "./graph-index-run.js";
 
 export interface ContractBase {
@@ -64,13 +66,21 @@ function readWorkingTree(idRoot: string, file: string): string | undefined {
   }
 }
 
-/** Contract changes of the working tree against the indexed base. */
-export function contractAudit(base: ContractBase, head: ContractSnapshot, changed: ChangedLines, dbPath: string, idRoot: string): Promise<Finding[]> {
-  return contractFindings({
-    base: readSnapshot(dbPath, base.snapshotId),
-    head,
-    changed,
-    readBase: (file) => gitShow(idRoot, base.ref, file),
-    readHead: (file) => readWorkingTree(idRoot, file),
-  });
+/** Each file is read once although every changed script scans all of them for invokers. */
+function memo<K, V>(read: (key: K) => V): (key: K) => V {
+  const cache = new Map<K, V>();
+  return (key) => {
+    if (!cache.has(key)) cache.set(key, read(key));
+    return cache.get(key)!;
+  };
+}
+
+/** Contract changes of the working tree against the indexed base: symbols, then scripts. */
+export async function contractAudit(base: ContractBase, head: ContractSnapshot, changed: ChangedLines, dbPath: string, idRoot: string): Promise<Finding[]> {
+  const readBase = (file: string): string | undefined => gitShow(idRoot, base.ref, file);
+  const readHead = memo((file: string) => readWorkingTree(idRoot, file));
+  let tracked: string[] | undefined;
+  const files = (): string[] => (tracked ??= trackedFiles(idRoot));
+  const symbols = await contractFindings({ base: readSnapshot(dbPath, base.snapshotId), head, changed, readBase, readHead });
+  return [...symbols, ...(await scriptContractFindings({ changed, readBase, readHead, files }))];
 }
