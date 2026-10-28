@@ -381,8 +381,17 @@ deadline the agent passes in, and then resets the work tree to the last kept com
    analysis can tell its trace from the solve's in the shared `~/.claude`. The prompts
    name no grader, grader tool or grader metric.
 3. **One commit per item**, kept only if it passes these checks:
-   - a test gap, in any phase: it changes files under the tests directory only, and the
-     suite adds no failure the base did not have;
+   - a test gap, in any phase: it changes files under the tests directory only, the
+     suite adds no failure the base did not have, and it passes the admission gate
+     (`remediation/admission.py`, C-262). Each test function the commit adds must execute
+     a line or an arc of a source file that the rest of the suite does not, measured with
+     the pinned coverage.py (`--coverage`) and branch coverage: one run without the new
+     tests, then one per new test. A changed existing test is not gated, and no existing
+     test is removed. When the gate rejects tests, the session gets one fixed message
+     naming them and one retry; if any are still rejected, or the retry leaves no new test
+     or undoes the whole commit, the commit is reverted. A commit revised after a review
+     conflict is gated again. A coverage run that does not complete reverts the commit, and without the coverage
+     binary no test-gap item starts;
    - a quality item: the suite adds no failure the base did not have, and `codewatch graph check --baseline
      <merge-base>` lists no violation the tree before the commit did not already have.
      The baseline is `cw-merge-base-cp-N`, which `commit-ratchet` indexed, unless
@@ -438,12 +447,20 @@ The report line sets `outcome` (`kept` if any commit was kept, else `reverted`,
 a haiku warmup is its own line; transcripts undercount output), `call_usage` (the same per
 session call), `added_symbols` (from kept phase-2
 and phase-3 commits, flagged `single-caller-helper` when exactly one call reaches them),
+`tests_admitted` (new tests in kept commits) and `tests_rejected` (new tests the
+admission gate rejected, whether the retry removed them or the commit was reverted),
 and `items`. Each entry in `items` gives the phase, kind (`test-gap` or `quality`), signal,
 the missing test kind (for `missing-test-kind`), path, status (`kept`,
 `reverted`, `unchanged`, `time limit` or `not-started`), commit sha, reason, review
 verdict and whether the session was resumed. A reverted item also gives `cause`, the
-check reason the stop rule compares, and an item with a failure that passed on its rerun
-gives `flaky`.
+check reason the stop rule compares, an item with a failure that passed on its rerun
+gives `flaky`, and a gated test-gap item gives `admission` (its `admitted` and `rejected`
+test ids).
+
+The stage also writes the selected items, in the order it works them, to
+`.codewatch/audit/items.jsonl` (one `items` entry's phase, kind, signal, path, symbol and
+missing kind per line). It deletes a list left by an earlier checkpoint first, so a
+skipped stage leaves none. The agent copies it into `checkpoint_<n>/agent/`.
 
 ## findings/
 

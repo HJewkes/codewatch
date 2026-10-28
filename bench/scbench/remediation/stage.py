@@ -13,6 +13,7 @@ It returns the report line the stage agent copies into `stages.json`.
 
 from __future__ import annotations
 
+import json
 import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
@@ -20,9 +21,11 @@ from pathlib import Path
 
 from . import workspace as ws
 from .fixer import TIME_LIMIT, Clock, Fixer
+from findings.diff_uncovered import DEFAULT_COVERAGE
 from prflow.ratchet import MERGE_BASE_REF
 from prflow.repo import HiddenRepo, scoped
 
+from .admission import Admission, Coverage
 from .git import Git
 from .items import Item, controls_failed, evidence_field, read_jsonl, select_items
 from .session import FixSession, Run
@@ -31,6 +34,7 @@ from .oracle import UNAVAILABLE, TestRunner
 from .validate import GraphCheck, Reviewer
 
 AUDIT_DIR = Path(".codewatch") / "audit"
+ITEMS_FILE = "items.jsonl"
 SAME_CAUSE_STOP = 3
 STAGE_STOPPED = "stage-stopped"
 
@@ -52,6 +56,7 @@ class Config:
     max_items: int | None = None
     max_turns: int | None = None
     tool_pytest: str = DEFAULT_TOOL_PYTEST
+    coverage: str = DEFAULT_COVERAGE
 
 
 def load_items(config: Config, changed: set[str]) -> tuple[list[Item], int]:
@@ -65,7 +70,14 @@ def load_items(config: Config, changed: set[str]) -> tuple[list[Item], int]:
     return (project if config.max_items is None else project[:config.max_items]), held_back
 
 
+def write_item_list(workspace: Path, items: list[Item]) -> None:
+    (workspace / AUDIT_DIR).mkdir(parents=True, exist_ok=True)
+    (workspace / AUDIT_DIR / ITEMS_FILE).write_text("".join(json.dumps(describe(i)) + "\n" for i in items))
+
+
 def remediate(config: Config, env: Mapping[str, str], run_claude: Run, run_tool: Run, clock: Clock) -> dict:
+    # A list left by an earlier checkpoint must not be kept as this one's.
+    (config.workspace / AUDIT_DIR / ITEMS_FILE).unlink(missing_ok=True)
     git = Git(config.workspace, config.git_dir)
     if not git.exists():
         return {"outcome": "skipped", "reason": f"no hidden repository at {config.git_dir}"}
@@ -73,7 +85,8 @@ def remediate(config: Config, env: Mapping[str, str], run_claude: Run, run_tool:
     if git.dirty():
         return {"outcome": "skipped", "reason": "the work tree has uncommitted changes"}
     items, held_back = load_items(config, git.changed_files(git.merge_base()))
-    base = {"items_in": len(items), "held_back": held_back}
+    write_item_list(config.workspace, items)
+    base ={"items_in": len(items), "held_back": held_back}
     if not items:
         return {**base, "outcome": "skipped", "reason": "no confirmed items"}
     if ws.inside(config.workspace, config.scratch):
@@ -136,10 +149,18 @@ def build_fixer(config: Config, env: Mapping[str, str], git: Git, runs: tuple[Ru
         tests=tests,
         graph=graph, reviewer=Reviewer(config.review_command, config.workspace, run_tool, tool_env),
         clock=clock, env=env, tests_dir=config.tests_dir, base_branch=pr_branch,
-        kept_head=git.head(), current=None,
+        kept_head=git.head(), current=None, admission=build_admission(config, git, run_tool),
     )
     fixer.current = graph.snapshot(fixer.fix_ref, clock.remaining())
     return fixer
+
+
+def build_admission(config: Config, git: Git, run_tool: Run) -> Admission | None:
+    """None without the coverage binary, which leaves every test-gap item not started."""
+    if not Path(config.coverage).is_file():
+        return None
+    coverage = Coverage(config.coverage, config.workspace, config.scratch / "admission", config.tests_dir, run_tool)
+    return Admission(git, coverage)
 
 
 def run_items(fixer: Fixer, items: list[Item]) -> tuple[list[dict], str | None]:
@@ -177,6 +198,9 @@ def summarize(records: list[dict], stopped: str | None) -> dict:
     kept = [r for r in records if r["status"] == "kept"]
     outcome = "kept" if kept else "reverted" if "reverted" in statuses else "unchanged"
     reason = f"{len(kept)} kept, {statuses.count('reverted')} reverted of {len(records)}"
+    admitted, rejected = admission_counts(records)
+    if admitted or rejected:
+        reason += f"; {admitted} new tests admitted, {rejected} rejected"
     if stopped and stopped.startswith(STAGE_STOPPED):
         outcome, reason = STAGE_STOPPED, f"{reason}; {stopped}"
     elif stopped:
@@ -185,7 +209,15 @@ def summarize(records: list[dict], stopped: str | None) -> dict:
         "outcome": outcome, "reason": reason,
         "items_out": len(kept), "stopped_by": stopped, "items": records,
         "added_symbols": [s for r in kept for s in r.get("added_symbols", [])],
+        "tests_admitted": admitted, "tests_rejected": rejected,
     }
+
+
+def admission_counts(records: list[dict]) -> tuple[int, int]:
+    """New tests kept, and new tests the gate rejected; a reverted commit keeps none of its tests."""
+    gated = [(r["status"], r["admission"]) for r in records if r.get("admission")]
+    admitted = sum(len(g["admitted"]) for status, g in gated if status == "kept")
+    return admitted, sum(len(g["rejected"]) for _, g in gated)
 
 
 def _recover(fixer: Fixer, workspace: Path, saved: Path) -> None:

@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 // @ts-expect-error plain ESM hook script without a declaration file
 import { formatSnapshot } from "../../plugins/codewatch/hooks/snapshot-format.mjs"
-import { writeCarryFiles } from "./carry-fixtures"
+import { fixture, writeCarryFiles } from "./carry-fixtures"
 
 const here = dirname(fileURLToPath(import.meta.url))
 const SCRIPT = resolve(here, "../../plugins/codewatch/hooks/session-start.mjs")
@@ -183,6 +183,18 @@ describe("SessionStart hook with a graph.db", () => {
     expect(context).toContain("- [test-gap] shop/cart.py:41:")
     expect(context).toContain("A fourth item is never shown.")
     expect(context).toContain("- shop/pricing.py#apply_discount (3 importers)")
+  })
+
+  it("leaves out a carried taste line tagged with a test-gap verdict's key", () => {
+    writeCarryFiles(repo)
+    const gapKey = "diff-uncovered:diff-uncovered:shop/cart.py#Cart.total:2c3d4e5f6a7b8c9d#0"
+    const gapLine = `- Every rounding branch gets its own test. {inferred cp2 fp:${gapKey}}`
+    writeFileSync(join(repo, ".codewatch", "taste.md"), `${fixture("taste.md")}${gapLine}\n`)
+
+    const context = contextOf(runHook({ CODEWATCH_BIN: fakeBin }).stdout)
+
+    expect(context).toContain("- Records are dataclasses, not dicts. {inferred cp1 fp:")
+    expect(context).not.toContain("Every rounding branch gets its own test.")
   })
 
   it("keeps only the first CODEWATCH_CARRY_MAX_OPEN_ITEMS open items when it is set", () => {

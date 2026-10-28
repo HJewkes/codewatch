@@ -3,9 +3,9 @@
 Run before a pilot run: `python3 bench/scbench/prompts/record_manifest.py`. The manifest
 path defaults match `bench/scbench/image/build.sh`; other keys in the manifest are kept.
 A1's entry also pins its agent config, `agent/claude_code_cw.a1.yaml`, by sha256.
-build.sh runs `record_manifest.py --codewatch <entry.json>`, which records only the image's
+build.sh runs `record_manifest.py --codewatch <entry.json>`, which records the image's
 `codewatch` entry (source sha, `dirty: false` and the deploy artifact's sha256; see
-`image/artifact.py`).
+`image/artifact.py`) and recomputes `caps` from it, so caps never describe an earlier build.
 It also records, under `runnerConfigs`, which configs the launcher loads its model and
 provider catalogs from, with the sha256 of each vendored config file. Under `caps` it records
 the caps the A1 container applies: `budget_usd` (the triage stage's `--budget-usd`, else the
@@ -136,6 +136,14 @@ def record_codewatch(manifest: Path, entry: dict) -> None:
     _write(manifest, data)
 
 
+def record_build(manifest: Path, entry: dict) -> None:
+    """A new build changes the CLI the caps were read from, so they are recomputed with it."""
+    record_codewatch(manifest, entry)
+    data = _read(manifest)
+    data["caps"] = caps_entry(cli=entry)
+    _write(manifest, data)
+
+
 def default_manifest() -> Path:
     if os.environ.get("MANIFEST"):
         return Path(os.environ["MANIFEST"])
@@ -144,11 +152,13 @@ def default_manifest() -> Path:
     return run_dir / "manifest.json"
 
 
-if __name__ == "__main__" and sys.argv[1:2] == ["--codewatch"]:
-    record_codewatch(default_manifest(), json.loads(Path(sys.argv[2]).read_text()))
-    print(f"record_manifest: codewatch artifact recorded in {default_manifest()}")
-elif __name__ == "__main__":
+if __name__ == "__main__":
     sys.path.insert(0, str(PROMPTS_DIR.parent))
+
+if __name__ == "__main__" and sys.argv[1:2] == ["--codewatch"]:
+    record_build(default_manifest(), json.loads(Path(sys.argv[2]).read_text()))
+    print(f"record_manifest: codewatch artifact and caps recorded in {default_manifest()}")
+elif __name__ == "__main__":
     from agent.runner_configs import manifest_entry
 
     manifest_path = default_manifest()

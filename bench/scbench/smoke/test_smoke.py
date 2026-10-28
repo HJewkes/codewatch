@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest import mock
 
 from agent.output_guard import RunDirInRepo
+from runner import container
 from smoke import credential_smoke as smoke
 
 FAKE_TOKEN = "fake-smoke-token-not-real-0123456789"
@@ -35,6 +36,12 @@ class DockerArgvTest(unittest.TestCase):
 
         self.assertIn(f"{OUTSIDE / 'spec'}:/spec:ro", mounts)
         self.assertIn(f"{OUTSIDE / 'workspace'}:/workspace", mounts)
+
+
+class DefaultImageTest(unittest.TestCase):
+    def test_the_default_image_is_the_runner_s_pinned_a1_tag(self):
+        self.assertRegex(smoke.DEFAULT_IMAGE, r"^codewatch-scbench:a1-cw\d+\.\d+\.\d+-[0-9a-f]{7}$")
+        self.assertEqual(smoke.DEFAULT_IMAGE, container.IMAGE)
 
 
 class RunGuardTest(unittest.TestCase):

@@ -20,6 +20,7 @@ from slop_code.agent_runner.agents.claude_code.agent import (
 )
 from slop_code.agent_runner.registry import register_agent
 
+from .keep import keep_audit_files
 from .spec_file import SPEC_DIR, delete_command, spec_path, write_commands
 from .stages import (
     DEFAULT_CAP_SECONDS,
@@ -145,6 +146,9 @@ class ClaudeCodeCwAgent(ClaudeCodeAgent):
         env.update(self._build_runtime_auth_env())
         # The solve sets this too; without it Claude Code makes haiku side calls in a stage.
         env["DISABLE_NON_ESSENTIAL_MODEL_CALLS"] = "1"
+        # CC 2.0.51 skips its startup Explore/Plan warmup calls only when this is exactly
+        # "true". It also makes OAuth win over an API key; stages set only the OAuth token.
+        env["CLAUDE_CODE_REMOTE"] = "true"
         env["CW_CHECKPOINT"] = str(self.checkpoint_index)
         env["CW_CLAUDE_BINARY"] = self.binary
         env["CW_MODEL"] = self.model
@@ -165,6 +169,7 @@ class ClaudeCodeCwAgent(ClaudeCodeAgent):
             path / STAGES_FILENAME, self.checkpoint_index, self.stage_records, self.mcp_tool_calls,
             self.solve_usd,
         )
+        keep_audit_files(self.workspace, path)
 
 
 def solve_session_env(payloads: list[dict[str, tp.Any]]) -> dict[str, str]:

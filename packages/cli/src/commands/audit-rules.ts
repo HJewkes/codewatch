@@ -34,6 +34,7 @@ export const AUDIT_RULES: readonly CheckRule[] = [
   maxRule("file-unreachable", "unreachable_statements", 0, "file"),
   maxRule("file-swallowed-except", "swallowed_except", 0, "file"),
   outlierRule("file-except-density", "except_density", 3, "file"),
+  { type: "no-import-cycles", id: "file-import-cycles", severity: "warning" },
 ];
 
 /**
