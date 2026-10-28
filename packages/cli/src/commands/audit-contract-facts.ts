@@ -256,11 +256,19 @@ function tsParams(fn: Node): Param[] {
   return params;
 }
 
-/** Parameters of the outermost callable starting on `startLine`, receiver, rest and `this` dropped. */
+/** Lines a callable may be reported at: its own, or the first decorator above it. */
+function startLines(fn: Node): number[] {
+  const lines = [lineOf(fn)];
+  if (fn.parent?.type === "decorated_definition") lines.push(lineOf(fn.parent));
+  for (let prev = fn.previousNamedSibling; prev?.type === "decorator"; prev = prev.previousNamedSibling) lines.push(lineOf(prev));
+  return lines;
+}
+
+/** Parameters of the outermost callable starting on `startLine` (or its decorators), receiver, rest and `this` dropped. */
 export function paramsAt(file: ParsedFile, startLine: number): Param[] | undefined {
   const functions = functionTypes(file);
   for (const node of walk(file.tree.rootNode)) {
-    if (!functions.has(node.type) || lineOf(node) !== startLine) continue;
+    if (!functions.has(node.type) || !startLines(node).includes(startLine)) continue;
     return isPython(file) ? pythonParams(node) : tsParams(node);
   }
   return undefined;
