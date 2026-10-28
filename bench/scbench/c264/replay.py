@@ -12,6 +12,8 @@ carries every earlier test forward, and the cut removes the earlier rejects agai
 - R-test+helpers is R-test whose retry also removes the helpers, fixtures and imports the
   item added that nothing left uses. It can replay R-test's recorded verdicts (`--verdicts`),
   since cutting code no test runs changes no test's reach.
+- R-test+helpers+per-case also gates each parametrize case of an admitted test and cuts the
+  rejected cases' rows from their tables (`cases.py`). It needs coverage again.
 
 `Admission` and `Coverage` come from `remediation.admission` unchanged. Run it inside the A1
 image, as root, with this directory, S1's output and the output directory mounted:
@@ -38,10 +40,12 @@ from remediation.admission import Admission, Coverage, Verdict, test_names
 from remediation.git import Git
 from remediation.session import run_process
 
+from . import cases
 from .rebuild import TEST_GAP, TESTS_DIR, git_apply
 from .strip import added_units, import_statements, is_test_unit, strip, units
 
-ARMS = ("R-none", "R-commit", "R-test", "R-test+helpers")
+PER_CASE = "R-test+helpers+per-case"
+ARMS = ("R-none", "R-commit", "R-test", "R-test+helpers", PER_CASE)
 COVERAGE = "/opt/codewatch-a1/bin/coverage"
 KEEP = {".codewatch", ".venv"}
 TIMEOUT = 1800.0
@@ -59,6 +63,9 @@ class Arm:
     whole: dict[str, str] = field(default_factory=dict)
     imports: dict[str, set[str]] = field(default_factory=dict)
     edited: set[str] = field(default_factory=set)
+    tables: dict[str, cases.Recorded] = field(default_factory=dict)
+    a1: Path | None = None
+    rows_cut: int = 0
     log: list[dict] = field(default_factory=list)
 
     @property
@@ -100,13 +107,15 @@ def cut_file(arm: Arm, path: str) -> None:
     arm.edited |= {f"{path}::{tail}" for tail in outcome.edited}
     if outcome.removed and not test_names(outcome.text) and file.name.startswith("test"):
         file.unlink()
-    elif outcome.text != text:
-        file.write_text(outcome.text, encoding="utf-8")
+        return
+    cut = cases.apply(outcome.text, arm.tables.get(path, {}))
+    if cut != text:
+        file.write_text(cut, encoding="utf-8")
 
 
 def materialize(arm: Arm, a1: Path) -> None:
     sync(a1, arm.workspace)
-    for path in sorted(set(arm.cut) | set(arm.whole) | set(arm.imports)):
+    for path in sorted(set(arm.cut) | set(arm.whole) | set(arm.imports) | set(arm.tables)):
         cut_file(arm, path)
 
 
@@ -153,16 +162,29 @@ def record_helpers(arm: Arm, sha: str) -> list[str]:
     return paths
 
 
-def drop_tests(arm: Arm, rejected: tuple[str, ...]) -> str:
-    """Cut the rejected tests (and for R-test+helpers what only they used) and amend; a commit
-    left empty goes."""
-    helper_paths = record_helpers(arm, arm.git.head()) if arm.name == "R-test+helpers" else []
-    for node in rejected:
+def record_cases(arm: Arm, verdict: Verdict) -> list[str]:
+    """Record the table rows no admitted case needs, in each file the verdict names."""
+    paths = sorted({t.split("::", 1)[0] for t in (*verdict.admitted, *verdict.rejected)})
+    for path in [p for p in paths if (arm.workspace / p).is_file()]:
+        current = (arm.workspace / path).read_text(encoding="utf-8")
+        cuts = cases.case_cuts(current, path, verdict.admitted, verdict.rejected, verdict.cases,
+                               elsewhere(arm.workspace, path))
+        a1 = (arm.a1 / path).read_text(encoding="utf-8") if arm.a1 else current
+        arm.rows_cut += cases.record(arm.tables.setdefault(path, {}), a1, current, cuts)
+    return paths
+
+
+def drop_tests(arm: Arm, verdict: Verdict) -> str:
+    """Cut the rejected tests and cases (and for R-test+helpers what only they used) and
+    amend; a commit left empty goes."""
+    helper_paths = record_helpers(arm, arm.git.head()) if arm.name.startswith("R-test+helpers") else []
+    case_paths = record_cases(arm, verdict) if arm.name == PER_CASE else []
+    for node in (n for n in verdict.rejected if "[" not in n.split("::", 1)[1]):
         path, tail = node.split("::", 1)
         text = (arm.workspace / path).read_text(encoding="utf-8")
         arm.cut.setdefault(path, {}).update(units(text, [tail]))
         cut_file(arm, path)
-    for path in helper_paths:
+    for path in sorted(set(helper_paths) | set(case_paths)):
         cut_file(arm, path)
     arm.git.run("add", "-A", "--", ".", ":(exclude).codewatch")
     if not arm.git.run("diff", "--cached", "--name-only", "HEAD~1"):
@@ -173,16 +195,18 @@ def drop_tests(arm: Arm, rejected: tuple[str, ...]) -> str:
 
 
 def judge_item(arm: Arm, sha: str) -> dict:
-    started = time.monotonic()
+    started, arm.rows_cut = time.monotonic(), 0
     verdict = arm.gate(sha, TIMEOUT)
     record = {"admitted": list(verdict.admitted), "rejected": list(verdict.rejected), "error": verdict.error,
-              "gate_seconds": round(time.monotonic() - started, 1)}
+              "gate_seconds": round(time.monotonic() - started, 1),
+              **({"cases": {t: list(ids) for t, ids in verdict.cases.items()}} if verdict.cases else {})}
     if not (verdict.rejected or verdict.error):
         return {**record, "status": "kept"}
     if arm.name == "R-commit" or verdict.error:
         drop_commit(arm, sha)
         return {**record, "status": "reverted"}
-    return {**record, "status": drop_tests(arm, verdict.rejected)}
+    status = drop_tests(arm, verdict)
+    return {**record, "status": status, **({"rows_cut": arm.rows_cut} if arm.rows_cut else {})}
 
 
 def replay_item(arm: Arm, a1: Path, rebuild: Path, row: dict) -> None:
@@ -221,6 +245,7 @@ def replay_checkpoint(arm: Arm, base: Path, rebuild: Path, out: Path, rows: list
     a1 = out / "a1"
     shutil.rmtree(a1, ignore_errors=True)
     shutil.copytree(base, a1)
+    arm.a1 = a1
     materialize(arm, a1)
     commit(arm.git, f"solve cp{cp}")
     if arm.prepare is not None:
@@ -244,13 +269,13 @@ def admission_gates(coverage: str) -> GateFactory:
         if name == "R-none":
             return None
         scratch = git.workspace.parent / "scratch"
-        return Admission(git, Coverage(coverage, git.workspace, scratch, TESTS_DIR, run_process))
+        return Admission(git, Coverage(coverage, git.workspace, scratch, TESTS_DIR, run_process), name == PER_CASE)
     return make
 
 
 def recorded_gates(verdicts: Path) -> GateFactory:
     """Replay another arm's logged verdicts, found by the item's checkpoint and order."""
-    logged = {(i["cp"], i["order"]): Verdict(tuple(i["admitted"]), tuple(i["rejected"]), i["error"])
+    logged = {(i["cp"], i["order"]): Verdict(tuple(i["admitted"]), tuple(i["rejected"]), i["error"], i.get("cases", {}))
               for i in json.loads(verdicts.read_text())["items"] if "admitted" in i}
 
     def make(name: str, git: Git) -> Gate | None:
