@@ -1,13 +1,14 @@
 import json
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
-from image import artifact
+from image import artifact, rev_check
 from image.artifact import DirtySource, SourceMoved, artifact_sha256, codewatch_entry, image_tag
 from prompts.record_manifest import record_codewatch
 
@@ -180,6 +181,59 @@ class BuildScriptTests(unittest.TestCase):
     def test_build_sh_drops_the_link_to_the_source_checkout_before_hashing(self):
         drop = self.build.index('rm -f "$context/codewatch/node_modules/.pnpm/node_modules/@codewatch/cli"')
         self.assertLess(drop, self.build.index('artifact.py" entry'))
+
+
+def build_function(build: str, name: str) -> str:
+    start = build.index(f"\n{name}() {{\n") + 1
+    return build[start:build.index("\n}\n", start) + 3]
+
+
+@unittest.skipUnless(shutil.which("bash") and shutil.which("jq"), "bash and jq are needed")
+class VerifyArtifactTests(unittest.TestCase):
+    """verify_artifact from build.sh, run against a stub docker whose in-image rehash fails."""
+
+    def test_a_failed_rehash_in_the_image_stops_the_build(self):
+        build = (IMAGE_DIR / "build.sh").read_text()
+        script = build_function(build, "fail") + build_function(build, "verify_artifact") + "verify_artifact\n"
+        with tempfile.TemporaryDirectory() as tmp:
+            stub = Path(tmp) / "bin"
+            stub.mkdir()
+            (stub / "docker").write_text("#!/bin/sh\nexit 1\n")
+            (stub / "docker").chmod(0o755)
+            entry = Path(tmp) / "entry.json"
+            entry.write_text(json.dumps({"artifact_sha256": "d" * 64}))
+            env = {**os.environ, "PATH": f"{stub}:{os.environ['PATH']}", "codewatch_entry": str(entry),
+                   "here": str(IMAGE_DIR), "image": "img:tag"}
+            done = subprocess.run(["bash", "-euo", "pipefail", "-c", script], env=env, capture_output=True, text=True)
+        self.assertEqual(done.returncode, 1)
+        self.assertIn(f"does not hash to the recorded {'d' * 64}", done.stderr)
+        self.assertNotIn("hashes to the recorded", done.stdout)
+
+
+class RevCheckTests(unittest.TestCase):
+    def report(self, rev_nodes: int, head_nodes: int, rev_files: int = 3) -> dict:
+        return {"rev": {"files": rev_files, "nodes": rev_nodes}, "head": {"files": 3, "nodes": head_nodes}}
+
+    def test_an_index_of_head_minus_one_has_fewer_nodes_than_head(self):
+        self.assertIsNone(rev_check.problem(self.report(rev_nodes=10, head_nodes=11)))
+
+    def test_an_index_that_read_head_instead_of_head_minus_one_is_refused(self):
+        self.assertIn("rev_check_marker", rev_check.problem(self.report(rev_nodes=11, head_nodes=11)))
+
+    def test_an_index_of_no_files_is_refused(self):
+        self.assertIn("no files", rev_check.problem(self.report(rev_nodes=0, head_nodes=11, rev_files=0)))
+
+    def test_the_command_exits_1_on_a_report_that_read_head(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "rev-check.json"
+            path.write_text(json.dumps(self.report(rev_nodes=11, head_nodes=11)))
+            with mock.patch("sys.stderr"):
+                self.assertEqual(rev_check.main([str(path)]), 1)
+
+    def test_build_sh_checks_the_rev_check_report(self):
+        build = (IMAGE_DIR / "build.sh").read_text()
+        self.assertIn('python3 "$here/rev_check.py" "$run_dir/rev-check.json"', build)
+        self.assertIn("--rev HEAD~1", (IMAGE_DIR / "rev-check.sh").read_text())
 
 
 class SolvePathTests(unittest.TestCase):

@@ -27,9 +27,10 @@ from pathlib import Path
 
 from agent.output_guard import refuse_repo_run_dir
 from agent.stages import StageRecord, write_stages_json
+from runner.container import IMAGE
 
 HERE = Path(__file__).resolve().parent
-DEFAULT_IMAGE = "codewatch-scbench:a1-cw0.7.0"
+DEFAULT_IMAGE = IMAGE
 TOKEN_ENV = "CLAUDE_CODE_OAUTH_TOKEN"
 CONTAINER_NAME_PREFIX = "scbench-u10-smoke-"
 REPORT_KEYS = ("tokens", "usd")

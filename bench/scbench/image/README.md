@@ -43,11 +43,14 @@ It then:
    audit prints a `skipped <tool>` or tool-failure line, or if `findings.jsonl` lacks a
    ruff or code-graph finding. With no network, it also runs `rev-check.sh`, which commits a
    copy of the fixture into a repository whose `GIT_DIR` sits outside the work tree and runs
-   `graph index --rev HEAD~1`. It checks that triage has no default budget, and that a login
+   `graph index --rev HEAD~1`, then indexes HEAD, which adds one function, into a second db.
+   `rev_check.py` fails the build unless the HEAD~1 index has files and fewer nodes than
+   HEAD's. It checks that triage has no default budget, and that a login
    shell's `PATH` in the image does not include `/opt/codewatch-a1/bin`.
 4. Writes the image ID (the digest of a local image), the base image ID, the tool versions
    and the smoke counts under `a1Image` in the run manifest, and the CLI's repo, source sha,
-   `dirty: false`, version and artifact hash under `codewatch`.
+   `dirty: false`, version and artifact hash under `codewatch`. It recomputes `caps` from
+   that entry, so a rebuild never leaves the last build's caps in place.
 
 | Variable | Default |
 |---|---|
