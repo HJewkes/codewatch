@@ -21,9 +21,11 @@ from pathlib import Path
 
 from . import workspace as ws
 from .fixer import TIME_LIMIT, Clock, Fixer
+from findings.diff_uncovered import DEFAULT_COVERAGE
 from prflow.ratchet import MERGE_BASE_REF
 from prflow.repo import HiddenRepo, scoped
 
+from .admission import Admission, Coverage
 from .git import Git
 from .items import Item, controls_failed, evidence_field, read_jsonl, select_items
 from .session import FixSession, Run
@@ -54,6 +56,7 @@ class Config:
     max_items: int | None = None
     max_turns: int | None = None
     tool_pytest: str = DEFAULT_TOOL_PYTEST
+    coverage: str = DEFAULT_COVERAGE
 
 
 def load_items(config: Config, changed: set[str]) -> tuple[list[Item], int]:
@@ -146,10 +149,18 @@ def build_fixer(config: Config, env: Mapping[str, str], git: Git, runs: tuple[Ru
         tests=tests,
         graph=graph, reviewer=Reviewer(config.review_command, config.workspace, run_tool, tool_env),
         clock=clock, env=env, tests_dir=config.tests_dir, base_branch=pr_branch,
-        kept_head=git.head(), current=None,
+        kept_head=git.head(), current=None, admission=build_admission(config, git, run_tool),
     )
     fixer.current = graph.snapshot(fixer.fix_ref, clock.remaining())
     return fixer
+
+
+def build_admission(config: Config, git: Git, run_tool: Run) -> Admission | None:
+    """None without the coverage binary, which leaves every test-gap item not started."""
+    if not Path(config.coverage).is_file():
+        return None
+    coverage = Coverage(config.coverage, config.workspace, config.scratch / "admission", config.tests_dir, run_tool)
+    return Admission(git, coverage)
 
 
 def run_items(fixer: Fixer, items: list[Item]) -> tuple[list[dict], str | None]:
@@ -187,6 +198,9 @@ def summarize(records: list[dict], stopped: str | None) -> dict:
     kept = [r for r in records if r["status"] == "kept"]
     outcome = "kept" if kept else "reverted" if "reverted" in statuses else "unchanged"
     reason = f"{len(kept)} kept, {statuses.count('reverted')} reverted of {len(records)}"
+    admitted, rejected = admission_counts(records)
+    if admitted or rejected:
+        reason += f"; {admitted} new tests admitted, {rejected} rejected"
     if stopped and stopped.startswith(STAGE_STOPPED):
         outcome, reason = STAGE_STOPPED, f"{reason}; {stopped}"
     elif stopped:
@@ -195,7 +209,15 @@ def summarize(records: list[dict], stopped: str | None) -> dict:
         "outcome": outcome, "reason": reason,
         "items_out": len(kept), "stopped_by": stopped, "items": records,
         "added_symbols": [s for r in kept for s in r.get("added_symbols", [])],
+        "tests_admitted": admitted, "tests_rejected": rejected,
     }
+
+
+def admission_counts(records: list[dict]) -> tuple[int, int]:
+    """New tests kept, and new tests the gate rejected; a reverted commit keeps none of its tests."""
+    gated = [(r["status"], r["admission"]) for r in records if r.get("admission")]
+    admitted = sum(len(g["admitted"]) for status, g in gated if status == "kept")
+    return admitted, sum(len(g["rejected"]) for _, g in gated)
 
 
 def _recover(fixer: Fixer, workspace: Path, saved: Path) -> None:
