@@ -1,6 +1,7 @@
 {
  "schema": "ar-target/v1",
  "repo": "HJewkes/codewatch",
+ "runnerRoot": "bench/scbench",
  "ratchetPrefix": "autoresearch/c248-runner",
  "frozen": [
   "bench/scbench/c239/harness/**",
@@ -17,6 +18,7 @@
  "caseSets": {"train-1": "c209-suite", "train-2": "c209-a1a", "train-3": "c209-suite"},
  "microRung": {"accept-gate": "L1-replay", "config-param": "L1-replay", "planner-ranking": "L1-cluster",
                "session-prompt": "L1-cluster"},
+ "preflight": {"cmd": ["bash", "bench/scbench/autoresearch/ar_preflight.sh", "{caseSet}", "{problem}", "{case}"]},
  "rungs": {
   "L1-replay": {"cmd": ["bash", "bench/scbench/autoresearch/ar_micro.sh", "replay", "{runnerRoot}", "{baselineDir}",
                         "{microSignal}"]},

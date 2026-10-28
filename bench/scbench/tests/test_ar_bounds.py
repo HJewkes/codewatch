@@ -45,6 +45,12 @@ class BoundsTests(unittest.TestCase):
         for name in integers:
             self.assertTrue(all(type(v) is int for v in config_param["params"][name]), name)
 
+    def test_banned_rules_are_data_the_engine_can_read(self):
+        banned = BOUNDS["banned"]
+        self.assertEqual(banned["literalsOutsideConfig"], {"allowed": [0, 1, 2, -1]})
+        self.assertEqual(banned["seedNames"]["source"].split(";")[0], "local seed index (training, validator and holdout")
+        self.assertEqual(banned["caseNameSource"], {"kind": "factory-config", "key": "seedIndex"})
+
     def test_no_diff_size_cap(self):
         self.assertEqual(BOUNDS["diff"], {"oneClassPerIdea": True})
 
@@ -68,8 +74,12 @@ class TargetTests(unittest.TestCase):
         self.assertEqual(set(TARGET["microRung"]), set(BOUNDS["classes"]))
         self.assertTrue(set(TARGET["microRung"].values()) <= set(TARGET["rungs"]))
 
+    def test_runner_root_is_the_scbench_dir_of_the_idea_tree(self):
+        self.assertEqual(TARGET["runnerRoot"], "bench/scbench")
+        self.assertTrue((REPO / TARGET["runnerRoot"] / "runner").is_dir())
+
     def test_every_rung_command_is_an_adapter_script(self):
-        for name, rung in TARGET["rungs"].items():
+        for name, rung in {**TARGET["rungs"], "preflight": TARGET["preflight"]}.items():
             self.assertTrue((REPO / rung["cmd"][1]).is_file(), name)
 
 

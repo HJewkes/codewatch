@@ -19,7 +19,8 @@
  },
  "diff": {"oneClassPerIdea": true},
  "test": {"required": true, "mustFailOnBase": true, "exceptClasses": ["config-param"]},
- "banned": {"seedNames": "local seed index (training, validator and holdout; path in factory config only)",
-            "literalsOutsideConfig": "added src numeric literals other than 0, 1, 2, -1",
+ "banned": {"seedNames": {"source": "local seed index (training, validator and holdout; path in factory config only)"},
+            "literalsOutsideConfig": {"allowed": [0, 1, 2, -1]},
+            "caseNameSource": {"kind": "factory-config", "key": "seedIndex"},
             "frozenTouch": true, "newFiles": "only under the class's test globs"}
 }

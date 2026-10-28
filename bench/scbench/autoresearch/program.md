@@ -56,3 +56,17 @@ outside the config other than 0, 1, 2 and -1. Diff size is recorded, not capped.
 wrapper runs the `regrade/holdout.py` guard first. A case is a `prep_c246.sh` key under `/tmp/c246/prep`
 (override with `S7_INPUTS`); the local queue maps the `train-N` keys to seeds, so no seed is named here.
 `<signal>` is the idea's predicted move of one micro count, such as `accepted_net_cc:down`.
+
+## Naming the micro signal in an idea
+
+- `expectedEffect.microSignal` is a count name from `ar-micro/v1`: `accepts`, `rejects`, `accepted_net_cc` or
+  `accepted_new_helpers`. `expectedEffect.direction` is `up` or `down`; the evaluator joins them as
+  `<count>:<direction>`.
+- An idea of an L1-cluster class (`planner-ranking`, `session-prompt`) names the runner cluster the session
+  runs on in `microArgs.cluster`. Ideas of the L1-replay classes need no `microArgs`.
+
+## Pre-flight
+
+`ar_preflight.sh <case set> <problem> <case>` runs at pin time. It runs `prep_c246.sh` when the case has no
+prep, then checks the frozen final checkpoint under `/tmp/c246` (or `S7_INPUTS`) against the hash recorded at
+prep, and exits 5 when the inputs changed.
