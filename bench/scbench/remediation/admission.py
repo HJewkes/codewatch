@@ -8,8 +8,10 @@ A changed existing test is not gated, and no existing test is ever removed.
 The gate runs the suite under coverage.py with branch measurement once without the new tests
 (the base) and once per new test alone. A new test is admitted when it executes a line or an
 arc of a source file that the base run did not; test files do not count. Every other new test
-is rejected. The harness decides, never the agent: the fixer sends one fixed message naming
-the rejected tests, gives the session one retry, and then reverts the commit. A coverage run
+is rejected. A parametrized test the gate admits is then judged case by case, each case's
+pytest id run alone against the same base: a case that reaches nothing new is rejected, and a
+test none of whose cases does is rejected whole (C-264). The harness decides, never the
+agent: the fixer sends one fixed message naming the rejected tests and cases, gives the session one retry, and then reverts the commit. A coverage run
 that does not complete rejects the commit, so a broken tool never admits a test.
 """
 
@@ -19,7 +21,7 @@ import ast
 import json
 import os
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from findings.diff_uncovered import AGENT_VENVS, agent_test_env
@@ -40,6 +42,7 @@ class Verdict:
     admitted: tuple[str, ...] = ()
     rejected: tuple[str, ...] = ()
     error: str | None = None
+    cases: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
 
     def check(self) -> Check:
         if self.error:
@@ -52,7 +55,8 @@ class Verdict:
 
 def retry_prompt(rejected: Sequence[str]) -> str:
     return (f"These new tests run no line or branch of the code that the other tests do not already run, so "
-            f"they will not be kept: {', '.join(rejected)}.\nRemove them, or change them to exercise code no "
+            f"they will not be kept: {', '.join(rejected)}.\nRemove them (a bracketed id is one parametrize case: "
+            "remove that case from its table), or change them to exercise code no "
             "other test reaches, keep the suite passing, then stop.")
 
 
@@ -71,6 +75,19 @@ def test_names(source: str) -> set[str]:
     for cls in (n for n in tree.body if isinstance(n, ast.ClassDef) and _is_test_class(n)):
         names |= {f"{cls.name}::{node.name}" for node in cls.body if _is_test_function(node)}
     return names
+
+
+def parametrized(source: str) -> set[str]:
+    """The node-id tails of the file's test functions with a `parametrize` decorator."""
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return set()
+    nodes = [(n.name, n) for n in tree.body if _is_test_function(n)]
+    for cls in (n for n in tree.body if isinstance(n, ast.ClassDef) and _is_test_class(n)):
+        nodes += [(f"{cls.name}::{n.name}", n) for n in cls.body]
+    return {tail for tail, node in nodes if _is_test_function(node) and any(
+        "parametrize" in ast.unparse(d) for d in node.decorator_list)}
 
 
 def _is_test_function(node: ast.stmt) -> bool:
@@ -139,10 +156,29 @@ class Coverage:
             return None
         return read_reach(report, self.workspace, self.tests_dir)
 
+    def cases(self, test: str, timeout: float | None) -> tuple[str, ...] | None:
+        """The pytest ids of the test's cases, in collection order. Ids that change between
+        two collections (one holding an object's address) cannot be selected, so a test with
+        such ids has none."""
+        first, second = self._collect(test, timeout), self._collect(test, timeout)
+        if first is None or second is None:
+            return None
+        return first if first == second else ()
+
+    def _collect(self, test: str, timeout: float | None) -> tuple[str, ...] | None:
+        rc, _ = self._fresh()
+        code, out = self._output(["run", rc, *PYTEST, test, "--collect-only"], timeout)
+        if code not in TESTS_RAN:
+            return None
+        return tuple(line.strip() for line in out.splitlines() if line.strip().startswith(f"{test}["))
+
     def _step(self, args: list[str], timeout: float | None) -> int | None:
+        return self._output(args, timeout)[0]
+
+    def _output(self, args: list[str], timeout: float | None) -> tuple[int | None, str]:
         env = agent_test_env(self.workspace, self.scratch)
-        code, _, timed_out = self.run([self.binary, *args], env, str(self.workspace), timeout)
-        return None if timed_out else code
+        code, out, timed_out = self.run([self.binary, *args], env, str(self.workspace), timeout)
+        return (None if timed_out else code), out
 
     def _fresh(self) -> tuple[str, Path]:
         self.scratch.mkdir(parents=True, exist_ok=True)
@@ -160,6 +196,7 @@ class Coverage:
 class Admission:
     git: Git
     coverage: Coverage
+    per_case: bool = True
 
     def __call__(self, sha: str, timeout: float | None) -> Verdict:
         added = new_tests(self.git, sha, self.coverage.tests_dir)
@@ -172,4 +209,41 @@ class Admission:
         if base is None or missing:
             what = "the base run" if base is None else ", ".join(missing)
             return Verdict(error=f"coverage did not complete for {what}")
-        return judge(base, {t: r for t, r in reaches.items() if r is not None})
+        verdict = judge(base, {t: r for t, r in reaches.items() if r is not None})
+        tables = parametrized_tests(self.git, verdict.admitted) if self.per_case else set()
+        return self._by_case(base, verdict, tables, timeout) if tables else verdict
+
+    def _by_case(self, base: Reach, verdict: Verdict, tables: set[str], timeout: float | None) -> Verdict:
+        """Judge each case of the admitted parametrized tests; a test no case of which is
+        admitted is rejected whole. A case that reaches nothing at all most likely selected
+        nothing (an id with an object's address changes from run to run), so its test is
+        judged whole, as the function-level gate already admitted it."""
+        admitted, rejected, cases = [], list(verdict.rejected), {}
+        for test in verdict.admitted:
+            ids = self.coverage.cases(test, timeout) if test in tables else ()
+            if ids is None:
+                return Verdict(error=f"case collection did not complete for {test}")
+            if len(ids) < 2:
+                admitted.append(test)
+                continue
+            reaches = {case: self.coverage.reach([case], timeout) for case in ids}
+            missing = [c for c, reach in reaches.items() if reach is None]
+            if missing:
+                return Verdict(error=f"coverage did not complete for {', '.join(missing)}")
+            if not all(reaches.values()):
+                admitted.append(test)
+                continue
+            by_case = judge(base, {c: r for c, r in reaches.items() if r is not None})
+            admitted += by_case.admitted
+            rejected += by_case.rejected if by_case.admitted else [test]
+            cases[test] = ids
+        return Verdict(tuple(sorted(admitted)), tuple(sorted(rejected)), cases=cases)
+
+
+def parametrized_tests(git: Git, tests: Sequence[str]) -> set[str]:
+    """Those of `tests` (node ids) whose function carries a `parametrize` decorator."""
+    tails: dict[str, set[str]] = {}
+    for path in {t.split("::", 1)[0] for t in tests}:
+        file = git.workspace / path
+        tails[path] = parametrized(file.read_text(errors="replace")) if file.is_file() else set()
+    return {t for t in tests if t.split("::", 1)[1] in tails[t.split("::", 1)[0]]}

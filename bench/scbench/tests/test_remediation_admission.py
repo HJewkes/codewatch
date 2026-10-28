@@ -20,6 +20,10 @@ def deletes(path):
     return lambda root: (root / path).unlink()
 
 
+TABLE = "import pytest\n\n\n@pytest.mark.parametrize('x', [1, 2])\ndef test_new(x):\n    assert x\n"
+NEW_ONE, NEW_TWO = f"{NEW}[1]", f"{NEW}[2]"
+
+
 class AdmissionStageTest(StageTestCase):
     def setUp(self):
         super().setUp()
@@ -91,6 +95,47 @@ class AdmissionStageTest(StageTestCase):
         self.assertTrue(item["cause"].startswith("admission: 1 new tests reach nothing"), item["cause"])
         self.assertEqual(item["admission"], {"admitted": [NEW], "rejected": [DUP]})
         self.assertFalse((self.root / "tests" / "test_more.py").exists())
+
+    def test_a_parametrized_test_keeps_its_new_line_case_and_loses_its_duplicate_case(self):
+        tools = FakeTools(reach={"base": ["src/app.py:1"], NEW: ["src/app.py:1", "src/app.py:2"],
+                                 NEW_ONE: ["src/app.py:1", "src/app.py:2"], NEW_TWO: ["src/app.py:1"]},
+                          cases={NEW: [NEW_ONE, NEW_TWO]})
+        claude = FakeClaude(writes("tests/test_more.py", TABLE), writes("tests/test_more.py", TABLE.replace(", 2]", "]")))
+
+        report = self.run_stage(claude, tools)
+
+        self.assertEqual(report["items"][0]["admission"], {"admitted": [NEW_ONE], "rejected": [NEW_TWO]})
+        self.assertIn(f"they will not be kept: {NEW_TWO}.", claude.prompts()[1])
+        self.assertIn([NEW_TWO], tools.coverage.selections)
+
+    def test_a_parametrized_test_none_of_whose_cases_reaches_new_code_is_rejected_whole(self):
+        tools = FakeTools(reach={"base": ["src/app.py:1"], NEW: ["src/app.py:2"],
+                                 NEW_ONE: ["src/app.py:1"], NEW_TWO: ["src/app.py:1"]},
+                          cases={NEW: [NEW_ONE, NEW_TWO]})
+        claude = FakeClaude(writes("tests/test_more.py", TABLE), None)
+
+        report = self.run_stage(claude, tools)
+
+        self.assertEqual(report["items"][0]["status"], "reverted")
+        self.assertIn(f"they will not be kept: {NEW}.", claude.prompts()[1])
+
+    def test_a_case_whose_run_selects_nothing_leaves_its_test_judged_whole(self):
+        tools = FakeTools(reach={"base": ["src/app.py:1"], NEW: ["src/app.py:2"], NEW_ONE: ["src/app.py:1"],
+                                 NEW_TWO: []}, cases={NEW: [NEW_ONE, NEW_TWO]})
+
+        report = self.run_stage(FakeClaude(writes("tests/test_more.py", TABLE)), tools)
+
+        self.assertEqual(report["items"][0]["status"], "kept")
+        self.assertEqual(report["items"][0]["admission"], {"admitted": [NEW], "rejected": []})
+
+    def test_a_test_whose_case_ids_change_between_collections_is_judged_whole(self):
+        tools = FakeTools(reach={"base": ["src/app.py:1"], NEW: ["src/app.py:2"]},
+                          cases={NEW: [[f"{NEW}[<W at 0x1>]", NEW_TWO], [f"{NEW}[<W at 0x2>]", NEW_TWO]]})
+
+        report = self.run_stage(FakeClaude(writes("tests/test_more.py", TABLE)), tools)
+
+        self.assertEqual(report["items"][0]["admission"], {"admitted": [NEW], "rejected": []})
+        self.assertNotIn([NEW_TWO], tools.coverage.selections)
 
     def test_a_test_that_takes_a_branch_the_base_never_took_is_admitted_without_a_retry(self):
         tools = FakeTools(reach={"base": ["src/app.py:1", "src/app.py:1->2"],

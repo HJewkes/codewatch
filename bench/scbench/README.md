@@ -386,11 +386,14 @@ deadline the agent passes in, and then resets the work tree to the last kept com
      (`remediation/admission.py`, C-262). Each test function the commit adds must execute
      a line or an arc of a source file that the rest of the suite does not, measured with
      the pinned coverage.py (`--coverage`) and branch coverage: one run without the new
-     tests, then one per new test. A changed existing test is not gated, and no existing
-     test is removed. When the gate rejects tests, the session gets one fixed message
-     naming them and one retry; if any are still rejected, or the retry leaves no new test
-     or undoes the whole commit, the commit is reverted. A commit revised after a review
-     conflict is gated again. A coverage run that does not complete reverts the commit, and without the coverage
+     tests, then one per new test. A parametrized test that passes is then gated case by
+     case, each case's pytest id run alone (C-264); a test none of whose cases passes is
+     rejected whole. A test one of whose case runs selects nothing (an id holding an
+     object's address) is judged whole. A changed existing test is not gated, and no
+     existing test is removed. When the gate rejects tests or cases, the session gets one
+     fixed message naming them and one retry; if any are still rejected, or the retry
+     leaves no new test or undoes the whole commit, the commit is reverted. A commit
+     revised after a review conflict is gated again. A coverage run that does not complete reverts the commit, and without the coverage
      binary no test-gap item starts;
    - a quality item: the suite adds no failure the base did not have, and `codewatch graph check --baseline
      <merge-base>` lists no violation the tree before the commit did not already have.

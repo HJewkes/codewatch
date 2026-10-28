@@ -120,15 +120,23 @@ class FakeCoverage:
 
     `reach` maps "base" (the suite without the new tests) or a test id to `path:line` and
     `path:a->b` entries. By default the base reaches nothing and each new test reaches a line,
-    so every new test is admitted. A selection mapped to None makes its run fail."""
+    so every new test is admitted. A selection mapped to None makes its run fail. `cases` maps
+    a parametrized test id to the case ids its collection prints, or to a list of such lists,
+    one per collection."""
 
-    def __init__(self, reach=None):
+    def __init__(self, reach=None, cases=None):
         self.reach = reach or {}
+        self.cases = cases or {}
         self.selections = []
         self.selected = None
 
     def __call__(self, argv, root):
         step = argv[1]
+        if step == "run" and "--collect-only" in argv:
+            test = argv[argv.index("--collect-only") - 1]
+            cases = self.cases.get(test, [test])
+            cases = cases.pop(0) if cases and isinstance(cases[0], list) else cases
+            return 0, "".join(f"{case}\n" for case in cases) + "\n2 tests collected\n", False
         if step == "run":
             selection = argv[argv.index("no:cacheprovider") + 1:]
             self.selections.append(selection)
@@ -158,14 +166,14 @@ class FakeTools:
     The first test run is the stage's base run and answers with `base`; each later one takes
     the next of `tests`. A result is an exit code, or an exit code and the run's stdout."""
 
-    def __init__(self, tests=(), violations=(), diff=None, reviews=(), base=0, reach=None):
+    def __init__(self, tests=(), violations=(), diff=None, reviews=(), base=0, reach=None, cases=None):
         self.tests, self.violations, self.reviews = list(tests), list(violations), list(reviews)
         self.diff = diff or {}
         self.calls = []
         self.test_argvs = []
         self.snapshot_id = 0
         self.base = [base]
-        self.coverage = FakeCoverage(reach)
+        self.coverage = FakeCoverage(reach, cases)
 
     def __call__(self, argv, env, cwd, timeout):
         argv = list(argv)
