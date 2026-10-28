@@ -51,7 +51,7 @@ def parse(tokens, strict=True):
     return Parser(tokens).where()
 `;
 
-/** The guard moves into check_op, the literal check is dropped for value(), next gains an optional step. */
+/** The guard moves into check_op; value() reaches literal() only for a literal, so the check is lost; next gains an optional step. */
 const PARSER_HEAD = `class QueryError(Exception):
     pass
 
@@ -83,6 +83,8 @@ class Parser:
             self.err("bad operator")
 
     def value(self):
+        if self.tokens[self.pos][0] in ("number", "string"):
+            return self.literal()
         return self.next()[1]
 
     def atom(self):
@@ -213,11 +215,11 @@ describe("contract-change findings against --changed-from", () => {
       "codewatch:contract-change:src/format.ts#pad:default-changed:width",
       "codewatch:contract-change:src/format.ts#pad:error-removed:RangeError-width-must-be-positive",
     ]);
-    expect(rows[0]).toMatchObject({ path: "qparse/parser.py", lineStart: 34, lineEnd: 39, symbol: "Parser.atom", severity: "warning", tool: "codewatch" });
+    expect(rows[0]).toMatchObject({ path: "qparse/parser.py", lineStart: 36, lineEnd: 41, symbol: "Parser.atom", severity: "warning", tool: "codewatch" });
     expect(rows[0]!.evidence).toBe(
       [
         'change: removed error site QueryError("expected literal") via err, was qparse/parser.py:34 at base',
-        "callers not in diff: qparse/parser.py:41-42 Parser.where",
+        "callers not in diff: qparse/parser.py:43-44 Parser.where",
         "callers in diff: none",
         // code-graph leaves `Parser(tokens).where()` unresolved, so no test reaches the method.
         "tests not in diff: none",
