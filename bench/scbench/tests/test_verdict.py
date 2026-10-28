@@ -41,6 +41,15 @@ class DecisionRuleTests(unittest.TestCase):
     def test_a_strict_gain_of_two_on_top_of_quality_is_a_strong_adopt(self):
         self.assertEqual(decide(inputs(a1=arm(strict=7, erosion=0.4, verbosity=0.24))).verdict, "strong adopt")
 
+    def test_a_full_tree_drop_that_is_only_test_dilution_does_not_adopt(self):
+        diluted = arm(erosion=0.1, verbosity=0.06, usd=2.0, ex=(0.5, 0.3))
+
+        decision = decide(inputs(a1=diluted))
+
+        self.assertEqual(decision.verdict, "drop")
+        self.assertEqual((decision.delta_erosion, decision.delta_verbosity), (0.0, 0.0))
+        self.assertAlmostEqual(decision.delta_erosion_full, -0.8)
+
     def test_a_cost_ratio_above_two_and_a_half_blocks_adopt(self):
         decision = decide(inputs(a1=arm(erosion=0.4, verbosity=0.24, usd=2.6)))
 
@@ -90,6 +99,9 @@ class ThresholdTests(unittest.TestCase):
 
     def test_threshold_is_twice_a_wide_replicate_spread(self):
         self.assertAlmostEqual(quality_threshold(arm(erosion=0.5), arm(erosion=0.55)), 0.2)
+
+    def test_the_replicate_spread_is_read_without_tests(self):
+        self.assertEqual(quality_threshold(arm(erosion=0.5), arm(erosion=0.8, ex=(0.5, 0.3))), 0.15)
 
     def test_a_narrow_replicate_spread_keeps_fifteen_percent(self):
         self.assertEqual(quality_threshold(arm(erosion=0.5), arm(erosion=0.51)), 0.15)
