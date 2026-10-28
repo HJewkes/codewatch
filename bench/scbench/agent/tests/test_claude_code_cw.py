@@ -234,6 +234,22 @@ class StageHookTest(unittest.TestCase):
         self.assertEqual(stage_env["CW_PERMISSION_MODE"], "bypassPermissions")
         self.assertEqual(stage_env["CLAUDE_CODE_OAUTH_TOKEN"], "fake-token")
 
+    def test_saved_artifacts_keep_the_checkpoints_audit_outputs_beside_stages_json(self):
+        agent = _build(_cw_config({}), FakeRuntime())
+        with tempfile.TemporaryDirectory() as tmp:
+            agent._workspace = Path(tmp) / "workspace"
+            audit = agent._workspace / ".codewatch" / "audit"
+            audit.mkdir(parents=True)
+            for name in ("findings.jsonl", "verdicts.jsonl", "items.jsonl"):
+                (audit / name).write_text(f'{{"file": "{name}"}}\n')
+            out = Path(tmp) / "checkpoint_1" / "agent"
+
+            agent.save_artifacts(out)
+
+            for name in ("findings.jsonl", "verdicts.jsonl", "items.jsonl", "stages.json"):
+                self.assertTrue((out / name).is_file(), name)
+            self.assertEqual((out / "items.jsonl").read_text(), '{"file": "items.jsonl"}\n')
+
     def test_every_shipped_stage_runs_without_side_calls_and_triage_names_its_model(self):
         shipped = yaml.safe_load((Path(__file__).parents[1] / "claude_code_cw.yaml").read_text())["stages"]
         stages = {name: {**setting, "enabled": True} for name, setting in shipped.items()}
@@ -245,10 +261,24 @@ class StageHookTest(unittest.TestCase):
         self.assertTrue(runtime.streamed)
         for _, stage_env in runtime.streamed:
             self.assertEqual(stage_env["DISABLE_NON_ESSENTIAL_MODEL_CALLS"], "1")
+            self.assertEqual(stage_env["CLAUDE_CODE_REMOTE"], "true")
         triage = shlex.split(shipped["triage"]["command"])
         self.assertEqual(triage[triage.index("-m") + 1], "findings.triage_stage")
         self.assertEqual(triage[triage.index("--model") + 1], "claude-sonnet-5-5")
         self.assertIn(shipped["triage"]["command"], [c for c, _ in runtime.streamed])
+
+    def test_the_warmup_switch_reaches_stages_but_not_the_solve(self):
+        shipped = yaml.safe_load((Path(__file__).parents[1] / "claude_code_cw.yaml").read_text())["stages"]
+        stages = {name: {**setting, "enabled": True} for name, setting in shipped.items()}
+        runtime, capture = FakeRuntime(), SolveCapture()
+        agent = _build(_cw_config(stages), runtime)
+
+        _solve(agent, capture, checkpoints=2)
+
+        self.assertEqual(len(capture.calls), 2)
+        for _, solve_env in capture.calls:
+            self.assertNotIn("CLAUDE_CODE_REMOTE", solve_env)
+        self.assertTrue(all(env.get("CLAUDE_CODE_REMOTE") == "true" for _, env in runtime.streamed))
 
     def test_with_the_pr_flow_on_the_solve_session_gets_no_git_dir(self):
         shipped = yaml.safe_load((Path(__file__).parents[1] / "claude_code_cw.yaml").read_text())["stages"]
