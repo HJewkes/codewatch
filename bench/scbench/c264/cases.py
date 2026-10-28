@@ -1,7 +1,8 @@
 """C-264 arm 6: cut rejected parametrize cases out of their case tables.
 
 A case table is the list or tuple literal a test function's one `parametrize` decorator takes
-as its values, inline or through a module-level name (`CASES = [...]`). Case k of a test is
+as its values, inline or through a module-level name (`CASES = [...]`), also when the
+decorator maps that name one row to one case with a plain comprehension. Case k of a test is
 row k of its table, by pytest's collection order, so a table is cut only when the gate
 collected exactly as many cases as the table has rows. A row stays while any admitted case
 of any test using the table needs it. A table goes untouched when a test the gate did not
@@ -36,9 +37,13 @@ def _parametrize(node: ast.AST) -> list[ast.Call]:
 
 
 def _values(call: ast.Call) -> ast.expr | None:
-    if len(call.args) >= 2:
-        return call.args[1]
-    return next((k.value for k in call.keywords if k.arg == "argvalues"), None)
+    """The argvalues; a one-to-one comprehension over a name (`[(a, b) for _, a, b in T]`)
+    stands for the name."""
+    values = call.args[1] if len(call.args) >= 2 else next((k.value for k in call.keywords if k.arg == "argvalues"), None)
+    if isinstance(values, ast.ListComp | ast.GeneratorExp) and len(values.generators) == 1 \
+            and not values.generators[0].ifs and isinstance(values.generators[0].iter, ast.Name):
+        return values.generators[0].iter
+    return values
 
 
 def _named(tree: ast.Module) -> dict[str, ast.List | ast.Tuple]:

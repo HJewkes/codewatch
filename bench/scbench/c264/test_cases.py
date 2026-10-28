@@ -96,6 +96,16 @@ class CaseCutsTest(unittest.TestCase):
 
         self.assertEqual(cuts, {})
 
+    def test_a_comprehension_over_a_named_table_cuts_the_named_rows(self):
+        source = ("import pytest\n\nBAD = [\n    ('one', 1),\n    ('two', 2),\n]\n\n\n"
+                  "@pytest.mark.parametrize('x', [x for _, x in BAD], ids=[i for i, _ in BAD])\n"
+                  "def test_new(x):\n    pass\n")
+
+        cuts = case_cuts(source, PATH, [f"{NEW}[one]"], [f"{NEW}[two]"], {NEW: [f"{NEW}[one]", f"{NEW}[two]"]})
+
+        self.assertEqual(cuts, {"BAD": {1}})
+        self.assertIn("BAD = [\n    ('one', 1),\n]", drop_rows(source, "BAD", {1}))
+
     def test_rows_on_one_line_are_cut_without_breaking_the_literal(self):
         source = "import pytest\n\n\n@pytest.mark.parametrize('x', [1, 2, 3])\ndef test_x(x):\n    pass\n"
 
