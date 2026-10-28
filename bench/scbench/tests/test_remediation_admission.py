@@ -13,6 +13,11 @@ from tests.remediation_support import FakeClaude, FakeTools, StageTestCase, conf
 DUP, NEW = "tests/test_more.py::test_dup", "tests/test_more.py::test_new"
 BOTH = "def test_dup():\n    assert 1\n\n\ndef test_new():\n    assert 2\n"
 ONLY_NEW = "def test_new():\n    assert 2\n"
+CONFLICT = {"verdict": "conflict", "spec_line": None, "reason": "output changed"}
+
+
+def deletes(path):
+    return lambda root: (root / path).unlink()
 
 
 class AdmissionStageTest(StageTestCase):
@@ -48,6 +53,44 @@ class AdmissionStageTest(StageTestCase):
         self.assertFalse((self.root / "tests" / "test_more.py").exists())
         self.assertEqual((report["tests_admitted"], report["tests_rejected"]), (0, 1))
         self.assertEqual(len(claude.calls), 2)
+
+    def test_a_retry_that_deletes_the_rejected_tests_file_reverts_the_commit(self):
+        tools = FakeTools(reach={"base": ["src/app.py:1"], DUP: ["src/app.py:1"]})
+        claude = FakeClaude(writes("tests/test_more.py", "def test_dup():\n    assert 1\n"),
+                            deletes("tests/test_more.py"))
+
+        report = self.run_stage(claude, tools)
+
+        item = report["items"][0]
+        self.assertEqual(item["status"], "reverted")
+        self.assertEqual(item["cause"], "revision: the session undid the whole commit; nothing left to keep")
+        self.assertFalse((self.root / "tests" / "test_more.py").exists())
+        self.assertEqual((report["tests_admitted"], report["tests_rejected"]), (0, 1))
+        self.assertEqual(self.log("-2"), [f"Revert \"{self.log('-1', 'HEAD^')[0]}\"", self.log("-1", "HEAD^")[0]])
+
+    def test_a_retry_that_leaves_no_new_test_reverts_the_commit(self):
+        tools = FakeTools(reach={"base": ["src/app.py:1"], DUP: ["src/app.py:1"]})
+        claude = FakeClaude(writes("tests/test_more.py", "def test_dup():\n    assert 1\n"),
+                            writes("tests/test_more.py", "import os\n"))
+
+        report = self.run_stage(claude, tools)
+
+        item = report["items"][0]
+        self.assertEqual((item["status"], item["cause"]), ("reverted", "admission: the retry left no new test to admit"))
+        self.assertEqual((report["tests_admitted"], report["tests_rejected"]), (0, 1))
+
+    def test_a_review_revision_that_adds_a_duplicate_coverage_test_reverts_the_commit(self):
+        tools = FakeTools(reach={"base": ["src/app.py:1"], DUP: ["src/app.py:1"],
+                                 NEW: ["src/app.py:1", "src/app.py:2"]}, reviews=[CONFLICT])
+        claude = FakeClaude(writes("tests/test_more.py", ONLY_NEW), writes("tests/test_more.py", BOTH))
+
+        report = self.run_stage(claude, tools)
+
+        item = report["items"][0]
+        self.assertEqual(item["status"], "reverted")
+        self.assertTrue(item["cause"].startswith("admission: 1 new tests reach nothing"), item["cause"])
+        self.assertEqual(item["admission"], {"admitted": [NEW], "rejected": [DUP]})
+        self.assertFalse((self.root / "tests" / "test_more.py").exists())
 
     def test_a_test_that_takes_a_branch_the_base_never_took_is_admitted_without_a_retry(self):
         tools = FakeTools(reach={"base": ["src/app.py:1", "src/app.py:1->2"],

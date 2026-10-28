@@ -5,7 +5,8 @@ failure the stage base did not have, and must pass the admission gate (`admissio
 test reaches a line or branch the rest of the suite does not, after at most one retry. A
 quality commit must add no such failure and no ratchet violation. A test failure that passes on its rerun is recorded as flaky on the item. A
 commit that passes goes to the review hook (U17); on a conflict the session is resumed
-once, and the commit is reverted if the conflict stands. A phase-3 item works on its own
+once, and the commit is reverted if the conflict stands. Every amend, after the gate's retry
+or the review's resume, is validated and gated again. A phase-3 item works on its own
 branch from the PR branch, merged back only when kept.
 """
 
@@ -134,9 +135,25 @@ class Fixer:
         self._ask(retry_prompt(verdict.rejected))
         if not self.git.dirty():
             return sha, verdict.check()
+        sha, check, _ = self._revise(n, item, sha, None)
+        if check.passed and not (self.gated or {}).get("admitted"):
+            return sha, Check("admission", False, "the retry left no new test to admit")
+        return sha, check
+
+    def _revise(self, n: int, item: Item, sha: str, before: Snapshot | None):
+        """Amends the commit with the session's edits, validates it, and gates a test gap again.
+
+        A revision that undoes the whole commit is not amended (git refuses an empty amend):
+        its edits are discarded and the check fails, so the caller reverts the commit.
+        """
+        if self.git.amend_would_empty():
+            self.git.discard_edits()
+            return sha, Check("revision", False, "the session undid the whole commit; nothing left to keep"), None
         sha = self.git.commit_all(f"codewatch fix {n}: {item.signal} in {item.path}", amend=True)
-        check, _ = self._validate(item, sha, None)
-        return sha, self._gate(sha).check() if check.passed else check
+        check, after = self._validate(item, sha, before)
+        if check.passed and item.kind == TEST_GAP:
+            check = self._gate(sha).check()
+        return sha, check, after
 
     def _gate(self, sha: str) -> Verdict:
         """Runs the gate; `rejected` keeps a test rejected on the first attempt unless the retry admits it."""
@@ -152,8 +169,7 @@ class Fixer:
             return sha, Check("review", True, review["verdict"]), after, review, False
         self._ask(conflict_prompt(review.get("reason") or "", review.get("spec_line")))
         if self.git.dirty():
-            sha = self.git.commit_all(f"codewatch fix {n}: {item.signal} in {item.path}", amend=True)
-            check, after = self._validate(item, sha, before)
+            sha, check, after = self._revise(n, item, sha, before)
             if not check.passed:
                 return sha, check, after, review, True
             review = self._call_reviewer(sha)
