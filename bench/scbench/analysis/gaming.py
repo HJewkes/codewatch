@@ -46,11 +46,11 @@ def split_symbols(result: CheckpointResult | None) -> int:
 
 
 def gaming_check(rows: list[CheckpointRow], a1a: ArmSummary, a1: ArmSummary) -> GamingCheck:
-    """Attribute the whole paired erosion drop of a checkpoint to splits when any were kept.
+    """Attribute the whole paired tests-excluded erosion drop of a checkpoint to splits when any were kept.
 
     That over-attributes on purpose: a clean result is then trustworthy.
     """
-    drops = [(row, row.delta("A1a", "A1", "erosion")) for row in rows]
+    drops = [(row, row.delta("A1a", "A1", "erosion_ex_tests")) for row in rows]
     paired = [(row, d) for row, d in drops if d is not None]
     split = [(row, d) for row, d in paired if split_symbols(row.cells["A1"])]
     erosion_drop = sum(d for _, d in paired)

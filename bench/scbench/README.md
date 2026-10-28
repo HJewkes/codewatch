@@ -388,8 +388,9 @@ deadline the agent passes in, and then resets the work tree to the last kept com
      the pinned coverage.py (`--coverage`) and branch coverage: one run without the new
      tests, then one per new test. A changed existing test is not gated, and no existing
      test is removed. When the gate rejects tests, the session gets one fixed message
-     naming them and one retry; if any are still rejected, the commit is reverted. A
-     coverage run that does not complete reverts the commit, and without the coverage
+     naming them and one retry; if any are still rejected, or the retry leaves no new test
+     or undoes the whole commit, the commit is reverted. A commit revised after a review
+     conflict is gated again. A coverage run that does not complete reverts the commit, and without the coverage
      binary no test-gap item starts;
    - a quality item: the suite adds no failure the base did not have, and `codewatch graph check --baseline
      <merge-base>` lists no violation the tree before the commit did not already have.
@@ -455,6 +456,11 @@ verdict and whether the session was resumed. A reverted item also gives `cause`,
 check reason the stop rule compares, an item with a failure that passed on its rerun
 gives `flaky`, and a gated test-gap item gives `admission` (its `admitted` and `rejected`
 test ids).
+
+The stage also writes the selected items, in the order it works them, to
+`.codewatch/audit/items.jsonl` (one `items` entry's phase, kind, signal, path, symbol and
+missing kind per line). It deletes a list left by an earlier checkpoint first, so a
+skipped stage leaves none. The agent copies it into `checkpoint_<n>/agent/`.
 
 ## findings/
 

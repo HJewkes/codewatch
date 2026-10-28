@@ -9,7 +9,7 @@ import {
   type Extractor,
   type Observation,
 } from "@titan-design/style-analyzer";
-import { walkSourceFiles } from "@titan-design/code-graph";
+import { projectWorkingTreeSource } from "./index-scope.js";
 
 export interface AnalyzeOptions {
   rootDir: string;
@@ -55,7 +55,7 @@ export async function runAnalyze(
   assertSupportedLanguages(languages);
   const extractors = options.extractors ?? createStyleExtractors();
 
-  const filePaths = await walkSourceFiles([rootDir], languages);
+  const filePaths = await projectWorkingTreeSource().listFiles([rootDir], languages);
   const byLanguage: Record<string, number> = {};
 
   const observations: Observation[] = [];
