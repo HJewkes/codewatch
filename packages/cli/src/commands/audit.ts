@@ -10,6 +10,7 @@ import { defaultGraphDbPath, openGraphStore } from "../utils/graph-store.js";
 import { persistFindings } from "./audit-persist.js";
 import { changedLinesSince, type ChangedLines } from "./audit-changed.js";
 import { collectSnapshotStats, indexMetrics, type SnapshotStats } from "./audit-collect.js";
+import { contractAudit, indexContractBase, type ContractBase } from "./audit-contract-base.js";
 import { AUDIT_RULES } from "./audit-rules.js";
 import { PYTHON_TOOLS, runPythonTools, type PythonRunners, type PythonTool } from "./audit-runners.js";
 import { buildScoreTable, type ScoreTable } from "./audit-score.js";
@@ -23,7 +24,7 @@ export interface AuditCommandOptions {
   db?: string;
   out?: string;
   noRuff?: boolean;
-  /** Git ref the PR branches from; entry points changed since it are checked for missing test kinds even when untested. */
+  /** Git ref the PR branches from; entry points changed since it are checked for missing test kinds even when untested, and contract changes against it are reported. */
   changedFrom?: string;
   /** Replaces the real tool runs; tests inject them so the Python tools need not be installed. */
   runners?: PythonRunners;
@@ -93,12 +94,13 @@ function readGraph(dbPath: string, snapshotId: number) {
   }
 }
 
-async function graphFindings(dbPath: string, snapshotId: number, root: string, changed?: ChangedLines): Promise<GraphOutcome> {
+async function graphFindings(dbPath: string, snapshotId: number, root: string, changed?: ChangedLines, base?: ContractBase): Promise<GraphOutcome> {
   const { checks, nodes, metrics, edges } = readGraph(dbPath, snapshotId);
+  const contract = changed && base ? await contractAudit(base, { nodes, edges, metrics }, changed, dbPath, root) : [];
   const testFunctions = metrics.get("test_kind_snapshot") ?? new Map<string, number>();
   const entries = await entryAudit(nodes, edges, (id) => testFunctions.has(id), root);
   const testKinds = testKindFindings({ nodes, metrics, edges, entries: entries.entries, changed });
-  return { findings: [...checks, ...testKinds, ...entries.findings], stats: collectSnapshotStats(nodes, metrics), census: entries.census };
+  return { findings: [...checks, ...testKinds, ...entries.findings, ...contract], stats: collectSnapshotStats(nodes, metrics), census: entries.census };
 }
 
 interface TsSlopOutcome {
@@ -136,9 +138,12 @@ export async function runAuditCommand(options: AuditCommandOptions): Promise<Aud
   const dbPath = path.resolve(options.db ?? defaultGraphDbPath(root));
   const outDir = path.resolve(options.out ?? path.join(idRoot, ".codewatch", "audit"));
   const warnings: string[] = [];
-  const index = await runGraphIndex({ rootDir: root, dbPath, onNotice: (line) => warnings.push(line) });
-  const changed = options.changedFrom === undefined ? undefined : changedLinesSince(options.changedFrom, idRoot);
-  const graph = await graphFindings(dbPath, index.snapshotId, idRoot, changed);
+  const onNotice = (line: string): void => void warnings.push(line);
+  const ref = options.changedFrom;
+  const base = ref === undefined ? undefined : await indexContractBase({ root, idRoot, dbPath, ref, onNotice });
+  const index = await runGraphIndex({ rootDir: root, dbPath, onNotice });
+  const changed = ref === undefined ? undefined : changedLinesSince(ref, idRoot);
+  const graph = await graphFindings(dbPath, index.snapshotId, idRoot, changed, base);
   const tools = selectedTools(options, warnings);
   const external = await runPythonTools(tools, graph.stats.pythonFiles, idRoot, options.runners);
   warnings.push(...external.warnings);
