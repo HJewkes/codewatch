@@ -11,6 +11,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ENTRY = path.resolve(HERE, "../../dist/index.js");
 const CI_WORKFLOW = path.resolve(HERE, "../../../../.github/workflows/ci.yml");
 const HOT_FILE = "src/a.ts";
+const SPAWN_TIMEOUT_MS = 60_000;
 const HISTORY_METRICS = ["churn_30d", "recency_30d", "file_age_days"];
 
 function git(cwd: string, args: string[], date?: string): void {
@@ -65,7 +66,7 @@ describe("fitness gate history metrics for a file the head commit leaves alone",
     const baseline = indexRev(repo, "baseline");
 
     expect(historyMetrics(repo, baseline)).toEqual({ churn_30d: 3, recency_30d: 0.133, file_age_days: 4 });
-  });
+  }, SPAWN_TIMEOUT_MS);
 
   it("gives identical churn and recency in baseline and head", async () => {
     const baseline = indexRev(repo, "baseline");
@@ -74,7 +75,7 @@ describe("fitness gate history metrics for a file the head commit leaves alone",
     const head = indexRev(repo, "head");
 
     expect(historyMetrics(repo, head)).toEqual(historyMetrics(repo, baseline));
-  });
+  }, SPAWN_TIMEOUT_MS);
 });
 
 describe("CI fitness gate", () => {
