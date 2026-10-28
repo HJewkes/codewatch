@@ -13,6 +13,7 @@ import { collectSnapshotStats, indexMetrics, type SnapshotStats } from "./audit-
 import { AUDIT_RULES } from "./audit-rules.js";
 import { PYTHON_TOOLS, runPythonTools, type PythonRunners, type PythonTool } from "./audit-runners.js";
 import { buildScoreTable, type ScoreTable } from "./audit-score.js";
+import { censusJson, entryAudit, type InputClassCensus } from "./audit-input-classes.js";
 import { testKindFindings } from "./audit-test-kinds.js";
 import { runTsSlopRules, type TsSlopRunner } from "./audit-ts-slop.js";
 import { runGraphIndex } from "./graph-index-run.js";
@@ -22,7 +23,7 @@ export interface AuditCommandOptions {
   db?: string;
   out?: string;
   noRuff?: boolean;
-  /** Git ref the PR branches from; symbols changed since it are checked for missing test kinds even when untested. */
+  /** Git ref the PR branches from; entry points changed since it are checked for missing test kinds even when untested. */
   changedFrom?: string;
   /** Replaces the real tool runs; tests inject them so the Python tools need not be installed. */
   runners?: PythonRunners;
@@ -45,18 +46,25 @@ export interface AuditCommandResult {
   snapshotId: number;
   findings: Finding[];
   scores: ScoreTable;
+  /** Per Python entry point, the input classes its tests feed (input-classes.json). */
+  inputClasses: InputClassCensus;
   warnings: string[];
   /** Absent when the TS slop rules were skipped or ast-grep could not run. */
   tsVerbosity?: TsVerbosity;
   durationMs: number;
 }
 
+/** Its rows share the entry's span and arrive ranked; the solve brief reads them in that order. */
+const RANKED_SIGNAL = "entry-input-class";
+
+const bothRanked = (a: Finding, b: Finding): boolean => a.signal === RANKED_SIGNAL && b.signal === RANKED_SIGNAL;
+
 export function sortFindings(findings: readonly Finding[]): Finding[] {
   return [...findings].sort(
     (a, b) =>
       a.path.localeCompare(b.path) ||
       (a.lineStart ?? 0) - (b.lineStart ?? 0) ||
-      a.id.localeCompare(b.id),
+      (bothRanked(a, b) ? 0 : a.id.localeCompare(b.id)),
   );
 }
 
@@ -66,18 +74,31 @@ function selectedTools(options: AuditCommandOptions, warnings: string[]): Python
   return PYTHON_TOOLS.filter((tool) => tool !== "ruff");
 }
 
-function graphFindings(dbPath: string, snapshotId: number, changed?: ChangedLines): { findings: Finding[]; stats: SnapshotStats } {
+interface GraphOutcome {
+  findings: Finding[];
+  stats: SnapshotStats;
+  census: InputClassCensus;
+}
+
+function readGraph(dbPath: string, snapshotId: number) {
   const store = openGraphStore(dbPath);
   try {
     const result = runChecks(store, { snapshotId, rules: AUDIT_RULES });
     const nodes = store.listNodes(snapshotId, { includeSymbols: true });
     const metrics = indexMetrics(store.listMetrics(snapshotId));
     const edges = store.listEdges(snapshotId, { includeReferences: true });
-    const testKinds = testKindFindings({ nodes, metrics, edges, changed });
-    return { findings: [...toFindings(result), ...testKinds], stats: collectSnapshotStats(nodes, metrics) };
+    return { checks: toFindings(result), nodes, metrics, edges };
   } finally {
     store.close();
   }
+}
+
+async function graphFindings(dbPath: string, snapshotId: number, root: string, changed?: ChangedLines): Promise<GraphOutcome> {
+  const { checks, nodes, metrics, edges } = readGraph(dbPath, snapshotId);
+  const testFunctions = metrics.get("test_kind_snapshot") ?? new Map<string, number>();
+  const entries = await entryAudit(nodes, edges, (id) => testFunctions.has(id), root);
+  const testKinds = testKindFindings({ nodes, metrics, edges, entries: entries.entries, changed });
+  return { findings: [...checks, ...testKinds, ...entries.findings], stats: collectSnapshotStats(nodes, metrics), census: entries.census };
 }
 
 interface TsSlopOutcome {
@@ -100,8 +121,9 @@ async function runTsSlop(options: AuditCommandOptions, stats: SnapshotStats, cwd
   return { findings: run.findings, verbosity: { verbosity_flagged_loc: run.flaggedLoc, total_loc: totalLoc, verbosity } };
 }
 
-function writeOutputs(outDir: string, findings: readonly Finding[], scores: ScoreTable): void {
+function writeOutputs(outDir: string, findings: readonly Finding[], scores: ScoreTable, census: InputClassCensus): void {
   mkdirSync(outDir, { recursive: true });
+  writeFileSync(path.join(outDir, "input-classes.json"), censusJson(census));
   const lines = findings.map((f) => JSON.stringify(f)).join("\n");
   writeFileSync(path.join(outDir, "findings.jsonl"), lines.length > 0 ? `${lines}\n` : "");
   writeFileSync(path.join(outDir, "scores.json"), `${JSON.stringify(scores, null, 2)}\n`);
@@ -116,15 +138,15 @@ export async function runAuditCommand(options: AuditCommandOptions): Promise<Aud
   const warnings: string[] = [];
   const index = await runGraphIndex({ rootDir: root, dbPath, onNotice: (line) => warnings.push(line) });
   const changed = options.changedFrom === undefined ? undefined : changedLinesSince(options.changedFrom, idRoot);
-  const graph = graphFindings(dbPath, index.snapshotId, changed);
+  const graph = await graphFindings(dbPath, index.snapshotId, idRoot, changed);
   const tools = selectedTools(options, warnings);
   const external = await runPythonTools(tools, graph.stats.pythonFiles, idRoot, options.runners);
   warnings.push(...external.warnings);
   const tsSlop = await runTsSlop(options, graph.stats, idRoot, warnings);
   const findings = sortFindings([...graph.findings, ...external.findings, ...tsSlop.findings]);
   const scores = buildScoreTable(graph.stats.files, graph.stats.symbols, findings);
-  writeOutputs(outDir, findings, scores);
+  writeOutputs(outDir, findings, scores, graph.census);
   persistFindings(dbPath, index.snapshotId, idRoot, findings);
   const durationMs = performance.now() - started;
-  return { root, dbPath, outDir, snapshotId: index.snapshotId, findings, scores, warnings, tsVerbosity: tsSlop.verbosity, durationMs };
+  return { root, dbPath, outDir, snapshotId: index.snapshotId, findings, scores, inputClasses: graph.census, warnings, tsVerbosity: tsSlop.verbosity, durationMs };
 }
