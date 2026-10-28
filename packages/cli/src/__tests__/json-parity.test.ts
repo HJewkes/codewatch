@@ -100,6 +100,7 @@ describe("graph init scaffolder (C-7)", () => {
     // validateRules throws on an invalid rule shape.
     const rules = validateRules(parsed, { onWarn: () => {} });
     expect(rules.length).toBe(parsed.rules.length);
+    expect(rules.find((r) => r.type === "no-import-cycles")).toMatchObject({ id: "no-import-cycles", includeTypeOnly: undefined });
   });
 
   it("keeps an existing check.json unless --force is given", async () => {

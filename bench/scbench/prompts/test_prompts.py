@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from prompts.record_manifest import A1A_TEMPLATE, AGENT_CONFIG, PROMPTS_DIR, STOCK_TEMPLATE, caps_entry, record, template_sha256
+from prompts.record_manifest import A1A_TEMPLATE, AGENT_CONFIG, PROMPTS_DIR, STOCK_TEMPLATE, caps_entry, record, record_build, template_sha256
 
 try:
     import jinja2
@@ -184,6 +184,18 @@ class CapsEntryTests(unittest.TestCase):
             data = json.loads(manifest.read_text())
         self.assertEqual(data["caps"], {"budget_usd": None})
         self.assertEqual(data["a1Image"], {"digest": "sha256:x"})
+
+    def test_recording_a_new_build_refreshes_the_caps_the_last_build_left(self):
+        stale = caps_entry(cli={"version": "0.7.0"})
+        entry = {"version": "0.7.0", "source_sha": "b" * 40, "dirty": False, "artifact_sha256": "c" * 64}
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "manifest.json"
+            manifest.write_text(json.dumps({"caps": stale}))
+            record_build(manifest, entry)
+            data = json.loads(manifest.read_text())
+        self.assertEqual(data["codewatch"], entry)
+        self.assertEqual(data["caps"], caps_entry(cli=entry))
+        self.assertIsNone(data["caps"]["budget_usd"])
 
 
 if __name__ == "__main__":

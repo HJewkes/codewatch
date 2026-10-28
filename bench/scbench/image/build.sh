@@ -116,7 +116,7 @@ run_smoke() {
 run_cli_checks() {
   docker run --rm --network none --user 0:0 -v "$here/fixture:/fixture-src:ro" -v "$here/rev-check.sh:/rev-check.sh:ro" \
     "$image" bash /rev-check.sh /fixture-src >"$run_dir/rev-check.json" || fail "graph index --rev failed under GIT_DIR"
-  [ "$(jq .files "$run_dir/rev-check.json")" -ge 1 ] || fail "graph index --rev indexed no files (see $run_dir/rev-check.json)"
+  python3 "$here/rev_check.py" "$run_dir/rev-check.json" || fail "graph index --rev did not read HEAD~1 (see $run_dir/rev-check.json)"
   local triage_help solve_path
   triage_help="$(docker run --rm --network none "$image" codewatch triage --help)"
   grep -q -- '--budget-usd.*(default: no' <<<"$triage_help" || fail "the image's triage has a default budget"
