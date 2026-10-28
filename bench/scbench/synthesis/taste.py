@@ -13,6 +13,12 @@ MAX_FRAGMENT_WORDS = 300
 MAX_PROMPT_VERDICTS = 60
 DEFAULT_MODEL = "claude-sonnet-5-5"
 LISTED_VERDICTS = ("confirmed", "justified")
+# A test gap is a fix item, never a convention. Kept apart from remediation/items.py:35 so the
+# stages stay uncoupled; a parity test holds the two sets together.
+TEST_GAP_SIGNALS = frozenset({
+    "missing-test-kind", "diff-uncovered", "entry-input-class", "symbol_weak_oracle_only",
+    "symbol_assertion_free", "symbol_duplicate_assert", "symbol_self_compare",
+})
 
 SYSTEM_PROMPT = (
     "You write short convention notes for the next coding session on a repository. "
@@ -45,8 +51,9 @@ Model = Callable[[str], ModelReply]
 
 
 def listed_verdicts(verdicts: list[dict]) -> list[dict]:
-    """The verdicts the prompt numbers from 1: confirmed, then justified, each with a finding key."""
-    keyed = (r for r in verdicts if r.get("verdict") in LISTED_VERDICTS and isinstance(r.get("key"), str))
+    """The verdicts the prompt numbers from 1: confirmed, then justified, each with a finding key, test gaps left out."""
+    keyed = (r for r in verdicts if r.get("verdict") in LISTED_VERDICTS and isinstance(r.get("key"), str)
+             and r.get("signal") not in TEST_GAP_SIGNALS)
     return sorted(keyed, key=lambda r: LISTED_VERDICTS.index(r["verdict"]))[:MAX_PROMPT_VERDICTS]
 
 

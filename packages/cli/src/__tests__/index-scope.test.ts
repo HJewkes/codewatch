@@ -3,6 +3,8 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import type { Extractor } from "@titan-design/style-analyzer";
+import { runAnalyze } from "../commands/analyze.js";
 import { runAuditCommand } from "../commands/audit.js";
 import { scopeToProject } from "../commands/index-scope.js";
 import { planTriage } from "../commands/triage-plan.js";
@@ -75,6 +77,26 @@ describe("audit and triage of a workspace holding a virtualenv (C-216)", () => {
     const asked = plan.bundles.flatMap((b) => b.questions.map((q) => q.finding.path));
     expect(asked).toContain("app/load.py");
     expect(asked.filter((p) => p.startsWith(".venv/"))).toEqual([]);
+  });
+});
+
+describe("analyze of a workspace holding a virtualenv (C-217)", () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = fixtureRepo();
+  });
+
+  afterEach(() => rmSync(root, { recursive: true, force: true }));
+
+  it("reads the project's files and nothing under the virtualenv", async () => {
+    const parsed: string[] = [];
+    const recorder: Extractor = { name: "recorder", extract: (file) => (parsed.push(file.filePath), []) };
+
+    const result = await runAnalyze({ rootDir: root, languages: ["python"], extractors: [recorder] });
+
+    expect(parsed.map((abs) => path.relative(root, abs)).sort()).toEqual(["app/load.py", "scratch.py"]);
+    expect(result.files.total).toBe(2);
   });
 });
 
