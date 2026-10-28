@@ -234,6 +234,22 @@ class StageHookTest(unittest.TestCase):
         self.assertEqual(stage_env["CW_PERMISSION_MODE"], "bypassPermissions")
         self.assertEqual(stage_env["CLAUDE_CODE_OAUTH_TOKEN"], "fake-token")
 
+    def test_saved_artifacts_keep_the_checkpoints_audit_outputs_beside_stages_json(self):
+        agent = _build(_cw_config({}), FakeRuntime())
+        with tempfile.TemporaryDirectory() as tmp:
+            agent._workspace = Path(tmp) / "workspace"
+            audit = agent._workspace / ".codewatch" / "audit"
+            audit.mkdir(parents=True)
+            for name in ("findings.jsonl", "verdicts.jsonl", "items.jsonl"):
+                (audit / name).write_text(f'{{"file": "{name}"}}\n')
+            out = Path(tmp) / "checkpoint_1" / "agent"
+
+            agent.save_artifacts(out)
+
+            for name in ("findings.jsonl", "verdicts.jsonl", "items.jsonl", "stages.json"):
+                self.assertTrue((out / name).is_file(), name)
+            self.assertEqual((out / "items.jsonl").read_text(), '{"file": "items.jsonl"}\n')
+
     def test_every_shipped_stage_runs_without_side_calls_and_triage_names_its_model(self):
         shipped = yaml.safe_load((Path(__file__).parents[1] / "claude_code_cw.yaml").read_text())["stages"]
         stages = {name: {**setting, "enabled": True} for name, setting in shipped.items()}
