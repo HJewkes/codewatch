@@ -208,7 +208,8 @@ class Admission:
     def _by_case(self, base: Reach, verdict: Verdict, tables: set[str], timeout: float | None) -> Verdict:
         """Judge each case of the admitted parametrized tests; a test no case of which is
         admitted is rejected whole. A case that reaches nothing at all most likely selected
-        nothing, so it fails the gate rather than being rejected."""
+        nothing (an id with an object's address changes from run to run), so its test is
+        judged whole, as the function-level gate already admitted it."""
         admitted, rejected, cases = [], list(verdict.rejected), {}
         for test in verdict.admitted:
             ids = self.coverage.cases(test, timeout) if test in tables else ()
@@ -218,9 +219,12 @@ class Admission:
                 admitted.append(test)
                 continue
             reaches = {case: self.coverage.reach([case], timeout) for case in ids}
-            missing = [c for c, reach in reaches.items() if not reach]
+            missing = [c for c, reach in reaches.items() if reach is None]
             if missing:
                 return Verdict(error=f"coverage did not complete for {', '.join(missing)}")
+            if not all(reaches.values()):
+                admitted.append(test)
+                continue
             by_case = judge(base, {c: r for c, r in reaches.items() if r is not None})
             admitted += by_case.admitted
             rejected += by_case.rejected if by_case.admitted else [test]

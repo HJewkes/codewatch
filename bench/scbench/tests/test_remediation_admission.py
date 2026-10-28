@@ -74,13 +74,14 @@ class AdmissionStageTest(StageTestCase):
         self.assertEqual(report["items"][0]["status"], "reverted")
         self.assertIn(f"they will not be kept: {NEW}.", claude.prompts()[1])
 
-    def test_a_case_whose_run_reaches_nothing_fails_the_gate(self):
-        tools = FakeTools(reach={"base": ["src/app.py:1"], NEW: ["src/app.py:2"], NEW_ONE: ["src/app.py:2"],
+    def test_a_case_whose_run_selects_nothing_leaves_its_test_judged_whole(self):
+        tools = FakeTools(reach={"base": ["src/app.py:1"], NEW: ["src/app.py:2"], NEW_ONE: ["src/app.py:1"],
                                  NEW_TWO: []}, cases={NEW: [NEW_ONE, NEW_TWO]})
 
         report = self.run_stage(FakeClaude(writes("tests/test_more.py", TABLE)), tools)
 
-        self.assertEqual(report["items"][0]["cause"], f"admission: coverage did not complete for {NEW_TWO}")
+        self.assertEqual(report["items"][0]["status"], "kept")
+        self.assertEqual(report["items"][0]["admission"], {"admitted": [NEW], "rejected": []})
 
     def test_a_test_that_takes_a_branch_the_base_never_took_is_admitted_without_a_retry(self):
         tools = FakeTools(reach={"base": ["src/app.py:1", "src/app.py:1->2"],

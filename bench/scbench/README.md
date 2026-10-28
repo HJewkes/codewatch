@@ -388,7 +388,8 @@ deadline the agent passes in, and then resets the work tree to the last kept com
      the pinned coverage.py (`--coverage`) and branch coverage: one run without the new
      tests, then one per new test. A parametrized test that passes is then gated case by
      case, each case's pytest id run alone (C-264); a test none of whose cases passes is
-     rejected whole, and a case that reaches nothing at all fails the gate. A changed
+     rejected whole. A test one of whose case runs selects nothing (an id holding an
+     object's address) is judged whole. A changed
      existing test is not gated, and no existing test is removed. When the gate rejects
      tests or cases, the session gets one fixed message
      naming them and one retry; if any are still rejected, the commit is reverted. A
