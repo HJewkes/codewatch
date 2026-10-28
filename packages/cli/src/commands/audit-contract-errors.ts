@@ -64,9 +64,10 @@ export function lostErrors(base: ReadonlyMap<string, ParsedFile>, head: Readonly
   const after = locate(head, headOwner);
   const headCounts = countBy(after, (l) => errorKey(l.site));
   const headByOwner = countBy(after, ownerKey);
-  const lost = [...countBy(before, (l) => errorKey(l.site))].flatMap(([key, count]) =>
-    lostOccurrences(key, count - (headCounts.get(key) ?? 0), before, headByOwner),
-  );
+  const lost = [...countBy(before, (l) => errorKey(l.site))].flatMap(([key, count]) => {
+    const dropped = count - (headCounts.get(key) ?? 0);
+    return dropped > 0 ? lostOccurrences(key, dropped, before, headByOwner) : [];
+  });
   return groupByOwner(lost);
 }
 
