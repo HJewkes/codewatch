@@ -6,7 +6,7 @@ import { openGraphStore } from "../utils/graph-store.js";
 import type { ChangedLines } from "./audit-changed.js";
 import { indexMetrics } from "./audit-collect.js";
 import { contractFindings, type ContractSnapshot } from "./audit-contract.js";
-import { runGraphIndex } from "./graph-index-run.js";
+import { runGraphIndex, type GraphIndexResult } from "./graph-index-run.js";
 
 export interface ContractBase {
   ref: string;
@@ -17,15 +17,22 @@ export interface ContractBaseOptions {
   root: string;
   idRoot: string;
   dbPath: string;
-  ref: string;
+  ref?: string;
   onNotice: (line: string) => void;
 }
 
-/** Indexes `ref`'s tree before the head index, so the head snapshot stays the latest and reuses its files. */
-export async function indexContractBase(options: ContractBaseOptions): Promise<ContractBase> {
+export interface AuditSnapshots {
+  head: GraphIndexResult;
+  /** Absent without a base ref. */
+  base?: ContractBase;
+}
+
+/** Indexes `ref`'s tree before the head, so the head snapshot stays the latest and reuses its files. */
+export async function indexAuditSnapshots(options: ContractBaseOptions): Promise<AuditSnapshots> {
   const { root, idRoot, dbPath, ref, onNotice } = options;
-  const index = await runGraphIndex({ rootDir: root, dbPath, rev: ref, toplevel: idRoot, computeChurn: false, onNotice });
-  return { ref, snapshotId: index.snapshotId };
+  const base = ref === undefined ? undefined : await runGraphIndex({ rootDir: root, dbPath, rev: ref, toplevel: idRoot, computeChurn: false, onNotice });
+  const head = await runGraphIndex({ rootDir: root, dbPath, onNotice });
+  return { head, ...(base && ref !== undefined ? { base: { ref, snapshotId: base.snapshotId } } : {}) };
 }
 
 function readSnapshot(dbPath: string, snapshotId: number): ContractSnapshot {

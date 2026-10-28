@@ -10,14 +10,13 @@ import { persistFindings } from "./audit-persist.js";
 import { changedLinesSince, type ChangedLines } from "./audit-changed.js";
 import { auditFindings } from "./audit-cycles.js";
 import { collectSnapshotStats, indexMetrics, type SnapshotStats } from "./audit-collect.js";
-import { contractAudit, indexContractBase, type ContractBase } from "./audit-contract-base.js";
+import { contractAudit, indexAuditSnapshots, type ContractBase } from "./audit-contract-base.js";
 import { AUDIT_RULES } from "./audit-rules.js";
 import { PYTHON_TOOLS, runPythonTools, type PythonRunners, type PythonTool } from "./audit-runners.js";
 import { buildScoreTable, type ScoreTable } from "./audit-score.js";
 import { censusJson, entryAudit, type InputClassCensus } from "./audit-input-classes.js";
 import { testKindFindings } from "./audit-test-kinds.js";
 import { runTsSlopRules, type TsSlopRunner } from "./audit-ts-slop.js";
-import { runGraphIndex } from "./graph-index-run.js";
 
 export interface AuditCommandOptions {
   path: string;
@@ -140,8 +139,7 @@ export async function runAuditCommand(options: AuditCommandOptions): Promise<Aud
   const warnings: string[] = [];
   const onNotice = (line: string): void => void warnings.push(line);
   const ref = options.changedFrom;
-  const base = ref === undefined ? undefined : await indexContractBase({ root, idRoot, dbPath, ref, onNotice });
-  const index = await runGraphIndex({ rootDir: root, dbPath, onNotice });
+  const { head: index, base } = await indexAuditSnapshots({ root, idRoot, dbPath, ref, onNotice });
   const changed = ref === undefined ? undefined : changedLinesSince(ref, idRoot);
   const graph = await graphFindings(dbPath, index.snapshotId, idRoot, changed, base);
   const tools = selectedTools(options, warnings);
