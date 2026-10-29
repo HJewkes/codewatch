@@ -29,7 +29,7 @@
  },
  "metric": {
   "primary": {"name": "cc_total_delta_pct", "direction": "min"},
-  "guards": {"single_caller_delta": 1},
+  "guards": {"single_caller_delta": 1, "accepted_tasks": {"slack": 0, "direction": "max"}},
   "zeroTolerance": ["hidden_regressions"],
   "allGate": true,
   "noOp": "accepted_tasks",

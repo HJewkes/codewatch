@@ -63,7 +63,8 @@ class TargetTests(unittest.TestCase):
         self.assertEqual(set(metric), {"primary", "guards", "zeroTolerance", "allGate", "noOp", "noise"})
         self.assertEqual(metric["primary"], {"name": "cc_total_delta_pct", "direction": "min"})
         self.assertEqual((metric["guards"], metric["zeroTolerance"], metric["allGate"], metric["noOp"]),
-                         ({"single_caller_delta": 1}, ["hidden_regressions"], True, "accepted_tasks"))
+                         ({"single_caller_delta": 1, "accepted_tasks": {"slack": 0, "direction": "max"}}, ["hidden_regressions"], True,
+                          "accepted_tasks"))
         self.assertEqual(set(metric["noise"]), {"bandSigmas", "lockAfterPairs", "minPairs", "defaultBand"})
 
     def test_phases_and_micro_rungs_fit_the_schema(self):

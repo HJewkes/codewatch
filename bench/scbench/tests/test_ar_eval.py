@@ -24,7 +24,7 @@ def v2_problems(result: dict, metric: dict) -> list[str]:
         "usd": number(result.get("usd")) and result["usd"] >= 0, "wall_s": number(result.get("wall_s")) and result["wall_s"] >= 0,
     }
     problems = [name for name, ok in checks.items() if not ok]
-    required = [metric["primary"]["name"], *metric.get("guards", {}), *([metric["noOp"]] if metric.get("noOp") else [])]
+    required = dict.fromkeys([metric["primary"]["name"], *metric.get("guards", {}), *([metric["noOp"]] if metric.get("noOp") else [])])
     return problems + [f"metrics.{m}" for m in required if m not in (result.get("metrics") or {})]
 
 
