@@ -173,6 +173,16 @@ it("rejects negatives", () => {
   expect("bad input").toContain("bad");
 });
 `,
+  "scripts/repeat.mjs": `export function repeat(text, times = 2) {
+  return text.repeat(times);
+}
+`,
+  "scripts/repeat.test.mjs": `import { expect, it } from "vitest";
+import { repeat } from "./repeat.mjs";
+it("doubles by default", () => {
+  expect(repeat("ab")).toBe("abab");
+});
+`,
   "src/format.test.ts": `import { expect, it } from "vitest";
 import { pad } from "./format.js";
 it("rejects a negative width", () => {
@@ -182,6 +192,10 @@ it("rejects a negative width", () => {
 };
 
 const HEAD_FILES: Readonly<Record<string, string>> = {
+  "scripts/repeat.mjs": `export function repeat(text, times = 3) {
+  return text.repeat(times);
+}
+`,
   "qparse/scale.py": `import functools
 
 
@@ -253,6 +267,7 @@ describe("contract-change findings against --changed-from", () => {
       "codewatch:contract-change:qparse/parser.py#parse:default-changed:strict",
       "codewatch:contract-change:qparse/report.py#fmt:param-added:unit",
       "codewatch:contract-change:qparse/scale.py#scale:default-changed:factor",
+      "codewatch:contract-change:scripts/repeat.mjs#repeat:default-changed:times",
       "codewatch:contract-change:src/format.ts#pad:default-changed:width",
       "codewatch:contract-change:src/format.ts#pad:error-removed:RangeError-width-must-be-positive",
       "codewatch:contract-change:src/guard.ts#guard:error-removed:Error-bad",
@@ -294,6 +309,13 @@ describe("contract-change findings against --changed-from", () => {
     const evidence = evidenceOf(rows, "#scale:default-changed:factor");
     expect(evidence).toContain("change: default of factor: 2 -> 3");
     expect(evidence).toContain("callers not in diff: qparse/cli.py:18-19 rescale");
+  });
+
+  it("reads a changed default in a .mjs script and lists the .test.mjs caller outside the diff", () => {
+    const evidence = evidenceOf(rows, "scripts/repeat.mjs#repeat:default-changed:times");
+    expect(evidence).toBe(
+      ["change: default of times: 2 -> 3", "callers not in diff: none", "callers in diff: none", "tests not in diff: scripts/repeat.test.mjs"].join("\n"),
+    );
   });
 
   it("does not count a short message as asserted by an unrelated test line", () => {
