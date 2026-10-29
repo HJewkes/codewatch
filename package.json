@@ -39,6 +39,13 @@
   },
   "packageManager": "pnpm@9.15.0",
   "pnpm": {
+    "overrides": {
+      "@titan-design/code-graph": "file:vendor/titan-design-prerelease/titan-design-code-graph-0.18.2.tgz",
+      "@codewatch/cli>@titan-design/code-parser": "file:vendor/titan-design-prerelease/titan-design-code-parser-0.2.0.tgz",
+      "@titan-design/code-graph>@titan-design/code-parser": "file:vendor/titan-design-prerelease/titan-design-code-parser-0.2.0.tgz",
+      "@titan-design/code-graph>@titan-design/fix-proof": "file:vendor/titan-design-prerelease/titan-design-fix-proof-0.8.0.tgz",
+      "@titan-design/code-graph>@titan-design/retrieval": "file:vendor/titan-design-prerelease/titan-design-retrieval-0.3.1.tgz"
+    },
     "onlyBuiltDependencies": [
       "@ast-grep/cli",
       "better-sqlite3"

@@ -4,6 +4,13 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  '@titan-design/code-graph': file:vendor/titan-design-prerelease/titan-design-code-graph-0.18.2.tgz
+  '@codewatch/cli>@titan-design/code-parser': file:vendor/titan-design-prerelease/titan-design-code-parser-0.2.0.tgz
+  '@titan-design/code-graph>@titan-design/code-parser': file:vendor/titan-design-prerelease/titan-design-code-parser-0.2.0.tgz
+  '@titan-design/code-graph>@titan-design/fix-proof': file:vendor/titan-design-prerelease/titan-design-fix-proof-0.8.0.tgz
+  '@titan-design/code-graph>@titan-design/retrieval': file:vendor/titan-design-prerelease/titan-design-retrieval-0.3.1.tgz
+
 importers:
 
   .:
@@ -54,11 +61,11 @@ importers:
         specifier: ^0.4.3
         version: 0.4.3(@anthropic-ai/sdk@0.128.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(zod@4.3.6)
       '@titan-design/code-graph':
-        specifier: ^0.18.2
-        version: 0.18.2
+        specifier: file:../../vendor/titan-design-prerelease/titan-design-code-graph-0.18.2.tgz
+        version: file:vendor/titan-design-prerelease/titan-design-code-graph-0.18.2.tgz
       '@titan-design/code-parser':
-        specifier: ^0.1.0
-        version: 0.1.0(web-tree-sitter@0.26.6)
+        specifier: file:../../vendor/titan-design-prerelease/titan-design-code-parser-0.2.0.tgz
+        version: file:vendor/titan-design-prerelease/titan-design-code-parser-0.2.0.tgz(web-tree-sitter@0.26.6)
       '@titan-design/embed':
         specifier: ^0.2.0
         version: 0.2.0
@@ -146,8 +153,8 @@ importers:
   packages/render:
     dependencies:
       '@titan-design/code-graph':
-        specifier: ^0.18.2
-        version: 0.18.2
+        specifier: file:../../vendor/titan-design-prerelease/titan-design-code-graph-0.18.2.tgz
+        version: file:vendor/titan-design-prerelease/titan-design-code-graph-0.18.2.tgz
       cose-base:
         specifier: ^1.0.3
         version: 1.0.3
@@ -1007,8 +1014,9 @@ packages:
     peerDependencies:
       zod: ^4.0.0
 
-  '@titan-design/code-graph@0.18.2':
-    resolution: {integrity: sha512-uZ1kxKM8kR08jPx1h8tQuapOCQ9E5Ab0U+oyMx994R50/yylVpxT/ege5XdbF5QZYH2UJTU24JefRmN7mzz1Fw==}
+  '@titan-design/code-graph@file:vendor/titan-design-prerelease/titan-design-code-graph-0.18.2.tgz':
+    resolution: {integrity: sha512-d7FLzxWDbfU+7WYrE1zPvVBbTZt5tdLdcr5/hWVgQ5DX9a2HP+yWEgczg3VaW3pIQ1il+DuPltVK7WXErk9dHA==, tarball: file:vendor/titan-design-prerelease/titan-design-code-graph-0.18.2.tgz}
+    version: 0.18.2
     engines: {node: '>=20'}
 
   '@titan-design/code-parser@0.1.0':
@@ -1017,8 +1025,9 @@ packages:
     peerDependencies:
       web-tree-sitter: ^0.26.6
 
-  '@titan-design/code-parser@0.2.0':
-    resolution: {integrity: sha512-1aeu6ADO4YmbwJcuMgIwwOoQUR/CC5bbVJzW9Qf7wT2tFgmBXBfWDPGU2fXjpTZ4Ib2rv0qrv/JMq2ywIMQrDw==}
+  '@titan-design/code-parser@file:vendor/titan-design-prerelease/titan-design-code-parser-0.2.0.tgz':
+    resolution: {integrity: sha512-tS2wmY+8i9pJp5gn0aZ8PX6H4py9OR3SMcscvrTKI2/VpkWqDBaxLwp5ZJlhkSeNC016n2Vehjh8uAICS1A5wA==, tarball: file:vendor/titan-design-prerelease/titan-design-code-parser-0.2.0.tgz}
+    version: 0.2.0
     engines: {node: '>=20'}
     peerDependencies:
       web-tree-sitter: ^0.26.6
@@ -1040,14 +1049,21 @@ packages:
     resolution: {integrity: sha512-ZtKmMrJ2nL9/iUMvZpsBehkD3s+l0yMnWOxIq7GZnSkmMwe3aFPM/1Zw3JyprXevawCyk4LVOKO8q/ybjwy5oQ==}
     engines: {node: '>=20'}
 
+  '@titan-design/fix-proof@file:vendor/titan-design-prerelease/titan-design-fix-proof-0.8.0.tgz':
+    resolution: {integrity: sha512-bEL/zANm0X1ajalTCZDRhv9e8lPd/kH+pIdo2YDzpXr0lwDoypYuqpMM/YF+i1RKFLgKvwjvBkY7mnmmmWiZFA==, tarball: file:vendor/titan-design-prerelease/titan-design-fix-proof-0.8.0.tgz}
+    version: 0.8.0
+    engines: {node: '>=20'}
+    hasBin: true
+
   '@titan-design/hitl@0.7.0':
     resolution: {integrity: sha512-fpMJVYwO+jEgbl88v1kHuJgYNsqzCmDqGEAbG0b8toA37mxNgq6Sk15XI9j2vimouG0kAQse78TrdJrp/mMxmA==}
     engines: {node: '>=20'}
     peerDependencies:
       zod: ^4.0.0
 
-  '@titan-design/retrieval@0.3.1':
-    resolution: {integrity: sha512-x5Bfh+7hmNWR3588DCEv5+L9cV4EuPKDl6zCgduLKgdInVD/wU73bmkSITSJrvPQ+TRyvPE0NBVnkqNFi3KRDA==}
+  '@titan-design/retrieval@file:vendor/titan-design-prerelease/titan-design-retrieval-0.3.1.tgz':
+    resolution: {integrity: sha512-vcnZ0tw83UeY9OkkrYrt7KvTW7ZA4rhCc9fy5W0nH5sEsy3JjJe8T0US9JbMyHVzXHEZ+SyZYRtv7B4kokSxlw==, tarball: file:vendor/titan-design-prerelease/titan-design-retrieval-0.3.1.tgz}
+    version: 0.3.1
     engines: {node: '>=20'}
     peerDependencies:
       '@huggingface/transformers': ^3.0.0
@@ -3258,12 +3274,13 @@ snapshots:
     dependencies:
       zod: 4.3.6
 
-  '@titan-design/code-graph@0.18.2':
+  '@titan-design/code-graph@file:vendor/titan-design-prerelease/titan-design-code-graph-0.18.2.tgz':
     dependencies:
-      '@titan-design/code-parser': 0.2.0(web-tree-sitter@0.26.6)
+      '@titan-design/code-parser': file:vendor/titan-design-prerelease/titan-design-code-parser-0.2.0.tgz(web-tree-sitter@0.26.6)
       '@titan-design/embed': 0.2.0
       '@titan-design/evidence': 0.4.0
-      '@titan-design/retrieval': 0.3.1
+      '@titan-design/fix-proof': file:vendor/titan-design-prerelease/titan-design-fix-proof-0.8.0.tgz
+      '@titan-design/retrieval': file:vendor/titan-design-prerelease/titan-design-retrieval-0.3.1.tgz
       '@titan-design/store-sqlite': 0.4.0
       ts-morph: 25.0.1
       web-tree-sitter: 0.26.6
@@ -3279,7 +3296,7 @@ snapshots:
     transitivePeerDependencies:
       - tree-sitter
 
-  '@titan-design/code-parser@0.2.0(web-tree-sitter@0.26.6)':
+  '@titan-design/code-parser@file:vendor/titan-design-prerelease/titan-design-code-parser-0.2.0.tgz(web-tree-sitter@0.26.6)':
     dependencies:
       tree-sitter-python: 0.25.0
       tree-sitter-typescript: 0.23.2
@@ -3293,13 +3310,15 @@ snapshots:
 
   '@titan-design/evidence@0.4.0': {}
 
+  '@titan-design/fix-proof@file:vendor/titan-design-prerelease/titan-design-fix-proof-0.8.0.tgz': {}
+
   '@titan-design/hitl@0.7.0(zod@4.3.6)':
     dependencies:
       '@titan-design/authority': 0.3.0(zod@4.3.6)
       '@titan-design/store-sqlite': 0.3.3
       zod: 4.3.6
 
-  '@titan-design/retrieval@0.3.1':
+  '@titan-design/retrieval@file:vendor/titan-design-prerelease/titan-design-retrieval-0.3.1.tgz':
     dependencies:
       '@titan-design/embed': 0.2.0
       '@titan-design/store-sqlite': 0.4.0
