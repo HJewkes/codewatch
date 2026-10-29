@@ -1,4 +1,11 @@
-import type { CheckRule, MetricMaxRule, MetricOutlierRule, NodeKind } from "@titan-design/code-graph";
+import {
+  DELETION_CANDIDATE_SIGNAL,
+  PSEUDO_TESTED_SIGNAL,
+  type CheckRule,
+  type MetricMaxRule,
+  type MetricOutlierRule,
+  type NodeKind,
+} from "@titan-design/code-graph";
 
 function maxRule(id: string, metric: string, max: number, kind: NodeKind): MetricMaxRule {
   return { type: "metric-max", id, metric, max, kind, severity: "warning" };
@@ -41,11 +48,15 @@ export const AUDIT_RULES: readonly CheckRule[] = [
  * Signals reported as qualitative flags: listed apart and left out of finding totals.
  * LCOM4 variants disagree with each other and lack outcome validation, so a high value
  * prompts a look at whether the file mixes concerns, never a graded split verdict.
+ * The extreme-mutation signals are advisory at weight 0: one body-delete mutant is no
+ * measure of test quality, and a deletion candidate is never acted on automatically.
  */
-export const QUALITATIVE_SIGNALS: ReadonlySet<string> = new Set(["file-lcom4"]);
+export const QUALITATIVE_SIGNALS: ReadonlySet<string> = new Set(["file-lcom4", PSEUDO_TESTED_SIGNAL, DELETION_CANDIDATE_SIGNAL]);
 
 export const QUALITATIVE_FLAG_HINTS: Readonly<Record<string, string>> = {
   "file-lcom4": "may mix unrelated responsibilities; worth a look, not a split verdict",
+  [PSEUDO_TESTED_SIGNAL]: "covered but no test noticed its body returning early",
+  [DELETION_CANDIDATE_SIGNAL]: "advisory: this test noticed none of the body-delete mutants it reaches; review before keeping, never auto-deleted",
 };
 
 /** A kind of test a code kind should have: met when any of `anyOf`, counts of reaching tests, is above zero. */

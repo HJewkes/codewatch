@@ -8,6 +8,7 @@ interface AuditCliOptions {
   ruff: boolean;
   tsSlop: boolean;
   changedFrom?: string;
+  extremeCoverage?: string;
 }
 
 export function registerAuditCommand(program: Command): void {
@@ -20,6 +21,10 @@ export function registerAuditCommand(program: Command): void {
     .option("--no-ruff", "Skip the ruff audit rules")
     .option("--no-ts-slop", "Skip the TS slop rules (ast-grep)")
     .option("--changed-from <ref>", "Also check entry points changed since <ref> for missing test kinds, even when no test reaches them")
+    .option(
+      "--extreme-coverage <file>",
+      "With --changed-from: body-delete each changed function this HEAD coverage-final.json marks covered, and report the ones no test notices (weight 0)",
+    )
     .action(async (target: string, options: AuditCliOptions) => {
       try {
         const { runAuditCommand } = await import("./audit.js");
@@ -31,6 +36,7 @@ export function registerAuditCommand(program: Command): void {
           noRuff: !options.ruff,
           noTsSlop: !options.tsSlop,
           changedFrom: options.changedFrom,
+          extremeCoverage: options.extremeCoverage,
         });
         for (const warning of result.warnings) console.error(`codewatch audit: ${warning}`);
         const summary = summarizeAudit(result);
