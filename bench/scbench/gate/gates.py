@@ -2,7 +2,7 @@
 
   T1  always blocks: the visible tests pass, C-242 `diffgate inloop` passes, no test bloat (C-238, relative
       to base), and own-body ΔCC_total <= the new-function count. Hidden tests are scored only in eval.
-  T2  the family check (family.py): P5 and ownership reject; so does gain per new function under the floor,
+  T2  the family check (family.py): P5 and ownership reject, and so does a new one-site single-caller helper; so does gain per new function under the floor,
       which no message ever names as a number. A broken B7.3 constraint goes to T3 with its evidence (the
       bag check stays T2, Q6). B7.6's graded utilities ride along in the report for the ledger.
   T3  t3.review on the constraint evidence: accept, reject, or hold as `review-unavailable`.
@@ -66,6 +66,18 @@ def tier2(report: dict) -> list[str]:
     return out + ([] if value["gain_positive"] and value["floor"] else [VALUE_MESSAGE])
 
 
+def one_site_helpers(report: dict, head: Path) -> list[str]:
+    """New functions with a single caller and a single call site there (a multi-site helper is exempt)."""
+    sites = HARNESS_GATES.call_sites(head)
+    out = []
+    for key in report["new"]:
+        qual = key.split(":", 1)[1]
+        callers = sites.get(HARNESS_GATES.symbol_key(qual), {})
+        if len(callers) == 1 and not HARNESS_GATES.is_multi_site(callers):
+            out.append(f"adds a function called from one place: {qual}")
+    return out
+
+
 def touched_code(head: dict[str, str], keys: list[str]) -> str:
     parts = []
     for rel in sorted({k.split(":", 1)[0] for k in keys}):
@@ -80,7 +92,7 @@ def final_gate(base: Path, head: Path, task: dict, cfg: dict, visible: dict, dif
     report = check_trees(sources(base), texts, task, cfg)
     failed = tier1(report, visible, diffgate, test_bloat(base, head))
     tier = "T1" if failed else "T2"
-    failed = failed or tier2(report)
+    failed = failed or tier2(report) + one_site_helpers(report, head)
     if failed:
         return {"outcome": "reject", "tier": tier, "reasons": failed, "report": report,
                 "retry_message": render(report, cfg, "FAIL: " + "; ".join(failed))}
