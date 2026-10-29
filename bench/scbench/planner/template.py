@@ -37,11 +37,29 @@ def _edit_lines(edit: dict) -> list[str]:
     return [line]
 
 
+INPLACE = ("simplify in place", ["lower the branches of the listed range without adding a function",
+                                  "merge arms that raise or return the same thing",
+                                  "drop checks that earlier code already guarantees",
+                                  "call an existing function that does the same work"])
+
+
+def _single_cut(edits: list[dict], chosen: dict) -> bool:
+    return len(edits) == 1 and edits[0]["recipe"] == "R3" and len(chosen.get("new", [])) == 1
+
+
+def _in_place(task: dict) -> bool:
+    chosen = task.get("chosen")
+    edits = [c for c in task["candidates"] if chosen and c["id"] in chosen["edits"]]
+    return bool(chosen) and _single_cut(edits, chosen)
+
+
 def _recipe(task: dict, chosen: dict | None) -> list[str]:
     if not chosen:
         reasons = sorted({r for c in task["candidates"] for r in c["rejected"]}) or ["no candidate edit"]
         return ["recipe: none                                # leave this task as it is", f"reasons: {_q(reasons)}"]
     edits = [c for c in task["candidates"] if c["id"] in chosen["edits"]]
+    if _single_cut(edits, chosen):
+        return [f"recipe: {INPLACE[0]}", "shape:"] + [f"  - {r}" for r in INPLACE[1]] + ["edits:"] + _edit_lines(edits[0])
     recipes = sorted({e["recipe"] for e in edits})
     out = [f"recipe: {', '.join(f'{r} {RECIPES[r][0]}' for r in recipes)}", "shape:"]
     out += [f"  - {rule}" for r in recipes for rule in RECIPES[r][1]]
@@ -63,8 +81,10 @@ def render(task: dict, cfg: dict, label: str = "", waves: int = 0) -> str:
     chosen = task.get("chosen")
     lines = [f"task: {label + '/' if label else ''}{task['id']}", f"wave: {task['wave']} of {waves}"]
     lines += _recipe(task, chosen)
+    new_functions = ("new_functions: none" if _in_place(task) else
+                     f"new_functions: place directly after {head}; names are yours")
     lines += [f"owned: {_q([r['key'] for r in task['owned']])}", f"frozen: {_q([f['key'] for f in task['frozen']])}",
-              "head_signature: frozen", f"new_functions: place directly after {head}; names are yours",
+              "head_signature: frozen", new_functions,
               "improve: [cx]"]
     lines += _hold(chosen["families"] if chosen else None, cfg)
     lines += ["behaviour: all specs cp1..cpN hold; error messages verbatim",
