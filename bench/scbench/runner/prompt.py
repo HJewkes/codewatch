@@ -82,11 +82,29 @@ def restore_message(diffgate: dict) -> str:
     return f"behaviour differs from the base in {len(cases)} cases: restore the base behaviour of " + ", ".join(cases[:5])
 
 
+ONE_SITE = "adds a function called from one place: "
+
+
+def one_site_helpers(result: dict) -> list[str]:
+    return [r[len(ONE_SITE):] for r in result.get("reasons", []) if r.startswith(ONE_SITE)]
+
+
+def helper_message(names: list[str]) -> str:
+    return (
+        f"FAIL: {ONE_SITE}{', '.join(names)}. Inline each of these functions back into its caller, then "
+        "lower branches in place by removing redundant or duplicated checks. Keep a new function only if it "
+        "replaces duplicated code at two or more call sites."
+    )
+
+
 def retry_message(result: dict, diffgate: dict, reinline: list[str]) -> str:
     """The one deterministic message for a rejected attempt."""
     if not diffgate.get("pass", True):
         return restore_message(diffgate)
     if reinline:
         return "FAIL: " + "; ".join(reinline)
+    helpers = one_site_helpers(result)
+    if helpers:
+        return helper_message(helpers)
     return result.get("retry_message") or "FAIL: " + "; ".join(result.get("reasons", []))
 
