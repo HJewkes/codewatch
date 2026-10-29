@@ -97,6 +97,15 @@ class T2(Trees):
         self.assertEqual((got["outcome"], got["tier"]), ("accept", "T2"))
         self.assertEqual(got["report"]["utilities"], {"width": 1.0, "cross": 1.0})
 
+    def test_a_new_helper_called_from_one_site_rejects(self):
+        once = NARROW.replace('_size_label(item.size, "b")', '"b"').replace('_size_label(item.size, "c")', '"c"')
+        got = self.gate(once)
+        self.assertEqual((got["outcome"], got["tier"]), ("reject", "T2"))
+        self.assertIn("adds a function called from one place: _size_label", got["reasons"])
+
+    def test_a_new_helper_called_twice_is_still_accepted(self):
+        self.assertEqual(self.gate(NARROW, model=replies(RuntimeError("no review")))["outcome"], "accept")
+
     def test_a_family_outside_tolerance_rejects_with_the_self_check_format(self):
         got = self.gate(COSMETIC)
         self.assertEqual((got["outcome"], got["tier"]), ("reject", "T2"))
