@@ -16,7 +16,10 @@ RECIPES = {
     "R2": ("merge duplicated branches", ["give the two adjacent arms with identical bodies one combined test",
                                          "keep the order of every other arm"]),
     "R3": ("stage extraction", ["move each cut range into a stage that takes the cut's in-names and returns "
-                                "its out-names", "the rest of the head stays in place"]),
+                                "its out-names", "the rest of the head stays in place",
+                                "inside each stage, collapse conditions that become redundant once the stage "
+                                "returns early, so the stage plus the head has fewer branches than the "
+                                "original range"]),
     "R4": ("inline a trivial helper", ["put the helper's return expression at its one call site",
                                        "then delete the helper"]),
 }
