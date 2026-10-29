@@ -97,6 +97,21 @@ docs) that hold the script's path, its basename inside a string or config value,
 cited `via <name>` (one hop). A removed flag affects only invokers that pass it. The finding
 fires when an affected invoker sits outside the diff, decided per line.
 
+## Audit: extreme mutation (TypeScript, opt-in)
+
+`codewatch audit --changed-from <ref> --extreme-coverage <coverage-final.json>` also makes each
+changed function that the coverage file marks as run return at once, one mutant per function,
+and runs its package's tests against it in a throwaway worktree at the committed `HEAD`. The
+coverage file must be a whole-suite Istanbul JSON report measured at that `HEAD`. Nothing in your
+checkout is written.
+
+- `pseudo-tested`: the mutant built and no test failed.
+- `test-deletion-candidate`: a test that passed, failed under no mutant, and reaches only
+  pseudo-tested functions. It is advisory only; codewatch never deletes or edits a test.
+
+Both are qualitative flags at weight 0: they are listed apart and counted in no score.
+`extreme.json`, next to `findings.jsonl`, holds the run's counts and per-mutant outcomes.
+
 ## Requirements
 
 - Node.js >= 20

@@ -1,8 +1,12 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import {
   detectGitToplevel,
   runChecks,
+  runExtremeMutation,
+  type ExtremeMutationOptions,
+  type ExtremeMutationResult,
+  type ExtremeSummary,
   type Finding,
 } from "@titan-design/code-graph";
 import { defaultGraphDbPath, openGraphStore } from "../utils/graph-store.js";
@@ -30,6 +34,10 @@ export interface AuditCommandOptions {
   noTsSlop?: boolean;
   /** Replaces the ast-grep run of the TS slop rules. */
   tsSlop?: TsSlopRunner;
+  /** A whole-suite Istanbul coverage-final.json measured at the committed HEAD; body-deletes the changed, covered functions. Needs `changedFrom`. */
+  extremeCoverage?: string;
+  /** Replaces the extreme-mutation run, which builds and tests a throwaway worktree. */
+  extremeMutation?: (options: ExtremeMutationOptions) => Promise<ExtremeMutationResult>;
 }
 
 /** SCBench verbosity over the TS files, from the slop rules alone; scb-check adds clone lines on top. */
@@ -51,6 +59,8 @@ export interface AuditCommandResult {
   warnings: string[];
   /** Absent when the TS slop rules were skipped or ast-grep could not run. */
   tsVerbosity?: TsVerbosity;
+  /** Present only with `extremeCoverage`; also written to extreme.json. */
+  extreme?: ExtremeSummary;
   durationMs: number;
 }
 
@@ -122,8 +132,34 @@ async function runTsSlop(options: AuditCommandOptions, stats: SnapshotStats, cwd
   return { findings: run.findings, verbosity: { verbosity_flagged_loc: run.flaggedLoc, total_loc: totalLoc, verbosity } };
 }
 
-function writeOutputs(outDir: string, findings: readonly Finding[], scores: ScoreTable, census: InputClassCensus): void {
+interface ExtremeTarget {
+  idRoot: string;
+  dbPath: string;
+  snapshotId: number;
+  changed: ChangedLines;
+}
+
+/** The one call site of runExtremeMutation in the CLI: its findings join the audit's at weight 0 and nothing turns them into work. */
+async function extremeRun(options: AuditCommandOptions, coverage: string, target: ExtremeTarget): Promise<ExtremeMutationResult> {
+  const data = JSON.parse(readFileSync(path.resolve(coverage), "utf8")) as ExtremeMutationOptions["coverage"]["data"];
+  const changed = new Map([...target.changed].map(([file, ranges]) => [file, ranges.map((r) => [r.start, r.end] as const)]));
+  const store = openGraphStore(target.dbPath);
+  try {
+    const run = options.extremeMutation ?? runExtremeMutation;
+    return await run({ repo: target.idRoot, head: "HEAD", changed, coverage: { head: "HEAD", data }, store, snapshotId: target.snapshotId });
+  } finally {
+    store.close();
+  }
+}
+
+function extremeJson({ summary, report }: ExtremeMutationResult): string {
+  const { baseline: _baseline, ...trimmed } = report;
+  return `${JSON.stringify({ summary, report: trimmed }, null, 2)}\n`;
+}
+
+function writeOutputs(outDir: string, findings: readonly Finding[], scores: ScoreTable, census: InputClassCensus, extreme?: ExtremeMutationResult): void {
   mkdirSync(outDir, { recursive: true });
+  if (extreme) writeFileSync(path.join(outDir, "extreme.json"), extremeJson(extreme));
   writeFileSync(path.join(outDir, "input-classes.json"), censusJson(census));
   const lines = findings.map((f) => JSON.stringify(f)).join("\n");
   writeFileSync(path.join(outDir, "findings.jsonl"), lines.length > 0 ? `${lines}\n` : "");
@@ -139,17 +175,22 @@ export async function runAuditCommand(options: AuditCommandOptions): Promise<Aud
   const warnings: string[] = [];
   const onNotice = (line: string): void => void warnings.push(line);
   const ref = options.changedFrom;
+  if (options.extremeCoverage !== undefined && ref === undefined) throw new Error("--extreme-coverage needs --changed-from <ref>");
   const { head: index, base } = await indexAuditSnapshots({ root, idRoot, dbPath, ref, onNotice });
   const changed = ref === undefined ? undefined : changedLinesSince(ref, idRoot);
   const graph = await graphFindings(dbPath, index.snapshotId, idRoot, changed, base);
+  const extreme =
+    options.extremeCoverage === undefined || changed === undefined
+      ? undefined
+      : await extremeRun(options, options.extremeCoverage, { idRoot, dbPath, snapshotId: index.snapshotId, changed });
   const tools = selectedTools(options, warnings);
   const external = await runPythonTools(tools, graph.stats.pythonFiles, idRoot, options.runners);
   warnings.push(...external.warnings);
   const tsSlop = await runTsSlop(options, graph.stats, idRoot, warnings);
-  const findings = sortFindings([...graph.findings, ...external.findings, ...tsSlop.findings]);
+  const findings = sortFindings([...graph.findings, ...external.findings, ...tsSlop.findings, ...(extreme?.findings ?? [])]);
   const scores = buildScoreTable(graph.stats.files, graph.stats.symbols, findings);
-  writeOutputs(outDir, findings, scores, graph.census);
+  writeOutputs(outDir, findings, scores, graph.census, extreme);
   persistFindings(dbPath, index.snapshotId, idRoot, findings);
   const durationMs = performance.now() - started;
-  return { root, dbPath, outDir, snapshotId: index.snapshotId, findings, scores, inputClasses: graph.census, warnings, tsVerbosity: tsSlop.verbosity, durationMs };
+  return { root, dbPath, outDir, snapshotId: index.snapshotId, findings, scores, inputClasses: graph.census, warnings, tsVerbosity: tsSlop.verbosity, extreme: extreme?.summary, durationMs };
 }
