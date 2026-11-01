@@ -10,6 +10,7 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from ledger import ledger_path, read, tasks
 from runner import prompt
@@ -113,6 +114,19 @@ class DollarCap(unittest.TestCase):
         self.assertLessEqual(summary["usd"], cap + usd)
         self.assertEqual(sum(len(p) for p in steps.prompts.values()), len(names) + 1)
         self.assertEqual(json.loads((run.out / "run.json").read_text())["usd"], summary["usd"])
+
+    def test_the_t3_reviewer_cost_counts_against_the_cap(self):
+        # mutation: final_gate's review.usd never charged, so reviewer spend escapes --max-usd (C-284)
+        from runner import run as runner_run
+        real, reviewer_usd = runner_run.final_gate, 0.5
+
+        def reviewed(*args, **kwargs):
+            return {**real(*args, **kwargs), "review": {"usd": reviewer_usd}}
+        steps = FakeSteps({"app.py:calc_a": [to_table("calc_a")]}, usd=0.01)
+        with mock.patch.object(runner_run, "final_gate", reviewed):
+            run, summary = run_fixture(steps, ["calc_a"])
+        self.assertAlmostEqual(summary["usd"], 0.01 + reviewer_usd, places=6)
+        self.assertAlmostEqual(run.spent, summary["usd"], places=6)
 
 
 class DiffgateTimeouts(unittest.TestCase):
