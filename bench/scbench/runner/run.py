@@ -82,6 +82,7 @@ def _judge(run: Run, steps, task: dict, base: Path, ws: Path, out: Path) -> dict
     visible = steps.visible(ws, out)
     dg = steps.diffgate(base, ws, out)
     result = final_gate(base, ws, task, run.cfg, visible, dg, steps.review)
+    run.charge(result.get("review", {}).get("usd", 0.0))
     reinline = reinlined(read(ledger_path(run.out)), result["report"])
     outcome = "reject" if reinline else result["outcome"]
     verdict = {"outcome": outcome, "tier": result["tier"], "reasons": result["reasons"] + reinline,
