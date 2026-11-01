@@ -34,6 +34,11 @@ from runner import prompt
 from runner.integrate import integrate
 from runner.schedule import next_wave, runnable, shared_wave
 
+# The cap counts sessions still in flight at this estimate, raised to the dearest session seen: lanes run
+# concurrently, so a check against the charged spend alone let every lane's retry start (C-283). The S6
+# sessions cost $0.10-0.28.
+SESSION_USD = 0.3
+
 
 @dataclass
 class Run:
@@ -44,19 +49,29 @@ class Run:
     max_usd: float = 7.0
     cfg: dict = field(default_factory=load_config)
     planner: Callable[[Path, dict, str], dict] | None = None
+    session_usd: float = SESSION_USD
     spent: float = 0.0
+    held: int = 0
     lock: threading.Lock = field(default_factory=threading.Lock)
 
     def plan(self, root: Path) -> dict:
         return (self.planner or (lambda r, c, label: plan_tree(r, cfg=c, label=label)))(root, self.cfg, self.id)
 
-    def charge(self, usd: float) -> None:
+    def reserve(self) -> bool:
+        """Hold room for one session, or False once the spend plus the sessions in flight reach the cap."""
+        with self.lock:
+            if self.spent + self.held * self.session_usd >= self.max_usd:
+                return False
+            self.held += 1
+            return True
+
+    def charge(self, usd: float, held: bool = False) -> None:
+        """Add `usd` to the spend; a session's charge also releases its hold and raises the estimate to its cost."""
         with self.lock:
             self.spent = round(self.spent + usd, 6)
-
-    def over_budget(self) -> bool:
-        with self.lock:
-            return self.spent >= self.max_usd
+            if held:
+                self.held -= 1
+                self.session_usd = max(self.session_usd, usd)
 
 
 def slug(task_id: str) -> str:
@@ -80,7 +95,7 @@ def _attempt(run: Run, steps, lane: dict, text: str, n: int) -> dict:
     out.mkdir(parents=True, exist_ok=True)
     facts = steps.session(f"{run.id}-{slug(lane['task']['id'])}-a{n}"[:120], lane["ws"], text, lane["gate"],
                           lane["base"], out)
-    run.charge(facts.get("usd", 0.0))
+    run.charge(facts.get("usd", 0.0), held=True)
     return {"n": n, "facts": facts, **_judge(run, steps, lane["task"], lane["base"], lane["ws"], out)}
 
 
@@ -93,7 +108,7 @@ def run_task(run: Run, steps, task: dict, base: Path, wave_dir: Path, plan_file:
     shutil.copy2(plan_file, lane["gate"] / "plan.json")
     text = prompt.build(task, run.specs, sources(base))
     attempts = [_attempt(run, steps, lane, text, 1)]
-    if attempts[0]["outcome"] == "reject" and not run.over_budget():
+    if attempts[0]["outcome"] == "reject" and run.reserve():
         first = attempts[0]
         message = prompt.retry_message(first["result"], first["diffgate"], first["reinline"])
         (lane["dir"] / "retry_message.txt").write_text(message + "\n")
@@ -107,7 +122,7 @@ def _start(run: Run, wave: dict, texts: dict[str, str]) -> tuple[list[dict], lis
     rows, lanes, skips = read(ledger_path(run.out)), [], []
     for task in wave["tasks"]:
         reason = at_start(rows, task, task_type(task), texts, run.cfg) or runnable(task)
-        reason = reason or ("run dollar cap reached" if run.over_budget() else None)
+        reason = reason or (None if run.reserve() else "run dollar cap reached")
         if reason:
             skips.append(append(ledger_path(run.out), skip_row({"id": run.id}, task, reason)))
         else:

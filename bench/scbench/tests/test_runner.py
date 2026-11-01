@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import subprocess
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 
@@ -85,6 +86,33 @@ class Retry(unittest.TestCase):
         self.assertIn(message, steps.prompts["app.py:calc_a"][1])
         [row] = tasks(read(ledger_path(run.out)))
         self.assertEqual((row["outcome"], row["retry_used"]), ("accept", True))
+
+
+class DollarCap(unittest.TestCase):
+    def test_concurrent_retries_stop_within_one_session_of_the_cap(self):
+        # mutation: the retry checked against the charged spend only, so every lane's retry starts (C-283)
+        names, cap, usd = ["calc_a", "calc_b", "calc_c", "calc_d"], 1.0, 0.2
+        first, retries = threading.Barrier(len(names)), threading.Barrier(len(names), timeout=2)
+
+        def reworded(name):
+            return lambda ws, gate: (first.wait(), to_table(name, "error: no such op ")(ws, gate))
+
+        def restored(name):
+            def edit(ws, gate):
+                try:
+                    retries.wait()
+                except threading.BrokenBarrierError:
+                    pass
+                to_table(name)(ws, gate)
+            return edit
+        steps = FakeSteps({f"app.py:{n}": [reworded(n), restored(n)] for n in names}, usd=usd,
+                          cases=[f"import app; app.{n}('zz', 1)" for n in names])
+        root = tmp()
+        run = Run("fixture", root / "run", SPECS, max_usd=cap, planner=chosen_planner)
+        summary = execute(run, steps, write_app(root / "frozen", module(names)))
+        self.assertLessEqual(summary["usd"], cap + usd)
+        self.assertEqual(sum(len(p) for p in steps.prompts.values()), len(names) + 1)
+        self.assertEqual(json.loads((run.out / "run.json").read_text())["usd"], summary["usd"])
 
 
 class DiffgateTimeouts(unittest.TestCase):
