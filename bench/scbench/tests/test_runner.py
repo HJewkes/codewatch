@@ -115,7 +115,6 @@ class DollarCap(unittest.TestCase):
         self.assertEqual(sum(len(p) for p in steps.prompts.values()), len(names) + 1)
         self.assertEqual(json.loads((run.out / "run.json").read_text())["usd"], summary["usd"])
 
-
     def test_the_t3_reviewer_cost_counts_against_the_cap(self):
         # mutation: final_gate's review.usd never charged, so reviewer spend escapes --max-usd (C-284)
         from runner import run as runner_run
