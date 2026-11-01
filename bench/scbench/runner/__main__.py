@@ -14,6 +14,7 @@ import argparse
 import json
 import os
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -24,6 +25,8 @@ from runner import container
 from runner.run import Run, execute
 from runner.splice import changed_files, tree_files
 
+WORK_FD_ENV = "AR_WORK_FD"
+WORK_MARKER = b"ar-work-started\n"
 PROBLEMS = Path.home() / ".cache" / "scbench" / "problems"
 
 
@@ -35,6 +38,17 @@ class ContainerSteps:
     def __init__(self, problem: str, n: int, out: Path, turns: int, max_load: float | None = None):
         self.problem, self.n, self.turns, self.max_load = problem, n, turns, max_load
         self.lib = container.gate_lib(out / "gate-lib")
+        self._marked, self._mark_lock = False, threading.Lock()
+
+    def _mark_work_started(self) -> None:
+        """Once, tell the eval's caller that the load wait is over: the marker goes to the fd named by AR_WORK_FD."""
+        fd = os.environ.get(WORK_FD_ENV)
+        with self._mark_lock:
+            if self._marked:
+                return
+            self._marked = True
+            if fd:
+                os.write(int(fd), WORK_MARKER)
 
     def workspace(self, src: Path, dst: Path) -> Path:
         return container.copy_tree(src, dst)
@@ -42,6 +56,7 @@ class ContainerSteps:
     def session(self, name: str, ws: Path, text: str, gate: Path, base: Path, out: Path) -> dict:
         while self.max_load is not None and os.getloadavg()[1] >= self.max_load:
             time.sleep(60)
+        self._mark_work_started()
         return container.session(name, ws, text, gate, base, self.lib, out, self.turns)
 
     def visible(self, ws: Path, out: Path) -> dict:

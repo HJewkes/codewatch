@@ -9,7 +9,8 @@
 # RUNNER_ROOT (default: this checkout's bench) is where the runner runs from, so an idea tree supplies
 # the runner while measure, diffgate, regrade and the gates stay this checkout's. S7_INPUTS (default
 # /tmp/c246) holds prep_c246.sh's frozen, prep and seeds. S7_CASE (default <key>) names the prep key, so
-# repeats of one case can run under their own keys.
+# repeats of one case can run under their own keys. AR_WORK_FD, if set, is an open fd the runner writes
+# `ar-work-started` to once its load wait ends, before the first billed session (C-282).
 set -uo pipefail
 set=$1; problem=$2; key=$3; max_usd=$4; keep_lanes=${5:-}
 H=$(cd "$(dirname "$0")" && pwd); BENCH=$(cd "$H/../.." && pwd); RUNNER=${RUNNER_ROOT:-$BENCH}

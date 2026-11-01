@@ -4,7 +4,8 @@
 # <runner root> (an idea tree's bench/scbench) on <case>, a prep_c246.sh key, under the run key <key>, scored
 # by score.py. Everything but the runner comes from this checkout, the evaluator pin. Prints one
 # ar-result/v2 line; the S7 log is ~/.cache/c248-s7/logs/<key>.log and the artifacts stay in
-# ~/.cache/c248-s7/runs/<key> (artifact_dir).
+# ~/.cache/c248-s7/runs/<key> (artifact_dir). The engine restarts the rung's timeoutMin clock on the line
+# `ar-work-started` on this script's stderr: the runner writes it to fd 3, a dup of that stderr (C-282).
 set -uo pipefail
 set=$1; case_=$2; key=$3; max_usd=$4; runner_root=$(realpath "$5"); keep_lanes=${6:-}
 A=$(cd "$(dirname "$0")" && pwd); BENCH=$(cd "$A/.." && pwd)
@@ -16,7 +17,8 @@ run=$HOME/.cache/c248-s7/runs/$key; log=$HOME/.cache/c248-s7/logs/$key.log
 mkdir -p "$(dirname "$log")"
 pin=$(git -C "$BENCH" rev-parse HEAD 2>/dev/null || echo unknown)
 start=$(date +%s)
-S7_CASE=$case_ RUNNER_ROOT=$runner_root bash "$BENCH/c239/harness/run_s7.sh" "$set" "$problem" "$key" "$max_usd" \
+exec 3>&2
+AR_WORK_FD=3 S7_CASE=$case_ RUNNER_ROOT=$runner_root bash "$BENCH/c239/harness/run_s7.sh" "$set" "$problem" "$key" "$max_usd" \
   ${keep_lanes:+"$keep_lanes"} >"$log" 2>&1
 rc=$?
 [ "$rc" -eq 0 ] || { echo "ar_eval: run_s7.sh exited $rc; see $log" >&2; exit "$rc"; }
