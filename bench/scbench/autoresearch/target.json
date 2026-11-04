@@ -24,8 +24,8 @@
                         "{microSignal}"]},
   "L1-cluster": {"cmd": ["bash", "bench/scbench/autoresearch/ar_micro.sh", "cluster", "{runnerRoot}", "{caseSet}", "{case}",
                          "{cluster}", "{baselineDir}", "{microSignal}", "{maxUsd}"], "maxUsd": 0.25},
-  "seed": {"cmd": ["bash", "bench/scbench/autoresearch/ar_eval.sh", "{caseSet}", "{case}", "{key}", "{maxUsd}", "{runnerRoot}",
-                   "--keep-lanes"], "maxUsd": 1.0, "timeoutMin": 45}
+  "seed": {"cmd": ["bash", "bench/scbench/autoresearch/ar_eval.sh", "{caseSet}", "{case}", "{key}", "none", "{runnerRoot}",
+                   "--keep-lanes"], "timeoutMin": 45}
  },
  "metric": {
   "primary": {"name": "cc_total_delta_pct", "direction": "min"},

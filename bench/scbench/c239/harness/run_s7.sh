@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# usage: run_s7.sh <seed set> <problem> <key> <max usd> [--keep-lanes]
+# usage: run_s7.sh <seed set> <problem> <key> <max usd|none> [--keep-lanes]
 # C-248 S7: run_c246.sh with the NEW-C session replaced by the A1 fix stage, the cleanup runner
 # (python3 -m runner ... --apply) on a copy of frozen cpN, after prep_c246.sh. Then the same scoring:
 # audit metrics, the C-242 in-loop diff gate, the C-240 regrade, the C-241 gates and the cleanup report.
