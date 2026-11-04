@@ -87,6 +87,16 @@ class ArEvalTests(StubPinTestCase):
         self.assertEqual((result["case"], result["repeat"], result["usd"]), ("case-a", "case-a-r1", 0.25))
         self.assertTrue(self.stages()["runner"].is_relative_to(self.idea))
 
+    def test_the_seed_rung_passes_none_and_the_runner_receives_it_as_its_cap(self):
+        seed = TARGET["rungs"]["seed"]
+        self.assertNotIn("maxUsd", seed)
+        self.assertNotIn("{maxUsd}", seed["cmd"])
+        self.assertEqual(seed["cmd"][5], "none")
+        done = self.ar_eval("set-a", "case-a", "case-a-r1", "none", str(self.idea))
+        self.assertEqual(done.returncode, 0, done.stderr)
+        argv = json.loads((Path(self.env["HOME"]) / ".cache/c248-s7/runs/case-a-r1/cleanup/argv.json").read_text())
+        self.assertEqual(argv[argv.index("--max-usd") + 1], "none")
+
     def test_a_case_from_another_case_set_is_refused_before_any_stage(self):
         done = self.ar_eval("set-b", "case-a", "case-a-r1", "0.5", str(self.idea))
         self.assertEqual(done.returncode, 2)
