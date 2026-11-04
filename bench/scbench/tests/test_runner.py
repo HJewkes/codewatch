@@ -115,6 +115,19 @@ class DollarCap(unittest.TestCase):
         self.assertEqual(sum(len(p) for p in steps.prompts.values()), len(names) + 1)
         self.assertEqual(json.loads((run.out / "run.json").read_text())["usd"], summary["usd"])
 
+    def test_no_cap_never_stops_on_spend_and_the_spend_is_still_reported(self):
+        import math
+        from runner.__main__ import usd_cap
+        names = ["calc_a", "calc_b", "calc_c"]
+        steps = FakeSteps({f"app.py:{n}": [to_table(n)] for n in names}, usd=5.0)
+        root = tmp()
+        run = Run("fixture", root / "run", SPECS, max_usd=usd_cap("none"), planner=chosen_planner)
+        summary = execute(run, steps, write_app(root / "frozen", module(names)))
+        self.assertEqual(usd_cap("none"), math.inf)
+        self.assertEqual(usd_cap("0.25"), 0.25)
+        self.assertEqual(len(steps.prompts), len(names))
+        self.assertGreaterEqual(summary["usd"], 5.0 * len(names))
+
     def test_the_t3_reviewer_cost_counts_against_the_cap(self):
         # mutation: final_gate's review.usd never charged, so reviewer spend escapes --max-usd (C-284)
         from runner import run as runner_run

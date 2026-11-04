@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import sys
 import threading
@@ -85,6 +86,11 @@ def apply(frozen: Path, final: Path) -> list[str]:
     return changed
 
 
+def usd_cap(text: str) -> float:
+    """A dollar cap, or `none` for no per-run cap (the spend is still recorded)."""
+    return math.inf if text == "none" else float(text)
+
+
 def main(argv: list[str]) -> int:
     p = argparse.ArgumentParser(prog="python3 -m runner")
     p.add_argument("frozen", type=Path)
@@ -93,7 +99,7 @@ def main(argv: list[str]) -> int:
     p.add_argument("--out", type=Path, required=True)
     p.add_argument("--label", default="")
     p.add_argument("--only")
-    p.add_argument("--max-usd", type=float, default=7.0)
+    p.add_argument("--max-usd", type=usd_cap, default=7.0)
     p.add_argument("--turns", type=int, default=40)
     p.add_argument("--max-load", type=float)
     p.add_argument("--apply", action="store_true")
