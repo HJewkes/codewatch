@@ -4,7 +4,7 @@ For each audit unit (an R-none test node id) it mutates the entry-module lines t
 reaches (`mutants.sample`), then:
 
 1. runs the unit alone against the mutant: a failure is a kill;
-2. only for a kill, runs the kept tests whose contexts cover that line: if they pass, the
+2. only for a kill, runs the kept tests that reach that line: if they pass, the
    kill is unique (the unit caught what the kept suite misses);
 3. for a mutant the unit does not kill, runs the full R-none suite: if that passes too, the
    mutant is listed as possibly equivalent.
@@ -25,7 +25,7 @@ import shutil
 import subprocess
 import time
 from collections.abc import Callable, Iterable
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -110,17 +110,17 @@ def shebang_python(coverage: str) -> str:
     return Path(coverage).read_text().splitlines()[0].removeprefix("#!").strip()
 
 
-def coverage_json(tree: Path, scratch: Path, python: str, env: dict[str, str], targets: list[str],
-                  contexts: bool) -> dict:
-    scratch.mkdir(parents=True, exist_ok=True)
+def coverage_report(tree: Path, scratch: Path, env: dict[str, str], targets: list[str]) -> dict:
+    """Line coverage of one pytest run; subprocess-driven tests count (`patch = subprocess`)."""
+    shutil.rmtree(scratch, ignore_errors=True)
+    scratch.mkdir(parents=True)
     rc = scratch / "coveragerc"
-    rc.write_text(f"[run]\nbranch = true\n{'dynamic_context = test_function' if contexts else ''}\n"
-                  f"data_file = {scratch / '.coverage'}\n")
+    rc.write_text(f"[run]\nbranch = true\ndata_file = {scratch / '.coverage'}\nparallel = true\npatch = subprocess\n")
     run = [COVERAGE, "run", f"--rcfile={rc}", "-m", "pytest", "-q", "-p", "no:cacheprovider", *targets]
     subprocess.run(run, cwd=tree, env=env, capture_output=True, check=False)
+    subprocess.run([COVERAGE, "combine", f"--rcfile={rc}", "-q"], cwd=tree, env=env, capture_output=True, check=False)
     out = scratch / "coverage.json"
-    show = ["--show-contexts"] if contexts else []
-    subprocess.run([COVERAGE, "json", f"--rcfile={rc}", *show, "-o", str(out)], cwd=tree, env=env,
+    subprocess.run([COVERAGE, "json", f"--rcfile={rc}", "-o", str(out)], cwd=tree, env=env,
                    capture_output=True, check=True)
     return json.loads(out.read_text())
 
@@ -129,16 +129,10 @@ def reached_lines(report: dict, entry: str) -> set[int]:
     return set(report["files"].get(entry, {}).get("executed_lines", []))
 
 
-def context_targets(tree: Path, report: dict, entry: str) -> dict[int, list[str]]:
-    """Per entry line, the pytest targets (`file::func`) of the kept tests whose contexts cover it."""
-    files = {p.stem: p.relative_to(tree).as_posix() for p in sorted((tree / "tests").rglob("*.py"))}
-    covering: dict[int, set[str]] = {}
-    for line, names in report["files"].get(entry, {}).get("contexts", {}).items():
-        for name in filter(None, names):
-            module, _, qualname = name.partition(".")
-            if module in files:
-                covering.setdefault(int(line), set()).add(f"{files[module]}::{qualname.replace('.', '::')}")
-    return {line: sorted(found) for line, found in covering.items()}
+def collect_nodes(tree: Path, python: str, env: dict[str, str]) -> list[str]:
+    done = subprocess.run([python, "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider", "tests"],
+                          cwd=tree, env=env, capture_output=True, text=True, check=True)
+    return [line for line in done.stdout.splitlines() if "::" in line]
 
 
 _STATE: dict[str, Context] = {}
@@ -159,7 +153,7 @@ def build_context(bench: str, cache: Path, covering: dict[int, list[str]]) -> Co
     unit = runners["unit"]
 
     def reach(node: str) -> set[int]:
-        return reached_lines(coverage_json(unit.tree, work / "reach", python, unit.env, [node], False), entry)
+        return reached_lines(coverage_report(unit.tree, work / "reach", unit.env, [node]), entry)
 
     return Context(unit.original, unit, runners["kept"], unit, reach, lambda line: covering.get(line, []))
 
@@ -181,14 +175,26 @@ def load_units(path: Path) -> list[dict]:
     return data["units"] if isinstance(data, dict) else data
 
 
-def kept_covering(cache: Path, bench: str) -> dict[int, list[str]]:
+def node_reach(args: tuple[Path, Path, dict[str, str], str, str]) -> tuple[str, set[int]]:
+    tree, scratch, env, entry, node = args
+    return node, reached_lines(coverage_report(tree, scratch, env, [node]), entry)
+
+
+def kept_covering(cache: Path, bench: str, workers: int) -> dict[int, list[str]]:
+    """Per entry line, the kept tests (one coverage run each) that reach it."""
     from findings.diff_uncovered import agent_test_env
 
     tree = cache / "ctx" / "R-test+helpers+per-case" / bench / "tree"
-    scratch = cache / "c280" / "kept-contexts" / bench
-    env = agent_test_env(tree, scratch)
-    report = coverage_json(tree, scratch, shebang_python(COVERAGE), env, ["tests"], True)
-    return context_targets(tree, report, f"{bench}.py")
+    scratch = cache / "c280" / "kept-reach" / bench
+    env = agent_test_env(tree, scratch / "hook")
+    nodes = collect_nodes(tree, shebang_python(COVERAGE), env)
+    jobs = [(tree, scratch / f"n{i}", env, f"{bench}.py", node) for i, node in enumerate(nodes)]
+    covering: dict[int, list[str]] = {}
+    with ThreadPoolExecutor(workers) as pool:
+        for node, lines in pool.map(node_reach, jobs):
+            for line in lines:
+                covering.setdefault(line, []).append(node)
+    return covering
 
 
 def summarize(rows: list[dict], wall: float) -> dict:
@@ -207,7 +213,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     started = time.monotonic()
     units = load_units(args.units)
-    covering = {bench: kept_covering(args.cache, bench) for bench in sorted({u["bench"] for u in units})}
+    covering = {bench: kept_covering(args.cache, bench, args.workers) for bench in sorted({u["bench"] for u in units})}
     tasks = [(u["bench"], u["id"], str(args.cache), covering[u["bench"]]) for u in units]
     with ProcessPoolExecutor(args.workers) as pool:
         rows = list(pool.map(work_one, tasks))
