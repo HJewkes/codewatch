@@ -1,0 +1,474 @@
+[
+ {
+  "id": "test_binops::test_returns_fresh_dict_and_leaves_extra_untouched",
+  "label": "EDGE",
+  "bench": "code_search",
+  "kind": "function-level",
+  "nodeids": [
+   "tests/test_binops.py::test_returns_fresh_dict_and_leaves_extra_untouched"
+  ]
+ },
+ {
+  "id": "test_main_errors::test_error_message_is_exactly_one_line_ending_in_newline",
+  "label": "EDGE",
+  "bench": "code_search",
+  "kind": "function-level",
+  "nodeids": [
+   "tests/test_main_errors.py::test_error_message_is_exactly_one_line_ending_in_newline"
+  ]
+ },
+ {
+  "id": "test_parse_fix::test_non_object_fix",
+  "label": "EDGE",
+  "bench": "code_search",
+  "kind": "function-level",
+  "nodeids": [
+   "tests/test_parse_fix.py::test_non_object_fix[NoneTypeNone]",
+   "tests/test_parse_fix.py::test_non_object_fix[boolTrue]",
+   "tests/test_parse_fix.py::test_non_object_fix[float1.5]",
+   "tests/test_parse_fix.py::test_non_object_fix[int1]",
+   "tests/test_parse_fix.py::test_non_object_fix[list[]]",
+   "tests/test_parse_fix.py::test_non_object_fix[list[{'kind': 'r]",
+   "tests/test_parse_fix.py::test_non_object_fix[str'replace']",
+   "tests/test_parse_fix.py::test_non_object_fix[tuple()]"
+  ]
+ },
+ {
+  "id": "test_op_regex::test_newline_is_matched_by_the_fallback",
+  "label": "EDGE",
+  "bench": "code_search",
+  "kind": "function-level",
+  "nodeids": [
+   "tests/test_op_regex.py::test_newline_is_matched_by_the_fallback"
+  ]
+ },
+ {
+  "id": "test_parse_rule::test_fix_is_attached_for_every_kind",
+  "label": "EDGE",
+  "bench": "code_search",
+  "kind": "function-level",
+  "nodeids": [
+   "tests/test_parse_rule.py::test_fix_is_attached_for_every_kind[rule0]",
+   "tests/test_parse_rule.py::test_fix_is_attached_for_every_kind[rule1]",
+   "tests/test_parse_rule.py::test_fix_is_attached_for_every_kind[rule2]",
+   "tests/test_parse_rule.py::test_fix_is_attached_for_every_kind[rule3]"
+  ]
+ },
+ {
+  "id": "test_scan_file::test_utf8_file_is_skipped_under_ascii",
+  "label": "EDGE",
+  "bench": "code_search",
+  "kind": "function-level",
+  "nodeids": [
+   "tests/test_scan_file.py::test_utf8_file_is_skipped_under_ascii"
+  ]
+ },
+ {
+  "id": "test_rust_suffix_end::test_first_token_wraps_around_to_the_last_token",
+  "label": "EDGE",
+  "bench": "code_search",
+  "kind": "function-level",
+  "nodeids": [
+   "tests/test_rust_suffix_end.py::test_first_token_wraps_around_to_the_last_token"
+  ]
+ },
+ {
+  "id": "test_write_fixes::test_multibyte_text_is_addressed_by_code_point",
+  "label": "EDGE",
+  "bench": "code_search",
+  "kind": "function-level",
+  "nodeids": [
+   "tests/test_write_fixes.py::test_multibyte_text_is_addressed_by_code_point"
+  ]
+ },
+ {
+  "id": "test_lambda_header_end::test_a_found_end_is_the_index_after_the_stop_token",
+  "label": "REDUNDANT",
+  "bench": "code_search",
+  "kind": "function-level",
+  "nodeids": [
+   "tests/test_lambda_header_end.py::test_a_found_end_is_the_index_after_the_stop_token"
+  ]
+ },
+ {
+  "id": "test_prev_allows_regex::test_regex_after_keyword_in_context",
+  "label": "UNCLEAR",
+  "bench": "code_search",
+  "kind": "function-level",
+  "nodeids": [
+   "tests/test_prev_allows_regex.py::test_regex_after_keyword_in_context[[yield]",
+   "tests/test_prev_allows_regex.py::test_regex_after_keyword_in_context[a && typeof]",
+   "tests/test_prev_allows_regex.py::test_regex_after_keyword_in_context[foo(await]",
+   "tests/test_prev_allows_regex.py::test_regex_after_keyword_in_context[x = return]",
+   "tests/test_prev_allows_regex.py::test_regex_after_keyword_in_context[{ else]"
+  ]
+ },
+ {
+  "id": "test_load_rules::test_flags_are_combined",
+  "label": "UNCLEAR",
+  "bench": "code_search",
+  "kind": "function-level",
+  "nodeids": [
+   "tests/test_load_rules.py::test_flags_are_combined"
+  ]
+ },
+ {
+  "id": "test_rust_suffix_end::test_op_postfix_end_and_postfix_end_return_the_same_in_rust",
+  "label": "UNCLEAR",
+  "bench": "code_search",
+  "kind": "function-level",
+  "nodeids": [
+   "tests/test_rust_suffix_end.py::test_op_postfix_end_and_postfix_end_return_the_same_in_rust[1!(x)-1--1]",
+   "tests/test_rust_suffix_end.py::test_op_postfix_end_and_postfix_end_return_the_same_in_rust[a!(x)-1-5]",
+   "tests/test_rust_suffix_end.py::test_op_postfix_end_and_postfix_end_return_the_same_in_rust[a!-1--1]",
+   "tests/test_rust_suffix_end.py::test_op_postfix_end_and_postfix_end_return_the_same_in_rust[a![1]-1-5]",
+   "tests/test_rust_suffix_end.py::test_op_postfix_end_and_postfix_end_return_the_same_in_rust[a!x-1--1]",
+   "tests/test_rust_suffix_end.py::test_op_postfix_end_and_postfix_end_return_the_same_in_rust[a!{x}-1-5]",
+   "tests/test_rust_suffix_end.py::test_op_postfix_end_and_postfix_end_return_the_same_in_rust[a?-1-2]"
+  ]
+ },
+ {
+  "id": "test_tokenize_malformed::...match_the_source[cpp-'x /*/']",
+  "label": "EDGE",
+  "bench": "code_search",
+  "kind": "per-case",
+  "nodeids": [
+   "tests/test_tokenize_malformed.py::test_spans_are_in_bounds_ordered_and_match_the_source[cpp-'x /*/']"
+  ]
+ },
+ {
+  "id": "test_tokenize_malformed::...malformed_metavariables_javascript['a$$b']",
+  "label": "EDGE",
+  "bench": "code_search",
+  "kind": "per-case",
+  "nodeids": [
+   "tests/test_tokenize_malformed.py::test_pattern_mode_malformed_metavariables_javascript['a$$b']"
+  ]
+ },
+ {
+  "id": "test_scan_quoted::...exact_end_offset[\"'''a'''\"-0-javascript]",
+  "label": "EDGE",
+  "bench": "code_search",
+  "kind": "per-case",
+  "nodeids": [
+   "tests/test_scan_quoted.py::test_scan_quoted_exact_end_offset[\"'''a'''\"-0-javascript]"
+  ]
+ },
+ {
+  "id": "test_left_context::test_left_context_exact[255-haskell-n:1 o:+ m:$X]",
+  "label": "REDUNDANT",
+  "bench": "code_search",
+  "kind": "per-case",
+  "nodeids": [
+   "tests/test_left_context.py::test_left_context_exact[255-haskell-n:1 o:+ m:$X]"
+  ]
+ },
+ {
+  "id": "test_left_context::test_left_context_exact[194-python-dedent m:$X]",
+  "label": "REDUNDANT",
+  "bench": "code_search",
+  "kind": "per-case",
+  "nodeids": [
+   "tests/test_left_context.py::test_left_context_exact[194-python-dedent m:$X]"
+  ]
+ },
+ {
+  "id": "test_parse_rule::...even_if_unbalanced['\"\"']",
+  "label": "UNCLEAR",
+  "bench": "code_search",
+  "kind": "per-case",
+  "nodeids": [
+   "tests/test_parse_rule.py::test_pattern_kind_any_token_is_enough_even_if_unbalanced['\"\"']"
+  ]
+ },
+ {
+  "id": "test_primary_end::test_primary_end_exact[cpp-'new'-0]",
+  "label": "UNCLEAR",
+  "bench": "code_search",
+  "kind": "per-case",
+  "nodeids": [
+   "tests/test_primary_end.py::test_primary_end_exact[cpp-'new'-0]"
+  ]
+ },
+ {
+  "id": "test_primary_end::test_primary_end_exact[python-'3.5'-0]",
+  "label": "UNCLEAR",
+  "bench": "code_search",
+  "kind": "per-case",
+  "nodeids": [
+   "tests/test_primary_end.py::test_primary_end_exact[python-'3.5'-0]"
+  ]
+ },
+ {
+  "id": "test_op_postfix_end::...exact[python-'a[0]'-1-None]",
+  "label": "UNCLEAR",
+  "bench": "code_search",
+  "kind": "per-case",
+  "nodeids": [
+   "tests/test_op_postfix_end.py::test_op_postfix_end_exact[python-'a[0]'-1-None]"
+  ]
+ },
+ {
+  "id": "test_brace_ok::test_brace_ok_exact[go-'f(){1}'-None]",
+  "label": "UNCLEAR",
+  "bench": "code_search",
+  "kind": "per-case",
+  "nodeids": [
+   "tests/test_brace_ok.py::test_brace_ok_exact[go-'f(){1}'-None]"
+  ]
+ },
+ {
+  "id": "test_right_context::...real_pattern_tokens[haskell-$X . f]",
+  "label": "UNCLEAR",
+  "bench": "code_search",
+  "kind": "per-case",
+  "nodeids": [
+   "tests/test_right_context.py::test_right_context_from_real_pattern_tokens[haskell-$X . f]"
+  ]
+ },
+ {
+  "id": "test_left_context::...real_pattern_tokens[javascript-typeof $X]",
+  "label": "UNCLEAR",
+  "bench": "code_search",
+  "kind": "per-case",
+  "nodeids": [
+   "tests/test_left_context.py::test_left_context_from_real_pattern_tokens[javascript-typeof $X]"
+  ]
+ },
+ {
+  "id": "test_tokenize_malformed::test_a_unicode_digit_is_a_number_token",
+  "label": "EDGE",
+  "bench": "etl_pipeline",
+  "kind": "function-level",
+  "nodeids": [
+   "tests/test_tokenize_malformed.py::test_a_unicode_digit_is_a_number_token"
+  ]
+ },
+ {
+  "id": "test_malformed_json::test_decode_error_is_distinct_from_etl_error_branch",
+  "label": "EDGE",
+  "bench": "etl_pipeline",
+  "kind": "function-level",
+  "nodeids": [
+   "tests/test_malformed_json.py::test_decode_error_is_distinct_from_etl_error_branch"
+  ]
+ },
+ {
+  "id": "test_parser_at_op::test_no_operators_given_is_false",
+  "label": "EDGE",
+  "bench": "etl_pipeline",
+  "kind": "function-level",
+  "nodeids": [
+   "tests/test_parser_at_op.py::test_no_operators_given_is_false"
+  ]
+ },
+ {
+  "id": "test_parse_args::test_parse_bool_accepts_only_known_short_words_exhaustively",
+  "label": "EDGE",
+  "bench": "etl_pipeline",
+  "kind": "function-level",
+  "nodeids": [
+   "tests/test_parse_args.py::test_parse_bool_accepts_only_known_short_words_exhaustively"
+  ]
+ },
+ {
+  "id": "test_limit::test_consecutive_limits_take_the_smaller",
+  "label": "EDGE",
+  "bench": "etl_pipeline",
+  "kind": "function-level",
+  "nodeids": [
+   "tests/test_limit.py::test_consecutive_limits_take_the_smaller"
+  ]
+ },
+ {
+  "id": "test_is_num::test_bool_is_an_int_but_not_a_num",
+  "label": "EDGE",
+  "bench": "etl_pipeline",
+  "kind": "function-level",
+  "nodeids": [
+   "tests/test_is_num.py::test_bool_is_an_int_but_not_a_num"
+  ]
+ },
+ {
+  "id": "test_truthy::test_and_or_return_a_bool_not_an_operand",
+  "label": "EDGE",
+  "bench": "etl_pipeline",
+  "kind": "function-level",
+  "nodeids": [
+   "tests/test_truthy.py::test_and_or_return_a_bool_not_an_operand['a' && 'b'-True]",
+   "tests/test_truthy.py::test_and_or_return_a_bool_not_an_operand[0 || 0-False]",
+   "tests/test_truthy.py::test_and_or_return_a_bool_not_an_operand[1 && 2-True]",
+   "tests/test_truthy.py::test_and_or_return_a_bool_not_an_operand[fa || fa-False]",
+   "tests/test_truthy.py::test_and_or_return_a_bool_not_an_operand[l && s-False]",
+   "tests/test_truthy.py::test_and_or_return_a_bool_not_an_operand[l || d-False]",
+   "tests/test_truthy.py::test_and_or_return_a_bool_not_an_operand[l1 || z-True]",
+   "tests/test_truthy.py::test_and_or_return_a_bool_not_an_operand[n && t-False]",
+   "tests/test_truthy.py::test_and_or_return_a_bool_not_an_operand[n || n-False]",
+   "tests/test_truthy.py::test_and_or_return_a_bool_not_an_operand[s && 1-True]",
+   "tests/test_truthy.py::test_and_or_return_a_bool_not_an_operand[s && l-False]",
+   "tests/test_truthy.py::test_and_or_return_a_bool_not_an_operand[s || s-True]",
+   "tests/test_truthy.py::test_and_or_return_a_bool_not_an_operand[t && fa-False]",
+   "tests/test_truthy.py::test_and_or_return_a_bool_not_an_operand[t && one-True]",
+   "tests/test_truthy.py::test_and_or_return_a_bool_not_an_operand[z || e-False]",
+   "tests/test_truthy.py::test_and_or_return_a_bool_not_an_operand[z || s-True]"
+  ]
+ },
+ {
+  "id": "test_parser_parse_malformed::test_error_reports_the_first_problem_left_to_right",
+  "label": "EDGE",
+  "bench": "etl_pipeline",
+  "kind": "function-level",
+  "nodeids": [
+   "tests/test_parser_parse_malformed.py::test_error_reports_the_first_problem_left_to_right"
+  ]
+ },
+ {
+  "id": "test_tokenize_malformed::test_a_dotted_name_starting_with_a_keyword_is_an_identifier",
+  "label": "EDGE",
+  "bench": "etl_pipeline",
+  "kind": "function-level",
+  "nodeids": [
+   "tests/test_tokenize_malformed.py::test_a_dotted_name_starting_with_a_keyword_is_an_identifier"
+  ]
+ },
+ {
+  "id": "test_tokenize_malformed::test_dotted_and_underscored_names_are_one_identifier",
+  "label": "UNCLEAR",
+  "bench": "etl_pipeline",
+  "kind": "function-level",
+  "nodeids": [
+   "tests/test_tokenize_malformed.py::test_dotted_and_underscored_names_are_one_identifier[_x]",
+   "tests/test_tokenize_malformed.py::test_dotted_and_underscored_names_are_one_identifier[a..b]",
+   "tests/test_tokenize_malformed.py::test_dotted_and_underscored_names_are_one_identifier[a.1]",
+   "tests/test_tokenize_malformed.py::test_dotted_and_underscored_names_are_one_identifier[a.]",
+   "tests/test_tokenize_malformed.py::test_dotted_and_underscored_names_are_one_identifier[a.b.c]",
+   "tests/test_tokenize_malformed.py::test_dotted_and_underscored_names_are_one_identifier[x1]"
+  ]
+ },
+ {
+  "id": "test_main_execute_errors::test_main_error_response_is_a_single_line_ending_in_newline",
+  "label": "UNCLEAR",
+  "bench": "etl_pipeline",
+  "kind": "function-level",
+  "nodeids": [
+   "tests/test_main_execute_errors.py::test_main_error_response_is_a_single_line_ending_in_newline"
+  ]
+ },
+ {
+  "id": "test_main_invalid_json::test_main_passes_whole_stdin_text_to_json_loads",
+  "label": "UNCLEAR",
+  "bench": "etl_pipeline",
+  "kind": "function-level",
+  "nodeids": [
+   "tests/test_main_invalid_json.py::test_main_passes_whole_stdin_text_to_json_loads"
+  ]
+ },
+ {
+  "id": "test_compare::...[<-0-0-False]",
+  "label": "EDGE",
+  "bench": "etl_pipeline",
+  "kind": "per-case",
+  "nodeids": [
+   "tests/test_compare.py::test_compare_exact_value[<-0-0-False]"
+  ]
+ },
+ {
+  "id": "test_compare::...[>=-0-0-True]",
+  "label": "EDGE",
+  "bench": "etl_pipeline",
+  "kind": "per-case",
+  "nodeids": [
+   "tests/test_compare.py::test_compare_exact_value[>=-0-0-True]"
+  ]
+ },
+ {
+  "id": "test_main_execute_errors::...exact_output[a*b>0, bool operand]",
+  "label": "EDGE",
+  "bench": "etl_pipeline",
+  "kind": "per-case",
+  "nodeids": [
+   "tests/test_main_execute_errors.py::test_execute_error_paths_exit_status_and_exact_output[{\"pipeline\": {\"steps\": [{\"op\": \"filter\", \"where\": \"a * b > 0\"}]}, \"dataset\": [{\"a\": true, \"b\": 1}]}-{\"status\": \"error\", \"error_code\": \"EXECUTION_FAILED\", \"message\": \"ETL_ERROR: operator '*' requires numbers, got bool and num\", \"path\": \"pipeline.steps[0].where\"}\\n]"
+  ]
+ },
+ {
+  "id": "test_main_execute_errors::...no_partial_data[select \"\u00e9\"]",
+  "label": "EDGE",
+  "bench": "etl_pipeline",
+  "kind": "per-case",
+  "nodeids": [
+   "tests/test_main_execute_errors.py::test_execute_error_has_no_partial_data[{\"pipeline\": {\"steps\": [{\"op\": \"select\", \"columns\": [\"\\\\u00e9\"]}]}, \"dataset\": [{\"a\": 1}]}-{\"status\": \"error\", \"error_code\": \"MISSING_COLUMN\", \"message\": \"ETL_ERROR: column '\\xe9' not found in row\", \"path\": \"pipeline.steps[0].columns[0]\"}\\n]"
+  ]
+ },
+ {
+  "id": "test_main_execute_errors::...exact_output[limit then select \"zz\"]",
+  "label": "EDGE",
+  "bench": "etl_pipeline",
+  "kind": "per-case",
+  "nodeids": [
+   "tests/test_main_execute_errors.py::test_execute_error_paths_exit_status_and_exact_output[{\"pipeline\": {\"steps\": [{\"op\": \"limit\", \"n\": 5}, {\"op\": \"select\", \"columns\": [\"zz\"]}]}, \"dataset\": [{\"a\": 1}]}-{\"status\": \"error\", \"error_code\": \"MISSING_COLUMN\", \"message\": \"ETL_ERROR: column 'zz' not found in row\", \"path\": \"pipeline.steps[1].columns[0]\"}\\n]"
+  ]
+ },
+ {
+  "id": "test_compare::...[<-a230-1-False]",
+  "label": "REDUNDANT",
+  "bench": "etl_pipeline",
+  "kind": "per-case",
+  "nodeids": [
+   "tests/test_compare.py::test_compare_exact_value[<-a230-1-False]"
+  ]
+ },
+ {
+  "id": "test_compare::...[==-a-b-False]",
+  "label": "REDUNDANT",
+  "bench": "etl_pipeline",
+  "kind": "per-case",
+  "nodeids": [
+   "tests/test_compare.py::test_compare_exact_value[==-a-b-False]"
+  ]
+ },
+ {
+  "id": "test_compare::...[<-a224-b224-False]",
+  "label": "REDUNDANT",
+  "bench": "etl_pipeline",
+  "kind": "per-case",
+  "nodeids": [
+   "tests/test_compare.py::test_compare_exact_value[<-a224-b224-False]"
+  ]
+ },
+ {
+  "id": "test_output_golden::...serialization_properties[error_bad_expr]",
+  "label": "REDUNDANT",
+  "bench": "etl_pipeline",
+  "kind": "per-case",
+  "nodeids": [
+   "tests/test_output_golden.py::test_golden_serialization_properties[error_bad_expr]"
+  ]
+ },
+ {
+  "id": "test_compare::...[!=-B-a-True]",
+  "label": "UNCLEAR",
+  "bench": "etl_pipeline",
+  "kind": "per-case",
+  "nodeids": [
+   "tests/test_compare.py::test_compare_exact_value[!=-B-a-True]"
+  ]
+ },
+ {
+  "id": "test_compare::...[!=-a115-b115-False]",
+  "label": "UNCLEAR",
+  "bench": "etl_pipeline",
+  "kind": "per-case",
+  "nodeids": [
+   "tests/test_compare.py::test_compare_exact_value[!=-a115-b115-False]"
+  ]
+ },
+ {
+  "id": "test_compare::...[>=--1-0-False]",
+  "label": "UNCLEAR",
+  "bench": "etl_pipeline",
+  "kind": "per-case",
+  "nodeids": [
+   "tests/test_compare.py::test_compare_exact_value[>=--1-0-False]"
+  ]
+ }
+]
