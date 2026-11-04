@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# usage: ar_eval.sh <case set> <case> <key> <max usd> <runner root> [--keep-lanes]
+# usage: ar_eval.sh <case set> <case> <key> <max usd|none> <runner root> [--keep-lanes]
 # The autoresearch seed rung (C-256): one S7 run (c239/harness/run_s7.sh) of the cleanup runner from
 # <runner root> (an idea tree's bench/scbench) on <case>, a prep_c246.sh key, under the run key <key>, scored
 # by score.py. Everything but the runner comes from this checkout, the evaluator pin. Prints one

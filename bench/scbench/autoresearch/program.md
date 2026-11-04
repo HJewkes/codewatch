@@ -49,7 +49,7 @@ outside the config other than 0, 1, 2 and -1. Diff size is recorded, not capped.
 | `ar_testproof.sh <base> <head>` | L0 | $0 |
 | `ar_micro.sh replay <runner root> <baseline dir> <signal>` | L1 for gate and config ideas | $0 |
 | `ar_micro.sh cluster <runner root> <case set> <case> <cluster> <baseline dir> <signal> [usd]` | L1 for planner and prompt ideas | ≤ $0.25 |
-| `ar_eval.sh <case set> <case> <key> <max usd> <runner root> [--keep-lanes]` | seed run | about $0.45 |
+| `ar_eval.sh <case set> <case> <key> <max usd|none> <runner root> [--keep-lanes]` | seed run | about $0.45 |
 
 `<runner root>` is the idea tree's `bench/scbench`: the runner runs from there (`RUNNER_ROOT` in
 `c239/harness/run_s7.sh`), and measure, diffgate, regrade, the gates and score run from the pin. Every
