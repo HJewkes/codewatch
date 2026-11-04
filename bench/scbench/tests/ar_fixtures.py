@@ -65,6 +65,7 @@ def _stub_runner(root: Path) -> None:
     (root / "runner" / "__main__.py").write_text(PY_TRACE.format(stage="runner") + (
         f"LANE_TREES, KEPT = {LANE_TREES!r}, {KEPT!r}\n"
         "out = Path(sys.argv[sys.argv.index('--out') + 1]); out.mkdir(parents=True, exist_ok=True)\n"
+        "(out / 'argv.json').write_text(json.dumps(sys.argv))\n"
         "(out / 'run.json').write_text(json.dumps({'usd': 0.25, 'waves': []}))\n"
         "for tree in LANE_TREES + KEPT:\n    (out / tree).mkdir(parents=True, exist_ok=True)\n"
         "fixture = Path(os.environ['AR_FIXTURE'])\n"
