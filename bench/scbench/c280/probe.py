@@ -28,7 +28,12 @@ import signal
 import subprocess
 import time
 from collections.abc import Callable, Iterable
-from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, ThreadPoolExecutor, wait
+from concurrent.futures import (
+    FIRST_COMPLETED,
+    ProcessPoolExecutor,
+    ThreadPoolExecutor,
+    wait,
+)
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -118,7 +123,8 @@ def cap_memory() -> None:
 def run_group(command: list[str], cwd: Path, env: dict[str, str]) -> int:
     """The exit code; a timeout (or memory blow-up) is a failure, and the whole process group dies."""
     with subprocess.Popen(command, cwd=cwd, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                          start_new_session=True, preexec_fn=cap_memory) as proc:
+                          start_new_session=True,
+                          preexec_fn=cap_memory) as proc:  # noqa: PLW1509 - no threads run when this is called
         try:
             return proc.wait(timeout=TIMEOUT_S)
         except subprocess.TimeoutExpired:
