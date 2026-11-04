@@ -20,11 +20,11 @@ from ledger import append, judgement, judgements, ledger_path, read, tasks
 from ledger.columns import self_check, skip_row, task_row
 from ledger.rollup import RETIRE, rollup
 from ledger.rules import at_start, digest, reinlined, repeat
-from planner.families import load_config
 from tests.gate_fixtures import BASE, COSMETIC, NARROW, write_tree
+from tests.planner_fixtures import PINNED_CFG
 from tests.test_gate import GREEN, replies
 
-CFG = load_config()
+CFG = PINNED_CFG
 RUN = {"id": "run-1"}
 TASK = {"id": "app.py:handle", "wave": 1, "owned": [{"key": "app.py:handle"}],
         "chosen": {"gain": 12.0, "edits": ["e1"]}, "candidates": [{"id": "e1", "recipe": "R1"}]}

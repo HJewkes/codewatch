@@ -6,14 +6,14 @@ from pathlib import Path
 from planner import endstate, plan_tree, scan
 from planner.classes import class_facts
 from planner.detect import detect
-from planner.families import load_config, profile, verdict
+from planner.families import profile, verdict
 from planner.modules import structure, violations
 from planner.rank import Search, candidates, exclusive
 from planner.tasks import ownership_conflicts
 from planner.units import module_units
-from tests.planner_fixtures import DETECT, INLINE_OVER, PARSER, ROUTE, TWIN_ARMS
+from tests.planner_fixtures import DETECT, PINNED_CFG, INLINE_OVER, PARSER, ROUTE, TWIN_ARMS
 
-CFG = load_config()
+CFG = PINNED_CFG
 # Round 3's knots (approximate cognitive port), on which the plan's worked example (B8.2) was computed.
 ROUND3 = {**CFG, "risk": {**CFG["risk"], "knots": {**CFG["risk"]["knots"], "cognitive": [0, 13, 18, 29]}}}
 
@@ -29,7 +29,7 @@ class TreeCase(unittest.TestCase):
         return root
 
     def only_task(self, files):
-        return plan_tree(self.tree(files))["tasks"][0]
+        return plan_tree(self.tree(files), cfg=CFG)["tasks"][0]
 
 
 class Recipes(TreeCase):
@@ -168,7 +168,7 @@ class Detectors(unittest.TestCase):
 
 class Templates(TreeCase):
     def test_every_task_renders_and_select_item_gets_a_narrow_stage_plan(self):
-        plan = plan_tree(self.tree({"p.py": PARSER}))
+        plan = plan_tree(self.tree({"p.py": PARSER}), cfg=CFG)
         self.assertTrue(all(t["template"].startswith(f"task: {t['id']}\n") for t in plan["tasks"]))
         select = next(t for t in plan["tasks"] if t["id"] == "p.py:Parser.select_item")
         self.assertIn("recipe: R3 stage extraction\n", select["template"])
@@ -180,7 +180,7 @@ class Templates(TreeCase):
         self.assertIn("recipe: none", query["template"])
 
     def test_an_edit_outside_the_tasks_ownership_is_a_conflict(self):
-        plan = plan_tree(self.tree({"p.py": PARSER}))
+        plan = plan_tree(self.tree({"p.py": PARSER}), cfg=CFG)
         self.assertEqual(ownership_conflicts(plan), [])
         select = next(t for t in plan["tasks"] if t["id"] == "p.py:Parser.select_item")
         select["chosen"]["touches"].append("p.py:Parser.peek")

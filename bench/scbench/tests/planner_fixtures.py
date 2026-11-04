@@ -4,6 +4,103 @@
 
 from __future__ import annotations
 
+# A frozen copy of the planner config, so tests whose fixtures are tuned to particular tolerances do not
+# move when the shipped config.json is retuned (C-289).
+PINNED_CFG = {
+    "version": "s4-1",
+    "hot_cc": 10,
+    "recipes": {
+        "r1_min_arms": 4,
+        "r3_min_cc": 3,
+        "r4_max_statements": 1
+    },
+    "search": {
+        "max_candidates": 8
+    },
+    "constraints": {
+        "t1_margin": 0,
+        "lcom4_max": 2,
+        "sdp_max_delta_i": 0.25
+    },
+    "floor_gain_per_new_function": 30,
+    "risk": {
+        "cap": 10,
+        "knots": {
+            "cc": [
+                1,
+                9,
+                12,
+                17
+            ],
+            "cognitive": [
+                0,
+                15,
+                23,
+                34
+            ],
+            "sloc": [
+                1,
+                35,
+                44,
+                59
+            ],
+            "params": [
+                0,
+                3,
+                3,
+                4
+            ],
+            "module_sloc": [
+                0,
+                795,
+                1062,
+                1332
+            ],
+            "class_methods": [
+                1,
+                38,
+                39,
+                41
+            ]
+        }
+    },
+    "utilities": {
+        "cut_in": [
+            2,
+            3
+        ],
+        "crossings": [
+            0,
+            2
+        ],
+        "class_methods": [
+            14,
+            31
+        ],
+        "helper_sloc": {
+            "full_at": 8,
+            "low_at": 1,
+            "low_value": 0.5
+        }
+    },
+    "p5": {
+        "cx_improve": 0.05,
+        "cx_worsen": 0.05,
+        "size": 0.05,
+        "iface_base": 0.05,
+        "iface_ratio": 0.5,
+        "crossings": 1,
+        "module_lines_per_new_function": 3,
+        "module_risk": 0.05,
+        "module_risk_basis": "module",
+        "amount_ratio": 1.5
+    },
+    "p4_shadow": {
+        "module_risk_base": 0.05,
+        "module_risk_per_new_function": 0.006
+    }
+}
+
 
 def ladder(name: str, arms: int, calls: tuple[str, ...] = (), indent: str = "", params: str = "x") -> str:
     """A function of own-body CC 1 + arms that calls each of `calls` once."""
