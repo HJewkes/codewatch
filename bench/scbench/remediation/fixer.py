@@ -132,7 +132,7 @@ class Fixer:
         verdict = self._gate(sha)
         if verdict.error or not verdict.rejected:
             return sha, verdict.check()
-        self._ask(retry_prompt(verdict.rejected))
+        self._ask(retry_prompt(verdict.rejected, verdict.reasons))
         if not self.git.dirty():
             return sha, verdict.check()
         sha, check, _ = self._revise(n, item, sha, None)

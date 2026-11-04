@@ -21,11 +21,12 @@ import ast
 import json
 import os
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from findings.diff_uncovered import AGENT_VENVS, agent_test_env
 
+from .floor import floor
 from .git import Git, GitError
 from .session import Run
 from .validate import Check
@@ -43,6 +44,7 @@ class Verdict:
     rejected: tuple[str, ...] = ()
     error: str | None = None
     cases: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
+    reasons: Mapping[str, str] = field(default_factory=dict)
 
     def check(self) -> Check:
         if self.error:
@@ -53,7 +55,19 @@ class Verdict:
         return Check("admission", True, f"{len(self.admitted)} new tests admitted")
 
 
-def retry_prompt(rejected: Sequence[str]) -> str:
+def retry_prompt(rejected: Sequence[str], reasons: Mapping[str, str] | None = None) -> str:
+    reasons = reasons or {}
+    unchecked = [t for t in rejected if t in reasons]
+    unreached = [t for t in rejected if t not in reasons]
+    if not unchecked:
+        return _reach_prompt(unreached)
+    why = "\n".join(f"- {t}: {reasons[t]}" for t in unchecked)
+    floor_prompt = (f"These new tests will not be kept, because each lacks a real check:\n{why}\n"
+                    "Give each an assertion on a specific value the code returns or changes, or remove it.")
+    return floor_prompt + ("\n" + _reach_prompt(unreached) if unreached else " Keep the suite passing, then stop.")
+
+
+def _reach_prompt(rejected: Sequence[str]) -> str:
     return (f"These new tests run no line or branch of the code that the other tests do not already run, so "
             f"they will not be kept: {', '.join(rejected)}.\nRemove them (a bracketed id is one parametrize case: "
             "remove that case from its table), or change them to exercise code no "
@@ -197,9 +211,20 @@ class Admission:
     git: Git
     coverage: Coverage
     per_case: bool = True
+    floor: bool = False
 
     def __call__(self, sha: str, timeout: float | None) -> Verdict:
         added = new_tests(self.git, sha, self.coverage.tests_dir)
+        if not added:
+            return Verdict()
+        if not self.floor:
+            return self._reach(added, timeout)
+        reasons = {t: r for t, r in floor(self.git.workspace, added).items() if r}
+        verdict = self._reach([t for t in added if t not in reasons], timeout)
+        rejected = tuple(sorted({*verdict.rejected, *reasons}))
+        return replace(verdict, rejected=rejected, reasons={**verdict.reasons, **reasons})
+
+    def _reach(self, added: list[str], timeout: float | None) -> Verdict:
         if not added:
             return Verdict()
         deselect = [arg for test in added for arg in ("--deselect", test)]
