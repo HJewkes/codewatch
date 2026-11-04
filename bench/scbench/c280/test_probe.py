@@ -8,7 +8,8 @@ import unittest
 from pathlib import Path
 
 from c280.mutants import sites
-from c280.probe import Context, TreeRunner, probe_unit, rule_verdict
+from c280.probe import Context, TreeRunner, pending, probe_unit, rule_verdict
+from c280.resume import RUN_SECONDS, finished, record, wait_for_load
 
 ENTRY = "def under(x):\n    return x < 3\n"
 UNIT = "from entry import under\n\n\ndef test_unit():\n    assert under(2) is True\n    assert under(3) is False\n"
@@ -93,6 +94,28 @@ class ProbeTests(unittest.TestCase):
         verdict = rule_verdict(rows)
 
         self.assertEqual((verdict["a"], verdict["b"], verdict["passes"]), (0.5, 0.5, False))
+
+
+class ResumeTests(unittest.TestCase):
+    def test_finished_units_are_skipped_on_restart_and_wall_time_accumulates(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            partial = Path(tmp) / "out.partial.jsonl"
+            record(partial, {"unit": "a", "kills": 1})
+            record(partial, {RUN_SECONDS: 5.0})
+            record(partial, {"unit": "b", "kills": 0})
+
+            todo, spent = pending([{"id": "a"}, {"id": "b"}, {"id": "c"}], partial)
+
+            self.assertEqual(([u["id"] for u in todo], spent), (["c"], 5.0))
+            self.assertEqual(sorted(finished(partial)[0]), ["a", "b"])
+
+    def test_load_gate_waits_until_load_drops_below_the_limit(self) -> None:
+        loads = iter([30.0, 25.0, 10.0])
+        naps: list[float] = []
+
+        wait_for_load(24.0, lambda: next(loads), naps.append)
+
+        self.assertEqual(naps, [60, 60])
 
 
 if __name__ == "__main__":

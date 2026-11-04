@@ -19,20 +19,25 @@ if (a) >= 60% of the units S1 admits have >= 1 unique kill and (b) >= 60% of the
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
+import resource
 import shutil
+import signal
 import subprocess
 import time
 from collections.abc import Callable, Iterable
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from .mutants import Mutant, apply, sample, sites
+from .resume import RUN_SECONDS, finished, record, wait_for_load
 
 SEED = 280
 TIMEOUT_S = 120
+MEMORY_CAP = 6 * 2**30
 COVERAGE = "/opt/codewatch-a1/bin/coverage"
 THRESHOLD = 0.6
 Run = Callable[[list[str], str | None], bool]
@@ -98,15 +103,30 @@ class TreeRunner:
     def __call__(self, targets: list[str], source: str | None) -> bool:
         self.entry.write_text(self.original if source is None else source)
         try:
-            done = subprocess.run(self.command(targets),
-                                  cwd=self.tree, env=self.env, capture_output=True, timeout=TIMEOUT_S, check=False)
-        except subprocess.TimeoutExpired:
-            return True
+            code = run_group(self.command(targets), self.tree, self.env)
         finally:
             self.entry.write_text(self.original)
-        if done.returncode == 5:
+        if code == 5:
             raise RuntimeError(f"no tests collected for {targets} in {self.tree}")
-        return done.returncode != 0
+        return code != 0
+
+
+def cap_memory() -> None:
+    resource.setrlimit(resource.RLIMIT_AS, (MEMORY_CAP, MEMORY_CAP))
+
+
+def run_group(command: list[str], cwd: Path, env: dict[str, str]) -> int:
+    """The exit code; a timeout (or memory blow-up) is a failure, and the whole process group dies."""
+    with subprocess.Popen(command, cwd=cwd, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                          start_new_session=True, preexec_fn=cap_memory) as proc:
+        try:
+            return proc.wait(timeout=TIMEOUT_S)
+        except subprocess.TimeoutExpired:
+            os.killpg(proc.pid, signal.SIGKILL)
+            return 1
+        finally:
+            with contextlib.suppress(ProcessLookupError):
+                os.killpg(proc.pid, signal.SIGKILL)
 
 
 def shebang_python(coverage: str) -> str:
@@ -207,23 +227,53 @@ def summarize(rows: list[dict], wall: float) -> dict:
             "possibly_equivalent": equivalent, "units": rows}
 
 
+def pending(units: list[dict], partial: Path) -> tuple[list[dict], float]:
+    done, spent = finished(partial)
+    return [u for u in units if u["id"] not in done], spent
+
+
+def run_pending(todo: list[dict], cache: Path, covering: dict, workers: int, partial: Path) -> None:
+    """Submits one unit at a time per worker, waiting out machine load before each, and records as units finish."""
+    queue = iter(todo)
+    with ProcessPoolExecutor(workers) as pool:
+        running = {}
+
+        def submit() -> None:
+            unit = next(queue, None)
+            if unit is not None:
+                wait_for_load()
+                task = (unit["bench"], unit["id"], unit["nodeids"], str(cache), covering[unit["bench"]])
+                running[pool.submit(work_one, task)] = unit
+
+        for _ in range(workers):
+            submit()
+        while running:
+            for future in wait(running, return_when=FIRST_COMPLETED).done:
+                unit = running.pop(future)
+                row = future.result()
+                row.update({k: v for k, v in unit.items() if k not in row and k != "nodeids"})
+                record(partial, row)
+                submit()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("units", type=Path)
     parser.add_argument("cache", type=Path, help="the c264 cache root, holding ctx/<arm>/<bench>/tree")
     parser.add_argument("out", type=Path)
-    parser.add_argument("--workers", type=int, default=16)
+    parser.add_argument("--workers", type=int, default=2)
     args = parser.parse_args(argv)
+    partial = args.out.with_suffix(".partial.jsonl")
     started = time.monotonic()
     units = load_units(args.units)
-    covering = {bench: kept_covering(args.cache, bench, args.workers) for bench in sorted({u["bench"] for u in units})}
-    tasks = [(u["bench"], u["id"], u["nodeids"], str(args.cache), covering[u["bench"]]) for u in units]
-    with ProcessPoolExecutor(args.workers) as pool:
-        rows = list(pool.map(work_one, tasks))
-    for unit, row in zip(units, rows, strict=True):
-        row.update({k: v for k, v in unit.items() if k not in row and k != "nodeids"})
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(json.dumps(summarize(rows, time.monotonic() - started), indent=1) + "\n")
+    todo, _ = pending(units, partial)
+    wait_for_load()
+    covering = {bench: kept_covering(args.cache, bench, args.workers) for bench in sorted({u["bench"] for u in todo})}
+    run_pending(todo, args.cache, covering, args.workers, partial)
+    record(partial, {RUN_SECONDS: round(time.monotonic() - started, 1)})
+    done, spent = finished(partial)
+    rows = [done[u["id"]] for u in units]
+    args.out.write_text(json.dumps(summarize(rows, spent), indent=1) + "\n")
     return 0
 
 
