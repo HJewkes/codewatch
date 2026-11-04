@@ -218,18 +218,19 @@ class Admission:
         if not added:
             return Verdict()
         if not self.floor:
-            return self._reach(added, timeout)
+            return self._reach(added, added, timeout)
         reasons = {t: r for t, r in floor(self.git.workspace, added).items() if r}
-        verdict = self._reach([t for t in added if t not in reasons], timeout)
+        verdict = self._reach(added, [t for t in added if t not in reasons], timeout)
         rejected = tuple(sorted({*verdict.rejected, *reasons}))
         return replace(verdict, rejected=rejected, reasons={**verdict.reasons, **reasons})
 
-    def _reach(self, added: list[str], timeout: float | None) -> Verdict:
-        if not added:
+    def _reach(self, added: list[str], candidates: list[str], timeout: float | None) -> Verdict:
+        """The base run deselects every new test, so a floor-rejected one never counts as covered."""
+        if not candidates:
             return Verdict()
         deselect = [arg for test in added for arg in ("--deselect", test)]
         base = self.coverage.reach([self.coverage.tests_dir, *deselect], timeout)
-        reaches = {test: self.coverage.reach([test], timeout) for test in added}
+        reaches = {test: self.coverage.reach([test], timeout) for test in candidates}
         missing = [t for t, reach in reaches.items() if reach is None]
         if base is None or missing:
             what = "the base run" if base is None else ", ".join(missing)

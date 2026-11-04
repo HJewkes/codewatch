@@ -22,13 +22,16 @@ from tiert.oracle import STRONG, call_name, oracle_nodes, strength_of
 
 MOCK_ASSERTS = frozenset({"assert_called", "assert_called_once", "assert_called_with",
                           "assert_called_once_with", "assert_has_calls", "assert_any_call",
-                          "assert_not_called"})
+                          "assert_not_called", "assert_awaited", "assert_awaited_once",
+                          "assert_awaited_with", "assert_awaited_once_with", "assert_has_awaits",
+                          "assert_any_await", "assert_not_awaited"})
 MOCK_ATTRS = frozenset({"call_count", "call_args", "call_args_list", "mock_calls"})
 BROAD = frozenset({"Exception", "BaseException"})
 
 NO_ASSERTION = "has no assertion on the result"
 WEAK_ASSERTION = "only checks type, shape, not-None or truthiness, never a value"
 MOCK_ONLY = "only asserts that mocks were called, never what the code returned or changed"
+MOCK_AND_BROAD = "only asserts that mocks were called or that some Exception was raised, never a value or a specific error"
 BROAD_RAISE = "only expects a bare Exception, never a specific error type or message"
 
 Oracle = ast.Assert | ast.Call
@@ -75,6 +78,8 @@ def _reason(oracles: Iterable[Oracle]) -> str | None:
         return NO_ASSERTION
     if "real" in kinds:
         return None
+    if set(kinds) == {"mock", "broad"}:
+        return MOCK_AND_BROAD
     for kind, reason in (("mock", MOCK_ONLY), ("broad", BROAD_RAISE)):
         if set(kinds) <= {kind}:
             return reason
@@ -100,8 +105,13 @@ def _mentions_mock_attr(exprs: Iterable[ast.expr]) -> bool:
 
 
 def _is_broad_raise(node: Oracle) -> bool:
-    if not (isinstance(node, ast.Call) and call_name(node) == "raises" and node.args):
+    if not (isinstance(node, ast.Call) and call_name(node) in {"raises", "assertRaises"} and node.args):
         return False
     first = node.args[0]
-    name = first.attr if isinstance(first, ast.Attribute) else getattr(first, "id", "")
-    return name in BROAD and not any(k.arg == "match" for k in node.keywords)
+    named = first.elts if isinstance(first, ast.Tuple) else [first]
+    broad = bool(named) and all(_type_name(n) in BROAD for n in named)
+    return broad and not any(k.arg in {"match", "msg"} for k in node.keywords)
+
+
+def _type_name(expr: ast.expr) -> str:
+    return expr.attr if isinstance(expr, ast.Attribute) else getattr(expr, "id", "")

@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 from remediation.admission import Verdict, retry_prompt
-from remediation.floor import BROAD_RAISE, MOCK_ONLY, NO_ASSERTION, floor
+from remediation.floor import BROAD_RAISE, MOCK_AND_BROAD, MOCK_ONLY, NO_ASSERTION, floor
 
 
 def tree(files: dict[str, str]) -> Path:
@@ -52,6 +52,25 @@ class FloorTests(unittest.TestCase):
         self.assertIsNotNone(got["tests/test_a.py::TestBox::test_x[1]"])
 
 
+class FloorKindsTests(unittest.TestCase):
+    def test_a_mix_of_mock_and_broad_raise_gets_its_own_reason(self):
+        source = ("import pytest\n\n\ndef test_x(m):\n    m.go.assert_called_once()\n"
+                  "    with pytest.raises(Exception):\n        m.go()\n")
+        self.assertEqual(verdicts(source)["tests/test_a.py::test_x"], MOCK_AND_BROAD)
+
+    def test_async_mock_assertions_are_mock_only(self):
+        for call in ("assert_awaited_once()", "assert_not_awaited()", "assert_awaited_with(1)"):
+            got = verdicts(f"def test_x(m):\n    m.go.{call}\n")
+            self.assertEqual(got["tests/test_a.py::test_x"], MOCK_ONLY, call)
+
+    def test_tuple_and_unittest_broad_raises_fail(self):
+        tup = "import pytest\n\n\ndef test_x():\n    with pytest.raises((Exception,)):\n        int('x')\n"
+        unit = "class TestA:\n    def test_x(self):\n        with self.assertRaises(Exception):\n            int('x')\n"
+        self.assertEqual(verdicts(tup)["tests/test_a.py::test_x"], BROAD_RAISE)
+        self.assertEqual(verdicts(unit, ids=("tests/test_a.py::TestA::test_x",))["tests/test_a.py::TestA::test_x"],
+                         BROAD_RAISE)
+
+
 class AdmissionFloorTests(unittest.TestCase):
     def test_retry_prompt_names_the_reason_per_test(self):
         text = retry_prompt(["t::a", "t::b"], {"t::a": NO_ASSERTION})
@@ -89,6 +108,17 @@ class CountingCoverage:
         return frozenset({"app.py:1"}) if "tests/test_a.py::test_ok" in selection else frozenset()
 
 
+class SharedLineCoverage(CountingCoverage):
+    """Both tests reach app.py:1; the base run reaches it only if it does not deselect test_weak."""
+
+    def reach(self, selection, timeout):
+        self.selections.append(list(selection))
+        if selection and selection[0] == "tests":
+            deselected = {selection[i + 1] for i, a in enumerate(selection) if a == "--deselect"}
+            return frozenset() if "tests/test_a.py::test_weak" in deselected else frozenset({"app.py:1"})
+        return frozenset({"app.py:1"})
+
+
 class AdmissionFloorRunTests(unittest.TestCase):
     SOURCE = "def test_weak():\n    pass\n\n\ndef test_ok():\n    assert 1 + 1 == 2\n"
 
@@ -103,6 +133,15 @@ class AdmissionFloorRunTests(unittest.TestCase):
         self.assertEqual(verdict.reasons, {"tests/test_a.py::test_weak": NO_ASSERTION})
         self.assertIn("tests/test_a.py::test_weak", verdict.rejected)
         self.assertNotIn(["tests/test_a.py::test_weak"], coverage.selections)
+
+    def test_a_floor_rejected_test_does_not_count_toward_the_base_coverage(self):
+        from remediation.admission import Admission
+        coverage = SharedLineCoverage()
+        gate = Admission(FakeGit(tree({"tests/test_a.py": self.SOURCE})), coverage, floor=True)
+        verdict = gate("sha", None)
+        self.assertEqual(verdict.admitted, ("tests/test_a.py::test_ok",))
+        base = coverage.selections[0]
+        self.assertIn("tests/test_a.py::test_weak", base)
 
     def test_floor_is_off_by_default(self):
         verdict, coverage = self.admit(False)
