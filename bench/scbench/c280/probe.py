@@ -1,7 +1,7 @@
 """C-280 S4: the mutation probe. Measure only; it feeds nothing back to the agent.
 
-For each audit unit (an R-none test node id) it mutates the entry-module lines the unit
-reaches (`mutants.sample`), then:
+For each audit unit (the R-none node ids of one test or one parametrized function) it
+mutates the entry-module lines the unit reaches (`mutants.sample`), then:
 
 1. runs the unit alone against the mutant: a failure is a kill;
 2. only for a kill, runs the kept tests that reach that line: if they pass, the
@@ -13,7 +13,7 @@ Pre-registered rule (plan §1.4), computed in `rule_verdict` and never tuned her
 if (a) >= 60% of the units S1 admits have >= 1 unique kill and (b) >= 60% of the units with
 >= 1 unique kill are ones S1 admits.
 
-    python3 -m c280.probe UNITS.json UNIT_TREE KEPT_TREE OUT.json [--workers N]
+    python3 -m c280.probe UNITS.json CACHE OUT.json [--workers N]
 """
 
 from __future__ import annotations
@@ -45,7 +45,7 @@ class Context:
     unit_run: Run
     kept_run: Run
     full_run: Run
-    reach: Callable[[str], set[int]]
+    reach: Callable[[list[str]], set[int]]
     covering: Callable[[int], list[str]]
     seed: int = SEED
     full_cache: dict[str, bool] = field(default_factory=dict)
@@ -56,14 +56,17 @@ class Context:
         return self.full_cache[mutant.key]
 
 
-def probe_unit(unit: str, ctx: Context, candidates: Iterable[Mutant] | None = None) -> dict:
-    """`mutants`, `kills`, `unique_kills` and the possibly-equivalent mutants of one unit."""
+def probe_unit(unit: str, targets: list[str], ctx: Context, candidates: Iterable[Mutant] | None = None) -> dict:
+    """`mutants`, `kills`, `unique_kills` and the possibly-equivalent mutants of one unit.
+
+    A unit is one test or a function's parametrized cases: `targets` are its pytest node ids.
+    """
     pool = sites(ctx.source) if candidates is None else candidates
-    drawn = sample(pool, ctx.reach(unit), f"{ctx.seed}:{unit}")
+    drawn = sample(pool, ctx.reach(targets), f"{ctx.seed}:{unit}")
     kills, unique, equivalent = 0, [], []
     for mutant in drawn:
         source = apply(ctx.source, mutant)
-        if ctx.unit_run([unit], source):
+        if ctx.unit_run(targets, source):
             kills += 1
             covering = ctx.covering(mutant.line)
             if not (covering and ctx.kept_run(covering, source)):
@@ -152,22 +155,22 @@ def build_context(bench: str, cache: Path, covering: dict[int, list[str]]) -> Co
         runners[role] = TreeRunner(copy, entry, python, agent_test_env(copy, work / f"{role}-scratch"))
     unit = runners["unit"]
 
-    def reach(node: str) -> set[int]:
-        return reached_lines(coverage_report(unit.tree, work / "reach", unit.env, [node]), entry)
+    def reach(nodes: list[str]) -> set[int]:
+        return reached_lines(coverage_report(unit.tree, work / "reach", unit.env, nodes), entry)
 
     return Context(unit.original, unit, runners["kept"], unit, reach, lambda line: covering.get(line, []))
 
 
-def work_one(task: tuple[str, str, str, dict[int, list[str]]]) -> dict:
-    bench, unit, cache, covering = task
+def work_one(task: tuple[str, str, list[str], str, dict[int, list[str]]]) -> dict:
+    bench, unit, targets, cache, covering = task
     if bench not in _STATE:
         _STATE[bench] = build_context(bench, Path(cache), covering)
     ctx = _STATE[bench]
     started = time.monotonic()
-    if ctx.unit_run([unit], None):
+    if ctx.unit_run(targets, None):
         return {"unit": unit, "bench": bench, "baseline_failed": True, "mutants": 0, "kills": 0,
                 "unique_kills": 0, "unique_keys": [], "possibly_equivalent": []}
-    return {**probe_unit(unit, ctx), "bench": bench, "seconds": round(time.monotonic() - started, 1)}
+    return {**probe_unit(unit, targets, ctx), "bench": bench, "seconds": round(time.monotonic() - started, 1)}
 
 
 def load_units(path: Path) -> list[dict]:
@@ -214,11 +217,11 @@ def main(argv: list[str] | None = None) -> int:
     started = time.monotonic()
     units = load_units(args.units)
     covering = {bench: kept_covering(args.cache, bench, args.workers) for bench in sorted({u["bench"] for u in units})}
-    tasks = [(u["bench"], u["id"], str(args.cache), covering[u["bench"]]) for u in units]
+    tasks = [(u["bench"], u["id"], u["nodeids"], str(args.cache), covering[u["bench"]]) for u in units]
     with ProcessPoolExecutor(args.workers) as pool:
         rows = list(pool.map(work_one, tasks))
     for unit, row in zip(units, rows, strict=True):
-        row.update({k: v for k, v in unit.items() if k not in row})
+        row.update({k: v for k, v in unit.items() if k not in row and k != "nodeids"})
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(summarize(rows, time.monotonic() - started), indent=1) + "\n")
     return 0

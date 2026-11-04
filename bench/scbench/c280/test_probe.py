@@ -56,10 +56,10 @@ class ProbeTests(unittest.TestCase):
             unit_tree = tree(root, "unit", {"test_unit.py": UNIT})
             kept_tree = tree(root, "kept", {"test_boundary.py": KEPT})
             wanted = [m for m in sites(ENTRY) if m.op in {"rel", "none"}]
-            ctx = Context(ENTRY, runner(unit_tree), runner(kept_tree), runner(unit_tree), lambda _u: {2},
+            ctx = Context(ENTRY, runner(unit_tree), runner(kept_tree), runner(unit_tree), lambda _t: {2},
                           lambda _line: ["tests/test_boundary.py::test_boundary"])
 
-            row = probe_unit("tests/test_unit.py::test_unit", ctx, wanted)
+            row = probe_unit("unit", ["tests/test_unit.py::test_unit"], ctx, wanted)
 
             self.assertEqual((row["mutants"], row["kills"], row["unique_kills"]), (2, 2, 1))
             self.assertEqual(row["possibly_equivalent"], [])
@@ -68,11 +68,11 @@ class ProbeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             unit_tree = tree(root, "unit", {"test_low.py": KEPT_SUITE})
-            ctx = Context(ENTRY, runner(unit_tree), runner(unit_tree), runner(unit_tree), lambda _u: {2},
+            ctx = Context(ENTRY, runner(unit_tree), runner(unit_tree), runner(unit_tree), lambda _t: {2},
                           lambda _line: [])
             low = [m for m in sites(ENTRY) if m.op == "int" and m.replacement == "2"]
 
-            row = probe_unit("tests/test_low.py::test_low", ctx, low)
+            row = probe_unit("low", ["tests/test_low.py::test_low"], ctx, low)
 
             self.assertEqual((row["kills"], len(row["possibly_equivalent"])), (0, 1))
 
