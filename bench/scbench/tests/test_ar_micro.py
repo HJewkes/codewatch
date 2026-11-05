@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -7,6 +8,7 @@ import unittest
 from pathlib import Path
 
 from tests.ar_fixtures import BENCH, replay_run
+from tests.planner_fixtures import PINNED_CFG
 
 MICRO = BENCH / "autoresearch" / "micro.py"
 _spec = importlib.util.spec_from_file_location("ar_micro", MICRO)
@@ -19,17 +21,29 @@ def micro(*args: str) -> dict:
     return json.loads(out)
 
 
+def pinned_bench(dest: Path) -> Path:
+    """BENCH with planner/config.json replaced by the pinned config, so a replay does not move with a retune (C-290)."""
+    for entry in BENCH.iterdir():
+        if entry.name not in ("planner", "__pycache__"):
+            (dest / entry.name).symlink_to(entry)
+    shutil.copytree(BENCH / "planner", dest / "planner", ignore=shutil.ignore_patterns("__pycache__"))
+    (dest / "planner" / "config.json").write_text(json.dumps(PINNED_CFG))
+    return dest
+
+
 class ReplayTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         root = Path(self._tmp.name)
         self.run = replay_run(root / "run", root / "scratch")
+        (root / "bench").mkdir()
+        self.bench = pinned_bench(root / "bench")
 
     def tearDown(self):
         self._tmp.cleanup()
 
     def test_replay_with_the_pinned_gate_reproduces_the_recorded_counts(self):
-        got = micro("replay", str(BENCH), str(self.run))
+        got = micro("replay", str(self.bench), str(self.run))
         self.assertEqual((got["lanes"], got["accepts"], got["rejects"], got["holds"], got["changed"]), (3, 1, 2, 0, 0))
         self.assertEqual((got["accepted_net_cc"], got["accepted_new_helpers"]), (-3, 1))
 

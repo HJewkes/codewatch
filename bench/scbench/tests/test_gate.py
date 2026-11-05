@@ -7,17 +7,18 @@ import io
 import json
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from gate import __main__ as cli
 from gate import preflight, replay, t3
 from gate.family import check, render
 from gate.gates import final_gate, test_bloat
-from planner.families import load_config
 from synthesis.taste import ModelReply
 from tests.gate_fixtures import BAG, BASE, COSMETIC, NARROW, RETESTS, write_tree
+from tests.planner_fixtures import PINNED_CFG
 
-CFG = load_config()
+CFG = PINNED_CFG
 TASK = {"id": "app.py:handle", "owned": [{"key": "app.py:handle"}]}
 GREEN = {"pass": True}
 SELF_CHECK = """\
@@ -184,7 +185,7 @@ class Preflight(unittest.TestCase):
 class SelfCheck(Trees):
     def run_cli(self, head, *extra):
         out, err = io.StringIO(), io.StringIO()
-        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err), mock.patch.object(cli, "load_config", return_value=CFG):
             code = cli.main(["--cluster", "app.py:handle", "--base", str(self.base), "--workspace", str(head),
                              "--calls", str(self.tmp / "calls.json"), *extra])
         return code, out.getvalue(), err.getvalue()
