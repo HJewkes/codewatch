@@ -37,7 +37,7 @@ def _edit_lines(edit: dict) -> list[str]:
     return [line]
 
 
-INPLACE = ("simplify in place", ["lower the branches of the listed range without adding a function",
+INPLACE = ("simplify in place", ["lower the branches of the listed range first, then anywhere else in the head, without adding a function",
                                   "merge arms that raise or return the same thing",
                                   "drop checks that earlier code already guarantees",
                                   "call an existing function that does the same work"])
@@ -87,8 +87,11 @@ def render(task: dict, cfg: dict, label: str = "", waves: int = 0) -> str:
               "head_signature: frozen", new_functions,
               "improve: [cx]"]
     lines += _hold(chosen["families"] if chosen else None, cfg)
+    passing = (f"{head}: fewer decision points, no new functions, the holds hold, the visible tests pass"
+               if _in_place(task) else
+               f"{head} and its helpers: cx improves, the holds hold, the visible tests pass")
     lines += ["behaviour: all specs cp1..cpN hold; error messages verbatim",
-              f"pass_condition: \"{head} and its helpers: cx improves, the holds hold, the visible tests pass\"",
+              f"pass_condition: \"{passing}\"",
               f"self_check: \"scbench gate --cluster {task['id']}   (advisory, at most 3 calls)\"",
               "retry: one, with one deterministic failure message"]
     return "\n".join(lines) + "\n"
