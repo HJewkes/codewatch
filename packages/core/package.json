@@ -34,8 +34,8 @@
     "lint": "echo 'lint not configured yet'"
   },
   "dependencies": {
-    "@titan-design/code-parser": "^0.1.0",
-    "@titan-design/style-analyzer": "^0.1.0",
+    "@titan-design/code-parser": "^0.2.0",
+    "@titan-design/style-analyzer": "^0.1.6",
     "octokit": "^5.0.5",
     "web-tree-sitter": "^0.26.6"
   },
