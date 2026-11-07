@@ -15,17 +15,17 @@ importers:
         specifier: ^2.27.0
         version: 2.31.0(@types/node@25.3.2)
       '@titan-design/code-parser':
-        specifier: ^0.1.0
-        version: 0.1.0(web-tree-sitter@0.26.6)
+        specifier: ^0.2.0
+        version: 0.2.0(web-tree-sitter@0.26.6)
       '@titan-design/style-analyzer':
-        specifier: ^0.1.0
-        version: 0.1.0(web-tree-sitter@0.26.6)(zod@4.3.6)
+        specifier: ^0.1.6
+        version: 0.1.6(web-tree-sitter@0.26.6)(zod@4.3.6)
       '@titan-design/style-checker':
-        specifier: ^0.1.0
-        version: 0.1.0(web-tree-sitter@0.26.6)(zod@4.3.6)
+        specifier: ^0.4.4
+        version: 0.4.4(web-tree-sitter@0.26.6)(zod@4.3.6)
       '@titan-design/style-profile':
-        specifier: ^0.1.0
-        version: 0.1.0(zod@4.3.6)
+        specifier: ^0.4.1
+        version: 0.4.1(zod@4.3.6)
       '@vitest/coverage-v8':
         specifier: ^3.0.0
         version: 3.2.4(vitest@3.2.4(@types/node@25.3.2)(tsx@4.21.0))
@@ -51,38 +51,38 @@ importers:
         specifier: ^1.29.0
         version: 1.29.0(zod@4.3.6)
       '@titan-design/agent':
-        specifier: ^0.4.3
-        version: 0.4.3(@anthropic-ai/sdk@0.128.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(zod@4.3.6)
+        specifier: ^0.6.2
+        version: 0.6.2(@anthropic-ai/sdk@0.128.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(zod@4.3.6)
       '@titan-design/code-graph':
         specifier: ^0.18.2
         version: 0.18.2
       '@titan-design/code-parser':
-        specifier: ^0.1.0
-        version: 0.1.0(web-tree-sitter@0.26.6)
+        specifier: ^0.2.0
+        version: 0.2.0(web-tree-sitter@0.26.6)
       '@titan-design/embed':
         specifier: ^0.2.0
         version: 0.2.0
       '@titan-design/evidence':
-        specifier: ^0.1.0
-        version: 0.1.0
+        specifier: ^0.4.0
+        version: 0.4.0
       '@titan-design/hitl':
-        specifier: ^0.7.0
-        version: 0.7.0(zod@4.3.6)
+        specifier: ^0.9.1
+        version: 0.9.1(zod@4.3.6)
       '@titan-design/store-sqlite':
         specifier: ^0.4.0
         version: 0.4.0
       '@titan-design/style-analyzer':
-        specifier: ^0.1.0
-        version: 0.1.0(web-tree-sitter@0.26.6)(zod@4.3.6)
+        specifier: ^0.1.6
+        version: 0.1.6(web-tree-sitter@0.26.6)(zod@4.3.6)
       '@titan-design/style-checker':
-        specifier: ^0.4.3
-        version: 0.4.3(web-tree-sitter@0.26.6)(zod@4.3.6)
+        specifier: ^0.4.4
+        version: 0.4.4(web-tree-sitter@0.26.6)(zod@4.3.6)
       '@titan-design/style-profile':
-        specifier: ^0.1.0
-        version: 0.1.0(zod@4.3.6)
+        specifier: ^0.4.1
+        version: 0.4.1(zod@4.3.6)
       '@titan-design/workflow':
-        specifier: ^0.9.1
-        version: 0.9.1(@anthropic-ai/sdk@0.128.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(zod@4.3.6)
+        specifier: ^0.13.1
+        version: 0.13.1(@anthropic-ai/sdk@0.128.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(zod@4.3.6)
       chalk:
         specifier: ^5.6.2
         version: 5.6.2
@@ -127,11 +127,11 @@ importers:
   packages/core:
     dependencies:
       '@titan-design/code-parser':
-        specifier: ^0.1.0
-        version: 0.1.0(web-tree-sitter@0.26.6)
+        specifier: ^0.2.0
+        version: 0.2.0(web-tree-sitter@0.26.6)
       '@titan-design/style-analyzer':
-        specifier: ^0.1.0
-        version: 0.1.0(web-tree-sitter@0.26.6)(zod@4.3.6)
+        specifier: ^0.1.6
+        version: 0.1.6(web-tree-sitter@0.26.6)(zod@4.3.6)
       octokit:
         specifier: ^5.0.5
         version: 5.0.5
@@ -963,16 +963,12 @@ packages:
   '@stablelib/base64@1.0.1':
     resolution: {integrity: sha512-1bnPQqSxSuc3Ii6MhBysoWCg58j97aUjuCSZrGSmDxNqtytIi0k8utUenAwTZN4V5mXXYGsVUI9zeBqy+jBOSQ==}
 
-  '@titan-design/agent-lifecycle@0.1.3':
-    resolution: {integrity: sha512-eq5xRoQKsW5hopvH1wwM+veIPekSQ0huhHFTRS9FvKxOf6VrQvTUe2QNPzlgzVg+JsigC1E+6Oy42osSW/9naw==}
+  '@titan-design/agent-lifecycle@0.1.9':
+    resolution: {integrity: sha512-PWfyGwbrUPli+X1QTmJOKGsFM2zmoTmwBp3nNtodrByRE7TrdoESWmo3bPfOM0BdpwFi5Z4voQtRsVJpUVftDg==}
     engines: {node: '>=20'}
 
-  '@titan-design/agent-lifecycle@0.1.5':
-    resolution: {integrity: sha512-OR0u29o+7tHF1zE3s/R3v8OiohT6lo7aulQTs4cao13zrmOukq/hhqim7OgHhlLF41rHxpCPxvRaZzHP0ifEng==}
-    engines: {node: '>=20'}
-
-  '@titan-design/agent-protocol@0.3.0':
-    resolution: {integrity: sha512-a54s4k2QrXonjQqzSkaav90DPamo9unZxPDLwY3L2layjZhmZscxjo9sBEDT8939Clhqg1nePfIKEEf0eBvzUw==}
+  '@titan-design/agent-protocol@0.9.1':
+    resolution: {integrity: sha512-tQXMNEF2ekcG4WdHGoQR0Xi4U9l1GpeYRZ9+8Af/4B9SR3qYs7S0sykemDEgew7+0DfL3PZ61gne9H3asVCr4w==}
     engines: {node: '>=20'}
     peerDependencies:
       zod: ^4.0.0
@@ -980,29 +976,14 @@ packages:
       zod:
         optional: true
 
-  '@titan-design/agent-protocol@0.5.0':
-    resolution: {integrity: sha512-I+DkBeGGUIEeEURHg9JnK8Eh2JV67mkYLHiK+PRADqlzePDy01/8DquBnDCmevgIHpX5OwCZL4+U7/TN9OGAHg==}
-    engines: {node: '>=20'}
-    peerDependencies:
-      zod: ^4.0.0
-    peerDependenciesMeta:
-      zod:
-        optional: true
-
-  '@titan-design/agent@0.4.3':
-    resolution: {integrity: sha512-FfiSM4bN8Lm2HcaR1rNEX04yzBRjIBWiiJbZTn4JHyvDPaFY2nzOAZksmt3UjhrJ9mtDghJMtskT6rXRqy6qvQ==}
+  '@titan-design/agent@0.6.2':
+    resolution: {integrity: sha512-d5hsB0k2UR8yIaJ8tekYgD/HzxUii5+yn8MUmg6i8b53bHl33DzRt0tQU5nIp9ItHC26HIRXv9RNac678DEVRg==}
     engines: {node: '>=20'}
     peerDependencies:
       zod: ^4.0.0
 
-  '@titan-design/agent@0.4.5':
-    resolution: {integrity: sha512-ZUV06y4d3RF2FQfpPIxk9DEKgAnvGCsS4397mi5TmIlHFzh9girKud9q+oivGX3koT653DLkeLxUV4cyE5tbQw==}
-    engines: {node: '>=20'}
-    peerDependencies:
-      zod: ^4.0.0
-
-  '@titan-design/authority@0.3.0':
-    resolution: {integrity: sha512-OeHUQ3v3Md6h91mFfImvH6GNL93RYR0m7CR1hztoA8QL/o1+M498mJj9UwPcauRoRaUJo0vmmQo3ptX/RGcP+w==}
+  '@titan-design/authority@0.5.0':
+    resolution: {integrity: sha512-eJ7FQq4Y//fsql72RmBgPsPeQ40vnZp0QlS5i4I2UooyNKMqaEbeW/SYf9/XXOlhmk4o8KgwlvJzP2px8p7ksQ==}
     engines: {node: '>=20'}
     peerDependencies:
       zod: ^4.0.0
@@ -1010,12 +991,6 @@ packages:
   '@titan-design/code-graph@0.18.2':
     resolution: {integrity: sha512-uZ1kxKM8kR08jPx1h8tQuapOCQ9E5Ab0U+oyMx994R50/yylVpxT/ege5XdbF5QZYH2UJTU24JefRmN7mzz1Fw==}
     engines: {node: '>=20'}
-
-  '@titan-design/code-parser@0.1.0':
-    resolution: {integrity: sha512-fDOwZ04YwfAbDOnx2n8c2IQ305nt6FI0iWRvZpmMj8Kp3clkuB+UOpjAb7pYoA9/8ipcL7cXvcHbrOpNJEkACg==}
-    engines: {node: '>=20'}
-    peerDependencies:
-      web-tree-sitter: ^0.26.6
 
   '@titan-design/code-parser@0.2.0':
     resolution: {integrity: sha512-1aeu6ADO4YmbwJcuMgIwwOoQUR/CC5bbVJzW9Qf7wT2tFgmBXBfWDPGU2fXjpTZ4Ib2rv0qrv/JMq2ywIMQrDw==}
@@ -1032,16 +1007,12 @@ packages:
       '@huggingface/transformers':
         optional: true
 
-  '@titan-design/evidence@0.1.0':
-    resolution: {integrity: sha512-rRDqEttcTcYkIcCRBQnrTncsqIV3w6c4aqMQrjEVFgmyESnYc4RjMHnPlpYvYA6uptI0wXhjaZL4AsS99jYr+Q==}
-    engines: {node: '>=20'}
-
   '@titan-design/evidence@0.4.0':
     resolution: {integrity: sha512-ZtKmMrJ2nL9/iUMvZpsBehkD3s+l0yMnWOxIq7GZnSkmMwe3aFPM/1Zw3JyprXevawCyk4LVOKO8q/ybjwy5oQ==}
     engines: {node: '>=20'}
 
-  '@titan-design/hitl@0.7.0':
-    resolution: {integrity: sha512-fpMJVYwO+jEgbl88v1kHuJgYNsqzCmDqGEAbG0b8toA37mxNgq6Sk15XI9j2vimouG0kAQse78TrdJrp/mMxmA==}
+  '@titan-design/hitl@0.9.1':
+    resolution: {integrity: sha512-9OHHaGxf3QSRPaOFSqrKb5M3UActD7b0CM1TtInTTjlMIhQHo4jpgq67yqXXKVsA+tX/2uchDF5FOBO8WJdx9g==}
     engines: {node: '>=20'}
     peerDependencies:
       zod: ^4.0.0
@@ -1055,54 +1026,31 @@ packages:
       '@huggingface/transformers':
         optional: true
 
-  '@titan-design/store-sqlite@0.3.3':
-    resolution: {integrity: sha512-k+TgDQPSVxL4j4fl5LLHVygMl7LjmmD9b1qpl5L8BYCisk5x27/e56K3ZqzqJQo9eV0vWHP0mEnCYaoZDs5xAA==}
-    engines: {node: '>=20'}
-
   '@titan-design/store-sqlite@0.4.0':
     resolution: {integrity: sha512-+UmxFIjKFRl69RR+c3x5CVSyucA4GKyt/N2YyoH7Zw8hKWHL6B4jNozwWNrFQ7hk+4DXmzRbia1484mxb08cbQ==}
     engines: {node: '>=20'}
 
-  '@titan-design/style-analyzer@0.1.0':
-    resolution: {integrity: sha512-LksKhTNCnuQDUpxTyRdNQA/WdDm91tEnom9mWQrXCjYlU2Nwv1/D064o5djwEod0yOe49ysDkXVeQ1E8ZwHKJA==}
+  '@titan-design/style-analyzer@0.1.6':
+    resolution: {integrity: sha512-xorC4PcWonWFj/nS08fwYXCG3+m252QYrqhf2w6KKekuVWNSqWJS1u12fsJ6ry2+xRkJs9ASe5HcyjY6aPMcPQ==}
     engines: {node: '>=20'}
     peerDependencies:
       web-tree-sitter: ^0.26.6
       zod: ^4.0.0
 
-  '@titan-design/style-analyzer@0.1.4':
-    resolution: {integrity: sha512-6Zi1ZpA9ldkVSIBaA4X7yn53EeNAMnOefTaRxdCCpD/HOxDP5sMb9zj/yXjUjjqb7szXpZYmxU6bXgh2oiYGwQ==}
-    engines: {node: '>=20'}
-    peerDependencies:
-      web-tree-sitter: ^0.26.6
-      zod: ^4.0.0
-
-  '@titan-design/style-checker@0.1.0':
-    resolution: {integrity: sha512-Ypv24w59nlf5oX/s7KP0rTcyd97pKZBK4t4dQdqd+nUnU81m+TySlmyp7/VI7k65l2xpLDhKkeB+0Pwesd5rcA==}
+  '@titan-design/style-checker@0.4.4':
+    resolution: {integrity: sha512-R8w60WhOLcJSm5fCR3COOwEx7AmSBI5QmEn79tD/BiCiWcy4CAHirtuMcNcfU3ix0JntSgg6q5dmjBWmfPFPiw==}
     engines: {node: '>=20'}
     peerDependencies:
       zod: ^4.0.0
 
-  '@titan-design/style-checker@0.4.3':
-    resolution: {integrity: sha512-uNksaMI0TuyRKB6NgZvO+ojBki1twHxqnd4wshe8qv3R8SuPJQztCPCGDOrKHq64y0wKcQpGO+xPkzPeoexuvw==}
+  '@titan-design/style-profile@0.4.1':
+    resolution: {integrity: sha512-Q1NYGH5e/PIsVi8KW5f/RJiAMg40cotAsrUXS4exaDFYiSg8pS4QYp/tAA5/DzgCnVCkwbg5q+ggsIppRotwOg==}
     engines: {node: '>=20'}
     peerDependencies:
       zod: ^4.0.0
 
-  '@titan-design/style-profile@0.1.0':
-    resolution: {integrity: sha512-e0KsuLWleG9SiAqAEJVuVxreFryYhJsDOO4N5k62VMhQrMXrH8csqhfVkLXvo9U9UjFdHDYLdokeTyGxrAoOBw==}
-    engines: {node: '>=20'}
-    peerDependencies:
-      zod: ^4.0.0
-
-  '@titan-design/style-profile@0.4.0':
-    resolution: {integrity: sha512-MxaJg5zTqeBJgM0BRDfnCljA7kwZmo0JCcgn/kSUgR2CAV4aSS3YnW3+juUOXT3H9SMXAhnWw9Az3GV5450W6w==}
-    engines: {node: '>=20'}
-    peerDependencies:
-      zod: ^4.0.0
-
-  '@titan-design/workflow@0.9.1':
-    resolution: {integrity: sha512-fXOox0NPlQSl40UOLXvdr/KBBBO5DmDTVPP0F0gqiSzTVq3T52BUggfWecuUvnHL0Sd0mswf5AB+bpNb3KY9aw==}
+  '@titan-design/workflow@0.13.1':
+    resolution: {integrity: sha512-FnbEFDB7Az/aL8YGkDUnhxS1/G04WuvcvN6yENNS+aY4b2RqGjJtSBv1pmGQ45Nls3WShEehefeA1pFjYM3P8g==}
     engines: {node: '>=20'}
     peerDependencies:
       zod: ^4.0.0
@@ -3212,49 +3160,28 @@ snapshots:
 
   '@stablelib/base64@1.0.1': {}
 
-  '@titan-design/agent-lifecycle@0.1.3(zod@4.3.6)':
+  '@titan-design/agent-lifecycle@0.1.9(zod@4.3.6)':
     dependencies:
-      '@titan-design/agent-protocol': 0.3.0(zod@4.3.6)
-      '@titan-design/store-sqlite': 0.3.3
+      '@titan-design/agent-protocol': 0.9.1(zod@4.3.6)
+      '@titan-design/store-sqlite': 0.4.0
     transitivePeerDependencies:
       - zod
 
-  '@titan-design/agent-lifecycle@0.1.5(zod@4.3.6)':
-    dependencies:
-      '@titan-design/agent-protocol': 0.5.0(zod@4.3.6)
-      '@titan-design/store-sqlite': 0.3.3
-    transitivePeerDependencies:
-      - zod
-
-  '@titan-design/agent-protocol@0.3.0(zod@4.3.6)':
+  '@titan-design/agent-protocol@0.9.1(zod@4.3.6)':
     optionalDependencies:
       zod: 4.3.6
 
-  '@titan-design/agent-protocol@0.5.0(zod@4.3.6)':
-    optionalDependencies:
-      zod: 4.3.6
-
-  '@titan-design/agent@0.4.3(@anthropic-ai/sdk@0.128.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(zod@4.3.6)':
+  '@titan-design/agent@0.6.2(@anthropic-ai/sdk@0.128.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(zod@4.3.6)':
     dependencies:
       '@anthropic-ai/claude-agent-sdk': 0.3.282(@anthropic-ai/sdk@0.128.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(zod@4.3.6)
-      '@titan-design/agent-lifecycle': 0.1.3(zod@4.3.6)
-      '@titan-design/agent-protocol': 0.3.0(zod@4.3.6)
+      '@titan-design/agent-lifecycle': 0.1.9(zod@4.3.6)
+      '@titan-design/agent-protocol': 0.9.1(zod@4.3.6)
       zod: 4.3.6
     transitivePeerDependencies:
       - '@anthropic-ai/sdk'
       - '@modelcontextprotocol/sdk'
 
-  '@titan-design/agent@0.4.5(@anthropic-ai/sdk@0.128.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(zod@4.3.6)':
-    dependencies:
-      '@anthropic-ai/claude-agent-sdk': 0.3.282(@anthropic-ai/sdk@0.128.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(zod@4.3.6)
-      '@titan-design/agent-lifecycle': 0.1.5(zod@4.3.6)
-      '@titan-design/agent-protocol': 0.5.0(zod@4.3.6)
-      zod: 4.3.6
-    transitivePeerDependencies:
-      - '@anthropic-ai/sdk'
-      - '@modelcontextprotocol/sdk'
-
-  '@titan-design/authority@0.3.0(zod@4.3.6)':
+  '@titan-design/authority@0.5.0(zod@4.3.6)':
     dependencies:
       zod: 4.3.6
 
@@ -3271,14 +3198,6 @@ snapshots:
       - '@huggingface/transformers'
       - tree-sitter
 
-  '@titan-design/code-parser@0.1.0(web-tree-sitter@0.26.6)':
-    dependencies:
-      tree-sitter-python: 0.25.0
-      tree-sitter-typescript: 0.23.2
-      web-tree-sitter: 0.26.6
-    transitivePeerDependencies:
-      - tree-sitter
-
   '@titan-design/code-parser@0.2.0(web-tree-sitter@0.26.6)':
     dependencies:
       tree-sitter-python: 0.25.0
@@ -3289,14 +3208,13 @@ snapshots:
 
   '@titan-design/embed@0.2.0': {}
 
-  '@titan-design/evidence@0.1.0': {}
-
   '@titan-design/evidence@0.4.0': {}
 
-  '@titan-design/hitl@0.7.0(zod@4.3.6)':
+  '@titan-design/hitl@0.9.1(zod@4.3.6)':
     dependencies:
-      '@titan-design/authority': 0.3.0(zod@4.3.6)
-      '@titan-design/store-sqlite': 0.3.3
+      '@titan-design/authority': 0.5.0(zod@4.3.6)
+      '@titan-design/evidence': 0.4.0
+      '@titan-design/store-sqlite': 0.4.0
       zod: 4.3.6
 
   '@titan-design/retrieval@0.3.1':
@@ -3304,71 +3222,42 @@ snapshots:
       '@titan-design/embed': 0.2.0
       '@titan-design/store-sqlite': 0.4.0
 
-  '@titan-design/store-sqlite@0.3.3':
-    dependencies:
-      better-sqlite3: 13.0.3
-
   '@titan-design/store-sqlite@0.4.0':
     dependencies:
       better-sqlite3: 13.0.3
 
-  '@titan-design/style-analyzer@0.1.0(web-tree-sitter@0.26.6)(zod@4.3.6)':
+  '@titan-design/style-analyzer@0.1.6(web-tree-sitter@0.26.6)(zod@4.3.6)':
     dependencies:
       '@jscpd/core': 3.5.10
       '@jscpd/tokenizer': 3.5.4
-      '@titan-design/code-parser': 0.1.0(web-tree-sitter@0.26.6)
-      '@titan-design/style-profile': 0.1.0(zod@4.3.6)
+      '@titan-design/code-parser': 0.2.0(web-tree-sitter@0.26.6)
+      '@titan-design/style-profile': 0.4.1(zod@4.3.6)
       web-tree-sitter: 0.26.6
       zod: 4.3.6
     transitivePeerDependencies:
       - tree-sitter
 
-  '@titan-design/style-analyzer@0.1.4(web-tree-sitter@0.26.6)(zod@4.3.6)':
+  '@titan-design/style-checker@0.4.4(web-tree-sitter@0.26.6)(zod@4.3.6)':
     dependencies:
-      '@jscpd/core': 3.5.10
-      '@jscpd/tokenizer': 3.5.4
-      '@titan-design/code-parser': 0.1.0(web-tree-sitter@0.26.6)
-      '@titan-design/style-profile': 0.4.0(zod@4.3.6)
-      web-tree-sitter: 0.26.6
-      zod: 4.3.6
-    transitivePeerDependencies:
-      - tree-sitter
-
-  '@titan-design/style-checker@0.1.0(web-tree-sitter@0.26.6)(zod@4.3.6)':
-    dependencies:
-      '@titan-design/style-analyzer': 0.1.0(web-tree-sitter@0.26.6)(zod@4.3.6)
-      '@titan-design/style-profile': 0.1.0(zod@4.3.6)
+      '@titan-design/style-analyzer': 0.1.6(web-tree-sitter@0.26.6)(zod@4.3.6)
+      '@titan-design/style-profile': 0.4.1(zod@4.3.6)
       zod: 4.3.6
     transitivePeerDependencies:
       - tree-sitter
       - web-tree-sitter
 
-  '@titan-design/style-checker@0.4.3(web-tree-sitter@0.26.6)(zod@4.3.6)':
-    dependencies:
-      '@titan-design/style-analyzer': 0.1.4(web-tree-sitter@0.26.6)(zod@4.3.6)
-      '@titan-design/style-profile': 0.4.0(zod@4.3.6)
-      zod: 4.3.6
-    transitivePeerDependencies:
-      - tree-sitter
-      - web-tree-sitter
-
-  '@titan-design/style-profile@0.1.0(zod@4.3.6)':
+  '@titan-design/style-profile@0.4.1(zod@4.3.6)':
     dependencies:
       handlebars: 4.7.8
       zod: 4.3.6
 
-  '@titan-design/style-profile@0.4.0(zod@4.3.6)':
+  '@titan-design/workflow@0.13.1(@anthropic-ai/sdk@0.128.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(zod@4.3.6)':
     dependencies:
-      handlebars: 4.7.8
-      zod: 4.3.6
-
-  '@titan-design/workflow@0.9.1(@anthropic-ai/sdk@0.128.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(zod@4.3.6)':
-    dependencies:
-      '@titan-design/agent': 0.4.5(@anthropic-ai/sdk@0.128.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(zod@4.3.6)
-      '@titan-design/agent-protocol': 0.5.0(zod@4.3.6)
-      '@titan-design/authority': 0.3.0(zod@4.3.6)
-      '@titan-design/hitl': 0.7.0(zod@4.3.6)
-      '@titan-design/store-sqlite': 0.3.3
+      '@titan-design/agent': 0.6.2(@anthropic-ai/sdk@0.128.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(zod@4.3.6)
+      '@titan-design/agent-protocol': 0.9.1(zod@4.3.6)
+      '@titan-design/authority': 0.5.0(zod@4.3.6)
+      '@titan-design/hitl': 0.9.1(zod@4.3.6)
+      '@titan-design/store-sqlite': 0.4.0
       zod: 4.3.6
     transitivePeerDependencies:
       - '@anthropic-ai/sdk'
