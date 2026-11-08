@@ -25,7 +25,7 @@ describe("ESLint config generation", () => {
 
   describe("generateEslintConfig (checker)", () => {
     beforeAll(() => {
-      configEntries = generateEslintConfig(profile)
+      configEntries = generateEslintConfig(profile).entries
     })
 
     it("returns non-empty config entries", () => {
