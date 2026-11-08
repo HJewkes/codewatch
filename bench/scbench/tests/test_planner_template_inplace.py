@@ -1,9 +1,9 @@
 import unittest
 
-from planner.families import load_config
 from planner.template import render
+from tests.planner_fixtures import PINNED_CFG
 
-CFG = load_config()
+WIDER = "then anywhere else in the head"
 
 
 def task(edits, new):
@@ -16,15 +16,27 @@ def task(edits, new):
 
 class InPlaceTemplate(unittest.TestCase):
     def test_single_cut_with_one_new_function_renders_in_place(self):
-        text = render(task(1, ["n"]), CFG)
+        text = render(task(1, ["n"]), PINNED_CFG)
         self.assertIn("recipe: simplify in place\n", text)
         self.assertIn("new_functions: none\n", text)
         self.assertNotIn("stage extraction", text)
 
     def test_two_cut_stage_extraction_renders_as_before(self):
-        text = render(task(2, ["n", "m"]), CFG)
+        text = render(task(2, ["n", "m"]), PINNED_CFG)
         self.assertIn("R3 stage extraction", text)
         self.assertIn("new_functions: place directly after", text)
+
+
+class InPlaceScope(unittest.TestCase):
+    def test_in_place_render_widens_scope_to_whole_head(self):
+        text = render(task(1, ["n"]), PINNED_CFG)
+        self.assertIn(WIDER, text)
+        self.assertIn("fewer decision points, no new functions", text)
+
+    def test_ratchet_head_render_keeps_original_scope(self):
+        text = render(task(2, ["n", "m"]), PINNED_CFG)
+        self.assertNotIn(WIDER, text)
+        self.assertIn("cx improves", text)
 
 
 if __name__ == "__main__":
