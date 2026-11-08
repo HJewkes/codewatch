@@ -24,6 +24,12 @@ import {
   referencedNodes,
 } from "./dashboard-node-metrics.js";
 import { openGraphStore } from "../utils/graph-store.js";
+import {
+  classifyCoupling,
+  importLinkage,
+  type CouplingClass,
+  type ImportLinkage,
+} from "./import-linkage.js";
 
 /**
  * Payload assembly for `graph dashboard`. Kept separate from the command wiring
@@ -56,18 +62,8 @@ export interface ArchInfo {
  * by a static import edge, and each node's PageRank centrality. Computed once
  * per snapshot from a single db open, shared across all window payloads.
  */
-export interface SnapshotContext {
-  linkedPairs: ReadonlySet<string>;
+export interface SnapshotContext extends ImportLinkage {
   centrality: ReadonlyMap<string, number>;
-  /**
-   * Ids of files that participate in at least one *internal* (repo-to-repo)
-   * import/re-export edge. A file missing here has no resolved imports in the
-   * graph — either it isn't indexed, or its imports couldn't be resolved (e.g. a
-   * dir outside the tsconfig project, whose relative specifiers resolve to junk).
-   * Either way the import evidence is absent, so a co-change touching it can't be
-   * called hidden-vs-import-backed; it's "unverifiable", not "hidden".
-   */
-  connectedNodes: ReadonlySet<string>;
   /** Per-node structural metrics (loc, cognitive/cyclomatic max, nesting, fan) for the Dossier. */
   metrics: ReadonlyMap<string, NodeMetrics>;
   /** Per-export utilization (C-53), for the Dossier "hot exports" list and the blast-radius section. */
@@ -78,23 +74,7 @@ export interface SnapshotContext {
   symbolCoupling?: SymbolCouplingPayload;
 }
 
-export type CouplingClass = { hidden: boolean; unindexed: boolean };
-
-/**
- * Classify a co-changed pair against the static import graph:
- * - unindexed: an endpoint has no resolved internal imports → can't tell (not hidden).
- * - hidden: both connected, but no import/re-export edge joins them → the signal.
- * - expected: both connected and import-backed → usually fine.
- */
-export function classifyCoupling(
-  a: string,
-  b: string,
-  ctx: SnapshotContext,
-): CouplingClass {
-  const unindexed = !ctx.connectedNodes.has(a) || !ctx.connectedNodes.has(b);
-  if (unindexed) return { hidden: false, unindexed: true };
-  return { hidden: !ctx.linkedPairs.has(pairKey(a, b)), unindexed: false };
-}
+export { classifyCoupling, type CouplingClass };
 
 export function buildPayload(
   report: ReturnType<typeof runGraphReportCommand>,
@@ -301,17 +281,6 @@ export function windowAuthorCount(repoRoot: string, windowDays: ChurnWindow): nu
   return new Set(entries.map((e) => e.author)).size;
 }
 
-
-/** Order-independent key for an undirected file pair (JSON tuple; no in-band separator). */
-function pairKey(a: string, b: string): string {
-  return a < b ? JSON.stringify([a, b]) : JSON.stringify([b, a]);
-}
-
-/** External import target (an npm package or an unresolved specifier), not a repo file. */
-function isExternal(id: string): boolean {
-  return id.startsWith("npm:");
-}
-
 /**
  * Snapshot-level derived data from a single db open: the set of file pairs
  * joined by a static `imports`/`re-exports` edge (a co-changed pair NOT in it is
@@ -320,9 +289,8 @@ function isExternal(id: string): boolean {
  * PageRank centrality. Window-independent — computed once per snapshot.
  */
 function snapshotContext(dbPath: string, snapshotId: number): SnapshotContext {
-  const linkedPairs = new Set<string>();
+  let linkage: ImportLinkage = { linkedPairs: new Set(), connectedNodes: new Set() };
   const centrality = new Map<string, number>();
-  const connectedNodes = new Set<string>();
   const consumersBySymbol = new Map<string, number>();
   let metrics = new Map<string, NodeMetrics>();
   let symbols: SymbolUtil[] = [];
@@ -331,15 +299,7 @@ function snapshotContext(dbPath: string, snapshotId: number): SnapshotContext {
   try {
     const nodes = db.listNodes(snapshotId);
     const edges = db.listEdges(snapshotId);
-    for (const e of edges) {
-      if (e.kind !== "imports" && e.kind !== "re-exports") continue;
-      // Only repo-to-repo edges count as connectivity — an edge to an npm:*
-      // package (or an unresolved specifier) says nothing about internal coupling.
-      if (isExternal(e.srcId) || isExternal(e.dstId)) continue;
-      linkedPairs.add(pairKey(e.srcId, e.dstId));
-      connectedNodes.add(e.srcId);
-      connectedNodes.add(e.dstId);
-    }
+    linkage = importLinkage(edges);
     // Inbound `references` per symbol (C-59, one edge = one consuming file), and
     // the raw pairs for the C-60 symbol-coupling slices (co-import + consumers).
     const refEdges: { srcId: string; dstId: string }[] = [];
@@ -364,5 +324,5 @@ function snapshotContext(dbPath: string, snapshotId: number): SnapshotContext {
   } finally {
     db.close();
   }
-  return { linkedPairs, centrality, connectedNodes, metrics, symbols, consumersBySymbol, symbolCoupling };
+  return { ...linkage, centrality, metrics, symbols, consumersBySymbol, symbolCoupling };
 }

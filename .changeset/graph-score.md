@@ -1,0 +1,5 @@
+---
+"@codewatch/cli": minor
+---
+
+Add `codewatch graph score`, which prints one repo score from 0 to 100 and how it changed since the last run. Score formula v1 (`SCORE_FORMULA_VERSION` 1) starts at 100 and subtracts six capped penalties. Four are the dashboard health penalties: scary hotspots (up to 30), fitness violations (up to 20, every violation counted as carried), complexity over budget (up to 15) and hidden coupling (up to 10). Two come from code-graph's SCBench measures: erosion ×50 (up to 15) and value-cycle import mass ×40 (up to 10), both weighted by complexity mass. Each run is appended to `.codewatch/score-history.jsonl` and compared with the most recent stored run of the same formula version. Per-component changes appear in `--json`, and `--last <n>` shows a trend of the last n runs. The history is local to one checkout, so a fresh clone reports no previous run. A snapshot indexed before code-graph 0.18 has no quality measures; the command then exits 1, asks you to re-index, and writes no history.
