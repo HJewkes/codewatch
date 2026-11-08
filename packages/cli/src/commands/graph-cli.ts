@@ -18,6 +18,7 @@ import { registerGraphRelevant } from "./graph-relevant.js";
 import { registerGraphRenderCheckDiff } from "./graph-render-check-diff.js";
 import { registerRender, registerRenderDiff } from "./graph-render-cli.js";
 import { registerGraphReport } from "./graph-report.js";
+import { registerGraphScore } from "./graph-score.js";
 import { registerGraphSimilar } from "./graph-similar.js";
 import { registerGraphTop } from "./graph-top.js";
 import { registerGraphWiki } from "./graph-wiki.js";
@@ -41,6 +42,7 @@ export function registerGraphCommands(program: Command): void {
   registerGraphConventions(graphCmd);
   registerGraphCoupled(graphCmd);
   registerGraphReport(graphCmd);
+  registerGraphScore(graphCmd);
   registerGraphCoverage(graphCmd);
   registerGraphDashboard(graphCmd);
   registerGraphWiki(graphCmd);
