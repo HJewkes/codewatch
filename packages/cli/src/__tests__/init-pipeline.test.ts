@@ -4,6 +4,7 @@ import * as path from "node:path";
 import { tmpdir } from "node:os";
 import type { AggregatorResult, Observation } from "@titan-design/style-analyzer";
 import type { CodeCorpus } from "@codewatch/core";
+import type { FilterLanguage } from "@titan-design/code-parser";
 
 const FIXTURE_FILES: Record<string, string> = {
   "src/index.ts": [
@@ -25,7 +26,7 @@ const FIXTURE_FILES: Record<string, string> = {
   "lib/legacy.js": "module.exports = 1;",
 };
 
-function fixtureCorpus(languages: string[], parser: typeof import("@titan-design/code-parser")): CodeCorpus {
+function fixtureCorpus(languages: FilterLanguage[], parser: typeof import("@titan-design/code-parser")): CodeCorpus {
   const files = Object.entries(FIXTURE_FILES)
     .filter(([filePath]) => parser.shouldIncludeFile(filePath, languages))
     .map(([filePath, content]) => ({

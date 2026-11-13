@@ -22,8 +22,7 @@ describe("resolveLanguages", () => {
 });
 
 describe("default languages against the parser's file filter", () => {
-  it("admit TypeScript files, unlike the old short-code defaults", () => {
+  it("admit TypeScript files", () => {
     expect(shouldIncludeFile("src/index.ts", DEFAULT_LANGUAGES)).toBe(true);
-    expect(shouldIncludeFile("src/index.ts", ["ts", "js"])).toBe(false);
   });
 });
