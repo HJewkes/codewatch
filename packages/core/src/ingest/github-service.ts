@@ -7,7 +7,11 @@ import type {
   PullRequestFile,
   ReviewComment,
 } from "@titan-design/style-analyzer";
-import { shouldIncludeFile, getLanguageFromPath } from "@titan-design/code-parser";
+import {
+  shouldIncludeFile,
+  getLanguageFromPath,
+  type FilterLanguage,
+} from "@titan-design/code-parser";
 import { FileCache } from "./cache.js";
 
 function splitRepo(fullName: string): { owner: string; repo: string } {
@@ -15,13 +19,21 @@ function splitRepo(fullName: string): { owner: string; repo: string } {
   return { owner, repo };
 }
 
+const FILTER_LANGUAGES: readonly string[] = ["typescript", "python"] satisfies FilterLanguage[];
+
+function toFilterLanguages(languages: readonly string[]): FilterLanguage[] {
+  return languages.filter((l): l is FilterLanguage => FILTER_LANGUAGES.includes(l));
+}
+
 export class GitHubService {
   private octokit: Octokit;
   private config: IngestConfig;
   private cache: FileCache | null;
+  private languages: FilterLanguage[];
 
   constructor(config: IngestConfig) {
     this.config = config;
+    this.languages = toFilterLanguages(config.languages);
     this.octokit = new Octokit({ auth: config.githubToken });
     this.cache = config.cacheDir ? new FileCache(config.cacheDir) : null;
   }
@@ -138,7 +150,7 @@ export class GitHubService {
     const files = data.files ?? [];
     return files
       .filter((f: Record<string, unknown>) =>
-        shouldIncludeFile(f.filename as string, this.config.languages),
+        shouldIncludeFile(f.filename as string, this.languages),
       )
       .map((f: Record<string, unknown>) => ({
         filename: f.filename as string,
@@ -232,7 +244,7 @@ export class GitHubService {
 
     return response.data
       .filter((f: Record<string, unknown>) =>
-        shouldIncludeFile(f.filename as string, this.config.languages),
+        shouldIncludeFile(f.filename as string, this.languages),
       )
       .map((f: Record<string, unknown>) => ({
         filename: f.filename as string,
