@@ -66,8 +66,8 @@ importers:
         specifier: ^0.5.0
         version: 0.5.0
       '@titan-design/hitl':
-        specifier: ^0.10.0
-        version: 0.10.0(zod@4.3.6)
+        specifier: ^0.10.1
+        version: 0.10.1(zod@4.3.6)
       '@titan-design/store-sqlite':
         specifier: ^0.5.0
         version: 0.5.0
@@ -81,8 +81,8 @@ importers:
         specifier: ^0.4.2
         version: 0.4.2(zod@4.3.6)
       '@titan-design/workflow':
-        specifier: ^0.14.0
-        version: 0.14.0(@anthropic-ai/sdk@0.128.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(zod@4.3.6)
+        specifier: ^0.15.0
+        version: 0.15.0(@anthropic-ai/sdk@0.128.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(zod@4.3.6)
       chalk:
         specifier: ^5.6.2
         version: 5.6.2
@@ -984,8 +984,8 @@ packages:
     peerDependencies:
       zod: ^4.0.0
 
-  '@titan-design/authority@0.6.0':
-    resolution: {integrity: sha512-31Qp25TFTfPyUJzieWKROsabT16ES04mY0szBcKHNU+h0Y8DfQwl+cuuMkrrS0SOYTdoYLbzpVcDhzfaMpzPXg==}
+  '@titan-design/authority@0.7.0':
+    resolution: {integrity: sha512-Ycp5Hw7qQXuZIqlWQM/wmnzuysS91rubp1vIDWGwP+3qfEUrJ3nB4D6d7bbxwxkBND49amobR2xKnimSNPnUOw==}
     engines: {node: '>=20'}
     peerDependencies:
       zod: ^4.0.0
@@ -1020,8 +1020,8 @@ packages:
     engines: {node: '>=20'}
     hasBin: true
 
-  '@titan-design/hitl@0.10.0':
-    resolution: {integrity: sha512-Wi1nsw8cYZhsPK3PRPBoZ1xlfLkhnFSEbhoOh5myX/MyrnoywDRFscizTYxMeh5vuDfhGQ7d82lpJcYZfJCh0A==}
+  '@titan-design/hitl@0.10.1':
+    resolution: {integrity: sha512-Qw4TF3wtkejIvM1tUAqH8A7M8fb9+IxnPyKOa109zX7ULIPpUNlNyl/HZ4DECyWA7NZ2yYb2IkzKJwVF+tBm/w==}
     engines: {node: '>=20'}
     peerDependencies:
       zod: ^4.0.0
@@ -1063,8 +1063,8 @@ packages:
     peerDependencies:
       zod: ^4.0.0
 
-  '@titan-design/workflow@0.14.0':
-    resolution: {integrity: sha512-eCf1yPLqpJHt2B0dYjYK05OdYU8qfrRM+vvxf0Rvlq9I9jJ2EWvc2UiDE1nB62F0en/J9UEcckTjwNHB+ZVYkg==}
+  '@titan-design/workflow@0.15.0':
+    resolution: {integrity: sha512-2lxzmik35ADkmoNDsEii6pYN7UnnAmFTdNyPbsbwKbxUpiOTfyetz3vIZk0zYoNm/MFJ7xnIcnHJoAuLS5qvxg==}
     engines: {node: '>=20'}
     peerDependencies:
       zod: ^4.0.0
@@ -3195,7 +3195,7 @@ snapshots:
       - '@anthropic-ai/sdk'
       - '@modelcontextprotocol/sdk'
 
-  '@titan-design/authority@0.6.0(zod@4.3.6)':
+  '@titan-design/authority@0.7.0(zod@4.3.6)':
     dependencies:
       zod: 4.3.6
 
@@ -3229,9 +3229,9 @@ snapshots:
 
   '@titan-design/fix-proof@0.9.0': {}
 
-  '@titan-design/hitl@0.10.0(zod@4.3.6)':
+  '@titan-design/hitl@0.10.1(zod@4.3.6)':
     dependencies:
-      '@titan-design/authority': 0.6.0(zod@4.3.6)
+      '@titan-design/authority': 0.7.0(zod@4.3.6)
       '@titan-design/evidence': 0.5.0
       '@titan-design/store-sqlite': 0.5.0
       zod: 4.3.6
@@ -3273,12 +3273,12 @@ snapshots:
       handlebars: 4.7.8
       zod: 4.3.6
 
-  '@titan-design/workflow@0.14.0(@anthropic-ai/sdk@0.128.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(zod@4.3.6)':
+  '@titan-design/workflow@0.15.0(@anthropic-ai/sdk@0.128.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(zod@4.3.6)':
     dependencies:
       '@titan-design/agent': 0.7.0(@anthropic-ai/sdk@0.128.0(zod@4.3.6))(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))(zod@4.3.6)
       '@titan-design/agent-protocol': 0.10.0(zod@4.3.6)
-      '@titan-design/authority': 0.6.0(zod@4.3.6)
-      '@titan-design/hitl': 0.10.0(zod@4.3.6)
+      '@titan-design/authority': 0.7.0(zod@4.3.6)
+      '@titan-design/hitl': 0.10.1(zod@4.3.6)
       '@titan-design/rpc-protocol': 0.4.0
       '@titan-design/store-sqlite': 0.5.0
       zod: 4.3.6
