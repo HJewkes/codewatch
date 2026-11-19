@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { GraphNode } from "@titan-design/code-graph";
-import { computeCompoundLayout, type GroupOf } from "../layout.js";
+import { computeCompoundLayout, type GroupOf } from "@titan-design/graph-layout";
 import type { LaidOutNode, RenderInput } from "../types.js";
 
 // Group a file under its package (`pkg:<first-segment>`) and, for the drill-down

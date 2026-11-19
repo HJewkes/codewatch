@@ -5,7 +5,7 @@ import {
   computeCompoundLayout,
   FOCUS_LAYOUT_OPTIONS,
   type GroupOf,
-} from "./layout.js";
+} from "@titan-design/graph-layout";
 import { computeOverlays, type OverlayResult } from "./overlay.js";
 import { inlineStyles } from "./template-styles.js";
 import { clientScript } from "./template-script.js";

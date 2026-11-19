@@ -1,5 +1,5 @@
 import type { LayoutResult } from "./types.js";
-import type { GroupOf } from "./layout.js";
+import type { GroupOf } from "@titan-design/graph-layout";
 import type { CytoscapeNodeData } from "./template-cy-data.js";
 
 // The compound "parent" boxes the dependency graph nests nodes inside: package
