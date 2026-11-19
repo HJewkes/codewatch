@@ -1,5 +1,5 @@
 import type { LaidOutNode, LayoutResult, RenderInput } from "./types.js";
-import type { GroupOf } from "./layout.js";
+import type { GroupOf } from "@titan-design/graph-layout";
 import type { DiffSummary, ViolationsByNode } from "./template-violations.js";
 import {
   edgeRoutingFor,

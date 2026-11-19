@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import { builtinModules } from "node:module";
 import { describe, it, expect } from "vitest";
 
 const cliRoot = join(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -14,6 +15,26 @@ function builtJsFiles(dir: string): string[] {
     if (entry.isDirectory()) return builtJsFiles(path);
     return entry.name.endsWith(".js") ? [path] : [];
   });
+}
+
+const BARE_IMPORT =
+  /^(?:import|export)\s[^"'`;]*?from\s*["']([^"'./][^"']*)["']|^import\s*["']([^"'./][^"']*)["']|\bimport\(\s*["']([^"'./][^"']*)["']\s*\)/gm;
+
+function packageName(specifier: string): string {
+  const [scopeOrName, second] = specifier.split("/");
+  return scopeOrName.startsWith("@") ? `${scopeOrName}/${second}` : scopeOrName;
+}
+
+function externalPackagesImported(): Set<string> {
+  const names = new Set<string>();
+  for (const file of builtJsFiles(distDir)) {
+    for (const match of readFileSync(file, "utf8").matchAll(BARE_IMPORT)) {
+      const specifier = match[1] ?? match[2] ?? match[3];
+      if (specifier.startsWith("node:") || builtinModules.includes(specifier)) continue;
+      names.add(packageName(specifier));
+    }
+  }
+  return names;
 }
 
 function readManifest(): Record<string, Record<string, string> | undefined> {
@@ -52,5 +73,12 @@ describe("published @codewatch/cli bundle", () => {
     const deps = Object.keys(readManifest().dependencies ?? {});
 
     expect(deps.filter((name) => name.startsWith("@codewatch/"))).toEqual([]);
+  });
+
+  it("declares every external package the bundle imports as a dependency", () => {
+    const declared = new Set(Object.keys(readManifest().dependencies ?? {}));
+    const missing = [...externalPackagesImported()].filter((name) => !declared.has(name));
+
+    expect(missing).toEqual([]);
   });
 });
