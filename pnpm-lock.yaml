@@ -65,6 +65,9 @@ importers:
       '@titan-design/evidence':
         specifier: ^0.5.0
         version: 0.5.0
+      '@titan-design/graph-layout':
+        specifier: ^0.2.0
+        version: 0.2.0(zod@4.3.6)
       '@titan-design/hitl':
         specifier: ^0.10.1
         version: 0.10.1(zod@4.3.6)
@@ -98,9 +101,6 @@ importers:
       cytoscape-cose-bilkent:
         specifier: ^4.1.0
         version: 4.1.0(cytoscape@3.33.3)
-      elkjs:
-        specifier: ^0.10.0
-        version: 0.10.2
       layout-base:
         specifier: ^1.0.2
         version: 1.0.2
