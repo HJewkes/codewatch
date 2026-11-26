@@ -9,7 +9,8 @@ Coverage comes from `coverage json` output: a file given with `--coverage-json`,
 this script makes by running pytest under the pinned coverage.py. Test files are not
 checked. Writes `findings.jsonl` rows with signal `diff-uncovered`. When the baseline
 or the coverage report cannot be read, it writes no rows and exits 1, with `outcome`
-`no-baseline` or `no-coverage` in the summary line.
+`no-baseline` or `no-coverage` in the summary line. A pytest run in which no test passed,
+or a report in which only what importing runs is covered, is also `no-coverage`.
 
 Line coverage cannot tell a one-line function's body from its `def`, which runs at
 import, so such functions always count as covered.
@@ -27,6 +28,7 @@ import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from xml.etree import ElementTree
 
 from findings.py_symbols import FunctionSpan, functions, source_files
 from findings.rows import finding_row, print_summary, write_findings
@@ -36,6 +38,8 @@ DEFAULT_COVERAGE = "/opt/codewatch-a1/bin/coverage"
 # The tools' own output goes to the process's stderr, keeping stdout for the summary line.
 STDERR_FD = 2
 TESTS_RAN = (0, 1)
+SOME_TESTS_FAILED = 1
+NOT_PASSED = ("failure", "error", "skipped")
 # The audit stage reads the hidden repository through these; the agent's tests never see them.
 GIT_ENV_PREFIXES = ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG_", "GIT_AUTHOR_", "GIT_COMMITTER_")
 AGENT_VENVS = (".venv", "venv")
@@ -150,15 +154,17 @@ def run_coverage(workspace: Path, coverage_bin: str, scratch: Path) -> Path | No
     so `PYTHONPATH` is the workspace, then a hook that appends the agent's virtualenv
     packages; that also keeps the stage's own packages out. The hidden repository's git env
     is dropped, so the tests run as they do in the solve.
-    Only pytest exits 0 (passed) and 1 (some tests failed) mean the tests ran. A collection
-    error, internal error, usage error or empty collection returns no report, as does a
-    coverage binary that cannot start.
+    Only pytest exits 0 (passed) and 1 (some tests failed) mean the tests ran, and exit 1
+    only when pytest's JUnit report shows a test that passed. A collection error, internal
+    error, usage error or empty collection returns no report, as does a coverage binary that
+    cannot start.
     """
-    rcfile, report = _fresh_scratch(scratch)
+    rcfile, report, junit = _fresh_scratch(scratch)
     rc = f"--rcfile={rcfile}"
     env = agent_test_env(workspace, scratch)
+    pytest = ["-m", "pytest", "-q", "-p", "no:cacheprovider", f"--junitxml={junit}"]
     steps = [
-        ([coverage_bin, "run", rc, "-m", "pytest", "-q", "-p", "no:cacheprovider"], TESTS_RAN),
+        ([coverage_bin, "run", rc, *pytest], TESTS_RAN),
         ([coverage_bin, "combine", rc], (0,)),
         ([coverage_bin, "json", rc, "-o", str(report)], (0,)),
     ]
@@ -167,9 +173,20 @@ def run_coverage(workspace: Path, coverage_bin: str, scratch: Path) -> Path | No
             ran = subprocess.run(command, cwd=workspace, env=env, stdout=STDERR_FD, check=False)
             if ran.returncode not in accepted:
                 return None
+            if accepted == TESTS_RAN and ran.returncode == SOME_TESTS_FAILED and not _a_test_passed(junit):
+                return None
     except OSError:
         return None
     return report if report.is_file() else None
+
+
+def _a_test_passed(junit: Path) -> bool:
+    """False also when the report is missing or does not parse: nothing shows a test passed."""
+    try:
+        cases = ElementTree.parse(junit).iter("testcase")
+        return any(all(case.find(tag) is None for tag in NOT_PASSED) for case in cases)
+    except (OSError, ElementTree.ParseError):
+        return False
 
 
 def agent_test_env(workspace: Path, scratch: Path) -> dict[str, str]:
@@ -195,16 +212,18 @@ def agent_site_hook(root: Path, scratch: Path) -> Path:
     return hook
 
 
-def _fresh_scratch(scratch: Path) -> tuple[Path, Path]:
-    """Removes an earlier run's data and report, and writes the run's own rcfile."""
+def _fresh_scratch(scratch: Path) -> tuple[Path, Path, Path]:
+    """Removes an earlier run's data and reports, and writes the run's own rcfile."""
     scratch.mkdir(parents=True, exist_ok=True)
     for old in scratch.glob(".coverage*"):
         old.unlink()
     report = scratch / "coverage.json"
     report.unlink(missing_ok=True)
+    junit = scratch / "junit.xml"
+    junit.unlink(missing_ok=True)
     rcfile = scratch / "coveragerc"
     rcfile.write_text(f"[run]\ndata_file = {scratch / '.coverage'}\nparallel = true\npatch = subprocess\n")
-    return rcfile, report
+    return rcfile, report, junit
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -226,8 +245,9 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _trusted_coverage(args: argparse.Namespace, workspace: Path, out: Path) -> dict[str, FileCoverage] | None:
-    """The report, or None when there is none, it does not parse, or it measured none of
-    the workspace's source files (a run that imported nothing, or paths from elsewhere)."""
+    """The report, or None when there is none, it does not parse, it measured none of the
+    workspace's source files (a run that imported nothing, or paths from elsewhere), or it
+    covers only what importing those files runs."""
     if args.coverage_json:
         report = Path(args.coverage_json) if Path(args.coverage_json).is_file() else None
     else:
@@ -238,7 +258,20 @@ def _trusted_coverage(args: argparse.Namespace, workspace: Path, out: Path) -> d
         coverage = read_coverage_json(report, workspace)
     except (ValueError, AttributeError):
         return None
-    return coverage if coverage.keys() & set(source_files(workspace)) else None
+    measured = coverage.keys() & set(source_files(workspace))
+    return coverage if measured and not _only_imports_ran(workspace, measured, coverage) else None
+
+
+def _only_imports_ran(workspace: Path, measured: set[str], coverage: dict[str, FileCoverage]) -> bool:
+    """Whether the measured files have function bodies and none of them ran. A one-line
+    function says nothing either way: its body's line also runs at import."""
+    ran = [
+        bool(coverage[path].executed.intersection(range(span.body_start, span.end + 1)))
+        for path in measured
+        for span in functions((workspace / path).read_text(errors="replace"))
+        if span.body_start > span.start
+    ]
+    return bool(ran) and not any(ran)
 
 
 def _unknown(out: Path, outcome: str, reason: str) -> int:
