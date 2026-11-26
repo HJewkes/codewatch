@@ -44,8 +44,8 @@ export function clientScript(maps: ClientChipMaps): string {
   // class toggles — selecting a node and deselecting no longer strips it.
   if (useElkPreset) assignPackageColors(data);
   function pkgOfId(id) {
-    const m = /^packages\\/([^/]+)/.exec(id);
-    return m ? m[1] : (id.split("/")[0] || id);
+    const m = /^(?:packages\\/([^/]+)|((?:products|apps)\\/[^/]+)\\/)/.exec(id);
+    return m ? m[1] || m[2] : (id.split("/")[0] || id);
   }
   function assignPackageColors(data) {
     // Validated dark categorical palette (CVD-safe fixed order; see the dataviz

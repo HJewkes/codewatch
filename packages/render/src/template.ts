@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 import {
   computeLayout,
   computeCompoundLayout,
+  packageOf,
   FOCUS_LAYOUT_OPTIONS,
   type GroupOf,
 } from "@titan-design/graph-layout";
@@ -36,11 +37,11 @@ const packageGroupOf: GroupOf = (node) => {
   return pkg ? [pkg] : [];
 };
 
-// The directory that owns a node's package (`packages/<name>` in a monorepo,
-// else the first path segment) — the boundary subdirectory boxes nest under.
+// The directory that owns a node's package, which subdirectory boxes nest under.
+// `packageOf` drops the `packages/` prefix and keeps `apps/` and `products/`.
 function packageDirOf(id: string): string {
-  const monorepo = /^(packages\/[^/]+)/.exec(id);
-  return monorepo ? monorepo[1] : id.split("/")[0];
+  const pkg = packageOf(id);
+  return id.startsWith(`packages/${pkg}`) ? `packages/${pkg}` : pkg;
 }
 
 function dirOfId(id: string): string {

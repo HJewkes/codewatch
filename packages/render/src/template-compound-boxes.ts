@@ -1,5 +1,5 @@
 import type { LayoutResult } from "./types.js";
-import type { GroupOf } from "@titan-design/graph-layout";
+import { packageOf, type GroupOf } from "@titan-design/graph-layout";
 import type { CytoscapeNodeData } from "./template-cy-data.js";
 
 // The compound "parent" boxes the dependency graph nests nodes inside: package
@@ -9,14 +9,12 @@ import type { CytoscapeNodeData } from "./template-cy-data.js";
 
 export const EXTERNAL_PARENT_ID = "pkg:external";
 
-// The package a file belongs to. In a `packages/<name>/…` monorepo the package
-// is the second segment (every file's first segment is just `packages`), so nest
-// files into per-package boxes rather than one giant `packages` box. Mirrors the
-// client's `pkgOfId` so compound parents and package colors agree.
+// The package a file belongs to, so monorepo members get per-package boxes rather
+// than one giant `packages` or `apps` box. The client's `pkgOfId` repeats the
+// `packageOf` rule so files are colored by the same grouping that boxes them.
 function packageFromInternalId(id: string): string | undefined {
-  const monorepo = /^packages\/([^/]+)/.exec(id);
-  const seg = monorepo ? monorepo[1] : id.split("/")[0];
-  return seg ? `pkg:${seg}` : undefined;
+  const pkg = packageOf(id);
+  return pkg ? `pkg:${pkg}` : undefined;
 }
 
 export function packageIdFor(node: { id: string; kind: string }): string | undefined {
