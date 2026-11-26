@@ -477,8 +477,10 @@ line for `stages.json`. They call the image's pinned tools by full path under
   git revision (for a PR, its merge-base with main). It runs pytest under coverage.py, or
   reads existing `coverage json` output. An unreadable baseline or a missing report is
   unknown, not a finding: it writes no rows and exits 1. So is a pytest run that did not
-  run the tests (exit 2 to 5, such as a collection error) or a report that measured none
-  of the workspace's files. The image's coverage and pytest live in their own venv, which
+  run the tests (exit 2 to 5, such as a collection error), a run where tests failed and
+  pytest's JUnit report shows none that passed, a report that measured none of the
+  workspace's files, or one in which no function body ran (only what importing runs;
+  one-line functions are not counted). The image's coverage and pytest live in their own venv, which
   lacks the workspace's third-party dependencies. A scratch `sitecustomize` on `PYTHONPATH`
   appends the workspace virtualenv's packages (`.venv` or `venv`, the running interpreter's
   `lib/pythonX.Y/site-packages` only) after the tools venv's own, so the pinned coverage.py

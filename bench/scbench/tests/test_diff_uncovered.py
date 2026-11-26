@@ -59,6 +59,11 @@ def test_discount():
     assert discount(10) == 9
 '''
 
+PASSED = '<testcase name="a"/>'
+FAILED = '<testcase name="b"><failure/></testcase>'
+ERRORED = '<testcase name="c"><error/></testcase>'
+SKIPPED = '<testcase name="d"><skipped/></testcase>'
+
 
 def write(root: Path, files: dict[str, str]) -> None:
     for name, text in files.items():
@@ -168,19 +173,57 @@ class DiffUncoveredTests(unittest.TestCase):
                         self.assertEqual(summary, {"outcome": outcome, "items_in": 0, "items_out": 0})
                         self.assertEqual(self.out.read_text(), "")
 
-    def fake_coverage(self, pytest_exit: int) -> str:
-        """A coverage binary whose pytest run exits `pytest_exit` and whose json step writes a
-        report covering lines 1-3 of shop/pricing.py, as a collection error would still do."""
+    def fake_coverage(self, pytest_exit: int, testcases: str | None = PASSED + FAILED) -> str:
+        """A coverage binary whose pytest run exits `pytest_exit`, writing `testcases` as its
+        JUnit report unless None, and whose json step writes a report covering lines 1-3 of
+        shop/pricing.py, as a collection error would still do."""
         report = json.dumps({"files": {"shop/pricing.py": {"executed_lines": [1, 3], "missing_lines": [7, 8, 9]}}})
+        junit = "" if testcases is None else (
+            'for arg in "$@"; do case "$arg" in --junitxml=*) '
+            f"printf '%s' '<testsuites><testsuite>{testcases}</testsuite></testsuites>' "
+            '> "${arg#--junitxml=}";; esac; done; '
+        )
         script = self.root / f"coverage-{pytest_exit}"
         script.write_text(
-            f'#!/bin/sh\nif [ "$1" = run ]; then exit {pytest_exit}; fi\n'
+            f'#!/bin/sh\nif [ "$1" = run ]; then {junit}exit {pytest_exit}; fi\n'
             'if [ "$1" = combine ]; then exit 0; fi\n'
             'while [ $# -gt 0 ]; do [ "$1" = -o ] && out="$2"; shift; done\n'
             f"printf '%s' '{report}' > \"$out\"\n"
         )
         script.chmod(0o755)
         return str(script)
+
+    def assert_no_coverage(self, *extra: str) -> None:
+        summary = self.run_main("--base-dir", str(self.base), *extra, code=1)
+
+        self.assertEqual(summary, {"outcome": "no-coverage", "items_in": 0, "items_out": 0})
+        self.assertEqual(self.out.read_text(), "")
+
+    def test_a_run_where_no_collected_test_passed_is_not_coverage(self):
+        cases = {"all failed": FAILED + FAILED, "failed and errored": FAILED + ERRORED,
+                 "failed and skipped": FAILED + SKIPPED}
+        for name, testcases in cases.items():
+            with self.subTest(name):
+                self.assert_no_coverage("--coverage", self.fake_coverage(1, testcases))
+
+    def test_failed_tests_without_a_readable_test_report_are_not_coverage(self):
+        for testcases in (None, "<testcase>"):
+            with self.subTest(testcases=testcases):
+                self.assert_no_coverage("--coverage", self.fake_coverage(1, testcases))
+
+    def test_an_earlier_runs_test_report_is_not_reused(self):
+        self.run_main("--base-dir", str(self.base), "--coverage", self.fake_coverage(1))
+
+        self.assert_no_coverage("--coverage", self.fake_coverage(1, None))
+
+    def test_a_report_covering_only_what_importing_runs_is_not_coverage(self):
+        write(self.workspace, {"shop/tax.py": "def rate(): return 0.2\n"})
+        files = {"shop/pricing.py": {"executed_lines": [1, 6, 12], "missing_lines": [3, 7, 8, 9, 13]},
+                 "shop/tax.py": {"executed_lines": [1], "missing_lines": []}}
+        report = self.root / "coverage.json"
+        report.write_text(json.dumps({"files": files}))
+
+        self.assert_no_coverage("--coverage-json", str(report))
 
     def test_only_a_pytest_run_whose_tests_ran_counts_as_coverage(self):
         expected = {0: "ok", 1: "ok", 2: "no-coverage", 3: "no-coverage", 4: "no-coverage", 5: "no-coverage"}
@@ -302,6 +345,13 @@ class DiffUncoveredTests(unittest.TestCase):
 
         self.assertEqual(summary["outcome"], "no-coverage")
         self.assertEqual(self.out.read_text(), "")
+
+    @unittest.skipUnless(Path(PINNED_COVERAGE).exists(), "needs the pinned coverage.py (A1 image or SCBENCH_COVERAGE)")
+    def test_a_real_run_where_every_test_fails_reports_no_coverage(self):
+        failing = "from shop.pricing import discount\n\n\ndef test_discount():\n    assert discount(10) == 0\n"
+        write(self.workspace, {"tests/test_pricing.py": failing})
+
+        self.assert_no_coverage("--coverage", PINNED_COVERAGE)
 
 
 if __name__ == "__main__":
